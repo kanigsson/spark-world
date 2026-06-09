@@ -1,0 +1,34 @@
+name = "git_view"
+description = "Git-history viewer: two embedded tui_pager engines (commit list + diff) on the tui_term driver"
+version = "0.1.0-dev"
+
+authors = ["kanig"]
+maintainers = ["kanig <kanig@adacore.com>"]
+maintainers-logins = ["kanig"]
+licenses = "Apache-2.0"
+
+executables = ["git_view"]
+project-files = ["git_view.gpr"]
+
+[[depends-on]]
+tui_pager = "*"
+[[depends-on]]
+tui_term = "*"
+[[depends-on]]
+tui_text = "*"
+
+# No Alire index in this workspace; pin the sibling crates by path.
+[[pins]]
+tui_core = { path = "../core" }
+[[pins]]
+tui_surface = { path = "../surface" }
+[[pins]]
+tui_input = { path = "../input" }
+[[pins]]
+tui_width = { path = "../width" }
+[[pins]]
+tui_text = { path = "../text" }
+[[pins]]
+tui_pager = { path = "../pager" }
+[[pins]]
+tui_term = { path = "../term" }
