@@ -1,7 +1,6 @@
-with System;
-with Interfaces.C;
 with Ada.Strings.Unbounded;          use Ada.Strings.Unbounded;
 with Ada.Strings.UTF_Encoding.Wide_Wide_Strings;
+with Tui.Term.Sys;
 
 package body Tui.Term.Output is
 
@@ -23,29 +22,20 @@ package body Tui.Term.Output is
    function Color_Depth_Setting return Color_Depth is (Depth);
 
    ---------------------------------------------------------------------------
-   --  Raw write (the single syscall in this package)
+   --  Raw write (the single syscall in this package, via the proved shim)
    ---------------------------------------------------------------------------
 
-   function C_Write
-     (FD    : Interfaces.C.int;
-      Buf   : System.Address;
-      Count : Interfaces.C.size_t) return Interfaces.C.long
-   with Import, Convention => C, External_Name => "write";
-
    procedure Put (Text : String) is
-      use type Interfaces.C.long;
       Offset    : Natural := 0;
       Remaining : Natural := Text'Length;
-      N         : Interfaces.C.long;
+      Written   : Natural;
    begin
       while Remaining > 0 loop
-         N := C_Write
-           (Interfaces.C.int (Stdout_FD),
-            Text (Text'First + Offset)'Address,
-            Interfaces.C.size_t (Remaining));
-         exit when N <= 0;   --  error or closed pipe: give up rather than spin
-         Offset    := Offset    + Natural (N);
-         Remaining := Remaining - Natural (N);
+         Tui.Term.Sys.Write
+           (Stdout_FD, Text (Text'First + Offset .. Text'Last), Written);
+         exit when Written = 0;   --  error or closed pipe: give up, don't spin
+         Offset    := Offset    + Written;
+         Remaining := Remaining - Written;
       end loop;
    end Put;
 

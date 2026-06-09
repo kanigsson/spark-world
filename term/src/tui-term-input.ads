@@ -19,7 +19,7 @@
 
 with Tui.Input;
 
-package Tui.Term.Input is
+package Tui.Term.Input with SPARK_Mode => On is
 
    --  How long (ms) to wait for an escape sequence's continuation before
    --  deciding a pending ESC was the Escape key. Long enough for a paste/keymap
