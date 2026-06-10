@@ -129,6 +129,10 @@ cd tests && gprbuild -P tests.gpr -XMODE=debug && python3 run_tests.py
 cd bench && gprbuild -P bench.gpr && python3 run_bench.py   # needs libz.a
 ```
 
+## Authorship
+
+The code in this library was written with a coding agent.
+
 ## Scope and limitations
 
 - **One-shot only.** Input and output are whole buffers; there is no
