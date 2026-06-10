@@ -1,0 +1,40 @@
+--  The library crate: pure SPARK, no I/O, no OS, no heap. A one-shot
+--  DEFLATE (RFC 1951) decoder with zlib (RFC 1950) and gzip (RFC 1952)
+--  container parsing, aimed at the firmware-update slot: semi-hostile
+--  bytes, no sandbox, a crash is a brick.
+--
+--  Standalone: unlike the TUI crates this one does not depend on tui_core
+--  (different domain, different root package), but it follows the same
+--  build-mode convention so it feels familiar.
+
+library project Inflate is
+
+   --  "debug" keeps -gnata (contracts run as assertions) and -O0; "release"
+   --  drops assertions and optimises — the SPARK contracts are proved
+   --  statically by gnatprove, so they need not run at execution time.
+   --  Select with `-XMODE=debug` on the gprbuild command line.
+   type Mode_Type is ("debug", "release");
+   Mode : Mode_Type := external ("MODE", "release");
+
+   for Library_Name use "inflate";
+   for Library_Kind use "static";
+   for Source_Dirs use ("src");
+   for Object_Dir use "obj";
+   for Library_Dir use "lib";
+
+   package Compiler is
+      case Mode is
+         when "debug" =>
+            for Default_Switches ("Ada") use
+              ("-gnat2012", "-gnatwa", "-gnata", "-g", "-O0");
+         when "release" =>
+            for Default_Switches ("Ada") use
+              ("-gnat2012", "-gnatwa", "-O2", "-gnatp");
+      end case;
+   end Compiler;
+
+   package Prove is
+      for Proof_Switches ("Ada") use ("--level=2", "--report=statistics");
+   end Prove;
+
+end Inflate;

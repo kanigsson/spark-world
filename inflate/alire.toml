@@ -1,0 +1,13 @@
+name = "inflate"
+description = "Proved DEFLATE/zlib/gzip decoder (SPARK, no heap, one-shot, AoRTE)"
+version = "0.1.0-dev"
+
+authors = ["kanig"]
+maintainers = ["kanig <kanig@adacore.com>"]
+maintainers-logins = ["kanig"]
+licenses = "Apache-2.0"
+
+project-files = ["inflate.gpr"]
+
+[build-switches]
+"*".contracts = "Yes"
