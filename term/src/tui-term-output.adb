@@ -1,10 +1,9 @@
-with Ada.Strings.Unbounded;          use Ada.Strings.Unbounded;
-with Ada.Strings.UTF_Encoding.Wide_Wide_Strings;
 with Tui.Term.Sys;
 
-package body Tui.Term.Output is
-
-   package Enc renames Ada.Strings.UTF_Encoding.Wide_Wide_Strings;
+package body Tui.Term.Output with
+  SPARK_Mode    => On,
+  Refined_State => (Color_Config => Depth)
+is
 
    ESC : constant Character := Character'Val (16#1B#);
 
@@ -31,6 +30,8 @@ package body Tui.Term.Output is
       Written   : Natural;
    begin
       while Remaining > 0 loop
+         pragma Loop_Invariant (Offset + Remaining = Text'Length);
+         pragma Loop_Variant (Decreases => Remaining);
          Tui.Term.Sys.Write
            (Stdout_FD, Text (Text'First + Offset .. Text'Last), Written);
          exit when Written = 0;   --  error or closed pipe: give up, don't spin
@@ -43,15 +44,107 @@ package body Tui.Term.Output is
    --  Small formatting helpers
    ---------------------------------------------------------------------------
 
-   --  A non-negative integer with no leading space (Integer'Image inserts one).
+   function Digit (D : Natural) return Character is
+     (Character'Val (Character'Pos ('0') + D))
+   with Pre => D <= 9;
+
+   --  Decimal image with no leading space, length-bounded so every emitted
+   --  fragment has a proved size. Four digits cover the largest values that
+   --  reach here: surface extents and colour components.
+   function Img (N : Natural) return String
+   with Pre  => N <= 9_999,
+        Post => Img'Result'First = 1
+                and then Img'Result'Length =
+                  (if N < 10 then 1
+                   elsif N < 100 then 2
+                   elsif N < 1_000 then 3
+                   else 4);
+
    function Img (N : Natural) return String is
-      S : constant String := Natural'Image (N);
    begin
-      return S (S'First + 1 .. S'Last);
+      if N < 10 then
+         return (1 => Digit (N));
+      elsif N < 100 then
+         return (Digit (N / 10), Digit (N mod 10));
+      elsif N < 1_000 then
+         return (Digit (N / 100), Digit ((N / 10) mod 10), Digit (N mod 10));
+      else
+         return (Digit (N / 1_000), Digit ((N / 100) mod 10),
+                 Digit ((N / 10) mod 10), Digit (N mod 10));
+      end if;
    end Img;
 
+   --  Encode one code point as UTF-8. The standard one-to-four-byte forms
+   --  cover the whole Unicode range; a code point beyond it (the glyph type
+   --  reaches further) becomes the replacement character rather than bytes
+   --  no terminal accepts.
+   function Utf8 (G : Wide_Wide_Character) return String
+   with Post => Utf8'Result'First = 1 and then Utf8'Result'Length in 1 .. 4;
+
    function Utf8 (G : Wide_Wide_Character) return String is
-     (Enc.Encode ((1 => G)));
+      Replacement : constant := 16#FFFD#;
+
+      function B (V : Natural) return Character is (Character'Val (V))
+      with Pre => V <= 255;
+
+      P : constant Natural :=
+        (if Wide_Wide_Character'Pos (G) <= 16#10_FFFF#
+         then Wide_Wide_Character'Pos (G)
+         else Replacement);
+   begin
+      if P < 16#80# then
+         return (1 => B (P));
+      elsif P < 16#800# then
+         return (B (16#C0# + P / 2**6),
+                 B (16#80# + P mod 2**6));
+      elsif P < 16#1_0000# then
+         return (B (16#E0# + P / 2**12),
+                 B (16#80# + (P / 2**6) mod 2**6),
+                 B (16#80# + P mod 2**6));
+      else
+         return (B (16#F0# + P / 2**18),
+                 B (16#80# + (P / 2**12) mod 2**6),
+                 B (16#80# + (P / 2**6) mod 2**6),
+                 B (16#80# + P mod 2**6));
+      end if;
+   end Utf8;
+
+   ---------------------------------------------------------------------------
+   --  The staging buffer: frame assembly in fixed memory
+   ---------------------------------------------------------------------------
+
+   --  Escape sequences accumulate here and flush to the write shim whenever
+   --  the next piece might not fit, so a frame of any size streams through
+   --  bounded memory while still going out in large writes.
+
+   Stage_Capacity : constant := 8_192;
+   subtype Stage_Count is Natural range 0 .. Stage_Capacity;
+
+   type Stage is record
+      Len  : Stage_Count := 0;
+      Data : String (1 .. Stage_Capacity) := (others => ' ');
+   end record;
+
+   procedure Flush (B : in out Stage)
+   with Post => B.Len = 0;
+
+   procedure Flush (B : in out Stage) is
+   begin
+      Put (B.Data (1 .. B.Len));
+      B.Len := 0;
+   end Flush;
+
+   procedure Emit (B : in out Stage; Piece : String)
+   with Pre => Piece'Length <= Stage_Capacity;
+
+   procedure Emit (B : in out Stage; Piece : String) is
+   begin
+      if B.Len + Piece'Length > Stage_Capacity then
+         Flush (B);
+      end if;
+      B.Data (B.Len + 1 .. B.Len + Piece'Length) := Piece;
+      B.Len := B.Len + Piece'Length;
+   end Emit;
 
    ---------------------------------------------------------------------------
    --  Colour: a surface keeps full intent; here we downgrade to Depth
@@ -121,27 +214,68 @@ package body Tui.Term.Output is
    end Nearest_16;
 
    --  Quantise one channel to the 6-level cube (0,95,135,175,215,255).
+   function Cube_Level (V : Tui.Surface.Component) return Natural
+   with Post => Cube_Level'Result <= 5;
+
    function Cube_Level (V : Tui.Surface.Component) return Natural is
    begin
-      if V < 48 then return 0;
-      elsif V < 115 then return 1;
-      else return (Natural (V) - 35) / 40;
+      if V < 48 then
+         return 0;
+      elsif V < 115 then
+         return 1;
+      else
+         return (Natural (V) - 35) / 40;
       end if;
    end Cube_Level;
 
    function Nearest_256 (C : RGB_Triple) return Natural is
-     (16 + 36 * Cube_Level (C.R) + 6 * Cube_Level (C.G) + Cube_Level (C.B));
+     (16 + 36 * Cube_Level (C.R) + 6 * Cube_Level (C.G) + Cube_Level (C.B))
+   with Post => Nearest_256'Result <= 255;
 
-   --  SGR fragment selecting a colour, for the given role base codes:
-   --    Foreground => (38, 30, 90);  Background => (48, 40, 100).
-   function Color_SGR
-     (C            : Tui.Surface.Color;
-      Ext, Lo, Hi  : Natural) return String
+   ---------------------------------------------------------------------------
+   --  SGR assembly, in a bounded scratch buffer per cell
+   ---------------------------------------------------------------------------
+
+   --  A cell's SGR parameter list. The worst case is bounded by construction:
+   --  the "0" reset, four two-byte attributes, and two colour fragments of at
+   --  most 17 bytes each (";38;2;255;255;255").
+   SGR_Capacity : constant := 64;
+   subtype SGR_Count is Natural range 0 .. SGR_Capacity;
+
+   type SGR_Params is record
+      Len  : SGR_Count := 0;
+      Data : String (1 .. SGR_Capacity) := (others => ' ');
+   end record;
+
+   function Same (A, B : SGR_Params) return Boolean is
+     (A.Len = B.Len and then A.Data (1 .. A.Len) = B.Data (1 .. B.Len));
+
+   procedure Add (P : in out SGR_Params; Piece : String)
+   with Pre  => Piece'Length <= SGR_Capacity - P.Len,
+        Post => P.Len = P.Len'Old + Piece'Length;
+
+   procedure Add (P : in out SGR_Params; Piece : String) is
+   begin
+      P.Data (P.Len + 1 .. P.Len + Piece'Length) := Piece;
+      P.Len := P.Len + Piece'Length;
+   end Add;
+
+   --  Append the SGR fragment selecting a colour, for the given role base
+   --  codes: Foreground => (38, 30, 90); Background => (48, 40, 100).
+   procedure Add_Color
+     (P           : in out SGR_Params;
+      C           : Tui.Surface.Color;
+      Ext, Lo, Hi : Natural)
+   with Pre  => Ext <= 48 and then Lo <= 40 and then Hi <= 100
+                and then P.Len <= SGR_Capacity - 17,
+        Post => P.Len <= P.Len'Old + 17;
+
+   procedure Add_Color
+     (P           : in out SGR_Params;
+      C           : Tui.Surface.Color;
+      Ext, Lo, Hi : Natural)
    is
       use Tui.Surface;
-
-      function As_16 (Idx : Ansi_16) return String is
-        (if Idx < 8 then ";" & Img (Lo + Idx) else ";" & Img (Hi + (Idx - 8)));
 
       function To_RGB return RGB_Triple is
         (case C.Kind is
@@ -150,54 +284,76 @@ package body Tui.Term.Output is
             when Default => (0, 0, 0));   --  unreachable; Default handled below
    begin
       if C.Kind = Default or else Depth = Monochrome then
-         return "";   --  the leading SGR "0" reset already restored the default
+         return;   --  the leading SGR "0" reset already restored the default
       end if;
 
       case Depth is
          when Monochrome =>
-            return "";
+            null;
          when Basic_16 =>
-            return As_16 (Nearest_16 (To_RGB));
+            declare
+               Idx : constant Ansi_16 := Nearest_16 (To_RGB);
+            begin
+               if Idx < 8 then
+                  Add (P, ";" & Img (Lo + Idx));
+               else
+                  Add (P, ";" & Img (Hi + (Idx - 8)));
+               end if;
+            end;
          when Palette_256 =>
             case C.Kind is
-               when Palette => return ";" & Img (Ext) & ";5;" & Img (Natural (C.Index));
-               when RGB     => return ";" & Img (Ext) & ";5;" & Img (Nearest_256 (To_RGB));
-               when Default => return "";
+               when Palette =>
+                  Add (P, ";" & Img (Ext) & ";5;" & Img (Natural (C.Index)));
+               when RGB =>
+                  Add (P, ";" & Img (Ext) & ";5;" & Img (Nearest_256 (To_RGB)));
+               when Default =>
+                  null;
             end case;
          when Truecolor =>
             case C.Kind is
                when Palette =>
-                  return ";" & Img (Ext) & ";5;" & Img (Natural (C.Index));
+                  Add (P, ";" & Img (Ext) & ";5;" & Img (Natural (C.Index)));
                when RGB =>
-                  return ";" & Img (Ext) & ";2;"
-                    & Img (Natural (C.R)) & ";"
-                    & Img (Natural (C.G)) & ";"
-                    & Img (Natural (C.B));
+                  Add (P, ";" & Img (Ext) & ";2;"
+                       & Img (Natural (C.R)) & ";"
+                       & Img (Natural (C.G)) & ";"
+                       & Img (Natural (C.B)));
                when Default =>
-                  return "";
+                  null;
             end case;
       end case;
-   end Color_SGR;
+   end Add_Color;
 
-   --  A complete, absolute SGR for a cell: always leads with "0" (reset), then
-   --  adds attributes and colours. Absolute form means no per-cell bookkeeping
-   --  of "what to turn off" — and identical adjacent cells collapse to nothing
-   --  because the caller compares the produced string to the last one emitted.
-   function Cell_SGR (C : Tui.Surface.Cell) return String is
-      P : Unbounded_String := To_Unbounded_String ("0");
+   --  The complete, absolute SGR parameter list for a cell: always leads with
+   --  "0" (reset), then adds attributes and colours. Absolute form means no
+   --  per-cell bookkeeping of "what to turn off" — and identical adjacent
+   --  cells collapse to nothing because the caller compares the produced
+   --  parameters to the last ones emitted.
+   procedure Cell_SGR (C : Tui.Surface.Cell; P : out SGR_Params) is
    begin
-      if C.Attributes.Bold      then Append (P, ";1"); end if;
-      if C.Attributes.Italic    then Append (P, ";3"); end if;
-      if C.Attributes.Underline then Append (P, ";4"); end if;
-      if C.Attributes.Inverse   then Append (P, ";7"); end if;
-      Append (P, Color_SGR (C.Foreground, 38, 30, 90));
-      Append (P, Color_SGR (C.Background, 48, 40, 100));
-      return ESC & "[" & To_String (P) & "m";
+      P := (Len => 0, Data => (others => ' '));
+      Add (P, "0");
+      if C.Attributes.Bold      then Add (P, ";1"); end if;
+      if C.Attributes.Italic    then Add (P, ";3"); end if;
+      if C.Attributes.Underline then Add (P, ";4"); end if;
+      if C.Attributes.Inverse   then Add (P, ";7"); end if;
+      Add_Color (P, C.Foreground, 38, 30, 90);
+      Add_Color (P, C.Background, 48, 40, 100);
    end Cell_SGR;
+
+   --  Append a cell's style as a full escape sequence.
+   procedure Emit_SGR (B : in out Stage; P : SGR_Params) is
+   begin
+      Emit (B, ESC & "[" & P.Data (1 .. P.Len) & "m");
+   end Emit_SGR;
 
    ---------------------------------------------------------------------------
    --  Cursor / screen primitives
    ---------------------------------------------------------------------------
+
+   function Move_Str (Row, Col : Positive) return String
+   with Pre  => Row <= 9_999 and then Col <= 9_999,
+        Post => Move_Str'Result'Length <= 12;
 
    function Move_Str (Row, Col : Positive) return String is
      (ESC & "[" & Img (Row) & ";" & Img (Col) & "H");
@@ -233,56 +389,59 @@ package body Tui.Term.Output is
 
    procedure Blit (S : Tui.Surface.Surface) is
       use Tui.Surface;
-      Buf      : Unbounded_String;
-      Last_SGR : Unbounded_String;   --  empty => force first emit
+      B        : Stage;
+      Here     : SGR_Params;
+      Last_SGR : SGR_Params;
       First    : Boolean := True;
    begin
       for R in Row_Index range 1 .. S.Rows loop
-         Append (Buf, Move_Str (Positive (R), 1));
+         Emit (B, Move_Str (Positive (R), 1));
          for C in Col_Index range 1 .. S.Cols loop
             declare
-               Cell_Here : constant Cell   := Get (S, R, C);
-               SGR_Here  : constant String := Cell_SGR (Cell_Here);
+               Cell_Here : constant Cell := Get (S, R, C);
             begin
-               if First or else SGR_Here /= To_String (Last_SGR) then
-                  Append (Buf, SGR_Here);
-                  Last_SGR := To_Unbounded_String (SGR_Here);
+               Cell_SGR (Cell_Here, Here);
+               if First or else not Same (Here, Last_SGR) then
+                  Emit_SGR (B, Here);
+                  Last_SGR := Here;
                   First    := False;
                end if;
-               Append (Buf, Utf8 (Cell_Here.Glyph));
+               Emit (B, Utf8 (Cell_Here.Glyph));
             end;
          end loop;
       end loop;
-      Append (Buf, ESC & "[0m");
-      Put (To_String (Buf));
+      Emit (B, ESC & "[0m");
+      Flush (B);
    end Blit;
 
    procedure Apply
      (Changes : Tui.Surface.Diff.Change_Array;
       Count   : Natural)
    is
-      Buf      : Unbounded_String;
-      Last_SGR : Unbounded_String;
+      B        : Stage;
+      Here     : SGR_Params;
+      Last_SGR : SGR_Params;
       First    : Boolean := True;
    begin
       for I in 1 .. Count loop
          declare
-            Ch       : constant Tui.Surface.Diff.Cell_Change := Changes (I);
-            SGR_Here : constant String := Cell_SGR (Ch.Value);
+            Ch : constant Tui.Surface.Diff.Cell_Change :=
+              Changes (Changes'First + (I - 1));
          begin
-            Append (Buf, Move_Str (Positive (Ch.Row), Positive (Ch.Column)));
-            if First or else SGR_Here /= To_String (Last_SGR) then
-               Append (Buf, SGR_Here);
-               Last_SGR := To_Unbounded_String (SGR_Here);
+            Emit (B, Move_Str (Positive (Ch.Row), Positive (Ch.Column)));
+            Cell_SGR (Ch.Value, Here);
+            if First or else not Same (Here, Last_SGR) then
+               Emit_SGR (B, Here);
+               Last_SGR := Here;
                First    := False;
             end if;
-            Append (Buf, Utf8 (Ch.Value.Glyph));
+            Emit (B, Utf8 (Ch.Value.Glyph));
          end;
       end loop;
       if Count > 0 then
-         Append (Buf, ESC & "[0m");
+         Emit (B, ESC & "[0m");
       end if;
-      Put (To_String (Buf));
+      Flush (B);
    end Apply;
 
 end Tui.Term.Output;

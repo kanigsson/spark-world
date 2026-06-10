@@ -1,6 +1,7 @@
 --  The driver crate: the one place the OS lives. It reads the terminal, writes
---  ANSI/SGR, owns raw mode and signals. SPARK_Mode is Off here (syscalls and
---  controlled/interrupt machinery); the engine it serves stays pure and proved.
+--  ANSI/SGR, owns raw mode and signals. The syscall shims' bodies and the
+--  controlled/interrupt machinery are SPARK_Mode Off; the byte-level work on
+--  either side of them — key decoding, escape/SGR assembly — is proved SPARK.
 
 with "../core/tui_core.gpr";
 with "../surface/tui_surface.gpr";
@@ -23,5 +24,9 @@ library project Tui_Term is
             for Default_Switches ("Ada") use ("-gnat2012", "-gnatwa", "-O2");
       end case;
    end Compiler;
+
+   package Prove is
+      for Proof_Switches ("Ada") use ("--level=2", "--report=statistics");
+   end Prove;
 
 end Tui_Term;

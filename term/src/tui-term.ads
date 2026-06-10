@@ -3,8 +3,10 @@
 --  Everything below this package — raw mode (termios), ANSI/SGR output, key
 --  input, window-size and signal handling — is confined here, behind a thin
 --  edge. The engine it serves (Tui.Pager) and the data it carries (Tui.Surface,
---  Tui.Input events) stay pure and provable; this crate is where syscalls,
---  controlled types and interrupt handlers live, so SPARK_Mode is Off.
+--  Tui.Input events) stay pure and provable. Within this crate the same line
+--  is drawn once more: syscalls, controlled types and interrupt handlers are
+--  SPARK_Mode Off, while the byte-level work around them — key decoding,
+--  escape/SGR assembly — is proved SPARK behind the syscall shims' contracts.
 --
 --  Built AFTER the engine, on purpose: its shape is driven by what the engine
 --  actually needs to display and read, not guessed up front. Sequences are

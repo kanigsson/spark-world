@@ -6,6 +6,12 @@
 --  to the terminal. Nothing above it emits an escape; nothing below it knows
 --  what a cell is.
 --
+--  Proved SPARK: escape assembly is pure data work — digits, SGR fragments,
+--  UTF-8 bytes, a bounded staging buffer — so the whole package is
+--  SPARK_Mode => On and verified, down to the partial-write loop over the
+--  syscall shim. Frames of any size stream through the fixed staging buffer,
+--  which flushes whenever the next piece might not fit.
+--
 --  Two ways to paint:
 --    * Blit  — repaint a whole surface (first frame, or after a resize/clear).
 --    * Apply — emit only the cells a Tui.Surface.Diff reported as changed; the
@@ -25,7 +31,11 @@
 with Tui.Surface;
 with Tui.Surface.Diff;
 
-package Tui.Term.Output is
+package Tui.Term.Output with
+  SPARK_Mode     => On,
+  Abstract_State => Color_Config,
+  Initializes    => Color_Config
+is
 
    --  How much colour the target terminal can render. The surface keeps full
    --  intent regardless; this only governs what bytes go out.
@@ -35,27 +45,39 @@ package Tui.Term.Output is
       Basic_16,     --  the 8 + 8 bright ANSI colours
       Monochrome);  --  attributes only, no colour
 
-   procedure Set_Color_Depth (D : Color_Depth);
-   function Color_Depth_Setting return Color_Depth;
+   procedure Set_Color_Depth (D : Color_Depth)
+   with Global => (Output => Color_Config);
+
+   function Color_Depth_Setting return Color_Depth
+   with Global => (Input => Color_Config);
 
    ---------------------------------------------------------------------------
    --  Low-level primitives (a host rarely needs these directly)
    ---------------------------------------------------------------------------
 
    --  Write raw bytes to stdout, retrying short writes; never partial on return.
-   procedure Put (Text : String);
+   procedure Put (Text : String)
+   with Global => null;
 
    --  Clear the screen and home the cursor — the start of a from-scratch frame.
-   procedure New_Frame;
+   procedure New_Frame
+   with Global => null;
 
-   --  Move the cursor to a 1-based (Row, Col).
-   procedure Move_To (Row, Col : Positive);
+   --  Move the cursor to a 1-based (Row, Col), within the surface extents.
+   procedure Move_To (Row, Col : Positive)
+   with Global => null,
+        Pre    => Row <= Tui.Surface.Max_Extent
+                  and then Col <= Tui.Surface.Max_Extent;
 
-   procedure Hide_Cursor;
-   procedure Show_Cursor;
+   procedure Hide_Cursor
+   with Global => null;
+
+   procedure Show_Cursor
+   with Global => null;
 
    --  Reset all SGR attributes to the terminal default.
-   procedure Reset_Style;
+   procedure Reset_Style
+   with Global => null;
 
    ---------------------------------------------------------------------------
    --  Surface output
@@ -64,13 +86,16 @@ package Tui.Term.Output is
    --  Repaint the whole surface. Positions the cursor at the top-left and
    --  draws every cell, minimising SGR churn by only re-emitting style when it
    --  changes. Leaves the SGR state reset.
-   procedure Blit (S : Tui.Surface.Surface);
+   procedure Blit (S : Tui.Surface.Surface)
+   with Global => (Input => Color_Config);
 
    --  Emit only the changed cells from a diff (see Tui.Surface.Diff.Compute).
    --  Each change is positioned absolutely, so a stale previous frame is not
    --  required to be on screen contiguously. Leaves the SGR state reset.
    procedure Apply
      (Changes : Tui.Surface.Diff.Change_Array;
-      Count   : Natural);
+      Count   : Natural)
+   with Global => (Input => Color_Config),
+        Pre    => Count <= Changes'Length;
 
 end Tui.Term.Output;
