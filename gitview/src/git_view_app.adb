@@ -8,6 +8,7 @@ with Git_View_Sha;
 with Git_View_Source;
 with Git_View_Search_Input;
 with Git_View_Status;
+with Git_View_Theme;
 
 package body Git_View_App with
   SPARK_Mode    => On,
@@ -19,6 +20,7 @@ is
 
    package Eng_Pkg renames Tui.Pager.Engine;
    package Pol renames Git_View_Policy;
+   package Thm renames Git_View_Theme;
    use type Eng_Pkg.Effect;
    use type Pol.Pane;
    use type Git_View_Status.Note;
@@ -149,7 +151,8 @@ is
      (S    : in out Surface;
       R    : Row_Index;
       Text : String;
-      Attr : Style)
+      Attr : Style;
+      Fg   : Color := Default_Color)
    with Global => null,
         Pre    => R <= S.Rows
    is
@@ -160,9 +163,123 @@ is
          Col := Col + 1;
          Set (S, R, Col,
               (Glyph => Wide_Wide_Character'Val (Character'Pos (Ch)),
-               Attributes => Attr, others => <>));
+               Foreground => Fg, Attributes => Attr, others => <>));
       end loop;
    end Put_String;
+
+   --  Recolour a span of one row's cells, clipped to the surface. Glyphs and
+   --  the other attributes are preserved, so a later inverse highlight (the
+   --  selection, the status bar) stacks on top of the colour.
+   procedure Tint_Cells
+     (S    : in out Surface;
+      R    : Row_Index;
+      From : Positive;
+      To   : Natural;
+      Fg   : Color;
+      Bold : Boolean := False)
+   with Global => null,
+        Pre    => R <= S.Rows
+   is
+   begin
+      if From > Natural (S.Cols) or else To < From then
+         return;
+      end if;
+      for C in Col_Index range Col_Index (From)
+        .. Col_Index (Natural'Min (To, Natural (S.Cols)))
+      loop
+         declare
+            Cl : Cell := Get (S, R, C);
+         begin
+            Cl.Foreground := Fg;
+            if Bold then
+               Cl.Attributes.Bold := True;
+            end if;
+            Set (S, R, C, Cl);
+         end;
+      end loop;
+   end Tint_Cells;
+
+   procedure Tint_Row
+     (S    : in out Surface;
+      R    : Row_Index;
+      Fg   : Color;
+      Bold : Boolean := False)
+   with Global => null,
+        Pre    => R <= S.Rows
+   is
+   begin
+      Tint_Cells (S, R, 1, Natural (S.Cols), Fg, Bold);
+   end Tint_Row;
+
+   --  Colour the rendered diff rows by what their content lines are: the
+   --  classification reads the document (not the surface), so it is
+   --  independent of any horizontal scroll, and whole rows are tinted the
+   --  way git's own porcelain colours diff output.
+   procedure Colorize_Diff (DS : in out Surface)
+   with Global => (Input => (Diff_Doc, Diff_Eng)),
+        Pre    => Diff_Doc /= null
+   is
+      Total : constant Tui.Text.Line_Total :=
+        Tui.Text.Line_Count (Diff_Doc.all.Idx);
+      Top   : constant Tui.Text.Line_Number := Eng_Pkg.Top_Line (Diff_Eng);
+   begin
+      for R in Row_Index range 1 .. DS.Rows loop
+         declare
+            LN : constant Natural := Top + (Natural (R) - 1);
+         begin
+            exit when LN > Total;
+            case Thm.Classify
+              (Tui.Text.Line (Diff_Doc.all.Idx, Diff_Doc.all.Bytes, LN))
+            is
+               when Thm.Plain_Line =>
+                  null;
+               when Thm.Added =>
+                  Tint_Row (DS, R, Thm.Added_Color);
+               when Thm.Removed =>
+                  Tint_Row (DS, R, Thm.Removed_Color);
+               when Thm.Hunk =>
+                  Tint_Row (DS, R, Thm.Hunk_Color);
+               when Thm.File_Meta =>
+                  Tint_Row (DS, R, Default_Color, Bold => True);
+               when Thm.Commit_Head =>
+                  Tint_Row (DS, R, Thm.Commit_Color);
+            end case;
+         end;
+      end loop;
+   end Colorize_Diff;
+
+   --  Colour the commit list's leading tokens: the abbreviated id (validated
+   --  by the proved parser, so junk lines stay uncoloured) and the
+   --  fixed-width date after it. Token columns line up with the rendered
+   --  text only at zero horizontal scroll; a scrolled list stays plain.
+   procedure Colorize_List (LS : in out Surface)
+   with Global => (Input => (List_Doc, List_Eng)),
+        Pre    => List_Doc /= null
+   is
+      Total : constant Tui.Text.Line_Total :=
+        Tui.Text.Line_Count (List_Doc.all.Idx);
+      Top   : constant Tui.Text.Line_Number := Eng_Pkg.Top_Line (List_Eng);
+   begin
+      if Eng_Pkg.Left_Col (List_Eng) /= 0 then
+         return;
+      end if;
+      for R in Row_Index range 1 .. LS.Rows loop
+         declare
+            LN : constant Natural := Top + (Natural (R) - 1);
+            Id : Git_View_Sha.Sha;
+         begin
+            exit when LN > Total;
+            Git_View_Sha.Extract (List_Doc.all.Bytes, List_Doc.all.Idx, LN,
+                                  Id);
+            if Git_View_Sha.Valid (Id) then
+               Tint_Cells (LS, R, 1, Id.Len, Thm.Sha_Color);
+               --  The date is the fixed-width (YYYY-MM-DD) token after the
+               --  id; the log format guarantees its position.
+               Tint_Cells (LS, R, Id.Len + 2, Id.Len + 11, Thm.Date_Color);
+            end if;
+         end;
+      end loop;
+   end Colorize_List;
 
    --  Restyle the selected line's row to inverse video. The defensive range
    --  test keeps this correct (and proved) even when the selection is
@@ -200,6 +317,14 @@ is
         Pre    => List_Doc /= null and then Diff_Doc /= null
    is
       Bar : constant Style := (Inverse => True, others => False);
+
+      --  Under inverse video the accent foreground shows as the bar's
+      --  background, so the bar's colour tracks what it is saying.
+      Accent : constant Color :=
+        (if Searching then Thm.Prompt_Accent
+         elsif Note /= Git_View_Status.No_Note then Thm.Note_Accent
+         else Thm.Bar_Accent);
+
       Row : Row_Index;
       L   : Git_View_Status.Line;
    begin
@@ -210,7 +335,9 @@ is
 
       --  Inverse-fill the whole row so it reads as a bar.
       for C in 1 .. S.Cols loop
-         Set (S, Row, C, (Glyph => ' ', Attributes => Bar, others => <>));
+         Set (S, Row, C,
+              (Glyph => ' ', Foreground => Accent, Attributes => Bar,
+               others => <>));
       end loop;
 
       if Searching then
@@ -245,7 +372,7 @@ is
          end;
       end if;
 
-      Put_String (S, Row, Git_View_Status.Image (L), Bar);
+      Put_String (S, Row, Git_View_Status.Image (L), Bar, Accent);
    end Draw_Status;
 
    -----------
@@ -288,6 +415,7 @@ is
          LS : Surface := Blank (Content_Rows, Col_Count (List_Cols));
       begin
          Eng_Pkg.Render (List_Eng, LS, List_Doc.all.Bytes, List_Doc.all.Idx);
+         Colorize_List (LS);
          Highlight_Selection (LS, List_Total);
          Copy (LS, S, At_Row => 1, At_Col => 1);
       end;
@@ -298,8 +426,9 @@ is
          begin
             for R in Row_Index range 1 .. Content_Rows loop
                Set (S, R, Sep,
-                    (Glyph => Wide_Wide_Character'Val (16#2502#),
-                     others => <>));
+                    (Glyph      => Wide_Wide_Character'Val (16#2502#),
+                     Foreground => Thm.Separator_Color,
+                     others     => <>));
             end loop;
          end;
          declare
@@ -307,6 +436,7 @@ is
          begin
             Eng_Pkg.Render (Diff_Eng, DS, Diff_Doc.all.Bytes,
                             Diff_Doc.all.Idx);
+            Colorize_Diff (DS);
             Copy (DS, S, At_Row => 1, At_Col => Col_Index (List_Cols + 2));
          end;
       end if;

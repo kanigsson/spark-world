@@ -39,6 +39,15 @@ transient notes (`Pattern not found`, `No commit on this line`). Resize the
 window and the split re-layouts; a too-narrow window degrades to the list
 alone; quit and the terminal is restored.
 
+The interface is coloured the way git's own porcelain colours it: added and
+removed diff lines green and red, hunk headers cyan, file-level metadata
+bold, the `commit` line — and the commit list's abbreviated ids — yellow,
+dates cyan. The status bar's accent tracks what it is saying (blue position,
+yellow search prompt, red note). Everything is drawn from the base-16
+palette, so the colours follow the terminal's theme and survive any
+colour-depth downgrade — down to a plain inverse bar on a monochrome
+terminal.
+
 ## How it fits together
 
 ```
@@ -73,7 +82,8 @@ exercises two things the standalone pager does not:
 All app logic is proved (`SPARK_Mode => On`, free of run-time errors): the
 state and callbacks (`Git_View_App`), the keymap (`Git_View_Policy`), the
 selection rules (`Git_View_List`), the commit-id parser (`Git_View_Sha`), the
-search editor and status formatter. Only the OS edges are trusted
+colour scheme and diff-line classifier (`Git_View_Theme`), the search editor
+and status formatter. Only the OS edges are trusted
 (`SPARK_Mode => Off` bodies): the entry point (`Git_View_Main`) and the git
 subprocess glue behind the proved `Git_View_Source` spec, which captures
 output through a temporary file and never hands back a null diff document.
@@ -102,6 +112,7 @@ src/
   git_view_policy.ads/adb     focus-aware keymap                        [proved]
   git_view_list.ads/adb       selection/viewport coupling               [proved]
   git_view_sha.ads/adb        commit-list line -> commit id             [proved]
+  git_view_theme.ads/adb      colour scheme + diff-line classifier      [proved]
   git_view_search_input.*     search-pattern editor                     [proved]
   git_view_status.ads/adb     status-line formatter                     [proved]
 ```
