@@ -1,0 +1,5 @@
+Please implement a deflate decoder targeted at embedded systems, or fimrware
+updates. You are allowed to download a testsuite or something to check the
+implementation. Try to have a large SPARK surface. The minimal goal is absence
+of runtime errors (silver level). Also do performance measurements against known
+implementations.
