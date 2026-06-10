@@ -1,13 +1,13 @@
 --  Git_View_Source — the git subprocess edge, with a machine-checked
 --  boundary.
 --
---  This is the one place git is run. The seam between trusted and proved is
---  drawn exactly at this spec, mirroring the terminal driver's syscall edge:
---  the BODY is SPARK_Mode => Off by design — it spawns processes, captures
---  their output through a temporary file, and allocates argument strings —
---  while this SPEC carries the contracts the proved app checks against
---  (above all, that a loaded document reference is never null where the app
---  needs one).
+--  This is the one place git is run. This spec carries the contracts the
+--  proved app checks against (above all, that a loaded document reference
+--  is never null where the app needs one), and they are PROVED, not
+--  trusted: the body is SPARK too, holding the policy — argument
+--  construction, exit-code handling, the failure fallback. Only the
+--  spawn/capture mechanics sit behind a trusted private child, mirroring
+--  the terminal driver's syscall edge.
 --
 --  Output capture goes through a temporary file rather than a pipe: the
 --  subprocess can emit arbitrarily much (a huge diff) without anyone having
