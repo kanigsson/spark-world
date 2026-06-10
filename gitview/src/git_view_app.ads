@@ -22,9 +22,10 @@ with Tui.Surface;
 with Tui.Input;
 
 package Git_View_App with
-  SPARK_Mode     => On,
-  Abstract_State => State,
-  Initializes    => State
+  SPARK_Mode        => On,
+  Abstract_State    => State,
+  Initializes       => State,
+  Initial_Condition => Uninitialized
 is
 
    --  True before Init has run: nothing is loaded yet. Init requires it (it
