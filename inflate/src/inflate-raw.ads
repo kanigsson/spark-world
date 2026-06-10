@@ -1,10 +1,8 @@
 --  Inflate.Raw — the DEFLATE compressed data format itself (RFC 1951).
 --
---  One-shot: the whole compressed stream is in Input, the whole result must
---  fit in Output. This is the right shape for the intended slot (firmware
---  containers, ingest validation), where inputs are bounded and an upper
---  bound on the decompressed size is part of the protocol; it is not a
---  streaming zlib replacement.
+--  One-shot: the whole compressed stream is in Input, and the whole result
+--  must fit in Output. This is for bounded inputs where an upper bound on
+--  the decompressed size is known; it is not a streaming zlib replacement.
 --
 --  The decoder is stateless and reentrant: fixed-code tables are built on
 --  demand rather than cached in package state, so concurrent calls share

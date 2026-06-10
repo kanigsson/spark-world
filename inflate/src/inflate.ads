@@ -1,4 +1,4 @@
---  Inflate — a proved decoder for the DEFLATE compressed data format.
+--  Inflate - shared types for the DEFLATE, zlib, gzip, and ZIP decoders.
 --
 --  This is the root of the crate: the byte/buffer types every child shares
 --  and the single status enumeration that all layers report through. The
@@ -11,13 +11,10 @@
 --    Inflate.Adler32 — Adler-32 (the zlib checksum)
 --
 --  DESIGN: everything is one-shot over caller-provided buffers. No heap,
---  no access types, no recursion, no OS, no tasking state — the whole
---  crate is SPARK, proved free of run-time errors. The intended slot is
---  parsing semi-hostile bytes before trust is established (firmware-update
---  containers, ingest validators), where the input is fully in memory, an
---  upper bound on the decompressed size is known, and a crash is a brick.
---  Malformed input — any malformed input — comes back as a Status_Type
---  value, never an exception.
+--  no access types, no recursion, no OS, and no tasking state. The library
+--  is intended for bounded inputs where an upper bound on the decompressed
+--  size is known by the caller. Malformed input is reported through
+--  Status_Type instead of being handled by raising an exception.
 
 with Interfaces;
 
@@ -35,8 +32,8 @@ package Inflate with Pure, SPARK_Mode => On is
    type Byte_Array is array (Buffer_Index range <>) of Byte;
 
    --  Every way a decode can end. OK means the stream was well-formed and
-   --  the output (and, for the containers, its checksum) is complete and
-   --  verified; everything else identifies the first violation encountered.
+   --  the output (and, for the containers, its checksum) is complete;
+   --  everything else identifies the first violation encountered.
    type Status_Type is
      (OK,
 

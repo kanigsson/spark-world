@@ -2,12 +2,9 @@
 --  format): end-of-central-directory lookup, central-directory iteration,
 --  per-entry extraction with CRC and size verification.
 --
---  This is the container the firmware-update slot actually receives
---  (update bundles, OTA packages, .jar/.apk-shaped payloads): semi-hostile
---  bytes parsed before any signature check has succeeded. Every offset and
---  length here comes from the attacker; all of them are bounds-checked
---  against the archive, and every inconsistency is a Status_Type, never an
---  exception.
+--  Every offset and length here comes from the archive, so each one is
+--  bounds-checked before use. Inconsistent input is reported through
+--  Status_Type instead of being handled by raising an exception.
 --
 --  Scope: the classic 32-bit format, methods stored (0) and deflate (8) —
 --  which is what `zip`, Python's zipfile and Java's jar emit by default.

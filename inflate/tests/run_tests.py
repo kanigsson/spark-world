@@ -6,7 +6,7 @@ malformed, truncated and bit-flipped — and checks the Ada harness against
 the verdict of C zlib (via Python's zlib module) on the very same bytes.
 For accepted streams the decoded output must match byte for byte; for
 rejected streams the crate must reject too (any status). The harness runs
-with all Ada checks enabled, so any runtime error surfaces as a FAIL.
+with Ada checks enabled, so any propagated exception surfaces as a FAIL.
 
 Usage: run_tests.py [--quick]
 """
@@ -43,7 +43,7 @@ def put(name, data):
 
 def case(mode, comp, expect, consumed=-1, tag=None):
     """Register one test case. expect=None means 'must be rejected';
-    expect="?" means 'anything but a crash'."""
+    expect="?" means 'any status is accepted as long as the harness returns'."""
     global n_files
     n_files += 1
     inp = put("c%05d.in" % n_files, comp)
@@ -185,7 +185,7 @@ def gen_gzip_headers():
             hdr += struct.pack("<H", zlib.crc32(hdr) & 0xFFFF)
         return hdr + deflated + trailer
 
-    # Every flag combination, all verified against C zlib/gzip
+    # Every flag combination, checked against C zlib/gzip
     for flg in range(32):
         comp = member(flg, extra=b"\x01\x02subfield", name=b"file.txt",
                       comment=b"a comment", hcrc=bool(flg & 2))
@@ -434,13 +434,12 @@ def gen_zip(files):
     zip_case_ok([("many%04d" % i, bytes([i % 256]) * i) for i in range(200)])
 
     good = zip_make(entries)
-    # Truncations: every prefix must be rejected (or accepted only if it
-    # still parses; none should crash). The EOCD lives at the end, so all
-    # of these lose it -> reject.
+    # Truncations: every prefix must be rejected unless it still parses.
+    # The EOCD lives at the end, so all of these lose it -> reject.
     for i in range(0, len(good), 7):
         case("zip", good[:i], None)
     # Bit flips: no oracle here (zipfile's leniencies differ from ours in
-    # both directions), so these assert robustness only.
+    # both directions), so these only check that the harness completes.
     for _ in range(400 if not QUICK else 60):
         buf = bytearray(good)
         for _ in range(rng.choice((1, 1, 2))):

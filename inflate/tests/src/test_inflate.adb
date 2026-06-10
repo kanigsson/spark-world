@@ -10,8 +10,7 @@
 --    consumed  expected Consumed value, or -1 to skip that check
 --
 --  Output: one PASS/FAIL line per case plus a summary; exit status 1 if
---  any case fails. A propagated exception is a FAIL of its own kind —
---  with assertions and checks compiled in, none must ever escape.
+--  any case fails. A propagated exception is a FAIL of its own kind.
 
 with Ada.Command_Line;          use Ada.Command_Line;
 with Ada.Exceptions;            use Ada.Exceptions;

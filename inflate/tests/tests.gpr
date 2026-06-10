@@ -6,8 +6,8 @@ project Tests is
    for Exec_Dir use ".";
    for Main use ("test_inflate.adb");
 
-   --  All checks on: the harness exists to demonstrate that no input,
-   --  however hostile, raises anything.
+   --  All checks on: the harness treats any propagated exception as a
+   --  test failure.
    package Compiler is
       for Default_Switches ("Ada") use ("-gnat2012", "-gnata", "-g", "-O1");
    end Compiler;
