@@ -1,0 +1,60 @@
+ What was your biggest hurdle in your task, both in general and specific to
+gnatprove usage?
+
+Honest answer on both counts:
+
+In general: designing the code so that safety is locally provable, before
+writing any of it. The actual decoding logic was the easy part — puff.c is a
+known quantity. The hard work was choosing representations where every array
+index and every addition has a bound the prover can see from nearby facts
+rather than from a whole-program argument. Concretely: making Consumed/Produced
+relative offsets instead of absolute indices (so bounds are <= Input'Length,
+not relations between 'First and 'Last that overflow at the edges), capping
+Buffer_Index at Integer'Last - 1 so "one past the end" is always computable,
+taking Output as in out to sidestep Relaxed_Initialization proofs, and deciding
+in advance which bounds to prove properly versus guard defensively. The
+Huffman-table slot bound is the example: "offsets never exceed 288" is true
+because counts sum to the number of nonzero lengths, but proving that needs
+ghost summation and induction lemmas. Spending a free runtime check to turn an
+unreachable state into a defined error status kept the whole proof at level 2
+with no manual lemmas. Choosing where to make that trade is engineering judgment
+the prover can't make for you.
+
+A close second: test-oracle subtlety. My only test failure all session
+was my own wrong expectation (a force_zip64 archive that is legitimately
+classic-readable), and ZIP mutations needed a "no oracle, just must-not-crash"
+category because Python's zipfile is stricter than us in some ways (it compares
+local vs. central names) and looser in others. Differential testing is only as
+good as your understanding of the reference's quirks.
+
+Specific to gnatprove, two things:
+
+1. Variable-exponent powers. Every initially-unproved check (5 of 261 on the
+first run) traced to one root: 2 ** N with a symbolic exponent. The provers
+wouldn't connect Bit_Buf and (Shift_Left(1, N) - 1) to < 2**N, and wouldn't
+apply power monotonicity (Len <= 15 ⟹ 2**Len <= 2**15) for the overflow checks
+in Decode. The fix was to banish symbolic powers entirely: Mask_Table and Pow2
+as concrete constant arrays, which the provers handle by case enumeration over
+the aggregate axioms. After that substitution, nothing power-related ever failed
+again — including the later Build_Fast stride loop, where writing the fill as
+J := J + Pow2(Len) instead of computing 2**(10-Len) repetitions made the bound
+proof trivial and avoided needing 2**a * 2**b = 2**(a+b).
+2. Invariants that are true but not inductive. This is the classic trap and
+I walked into it twice. Code < 2**Len in the bit-by-bit decoder is true at
+every loop top, but the preservation VC fails without also carrying Code mod
+2 = 0 — an odd Code at the bound would double past it, even though the program
+never produces one. Conversely in Build_Fast I had to weaken < to <= because a
+complete code exactly fills its space. Relatedly, termination-by-default meant
+every postcondition had to say the right thing about progress: Bit_Position
+(consumed bits) as the single global measure worked beautifully, but the
+strict-versus-non-strict bookkeeping had to be exact — Stored can't promise
+strict increase on its truncation path, GZip.Decompress needed Status = OK
+⟹ Consumed > 0 added just so Decompress_All's variant would discharge. The
+pleasant surprise was the payoff for getting this right: First <= Code turned
+out to be the inductive invariant that made the decoder's overflow bounds fall
+out for free (replacing an ugly 577 * 2**Len - 576 bound I'd derived on paper),
+and the fully optimized decoder re-proved on its first run.
+
+What was not a hurdle, notably: prover capacity. At --level=2 nothing needed
+more than a second, no manual Why3 sessions, no pragma Assume. The friction was
+entirely in phrasing, never in solving.
