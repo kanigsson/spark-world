@@ -13,7 +13,11 @@ package body Tui.Term.Event_Loop is
    --  resize or quit. 100 ms is well under human-perceptible lag.
    Tick_Ms : constant := 100;
 
-   procedure Run (Paint : Painter; On_Key : Key_Handler) is
+   procedure Run
+     (Paint  : Painter;
+      On_Key : Key_Handler;
+      Mouse  : Boolean := False)
+   is
       Term : Tui.Term.Mode.Session;          --  enters raw/alt mode now (RAII)
       Dec  : Tui.Input.Decoder;
    begin
@@ -23,6 +27,10 @@ package body Tui.Term.Event_Loop is
       --  a no-op in this case.
       if not Term.Active then
          return;
+      end if;
+
+      if Mouse then
+         Tui.Term.Mode.Enable_Mouse (Term);
       end if;
 
       --  Each pass of this loop owns one terminal size. A resize exits the

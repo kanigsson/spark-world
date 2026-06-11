@@ -106,6 +106,20 @@ package body Tui.Term.Mode is
       Output.New_Frame;
    end Initialize;
 
+   ------------------
+   -- Enable_Mouse --
+   ------------------
+
+   procedure Enable_Mouse (S : in out Session) is
+   begin
+      if not S.Is_Active or else S.Mouse_On then
+         return;
+      end if;
+      S.Mouse_On := True;
+      Output.Put (ESC & "[?1000h");   --  report button presses and releases
+      Output.Put (ESC & "[?1006h");   --  ... encoded as SGR sequences
+   end Enable_Mouse;
+
    overriding procedure Finalize (S : in out Session) is
    begin
       if not S.Is_Active then
@@ -114,6 +128,11 @@ package body Tui.Term.Mode is
       S.Is_Active := False;   --  idempotent: a second Finalize is a no-op
 
       --  Undo in the reverse order, then hand the original mode back.
+      if S.Mouse_On then
+         S.Mouse_On := False;
+         Output.Put (ESC & "[?1006l");
+         Output.Put (ESC & "[?1000l");
+      end if;
       Output.Reset_Style;
       Output.Show_Cursor;
       Output.Put (ESC & "[?1049l");

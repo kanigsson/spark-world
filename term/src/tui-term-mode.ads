@@ -33,6 +33,13 @@ package Tui.Term.Mode is
    --  there is nothing to drive, so a host should skip painting.
    function Active (S : Session) return Boolean;
 
+   --  Ask the terminal to report mouse activity (presses, releases, wheel) as
+   --  SGR escape sequences on stdin, which the input decoder turns into mouse
+   --  events. Opt-in, because it has a price: the terminal stops doing native
+   --  text selection while reporting is on (users hold Shift to get it back).
+   --  A no-op on an inactive Session; Finalize undoes it like everything else.
+   procedure Enable_Mouse (S : in out Session);
+
    --  The terminal's current size in cells, queried from the kernel
    --  (TIOCGWINSZ) on the given descriptor. Size.Rows/Cols are 0 when the
    --  query fails or the descriptor is not a tty (see Tui.Term.Is_Known).
@@ -48,6 +55,7 @@ private
 
    type Session is new Ada.Finalization.Limited_Controlled with record
       Is_Active : Boolean      := False;
+      Mouse_On  : Boolean      := False;
       Saved     : Termios_Blob := (others => 0);
    end record;
 

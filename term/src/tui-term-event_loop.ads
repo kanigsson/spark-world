@@ -38,6 +38,11 @@ package Tui.Term.Event_Loop is
 
    --  Run the loop to completion. A no-op (returns at once) when stdin/stdout is
    --  not a terminal. Restores the terminal unconditionally before returning.
-   procedure Run (Paint : Painter; On_Key : Key_Handler);
+   --  Mouse asks the terminal to report mouse activity, so On_Key also sees
+   --  the mouse event kinds (at the cost of native text selection; see Mode).
+   procedure Run
+     (Paint  : Painter;
+      On_Key : Key_Handler;
+      Mouse  : Boolean := False);
 
 end Tui.Term.Event_Loop;
