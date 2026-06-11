@@ -16,6 +16,8 @@ tui_pager = "*"
 tui_term = "*"
 [[depends-on]]
 tui_text = "*"
+[[depends-on]]
+tui_app_kit = "*"
 
 # No Alire index in this workspace; pin the sibling crates by path.
 [[pins]]
@@ -32,3 +34,5 @@ tui_text = { path = "../text" }
 tui_pager = { path = "../pager" }
 [[pins]]
 tui_term = { path = "../term" }
+[[pins]]
+tui_app_kit = { path = "../appkit" }

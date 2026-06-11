@@ -2,34 +2,27 @@
 --
 --  The bottom row shows one of: the search prompt being typed, a transient
 --  note ("Pattern not found", "No commit on this line"), or a position
---  read-out for whichever pane has the keyboard. The text never needs to
---  exceed the screen width, so a fixed-size line buffer holds it and the
---  formatting is proved free of run-time errors, mirroring the standalone
---  pager's formatter.
+--  read-out for whichever pane has the keyboard. The line buffer, its
+--  building blocks and the prompt formatting are mechanism and live in the
+--  shared app kit; this package keeps what is this app's policy — which
+--  notes exist, their wording, and the two panes' read-out layouts — and
+--  re-exports the kit's Line so the host deals with one package for the
+--  status row.
 --
 --  The host still owns the surface: it fills the bar and paints Image (L)
 --  onto the row, truncating to the real column count. This package only
 --  builds the string.
 
 with Tui.Text;
+with Tui.App_Kit.Status;
 
 package Git_View_Status with SPARK_Mode => On is
 
-   --  Upper bound on assembled status text. A surface row caps at 4096
-   --  columns and the host truncates to the actual width when painting, so
-   --  text past this point is never visible; a longer input is silently
-   --  clipped here, never a buffer overrun.
-   Max_Status : constant := 4_096;
-   subtype Status_Length is Natural range 0 .. Max_Status;
-
-   type Line is private;
-
-   function Length (L : Line) return Status_Length;
+   subtype Line is Tui.App_Kit.Status.Line;
 
    --  The assembled text, 1-based, ready for the host's painter.
    function Image (L : Line) return String
-   with Post => Image'Result'First = 1
-               and then Image'Result'Length = Length (L);
+     renames Tui.App_Kit.Status.Image;
 
    --  A transient note. The wording lives here; the app only records which
    --  note (if any) is due.
@@ -41,14 +34,12 @@ package Git_View_Status with SPARK_Mode => On is
       Git_Show_Failed);    --  the diff subprocess reported an error
 
    --  Search prompt: '/' (forward) or '?' (backward), then the pattern
-   --  bytes. Each byte is shown as a Latin-1 character, matching the host's
-   --  painter (which maps one byte to one cell); multibyte UTF-8 thus
-   --  renders as its raw bytes.
+   --  bytes.
    procedure Format_Prompt
      (L       : out Line;
       Forward : Boolean;
       Pattern : Tui.Text.Buffer)
-   with Pre => Pattern'Length = 0 or else Pattern'First >= 1;
+     renames Tui.App_Kit.Status.Format_Prompt;
 
    --  One of the fixed note messages.
    procedure Format_Note (L : out Line; N : Note)
@@ -76,16 +67,5 @@ package Git_View_Status with SPARK_Mode => On is
       Total : Natural)
    with Pre => Last <= Tui.Text.Max_Lines
                and then Total <= Tui.Text.Max_Lines;
-
-private
-
-   type Line is record
-      Text : String (1 .. Max_Status) := (others => ' ');
-      Len  : Status_Length            := 0;
-   end record;
-
-   function Length (L : Line) return Status_Length is (L.Len);
-
-   function Image (L : Line) return String is (L.Text (1 .. L.Len));
 
 end Git_View_Status;

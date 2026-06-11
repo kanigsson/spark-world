@@ -6,9 +6,9 @@ with Git_View_Policy;
 with Git_View_List;
 with Git_View_Sha;
 with Git_View_Source;
-with Git_View_Search_Input;
 with Git_View_Status;
 with Git_View_Theme;
+with Tui.App_Kit.Search_Input;
 
 package body Git_View_App with
   SPARK_Mode    => On,
@@ -20,6 +20,7 @@ package body Git_View_App with
 is
 
    package Eng_Pkg renames Tui.Pager.Engine;
+   package Edit renames Tui.App_Kit.Search_Input;
    package Pol renames Git_View_Policy;
    package Thm renames Git_View_Theme;
    use type Eng_Pkg.Effect;
@@ -60,7 +61,7 @@ is
    --  of navigating; Enter installs it on the focused pane's engine.
    Searching : Boolean := False;
    Forward   : Boolean := True;
-   Pattern   : Git_View_Search_Input.Editor;
+   Pattern   : Edit.Editor;
    Note      : Git_View_Status.Note := Git_View_Status.No_Note;
 
    --  The pane split as last painted. The key handler has no surface, so the
@@ -351,7 +352,7 @@ is
 
       if Searching then
          Git_View_Status.Format_Prompt
-           (L, Forward, Git_View_Search_Input.Bytes (Pattern));
+           (L, Forward, Edit.Bytes (Pattern));
       elsif Note /= Git_View_Status.No_Note then
          Git_View_Status.Format_Note (L, Note);
       elsif Focused = Pol.List_Pane then
@@ -577,10 +578,10 @@ is
             Searching := False;
             if Focused = Pol.List_Pane then
                Eng_Pkg.Set_Pattern
-                 (List_Eng, Git_View_Search_Input.Bytes (Pattern));
+                 (List_Eng, Edit.Bytes (Pattern));
             else
                Eng_Pkg.Set_Pattern
-                 (Diff_Eng, Git_View_Search_Input.Bytes (Pattern));
+                 (Diff_Eng, Edit.Bytes (Pattern));
             end if;
             declare
                Ignore : Boolean;
@@ -590,9 +591,9 @@ is
          when Escape =>
             Searching := False;        --  cancel; leave any prior pattern
          when Backspace =>
-            Git_View_Search_Input.Backspace (Pattern);
+            Edit.Backspace (Pattern);
          when Char =>
-            Git_View_Search_Input.Append (Pattern, Event.Code);
+            Edit.Append (Pattern, Event.Code);
          when others =>
             null;
       end case;
@@ -764,7 +765,7 @@ is
             when Pol.Search =>
                Searching := True;
                Forward   := D.Forward;
-               Git_View_Search_Input.Clear (Pattern);
+               Edit.Clear (Pattern);
                Dirty     := True;
 
             when Pol.Repeat_Search =>

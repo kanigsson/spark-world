@@ -94,8 +94,12 @@ exercises two things the standalone pager does not:
 All app logic is proved (`SPARK_Mode => On`, free of run-time errors): the
 state and callbacks (`Git_View_App`), the keymap (`Git_View_Policy`), the
 selection rules (`Git_View_List`), the commit-id parser (`Git_View_Sha`), the
-colour scheme and diff-line classifier (`Git_View_Theme`), the search editor
-and status formatter. Only the OS edges are trusted
+colour scheme and diff-line classifier (`Git_View_Theme`), and the
+app-specific status texts (`Git_View_Status`). The search-pattern editor and
+the status `Line` buffer come from the shared
+[`tui_app_kit`](../appkit/README.md) crate — this app was their second
+consumer, which by the ecosystem's rule triggered the extraction — and are
+proved there. Only the OS edges are trusted
 (`SPARK_Mode => Off` bodies): the entry point (`Git_View_Main`) and the git
 subprocess glue behind the proved `Git_View_Source` spec, which captures
 output through a temporary file and never hands back a null diff document.
@@ -115,7 +119,8 @@ gnatprove -P git_view.gpr --level=2      # the proofs
 ## Layout
 
 ```
-alire.toml      crate manifest (depends on tui_pager, tui_term, tui_text)
+alire.toml      crate manifest (depends on tui_pager, tui_term, tui_text,
+                tui_app_kit)
 git_view.gpr    executable project (Main renamed to `git_view`)
 src/
   git_view_main.adb           entry point: startup checks + Event_Loop   [Off]
@@ -125,6 +130,8 @@ src/
   git_view_list.ads/adb       selection/viewport coupling               [proved]
   git_view_sha.ads/adb        commit-list line -> commit id             [proved]
   git_view_theme.ads/adb      colour scheme + diff-line classifier      [proved]
-  git_view_search_input.*     search-pattern editor                     [proved]
-  git_view_status.ads/adb     status-line formatter                     [proved]
+  git_view_status.ads/adb     status-line texts (notes, read-outs)      [proved]
 ```
+
+The search-pattern editor and the status `Line` buffer come from the
+shared `tui_app_kit` crate.

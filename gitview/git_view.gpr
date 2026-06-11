@@ -8,6 +8,7 @@ with "../core/tui_core.gpr";
 with "../pager/tui_pager.gpr";
 with "../term/tui_term.gpr";
 with "../text/tui_text.gpr";
+with "../appkit/tui_app_kit.gpr";
 
 project Git_View is
 
