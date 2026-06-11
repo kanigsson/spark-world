@@ -92,7 +92,9 @@ package JSON.Pull with SPARK_Mode => On is
    --  Deliver the next event. On OK every payload slice lies within
    --  Input; on any other status the parser moves to Failed and stays
    --  there. Every event except Document_End consumes at least one
-   --  character, so a Next loop terminates.
+   --  character, so a Next loop terminates — and Document_End is only
+   --  delivered once every container is closed, so a loop that runs
+   --  while a container is open advances on every step.
    procedure Next
      (Input  : in     String;
       P      : in out Parser;
@@ -113,6 +115,8 @@ package JSON.Pull with SPARK_Mode => On is
                       and then (P.State = Finished) = (Ev.Kind = Document_End)
                       and then (if Ev.Kind /= Document_End
                                 then P.Pos > P.Pos'Old)
+                      and then (if Ev.Kind = Document_End
+                                then P.Depth'Old = 0)
                       and then (if Ev.Kind in
                                   Member_Key | String_Value | Number_Value
                                 then Ev.First >= Input'First

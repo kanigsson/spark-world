@@ -27,6 +27,7 @@ that parses to `Document_End` conforms to RFC 8259.
 | `JSON.Pull`    | the cursor: `Next` delivers one event per call, `Validate` runs the whole document |
 | `JSON.Strings` | decoding of string payloads (escapes, `\uXXXX`, surrogate pairs) into a caller buffer |
 | `JSON.Numbers` | conversion of number tokens to `Integer_64` / `Long_Float` |
+| `JSON.Walk`    | known-shape helpers over the cursor: open a container, iterate/find object members, typed getters, skip a value |
 
 The shape of a client:
 
@@ -47,6 +48,17 @@ at all — when it is, an output buffer the size of the payload provably
 suffices, because every escape shrinks. Number payloads arrive as the
 token slice with an `Is_Integer` flag; the typed accessors revalidate, so
 they are also safe on slices from elsewhere.
+
+Clients that validate a document against a compile-time-known shape walk
+it with `JSON.Walk` instead of dispatching on raw events: expect an
+object/array, iterate or find members (skipping unknown ones is what
+keeps a reader forward-compatible), read a string/integer/boolean, skip
+any unwanted value whole. Every successful step strictly advances the
+cursor — `Document_End` is only delivered once every container is closed
+— so a walk loop carries a `Loop_Variant` on the cursor position and is
+provably terminating on arbitrary bytes. The
+[`proof_results`](../proof/README.md) crate (a typed model of GNATprove's
+`result.json`) is the first consumer.
 
 ## Limits — by design, not by accident
 
@@ -76,15 +88,17 @@ rejected (RFC 8259 has no such tokens; Python accepts them by default).
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=2` run reported **549 checks,
+The most recent recorded `gnatprove --level=2` run reported **639 checks,
 all proved, no justifications, no assumptions** (machine-readable verdict
 in `obj/gnatprove/result.json`: `overall = all_proved`). This covers
 run-time checks such as overflow, index, range, and division checks, plus
 termination of all loops and subprograms, full initialization and
 data-flow correctness, and the contracts in the specs — among them: every
 payload slice an event delivers lies within the input buffer; every event
-except `Document_End` consumes input (so client loops terminate); the
-decoded form of a string never exceeds its raw payload's length.
+except `Document_End` consumes input, and `Document_End` only arrives
+with every container closed (so client loops terminate); the decoded
+form of a string never exceeds its raw payload's length; every `Walk`
+helper re-establishes the cursor's readiness and strictly advances it.
 
 ```
 gnatprove -P json.gpr -j0
@@ -113,3 +127,11 @@ documents, plus real proof-result files, and compares the harness's full
 event stream (structure, decoded strings, converted numbers) against
 Python's `json` on the same bytes. The harness runs with assertions
 enabled; any propagated exception is a failure.
+
+The walk helpers have their own behavioural driver pinning what each
+helper accepts and rejects (wrong shapes, oversized integers, escaped
+keys, truncated containers):
+
+```
+cd tests && gprbuild -P tests.gpr && ./test_walk
+```

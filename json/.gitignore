@@ -3,3 +3,4 @@ lib/
 tests/obj/
 tests/work/
 tests/test_json
+tests/test_walk

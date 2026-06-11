@@ -4,7 +4,7 @@ project Tests is
    for Source_Dirs use ("src");
    for Object_Dir use "obj";
    for Exec_Dir use ".";
-   for Main use ("test_json.adb");
+   for Main use ("test_json.adb", "test_walk.adb");
 
    --  All checks on: the harness treats any propagated exception as a
    --  test failure.
