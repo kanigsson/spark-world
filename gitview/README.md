@@ -10,7 +10,8 @@ stay proved SPARK.
 ## Use
 
 ```sh
-git_view          # browse the history of the repository at $PWD
+git_view              # browse the history of the repository at $PWD
+git_view --no-mouse   # ... without claiming the mouse from the terminal
 ```
 
 ## Keys
@@ -32,6 +33,17 @@ git_view          # browse the history of the repository at $PWD
  ? text ⏎        search backward in the focused pane    N  repeat reversed
  q / Ctrl-C      quit
 ```
+
+## Mouse
+
+A left click selects the commit under the cursor and gives the clicked pane
+the keyboard; the scroll wheel scrolls the pane **under the cursor** — without
+moving the keyboard focus, so hovering to scroll never changes what the keys
+do. Wheel-scrolling the list drags the selection along, exactly like paging.
+
+While the viewer owns the mouse, the terminal's native text selection needs
+Shift held down (the usual TUI trade-off); start with `--no-mouse` to leave
+the mouse entirely to the terminal.
 
 The bottom row is a status bar for the focused pane: `[commits] 3/14 a2b8ad2`
 or `[diff] a2b8ad2 1-39/1033 3%`, the search prompt while one is typed, and

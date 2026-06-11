@@ -54,4 +54,20 @@ package Git_View_Policy with SPARK_Mode => On is
       Event   : Tui.Input.Key_Event) return Decision
    with Global => null;
 
+   --  Where a screen position lands in the painted layout: one of the panes,
+   --  or neither (the separator column, the status row, past the content).
+   --  Pure geometry over the split the painter recorded; the postcondition
+   --  hands the position's lower bounds to the app's row/column arithmetic.
+   type Region is (List_Region, Diff_Region, Outside);
+
+   function Locate
+     (Col, Row     : Natural;    --  1-based screen position (0: no position)
+      List_Cols    : Natural;    --  width of the list pane
+      Diff_Cols    : Natural;    --  width of the diff pane (0 when not shown)
+      Content_Rows : Natural)    --  rows above the status line
+      return Region
+   with Global => null,
+        Post   => (if Locate'Result /= Outside
+                   then Col >= 1 and Row in 1 .. Content_Rows);
+
 end Git_View_Policy;

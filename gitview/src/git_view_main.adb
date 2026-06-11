@@ -6,11 +6,16 @@
 --  spec; all state and policy live in the proved Git_View_App.
 --
 --  Usage:
---    git_view          browse the history of the repository at $PWD
+--    git_view [--no-mouse]    browse the history of the repository at $PWD
 --
 --  Keys: j/k move the selection, Enter shows the commit's diff, Tab moves
 --  the keyboard between panes, / ? n N search within the focused pane,
 --  q quits.
+--
+--  Mouse: a left click selects the commit under the cursor (and gives the
+--  clicked pane the keyboard); the wheel scrolls the pane under the cursor.
+--  --no-mouse leaves the mouse to the terminal, so its native text
+--  selection works without holding Shift.
 
 with Ada.Command_Line;            use Ada.Command_Line;
 with Ada.Text_IO;
@@ -31,15 +36,16 @@ is
    --  callbacks' precondition (the documents are loaded) — so that
    --  obligation is hoisted onto this wrapper, where the proof discharges
    --  it at the call site instead of trusting the hookup.
-   procedure Run
+   procedure Run (Mouse : Boolean)
    with Global => (In_Out => Git_View_App.State),
         Pre    => Git_View_App.Has_Documents;
 
-   procedure Run with SPARK_Mode => Off is
+   procedure Run (Mouse : Boolean) with SPARK_Mode => Off is
    begin
       Tui.Term.Event_Loop.Run
         (Paint  => Git_View_App.Paint'Access,
-         On_Key => Git_View_App.On_Key'Access);
+         On_Key => Git_View_App.On_Key'Access,
+         Mouse  => Mouse);
    end Run;
 
    --  Message output sits outside SPARK only because the standard-error
@@ -52,9 +58,29 @@ is
       Set_Exit_Status (Failure);
    end Fail;
 
-   Ok : Boolean;
+   --  Reject an unusable command-line argument. Also outside SPARK: quoting
+   --  the argument concatenates strings whose lengths the prover cannot
+   --  bound.
+   procedure Fail_Usage (Arg : String) with Global => null;
+
+   procedure Fail_Usage (Arg : String) with SPARK_Mode => Off is
+   begin
+      Fail ("unknown option """ & Arg & """ (the only option is --no-mouse)");
+   end Fail_Usage;
+
+   Ok        : Boolean;
+   Use_Mouse : Boolean := True;
 
 begin
+   for I in 1 .. Argument_Count loop
+      if Argument (I) = "--no-mouse" then
+         Use_Mouse := False;
+      else
+         Fail_Usage (Argument (I));
+         return;
+      end if;
+   end loop;
+
    if not Git_View_Source.Available then
       Fail ("git not found on PATH");
       return;
@@ -69,7 +95,7 @@ begin
       return;
    end if;
 
-   Run;
+   Run (Mouse => Use_Mouse);
 
 exception
    --  The last-chance net. The proof shows the orchestration itself raises

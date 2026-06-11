@@ -159,4 +159,31 @@ package body Git_View_Policy with SPARK_Mode => On is
       return (Kind => Ignore);
    end Classify;
 
+   ------------
+   -- Locate --
+   ------------
+
+   function Locate
+     (Col, Row     : Natural;
+      List_Cols    : Natural;
+      Diff_Cols    : Natural;
+      Content_Rows : Natural) return Region
+   is
+   begin
+      --  The comparisons are phrased as subtractions so they stay provably
+      --  in range whatever widths the caller hands in.
+      if Row = 0 or else Row > Content_Rows or else Col = 0 then
+         return Outside;
+      elsif Col <= List_Cols then
+         return List_Region;
+      elsif Diff_Cols > 0
+        and then Col - List_Cols > 1            --  past the separator column
+        and then Col - List_Cols - 1 <= Diff_Cols
+      then
+         return Diff_Region;
+      else
+         return Outside;
+      end if;
+   end Locate;
+
 end Git_View_Policy;

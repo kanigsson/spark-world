@@ -15,7 +15,8 @@ package body Git_View_App with
   Refined_State =>
     (State =>
        (List_Doc, Diff_Doc, List_Eng, Diff_Eng, Selected, Diff_Id,
-        Focused, Searching, Forward, Pattern, Note))
+        Focused, Searching, Forward, Pattern, Note,
+        List_Width, Diff_Width, View_Rows))
 is
 
    package Eng_Pkg renames Tui.Pager.Engine;
@@ -23,6 +24,7 @@ is
    package Thm renames Git_View_Theme;
    use type Eng_Pkg.Effect;
    use type Pol.Pane;
+   use type Pol.Region;
    use type Git_View_Status.Note;
    use type Tui.Text.Doc_Ref;
 
@@ -60,6 +62,13 @@ is
    Forward   : Boolean := True;
    Pattern   : Git_View_Search_Input.Editor;
    Note      : Git_View_Status.Note := Git_View_Status.No_Note;
+
+   --  The pane split as last painted. The key handler has no surface, so the
+   --  painter leaves the geometry behind for mouse hit-testing; before the
+   --  first frame everything is 0 and every position falls Outside.
+   List_Width : Natural := 0;
+   Diff_Width : Natural := 0;
+   View_Rows  : Natural := 0;
 
    -------------------
    -- Uninitialized --
@@ -404,6 +413,11 @@ is
       Eng_Pkg.Resize (Diff_Eng, Rows => Natural (Content_Rows),
                       Cols => Diff_Cols, Total => Diff_Total);
 
+      --  Leave the geometry behind for mouse hit-testing.
+      List_Width := List_Cols;
+      Diff_Width := Diff_Cols;
+      View_Rows  := Natural (Content_Rows);
+
       --  A resize can shrink the list viewport from under the selection.
       if List_Total > 0 then
          Git_View_List.Clamp (List_Eng, List_Total, Selected);
@@ -584,6 +598,97 @@ is
       end case;
    end Handle_Search_Key;
 
+   --  One wheel notch scrolls this many lines, the desktop convention.
+   Wheel_Lines : constant := 3;
+
+   --  Carry out a mouse event against the layout the painter recorded. A
+   --  left click selects the commit under the cursor and gives the clicked
+   --  pane the keyboard; the wheel scrolls the pane UNDER the cursor —
+   --  deliberately without moving the keyboard focus, so hovering to scroll
+   --  never changes what the keys do.
+   procedure Handle_Mouse (Event : Key_Event; Changed : out Boolean)
+   with Global => (In_Out => (List_Eng, Diff_Eng, Selected, Focused),
+                   Input  => (List_Doc, Diff_Doc,
+                              List_Width, Diff_Width, View_Rows)),
+        Pre    => List_Doc /= null and then Diff_Doc /= null
+   is
+      Where : constant Pol.Region :=
+        Pol.Locate (Event.Col, Event.Row, List_Width, Diff_Width, View_Rows);
+   begin
+      Changed := False;
+      if Where = Pol.Outside then
+         return;
+      end if;
+
+      case Event.Kind is
+         when Mouse_Press =>
+            if Event.Button = Left_Button then
+               if Where = Pol.List_Region then
+                  --  Select the line under the cursor, when one is there.
+                  declare
+                     Total : constant Tui.Text.Line_Total :=
+                       Tui.Text.Line_Count (List_Doc.all.Idx);
+                     Top   : constant Tui.Text.Line_Number :=
+                       Eng_Pkg.Top_Line (List_Eng);
+                     Off   : constant Natural := Event.Row - 1;
+                  begin
+                     if Total > 0 and then Top <= Total
+                       and then Off <= Total - Top
+                       and then Selected /= Top + Off
+                     then
+                        Selected := Top + Off;
+                        Changed  := True;
+                     end if;
+                  end;
+                  if Focused /= Pol.List_Pane then
+                     Focused := Pol.List_Pane;
+                     Changed := True;
+                  end if;
+               else
+                  if Focused /= Pol.Diff_Pane then
+                     Focused := Pol.Diff_Pane;
+                     Changed := True;
+                  end if;
+               end if;
+            end if;
+
+         when Wheel_Up | Wheel_Down =>
+            declare
+               Cmd : constant Eng_Pkg.Command :=
+                 (if Event.Kind = Wheel_Up
+                  then Eng_Pkg.Line_Up else Eng_Pkg.Line_Down);
+               Res : Eng_Pkg.Effect;
+            begin
+               for Step in 1 .. Wheel_Lines loop
+                  if Where = Pol.List_Region then
+                     Eng_Pkg.Handle (List_Eng, Cmd, List_Doc.all.Bytes,
+                                     List_Doc.all.Idx, Res);
+                  else
+                     Eng_Pkg.Handle (Diff_Eng, Cmd, Diff_Doc.all.Bytes,
+                                     Diff_Doc.all.Idx, Res);
+                  end if;
+                  if Res /= Eng_Pkg.Unchanged then
+                     Changed := True;
+                  end if;
+               end loop;
+               --  A scrolled list pulls its selection along into view.
+               if Where = Pol.List_Region and then Changed then
+                  declare
+                     Total : constant Tui.Text.Line_Total :=
+                       Tui.Text.Line_Count (List_Doc.all.Idx);
+                  begin
+                     if Total > 0 then
+                        Git_View_List.Clamp (List_Eng, Total, Selected);
+                     end if;
+                  end;
+               end if;
+            end;
+
+         when others =>
+            null;   --  releases mean nothing here
+      end case;
+   end Handle_Mouse;
+
    ------------
    -- On_Key --
    ------------
@@ -597,10 +702,29 @@ is
    begin
       Quit  := False;
       Dirty := False;
-      Note  := Git_View_Status.No_Note;   --  a keystroke clears a stale note
+
+      --  While the search prompt is open the mouse is dormant: a click must
+      --  not silently retarget the pane the pattern will land on.
+      if Searching
+        and then Event.Kind in
+          Mouse_Press | Mouse_Release | Wheel_Up | Wheel_Down
+      then
+         return;
+      end if;
+
+      Note := Git_View_Status.No_Note;   --  a keystroke clears a stale note
 
       if Searching then
          Handle_Search_Key (Event, Dirty, Quit);
+         return;
+      end if;
+
+      if Event.Kind in Mouse_Press | Mouse_Release | Wheel_Up | Wheel_Down then
+         --  Mouse events speak the painter's geometry, not the keymap.
+         Handle_Mouse (Event, Dirty);
+         if Had_Note then
+            Dirty := True;
+         end if;
          return;
       end if;
 
