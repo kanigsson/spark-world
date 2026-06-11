@@ -1,0 +1,13 @@
+name = "json"
+description = "RFC 8259 JSON pull parser in SPARK (no heap, slice-returning, AoRTE-focused)"
+version = "0.1.0-dev"
+
+authors = ["kanig"]
+maintainers = ["kanig <kanig@adacore.com>"]
+maintainers-logins = ["kanig"]
+licenses = "Apache-2.0"
+
+project-files = ["json.gpr"]
+
+[build-switches]
+"*".contracts = "Yes"
