@@ -5,11 +5,13 @@ zlib (RFC 1950) and gzip (RFC 1952) containers with their checksums, and a
 ZIP central-directory walker with per-entry extraction. The entire library
 is SPARK. Decoding is proved free of run-time errors, with termination and
 initialization/data-flow checks included in the proof run described below;
-decoded bytes are differentially tested against C zlib. Compression (gzip
-with stored blocks) additionally carries a proved functional contract: its
-output stands in an executable decode-model relation to exactly the input
-(see "Compression" below). Ongoing work towards a fully proved round-trip
-codec is scoped in `compression.md`.
+decoded bytes are differentially tested against C zlib. The gzip
+compressor (stored blocks) and decompressor additionally carry a **proved
+round-trip theorem**: `Inflate.Theorems.GZip_Round_Trip` states — and the
+proof establishes for every input — that decompressing the compressor's
+output restores the input exactly, with `Status = OK` (see "Compression"
+below). Ongoing work towards proved decoding of arbitrary foreign streams
+is scoped in `compression.md`.
 
 The library is meant for callers that need to parse compressed data from
 untrusted input without dynamic allocation. There is no heap, no access
@@ -26,6 +28,7 @@ raising an exception.
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
 | `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
 | `Inflate.Model`   | executable decode model (currently the stored-block fragment) that functional contracts are stated against |
+| `Inflate.Theorems`| the proved gzip round-trip theorem, stated as an executable procedure |
 | `Inflate.ZIP`     | ZIP archives: end-record lookup (comment scan-back), central-directory iteration, extraction with CRC/size verification |
 | `Inflate.CRC32`   | CRC-32 (gzip/ZIP polynomial), table computed at elaboration |
 | `Inflate.Adler32` | Adler-32 with the zlib batching bound |
@@ -52,7 +55,7 @@ ZIP extractor are ordinary clients of `Inflate.Raw`.
 The library compresses to standard gzip, using stored (uncompressed)
 DEFLATE blocks: any gzip decoder consumes the output; the size overhead is
 5 bytes per 64 KiB block plus 18 bytes of gzip framing (ratio just below
-1). What makes the compressor interesting is its contract, all proved:
+1). What makes the codec interesting is its contract, all proved:
 
 - **Totality and exact size.** Under the stated preconditions there is no
   failure path, and the output size is exactly
@@ -61,31 +64,44 @@ DEFLATE blocks: any gzip decoder consumes the output; the size overhead is
   the relation `Inflate.Model.Encodes_Stored` to exactly the input bytes:
   the emitted stream is well-formed and decodes to the input under the
   model. The gzip trailer provably holds `CRC32.Compute (Input)` — the
-  same function the decoder recomputes, so checksum agreement at decode
-  time is definitional, not a separate trust assumption.
+  same function the decoder recomputes.
+- **Round-trip, decode half.** `Raw.Decompress`, `GZip.Decompress` and
+  `GZip.Decompress_All` carry postconditions stating that on any stream
+  in the compressor's image (characterized on the input side alone, by
+  an executable walk of the stored-block structure) decoding succeeds,
+  consumes exactly the stream, and produces bytes standing in the same
+  model relation; the member is accepted exactly when its trailer holds
+  the CRC-32/length the decoder recomputes over that output.
+- **The theorem.** `Inflate.Theorems.GZip_Round_Trip` composes the two
+  halves: for *every* input (within the size cap, given large enough
+  buffers), `Decompress (Compress (Input))` returns `Status = OK` and
+  exactly `Input`. The proof is spec-free — it trusts no external DEFLATE
+  specification, only the agreement of the library's own compressor and
+  decompressor through the executable model, plus the functionality of
+  that relation and the content-invariance of the CRC. It says nothing
+  about *foreign* streams (someone else's `gzip -9` output): decoding
+  those is differentially tested, and proving it is a later milestone.
 
 `Inflate.Model` is deliberately executable (not ghost): the test suite
 runs the very relation the contracts are stated against, and C zlib
 independently decodes every produced member back to the original bytes.
 
-The missing half of the round-trip theorem — that `Decompress` itself
-provably agrees with the model on such streams — is the next milestone in
-`compression.md`. Today that half is differentially tested, not proved.
-
 ## Proof Status
 
-The most recent recorded `gnatprove --level=2` run reported **1015 checks,
+The most recent recorded `gnatprove --level=2` run reported **1705 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
-initialization, data dependencies, and termination checks — and, for the
-compression half, the functional contracts described above (the decode
-model's recursion is proved terminating, and the compressor's
-postcondition ties its output to the model).
+initialization, data dependencies, and termination checks — and the
+functional contracts described above: the compressor's postcondition ties
+its output to the decode model, the decoders' postconditions tie their
+output to the same model on the stored fragment, and the round-trip
+theorem composes them (all recursion in the model and its lemmas is
+proved terminating).
 
-On the decoding side the proof is mainly about showing that the
-implementation does not raise run-time errors when called within its
-contracts. It is not yet a proof that the decoded bytes are the correct
-DEFLATE/zlib/gzip/ZIP result.
+On the decoding side, for streams outside the compressor's image the
+proof is about absence of run-time errors; that the decoded bytes are
+the correct DEFLATE/zlib/gzip/ZIP result on such foreign streams is
+tested, not yet proved.
 
 Some proof-relevant structure:
 
@@ -105,10 +121,26 @@ Some proof-relevant structure:
   recurses front to back over the remaining stream, so a backward loop
   makes each iteration exactly one unfolding of the relation and the
   loop invariant is the relation itself on the already-written tail.
+- The decoder must walk forward, so its invariant uses a separate
+  non-final-prefix relation, extended per block by a snoc lemma and
+  closed against the final block by a composition lemma; a destructor
+  lemma unfolds the input-side stream walk one block at a time.
+- The CRC's content-invariance (equal byte sequences from any state give
+  equal CRCs) is proved against a ghost fold model whose recursion is as
+  deep as the data.
+- Evaluating the proof machinery — ghost buffer snapshots, recursive
+  lemmas, invariants that re-walk the model relation — costs time
+  proportional to the data, which would make assertion-enabled
+  executables quadratic; `Assertion_Policy (Ignore)` regions over the
+  bodies keep it out of them, while GNATprove proves Ignore-policy
+  assertions all the same. The subprogram contracts in the specs stay
+  executable: the test suite still runs the very relation the contracts
+  are stated against, on every stream.
 
-Decode functional correctness is tested, not proved. The test suite
-compares accepted output against zlib and checks rejection behavior on
-malformed inputs. Container checksums are also checked at run time.
+Decode functional correctness on general (non-stored) streams is tested,
+not proved: the test suite compares accepted output against zlib and
+checks rejection behavior on malformed inputs. Container checksums are
+also checked at run time.
 
 ## Testing
 

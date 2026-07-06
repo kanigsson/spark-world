@@ -1,5 +1,18 @@
 package body Inflate.GZip with SPARK_Mode => On is
 
+   --  The ghost bridges below invoke recursive lemmas whose evaluation
+   --  cost grows with the data; this policy keeps them (and the local
+   --  assertions) out of assertion-enabled executables. GNATprove proves
+   --  Ignore-policy assertions all the same, and the contracts in the
+   --  spec remain executable.
+   pragma Assertion_Policy
+     (Pre            => Ignore,
+      Post           => Ignore,
+      Ghost          => Ignore,
+      Assert         => Ignore,
+      Loop_Invariant => Ignore,
+      Loop_Variant   => Ignore);
+
    use Interfaces;
 
    function LE32 (B0, B1, B2, B3 : Byte) return Word32 is
@@ -25,6 +38,35 @@ package body Inflate.GZip with SPARK_Mode => On is
       FLG : Byte;
       Raw_Consumed, Raw_Produced : Natural;
       Stored_CRC, Stored_Size    : Word32;
+
+      --  Ghost bridge for the decode-half postcondition, inlined for
+      --  proof and called right after the DEFLATE body is decoded. On a
+      --  member in the compressor's image the header has no optional
+      --  fields, so the body was decoded from the slice starting 10 bytes
+      --  in; the stream-walk hypothesis transfers to that slice (same
+      --  bytes, same indices), the core's postcondition fires, and its
+      --  relation transfers back to Input.
+      procedure Relate_Member with Ghost;
+
+      procedure Relate_Member is
+      begin
+         if Stored_Member (Input, Output'Length) then
+            pragma Assert (P = 10);
+            Model.Lemma_Stream_Frame
+              (Input, Input (Input'First + P .. Input'Last),
+               Input'First + 10, Input'Last);
+            pragma Assert (Status = OK);
+            pragma Assert (Raw_Consumed = Input'Length - 18);
+            Model.Lemma_Encodes_Frame
+              (Input (Input'First + P .. Input'Last), Input,
+               Input'First + 10, Input'Last - 8,
+               Output, Output,
+               (if Output'Length > 0 then Output'First else 1),
+               (if Output'Length > 0
+                then Output'First + (Raw_Produced - 1)
+                else 0));
+         end if;
+      end Relate_Member;
    begin
       Consumed := 0;
       Produced := 0;
@@ -77,6 +119,7 @@ package body Inflate.GZip with SPARK_Mode => On is
       --  NAME then COMMENT, when present: zero-terminated byte strings
       for Field in 1 .. 2 loop
          pragma Loop_Invariant (P <= Input'Length);
+         pragma Loop_Invariant (if FLG = 0 then P = 10);
          if (FLG and (if Field = 1 then FNAME else FCOMMENT)) /= 0 then
             loop
                pragma Loop_Invariant (P <= Input'Length);
@@ -120,6 +163,7 @@ package body Inflate.GZip with SPARK_Mode => On is
       Raw.Decompress
         (Input (Input'First + P .. Input'Last), Output,
          Raw_Consumed, Raw_Produced, Status);
+      Relate_Member;
       Consumed := P + Raw_Consumed;
       Produced := Raw_Produced;
       if Status /= OK then
@@ -161,6 +205,39 @@ package body Inflate.GZip with SPARK_Mode => On is
       In_Pos  : Natural := 0;
       Out_Pos : Natural := 0;
       C, Pr   : Natural;
+
+      --  Ghost bridge for the whole-file case: a file that is exactly one
+      --  member in the compressor's image is consumed by the first
+      --  iteration's Decompress, whose member contract fires on the
+      --  identical-content slices and transfers back to the full buffers.
+      procedure Relate_First with Ghost;
+
+      procedure Relate_First is
+      begin
+         if Stored_Member (Input, Output'Length)
+           and then In_Pos = 0 and then Out_Pos = 0
+         then
+            Model.Lemma_Stream_Frame
+              (Input, Input (Input'First + In_Pos .. Input'Last),
+               Input'First + 10, Input'Last);
+            pragma Assert
+              (Stored_Member
+                 (Input (Input'First + In_Pos .. Input'Last),
+                  Output'Length - Out_Pos));
+            pragma Assert (C = Input'Length);
+            pragma Assert
+              (Pr = Model.Stored_Decoded_Length
+                      (Input, Input'First + 10, Input'Last));
+            Model.Lemma_Encodes_Frame
+              (Input (Input'First + In_Pos .. Input'Last), Input,
+               Input'First + 10, Input'Last - 8,
+               Output (Output'First + Out_Pos .. Output'Last), Output,
+               (if Output'Length > 0 then Output'First else 1),
+               (if Output'Length > 0
+                then Output'First + (Pr - 1)
+                else 0));
+         end if;
+      end Relate_First;
    begin
       Produced := 0;
       if Input'Length = 0 then
@@ -170,11 +247,15 @@ package body Inflate.GZip with SPARK_Mode => On is
       loop
          pragma Loop_Invariant (In_Pos < Input'Length);
          pragma Loop_Invariant (Out_Pos <= Output'Length);
+         pragma Loop_Invariant
+           (if Stored_Member (Input, Output'Length)
+            then In_Pos = 0 and then Out_Pos = 0);
          pragma Loop_Variant (Increases => In_Pos);
          Decompress
            (Input (Input'First + In_Pos .. Input'Last),
             Output (Output'First + Out_Pos .. Output'Last),
             C, Pr, Status);
+         Relate_First;
          In_Pos  := In_Pos + C;
          Out_Pos := Out_Pos + Pr;
          Produced := Out_Pos;

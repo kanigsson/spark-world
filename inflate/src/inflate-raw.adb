@@ -19,6 +19,21 @@
 
 package body Inflate.Raw with SPARK_Mode => On is
 
+   --  The proof machinery in this body — ghost snapshots of whole
+   --  buffers, lemma invocations, and invariants that re-walk the
+   --  recursive decode-model relation — costs time proportional to the
+   --  data on every evaluation; executed as assertions it would make
+   --  decoding quadratic. This policy keeps it out of assertion-enabled
+   --  executables; GNATprove proves Ignore-policy assertions all the
+   --  same, and the contracts in the spec remain executable.
+   pragma Assertion_Policy
+     (Pre            => Ignore,
+      Post           => Ignore,
+      Ghost          => Ignore,
+      Assert         => Ignore,
+      Loop_Invariant => Ignore,
+      Loop_Variant   => Ignore);
+
    use Interfaces;
 
    ---------------------------------------------------------------------
@@ -64,6 +79,12 @@ package body Inflate.Raw with SPARK_Mode => On is
 
    --  Take the next N bits of the stream, least significant first. Good is
    --  False iff the input ran out, in which case the state is unchanged.
+   --
+   --  The last two postconditions refine the two state shapes the
+   --  stored-block decode path meets, enough to pin the values read from
+   --  a block header: at a byte boundary with an empty buffer the value
+   --  is the low bits of the next input byte, and a read satisfied from
+   --  the buffer touches no input.
    procedure Get_Bits
      (Input : in     Byte_Array;
       S     : in out Stream_State;
@@ -80,7 +101,30 @@ package body Inflate.Raw with SPARK_Mode => On is
                       and then Value <= Mask_Table (N)
                       and then Bit_Position (S) =
                                  Bit_Position (S'Old) + Long_Long_Integer (N)
-                 else S = S'Old)
+                 else S = S'Old
+                      and then Long_Long_Integer (Input'Length) * 8 -
+                                 Bit_Position (S'Old) < Long_Long_Integer (N))
+       and then (if Good
+                    and then S.Bit_Cnt'Old = 0
+                    and then S.Bit_Buf'Old = 0
+                    and then N in 1 .. 8
+                 then S.Consumed = S.Consumed'Old + 1
+                      and then S.Bit_Cnt = 8 - N
+                      and then S.Consumed'Old < Input'Length
+                      and then Word32 (Value) =
+                                 (Word32 (Input (Input'First + S.Consumed'Old))
+                                  and Word32 (Mask_Table (N)))
+                      and then S.Bit_Buf =
+                                 Shift_Right
+                                   (Word32
+                                      (Input (Input'First + S.Consumed'Old)),
+                                    N))
+       and then (if Good and then N <= S.Bit_Cnt'Old
+                 then S.Consumed = S.Consumed'Old
+                      and then S.Bit_Cnt = S.Bit_Cnt'Old - N
+                      and then Word32 (Value) =
+                                 (S.Bit_Buf'Old and Word32 (Mask_Table (N)))
+                      and then S.Bit_Buf = Shift_Right (S.Bit_Buf'Old, N))
    is
       Buf : Word32 := S.Bit_Buf;
       Cnt : Natural range 0 .. 31 := S.Bit_Cnt;
@@ -92,6 +136,11 @@ package body Inflate.Raw with SPARK_Mode => On is
          pragma Loop_Invariant
            (Long_Long_Integer (Pos) * 8 - Long_Long_Integer (Cnt) =
               Bit_Position (S));
+         --  In the byte-aligned case (N <= 8 fits in one byte) the loop
+         --  body runs exactly once, so at the top nothing has happened yet.
+         pragma Loop_Invariant
+           (if S.Bit_Cnt = 0 and then S.Bit_Buf = 0 and then N <= 8
+            then Cnt = 0 and then Buf = 0 and then Pos = S.Consumed);
          pragma Loop_Variant (Increases => Cnt);
          if Pos >= Input'Length then
             Value := 0;
@@ -542,6 +591,36 @@ package body Inflate.Raw with SPARK_Mode => On is
    --  Stored (uncompressed) blocks
    ---------------------------------------------------------------------
 
+   --  Contract vocabulary for Stored, phrased on the pre-call state: the
+   --  byte offset (from Input'First) where the block's LEN field begins
+   --  once whole buffered bytes are pushed back, the LEN value there, and
+   --  the condition under which the block is well formed and fits.
+
+   function Realigned (S : Stream_State) return Natural is
+     (S.Consumed - S.Bit_Cnt / 8)
+   with Ghost, Pre => S.Consumed >= S.Bit_Cnt / 8;
+
+   function Stored_Len (Input : Byte_Array; P : Natural) return Natural is
+     (Natural (Input (Input'First + P))
+      + 256 * Natural (Input (Input'First + P + 1)))
+   with Ghost, Pre => P <= Input'Length - 2;
+
+   function Stored_Fits
+     (Input : Byte_Array; P : Natural; Room : Natural) return Boolean
+   is
+     (Input'Length - P >= 4
+      and then Natural (Input (Input'First + P + 2))
+               + 256 * Natural (Input (Input'First + P + 3)) =
+                 16#FFFF# - Stored_Len (Input, P)
+      and then Stored_Len (Input, P) <= Input'Length - (P + 4)
+      and then Stored_Len (Input, P) <= Room)
+   with Ghost, Pre => P <= Input'Length;
+
+   --  Decode one stored block. Success is exactly Stored_Fits on the
+   --  pre-call state; on success the block is consumed to a byte
+   --  boundary, its payload lands verbatim after the output already
+   --  produced, and that earlier output is untouched — the facts the
+   --  decode half of the round-trip theorem accumulates per block.
    procedure Stored
      (Input  : in     Byte_Array;
       Output : in out Byte_Array;
@@ -552,6 +631,29 @@ package body Inflate.Raw with SPARK_Mode => On is
      Pre    => Valid_In (Input, S) and then S.Produced <= Output'Length,
      Post   => Valid_In (Input, S) and then S.Produced <= Output'Length
                and then Bit_Position (S) >= Bit_Position (S'Old)
+               and then S.Produced >= S.Produced'Old
+               and then (Status = OK) =
+                          Stored_Fits (Input, Realigned (S'Old),
+                                       Output'Length - S.Produced'Old)
+               and then (if Status = OK
+                         then S.Bit_Cnt = 0
+                           and then S.Bit_Buf = 0
+                           and then S.Consumed =
+                                      Realigned (S'Old) + 4
+                                      + Stored_Len (Input, Realigned (S'Old))
+                           and then S.Produced =
+                                      S.Produced'Old
+                                      + Stored_Len (Input, Realigned (S'Old))
+                           and then (for all K in
+                                       0 .. Stored_Len
+                                              (Input, Realigned (S'Old)) - 1 =>
+                                       Output (Output'First
+                                               + (S.Produced'Old + K)) =
+                                       Input (Input'First
+                                              + (Realigned (S'Old) + 4 + K)))
+                           and then (for all K in 0 .. S.Produced'Old - 1 =>
+                                       Output (Output'First + K) =
+                                       Output'Old (Output'First + K)))
    is
       Len, NLen : Natural;
    begin
@@ -816,11 +918,130 @@ package body Inflate.Raw with SPARK_Mode => On is
       BFinal, BType : Natural;
       Good, Valid     : Boolean;
       Lit_Table, Dist_Table : Huffman_Table;
+
+      --  Ghost state for the stored-fragment postcondition. H is that
+      --  hypothesis: a well-formed stored-block stream starts the input
+      --  and its decoded size fits the output. Under H the loop tracks,
+      --  per block, that the consumed prefix stands in the non-final
+      --  prefix relation to the produced output, that the rest of the
+      --  stream is still ahead of the cursor, and how much decoding
+      --  remains; everything below is trivially true when H fails.
+      H : constant Boolean :=
+        (Input'Length >= 5
+         and then Model.Stored_Stream_End (Input, Input'First, Input'Last) > 0
+         and then Model.Stored_Decoded_Length (Input, Input'First, Input'Last)
+                  <= Output'Length)
+      with Ghost;
+      SEnd : constant Natural :=
+        (if H then Model.Stored_Stream_End (Input, Input'First, Input'Last)
+         else 0)
+      with Ghost;
+      Total : constant Natural :=
+        (if H then Model.Stored_Decoded_Length (Input, Input'First, Input'Last)
+         else 0)
+      with Ghost;
+
+      Hdr  : Positive := 1 with Ghost;       --  current block's header byte
+      DPos : Natural with Ghost;             --  output produced before it
+      Snap : Byte_Array := Output with Ghost; --  output before its payload
+
+      --  Normalized output cursor, meaningful even for an empty output
+      --  whose bounds carry no information (an empty stream needs none).
+      OFN : constant Positive :=
+        (if Output'Length > 0 then Output'First else 1)
+      with Ghost;
+
+      --  The ghost work is packaged in contract-free local procedures
+      --  (inlined for proof) because a plain if-statement cannot test the
+      --  ghost hypothesis H.
+
+      --  At the top of the loop, name the block about to be read and
+      --  unfold the stream walk across it.
+      procedure Enter_Block with Ghost;
+
+      procedure Enter_Block is
+      begin
+         if H then
+            Hdr := Input'First + S.Consumed;
+            Model.Lemma_Stream_Step (Input, Hdr, Input'Last);
+         end if;
+      end Enter_Block;
+
+      --  After Stored returns, re-establish the tracked relations: the
+      --  block Stored consumed is the one the walk unfolded (so it fit
+      --  and succeeded), earlier output is untouched, and the prefix
+      --  relation either extends by the block or closes on the whole
+      --  stream when the block was final.
+      procedure Fold_Block with Ghost;
+
+      procedure Fold_Block is
+      begin
+         if H then
+            pragma Assert
+              (Stored_Len (Input, (Hdr - Input'First) + 1) =
+                 Model.Block_Length (Input, Hdr));
+            pragma Assert
+              (Stored_Fits (Input, (Hdr - Input'First) + 1,
+                            Output'Length - DPos));
+            pragma Assert (Status = OK);
+            pragma Assert
+              (S.Consumed =
+                 (Hdr - Input'First) + 5 + Model.Block_Length (Input, Hdr));
+            pragma Assert
+              (for all K in 0 .. Model.Block_Length (Input, Hdr) - 1 =>
+                 Output (OFN + (DPos + K)) = Input (Hdr + 5 + K));
+
+            pragma Assert
+              (for all K in 0 .. DPos - 1 =>
+                 Output (OFN + K) = Snap (OFN + K));
+            Model.Lemma_Nonfinal_Frame
+              (Input, Input, Input'First, Hdr - 1,
+               Snap, Output, OFN, OFN + (DPos - 1));
+
+            if Input (Hdr) = 1 then
+               --  Final block: the walk ends exactly here; fold the block
+               --  into the relation and close the prefix.
+               Model.Lemma_Encodes_Step
+                 (Input, Hdr, SEnd,
+                  Output, OFN + DPos, OFN + (S.Produced - 1));
+               Model.Lemma_Nonfinal_Close
+                 (Input, Input'First, Hdr, SEnd,
+                  Output, OFN, OFN + DPos, OFN + (S.Produced - 1));
+            else
+               --  Non-final: append the block to the prefix.
+               Model.Lemma_Nonfinal_Snoc
+                 (Input, Input'First, Hdr, Output, OFN, OFN + DPos);
+            end if;
+         end if;
+      end Fold_Block;
    begin
+      --  The invariant's base case: nothing consumed, nothing produced,
+      --  an empty prefix trivially in the relation.
+      pragma Assert
+        (if H then
+           Model.Encodes_Nonfinal
+             (Input, Input'First, Input'First - 1, Output, OFN, OFN - 1));
+
       loop
          pragma Loop_Invariant
            (Valid_In (Input, S) and then S.Produced <= Output'Length);
+         pragma Loop_Invariant
+           (if H then
+              S.Bit_Cnt = 0
+              and then S.Bit_Buf = 0
+              and then S.Consumed < Input'Length
+              and then Model.Stored_Stream_End
+                         (Input, Input'First + S.Consumed, Input'Last) = SEnd
+              and then Model.Stored_Decoded_Length
+                         (Input, Input'First + S.Consumed, Input'Last) =
+                         Total - S.Produced
+              and then S.Produced <= Total
+              and then Model.Encodes_Nonfinal
+                         (Input, Input'First, Input'First + (S.Consumed - 1),
+                          Output, OFN, OFN + (S.Produced - 1)));
          pragma Loop_Variant (Increases => Bit_Position (S));
+
+         Enter_Block;
 
          Get_Bits (Input, S, 1, BFinal, Good);
          if not Good then
@@ -833,9 +1054,20 @@ package body Inflate.Raw with SPARK_Mode => On is
             exit;
          end if;
 
+         --  Under H the header byte is 0 or 1 (padding pinned to zero),
+         --  so the three bits just read select a stored block, final
+         --  exactly when the byte is 1.
+         pragma Assert (if H then BFinal = Natural (Input (Hdr)));
+         pragma Assert (if H then BType = 0);
+         pragma Assert (if H then S.Bit_Cnt = 5 and then S.Bit_Buf = 0);
+
          case BType is
             when 0 =>
+               DPos := S.Produced;
+               Snap := Output;
                Stored (Input, Output, S, Status);
+               Fold_Block;
+
             when 1 =>
                Build_Fixed (Lit_Table, Dist_Table, Valid);
                if Valid then

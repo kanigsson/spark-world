@@ -76,6 +76,95 @@ package Inflate.Model with Pure, SPARK_Mode => On is
                   (if D'Length > 0 then D'First else 1),
                   (if D'Length > 0 then D'Last else 0)));
 
+   --  Where the well-formed stored-block stream starting at CF ends within
+   --  C (CF .. Last): the index of its final byte, or 0 when no such
+   --  stream starts there. Unlike Encodes_Stored this constrains only the
+   --  compressed bytes, so it can serve as the input-side hypothesis of
+   --  the decoder's contract; the stream may end before Last (a container
+   --  places its trailer after it).
+   function Stored_Stream_End
+     (C : Byte_Array; CF : Positive; Last : Natural) return Natural
+   is
+     (if Last - CF >= 4
+         and then C (CF) <= 1
+         and then Natural (C (CF + 3)) + 256 * Natural (C (CF + 4)) =
+                    16#FFFF# - Block_Length (C, CF)
+         and then Last - (CF + 4) >= Block_Length (C, CF)
+      then (if C (CF) = 1
+            then CF + 4 + Block_Length (C, CF)
+            else Stored_Stream_End (C, CF + 5 + Block_Length (C, CF), Last))
+      else 0)
+   with
+     Pre =>
+       Last <= Buffer_Index'Last
+       and then CF <= Last + 1
+       and then (if Last >= CF then CF >= C'First and then Last <= C'Last),
+     Post =>
+       Stored_Stream_End'Result = 0
+       or else Stored_Stream_End'Result in CF + 4 .. Last,
+     Subprogram_Variant => (Decreases => Last - CF);
+
+   --  Bytes the stream starting at CF decodes to (the sum of its LEN
+   --  fields), 0 when no well-formed stream starts there. Only meaningful
+   --  where Stored_Stream_End is positive. Every block yields at most as
+   --  many bytes as it occupies past its header, whence the bound.
+   function Stored_Decoded_Length
+     (C : Byte_Array; CF : Positive; Last : Natural) return Natural
+   is
+     (if Last - CF >= 4
+         and then C (CF) <= 1
+         and then Natural (C (CF + 3)) + 256 * Natural (C (CF + 4)) =
+                    16#FFFF# - Block_Length (C, CF)
+         and then Last - (CF + 4) >= Block_Length (C, CF)
+      then (if C (CF) = 1
+            then Block_Length (C, CF)
+            else Block_Length (C, CF)
+                 + Stored_Decoded_Length
+                     (C, CF + 5 + Block_Length (C, CF), Last))
+      else 0)
+   with
+     Pre =>
+       Last <= Buffer_Index'Last
+       and then CF <= Last + 1
+       and then (if Last >= CF then CF >= C'First and then Last <= C'Last),
+     Post =>
+       Stored_Decoded_Length'Result <=
+         (if Last - CF >= 4 then Last - (CF + 4) else 0),
+     Subprogram_Variant => (Decreases => Last - CF);
+
+   --  C (CF .. CL) is a (possibly empty) sequence of *non-final* stored
+   --  blocks decoding to exactly D (DF .. DL). This is the prefix shape a
+   --  forward-walking decoder maintains: the blocks consumed so far are
+   --  all non-final, and appending the still-unread rest of the stream
+   --  (Lemma_Nonfinal_Close) recovers Encodes_Stored on the whole.
+   function Encodes_Nonfinal
+     (C : Byte_Array; CF : Positive; CL : Natural;
+      D : Byte_Array; DF : Positive; DL : Natural) return Boolean
+   is
+     (if CF > CL
+      then DF = DL + 1
+      else
+        CL - CF >= 4
+        and then C (CF) = 0
+        and then Natural (C (CF + 3)) + 256 * Natural (C (CF + 4)) =
+                   16#FFFF# - Block_Length (C, CF)
+        and then CL - (CF + 4) >= Block_Length (C, CF)
+        and then DL - DF + 1 >= Block_Length (C, CF)
+        and then (for all K in 0 .. Block_Length (C, CF) - 1 =>
+                    C (CF + 5 + K) = D (DF + K))
+        and then Encodes_Nonfinal
+                   (C, CF + 5 + Block_Length (C, CF), CL,
+                    D, DF + Block_Length (C, CF), DL))
+   with
+     Pre =>
+       CL <= Buffer_Index'Last
+       and then DL <= Buffer_Index'Last
+       and then CF <= CL + 1
+       and then DF <= DL + 1
+       and then (if CL >= CF then CF >= C'First and then CL <= C'Last)
+       and then (if DL >= DF then DF >= D'First and then DL <= D'Last),
+     Subprogram_Variant => (Decreases => CL - CF);
+
    --  Introduction lemma: the precondition is verbatim the definition of
    --  one block followed by an already-established tail, the postcondition
    --  folds it into the relation. Callers with large proof contexts use
@@ -134,6 +223,197 @@ package Inflate.Model with Pure, SPARK_Mode => On is
        and then (for all I in DF .. DL => D2 (I) = D1 (I))
        and then Encodes_Stored (C1, CF, CL, D1, DF, DL),
      Post => Encodes_Stored (C2, CF, CL, D2, DF, DL),
+     Subprogram_Variant => (Decreases => CL - CF);
+
+   --  The prefix relation reads the same ranges only; same frame property.
+   --  The decoded-side equality is phrased over offsets because that is
+   --  the shape a decoder's per-block postcondition provides.
+   procedure Lemma_Nonfinal_Frame
+     (C1 : Byte_Array; C2 : Byte_Array; CF : Positive; CL : Natural;
+      D1 : Byte_Array; D2 : Byte_Array; DF : Positive; DL : Natural)
+   with
+     Ghost,
+     Global => null,
+     Pre  =>
+       CL <= Buffer_Index'Last
+       and then DL <= Buffer_Index'Last
+       and then CF <= CL + 1
+       and then DF <= DL + 1
+       and then (if CL >= CF
+                 then CF >= C1'First and then CL <= C1'Last
+                      and then CF >= C2'First and then CL <= C2'Last)
+       and then (if DL >= DF
+                 then DF >= D1'First and then DL <= D1'Last
+                      and then DF >= D2'First and then DL <= D2'Last)
+       and then (for all I in CF .. CL => C2 (I) = C1 (I))
+       and then (for all K in 0 .. DL - DF => D2 (DF + K) = D1 (DF + K))
+       and then Encodes_Nonfinal (C1, CF, CL, D1, DF, DL),
+     Post => Encodes_Nonfinal (C2, CF, CL, D2, DF, DL),
+     Subprogram_Variant => (Decreases => CL - CF);
+
+   --  The stream-walk functions read C (CF .. Last) only: equal bytes
+   --  there give equal results. Lets a caller restate the input-side
+   --  hypothesis across a slice of the same buffer.
+   procedure Lemma_Stream_Frame
+     (C1 : Byte_Array; C2 : Byte_Array; CF : Positive; Last : Natural)
+   with
+     Ghost,
+     Global => null,
+     Pre  =>
+       Last <= Buffer_Index'Last
+       and then CF <= Last + 1
+       and then (if Last >= CF
+                 then CF >= C1'First and then Last <= C1'Last
+                      and then CF >= C2'First and then Last <= C2'Last)
+       and then (for all I in CF .. Last => C2 (I) = C1 (I)),
+     Post =>
+       Stored_Stream_End (C2, CF, Last) = Stored_Stream_End (C1, CF, Last)
+       and then Stored_Decoded_Length (C2, CF, Last) =
+                  Stored_Decoded_Length (C1, CF, Last),
+     Subprogram_Variant => (Decreases => Last - CF);
+
+   --  Destructor: where a well-formed stream starts, its first block is
+   --  well formed, and the walk functions unfold across that block. A
+   --  decoder consuming the stream front to back applies this once per
+   --  block; stating the unfolding as a lemma keeps it available inside
+   --  large proof contexts.
+   procedure Lemma_Stream_Step
+     (C : Byte_Array; CF : Positive; Last : Natural)
+   with
+     Ghost,
+     Global => null,
+     Pre  =>
+       Last <= Buffer_Index'Last
+       and then CF <= Last + 1
+       and then (if Last >= CF then CF >= C'First and then Last <= C'Last)
+       and then Stored_Stream_End (C, CF, Last) > 0,
+     Post =>
+       Last - CF >= 4
+       and then C (CF) <= 1
+       and then Natural (C (CF + 3)) + 256 * Natural (C (CF + 4)) =
+                  16#FFFF# - Block_Length (C, CF)
+       and then Last - (CF + 4) >= Block_Length (C, CF)
+       and then Stored_Decoded_Length (C, CF, Last) >= Block_Length (C, CF)
+       and then (if C (CF) = 1
+                 then Stored_Stream_End (C, CF, Last) =
+                        CF + 4 + Block_Length (C, CF)
+                      and then Stored_Decoded_Length (C, CF, Last) =
+                                 Block_Length (C, CF)
+                 else Stored_Stream_End
+                        (C, CF + 5 + Block_Length (C, CF), Last) =
+                          Stored_Stream_End (C, CF, Last)
+                      and then Stored_Stream_End
+                                 (C, CF + 5 + Block_Length (C, CF), Last) > 0
+                      and then Stored_Decoded_Length (C, CF, Last) =
+                                 Block_Length (C, CF)
+                                 + Stored_Decoded_Length
+                                     (C, CF + 5 + Block_Length (C, CF),
+                                      Last));
+
+   --  Appending one more non-final block to a non-final prefix keeps it a
+   --  non-final prefix. The decoder's per-block induction step; recursion
+   --  is on the prefix already accumulated.
+   procedure Lemma_Nonfinal_Snoc
+     (C : Byte_Array; CF : Positive; M : Positive;
+      D : Byte_Array; DF : Positive; N : Positive)
+   with
+     Ghost,
+     Global => null,
+     Pre  =>
+       M >= C'First and then M <= C'Last and then C'Last - M >= 4
+       and then Block_Length (C, M) <= C'Last - (M + 4)
+       and then CF in C'First .. M
+       and then DF <= N
+       --  D-side bounds are needed only where decoded bytes exist: the
+       --  guard is "the extended range N + Block_Length - 1 reaches DF",
+       --  spelled without overflow-prone arithmetic on unbounded N.
+       and then (if Block_Length (C, M) > 0 or else DF <= N - 1
+                 then DF >= D'First
+                      and then N - 1 <= D'Last
+                      and then Block_Length (C, M) <= D'Last - (N - 1))
+       and then C (M) = 0
+       and then Natural (C (M + 3)) + 256 * Natural (C (M + 4)) =
+                  16#FFFF# - Block_Length (C, M)
+       and then (for all K in 0 .. Block_Length (C, M) - 1 =>
+                   C (M + 5 + K) = D (N + K))
+       and then Encodes_Nonfinal (C, CF, M - 1, D, DF, N - 1),
+     Post =>
+       Encodes_Nonfinal
+         (C, CF, M + 4 + Block_Length (C, M),
+          D, DF, N + (Block_Length (C, M) - 1)),
+     Subprogram_Variant => (Decreases => M - CF);
+
+   --  A non-final prefix followed by a complete stream is a complete
+   --  stream: closes the decoder's induction when the final block lands.
+   procedure Lemma_Nonfinal_Close
+     (C : Byte_Array; CF : Positive; M : Positive; CL : Natural;
+      D : Byte_Array; DF : Positive; N : Positive; DL : Natural)
+   with
+     Ghost,
+     Global => null,
+     Pre  =>
+       CL <= Buffer_Index'Last
+       and then DL <= Buffer_Index'Last
+       and then CF <= M and then M <= CL + 1
+       and then DF <= N and then N <= DL + 1
+       and then (if CL >= CF then CF >= C'First and then CL <= C'Last)
+       and then (if DL >= DF then DF >= D'First and then DL <= D'Last)
+       and then Encodes_Nonfinal (C, CF, M - 1, D, DF, N - 1)
+       and then Encodes_Stored (C, M, CL, D, N, DL),
+     Post => Encodes_Stored (C, CF, CL, D, DF, DL),
+     Subprogram_Variant => (Decreases => M - CF);
+
+   --  A complete stream determines where the walk ends and how much it
+   --  decodes to: connects the relational contract of the compressor to
+   --  the input-side hypothesis of the decoder.
+   procedure Lemma_Encodes_End
+     (C : Byte_Array; CF : Positive; CL : Natural;
+      D : Byte_Array; DF : Positive; DL : Natural;
+      Last : Natural)
+   with
+     Ghost,
+     Global => null,
+     Pre  =>
+       CL <= Buffer_Index'Last
+       and then DL <= Buffer_Index'Last
+       and then Last <= Buffer_Index'Last
+       and then CF <= CL + 1
+       and then DF <= DL + 1
+       and then (if CL >= CF then CF >= C'First and then CL <= C'Last)
+       and then (if DL >= DF then DF >= D'First and then DL <= D'Last)
+       and then CL <= Last
+       and then (if Last >= CF then Last <= C'Last)
+       and then Encodes_Stored (C, CF, CL, D, DF, DL),
+     Post =>
+       Stored_Stream_End (C, CF, Last) = CL
+       and then Stored_Decoded_Length (C, CF, Last) = DL - DF + 1,
+     Subprogram_Variant => (Decreases => CL - CF);
+
+   --  The relation is functional in the decoded bytes: one compressed
+   --  stream decodes to one byte sequence. Together with the decoder's
+   --  contract this yields round-trip equality.
+   procedure Lemma_Encodes_Functional
+     (C  : Byte_Array; CF : Positive; CL : Natural;
+      D1 : Byte_Array; DF1 : Positive; DL1 : Natural;
+      D2 : Byte_Array; DF2 : Positive; DL2 : Natural)
+   with
+     Ghost,
+     Global => null,
+     Pre  =>
+       CL <= Buffer_Index'Last
+       and then DL1 <= Buffer_Index'Last
+       and then DL2 <= Buffer_Index'Last
+       and then CF <= CL + 1
+       and then DF1 <= DL1 + 1
+       and then DF2 <= DL2 + 1
+       and then (if CL >= CF then CF >= C'First and then CL <= C'Last)
+       and then (if DL1 >= DF1 then DF1 >= D1'First and then DL1 <= D1'Last)
+       and then (if DL2 >= DF2 then DF2 >= D2'First and then DL2 <= D2'Last)
+       and then Encodes_Stored (C, CF, CL, D1, DF1, DL1)
+       and then Encodes_Stored (C, CF, CL, D2, DF2, DL2),
+     Post =>
+       DL1 - DF1 = DL2 - DF2
+       and then (for all K in 0 .. DL1 - DF1 => D1 (DF1 + K) = D2 (DF2 + K)),
      Subprogram_Variant => (Decreases => CL - CF);
 
 end Inflate.Model;

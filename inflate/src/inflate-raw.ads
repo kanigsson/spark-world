@@ -28,6 +28,15 @@ package Inflate.Raw with SPARK_Mode => On is
    --  rather than `out` so that callers need not prove initialization of a
    --  buffer that is data-flow-wise write-before-read; pass it uninitialized
    --  from full-Ada code, or zeroed from SPARK code.
+   --
+   --  The second postcondition is the decode half of the round-trip
+   --  theorem, on the stored fragment the compressor emits: whenever a
+   --  well-formed stored-block stream starts at Input'First (trailing
+   --  bytes after it, such as a container's checksum, are fine) and its
+   --  decoded size fits the buffer, decoding succeeds, consumes exactly
+   --  the stream, and the produced bytes stand in the decode-model
+   --  relation to it. Since the relation is functional in the decoded
+   --  bytes, this pins the output completely.
    procedure Decompress
      (Input    : in     Byte_Array;
       Output   : in out Byte_Array;
@@ -36,7 +45,28 @@ package Inflate.Raw with SPARK_Mode => On is
       Status   :    out Status_Type)
    with
      Global => null,
-     Post   => Consumed <= Input'Length and then Produced <= Output'Length;
+     Post   =>
+       (Consumed <= Input'Length and then Produced <= Output'Length)
+       and then
+       (if Input'Length >= 5
+           and then Model.Stored_Stream_End
+                      (Input, Input'First, Input'Last) > 0
+           and then Model.Stored_Decoded_Length
+                      (Input, Input'First, Input'Last) <= Output'Length
+        then
+          Status = OK
+          and then Input'First + (Consumed - 1) =
+                     Model.Stored_Stream_End (Input, Input'First, Input'Last)
+          and then Produced =
+                     Model.Stored_Decoded_Length
+                       (Input, Input'First, Input'Last)
+          and then Model.Encodes_Stored
+                     (Input, Input'First, Input'First + (Consumed - 1),
+                      Output,
+                      (if Output'Length > 0 then Output'First else 1),
+                      (if Output'Length > 0
+                       then Output'First + (Produced - 1)
+                       else 0)));
 
    ---------------------------------------------------------------------
    --  Compression

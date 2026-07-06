@@ -20,39 +20,6 @@ package Inflate.GZip with SPARK_Mode => On is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
 
-   --  Decompress the gzip member starting at Input'First. Status = OK
-   --  means well-formed *and* CRC-32 and length matched. On error,
-   --  Consumed and Produced report progress for diagnostics; the output
-   --  bytes are not valid data.
-   procedure Decompress
-     (Input    : in     Byte_Array;
-      Output   : in out Byte_Array;
-      Consumed :    out Natural;
-      Produced :    out Natural;
-      Status   :    out Status_Type)
-   with
-     Global => null,
-     Post   => Consumed <= Input'Length
-               and then Produced <= Output'Length
-               and then (if Status = OK then Consumed > 0);
-
-   --  Decompress consecutive gzip members until the input is exhausted,
-   --  concatenating their output — the semantics of `gzip -d` on the whole
-   --  file. Trailing data that is not a gzip member is an error
-   --  (GZip_Bad_Magic), as it is for `gzip`.
-   procedure Decompress_All
-     (Input    : in     Byte_Array;
-      Output   : in out Byte_Array;
-      Produced :    out Natural;
-      Status   :    out Status_Type)
-   with
-     Global => null,
-     Post   => Produced <= Output'Length;
-
-   ---------------------------------------------------------------------
-   --  Compression
-   ---------------------------------------------------------------------
-
    --  A (P .. P + 3) holds V in little-endian byte order.
    function Stores_LE32
      (A : Byte_Array; P : Positive; V : Word32) return Boolean
@@ -62,6 +29,114 @@ package Inflate.GZip with SPARK_Mode => On is
       and then A (P + 2) = Byte (Interfaces.Shift_Right (V, 16) and 16#FF#)
       and then A (P + 3) = Byte (Interfaces.Shift_Right (V, 24)))
    with Pre => P >= A'First and then P <= A'Last and then A'Last - P >= 3;
+
+   --  The shape of the members Compress emits, characterized on the input
+   --  side alone: the fixed 10-byte header (deflate, no optional fields),
+   --  a stored-block DEFLATE body whose walk ends exactly 8 bytes before
+   --  the member's end (the trailer), and a decoded size that fits in
+   --  Out_Len bytes. The trailer's *contents* are deliberately not
+   --  constrained here: the decoder's contract reports their check
+   --  through Status, phrased against the produced output.
+   function Stored_Member
+     (Input : Byte_Array; Out_Len : Natural) return Boolean
+   is
+     (Input'Length >= 20
+      and then Input (Input'First) = 16#1F#
+      and then Input (Input'First + 1) = 16#8B#
+      and then Input (Input'First + 2) = 8
+      and then Input (Input'First + 3) = 0
+      and then Model.Stored_Stream_End
+                 (Input, Input'First + 10, Input'Last) = Input'Last - 8
+      and then Model.Stored_Decoded_Length
+                 (Input, Input'First + 10, Input'Last) <= Out_Len);
+
+   --  Decompress the gzip member starting at Input'First. Status = OK
+   --  means well-formed *and* CRC-32 and length matched. On error,
+   --  Consumed and Produced report progress for diagnostics; the output
+   --  bytes are not valid data.
+   --
+   --  The second postcondition is the decode half of the round-trip
+   --  theorem lifted to the container: on a member in the compressor's
+   --  image, the whole member is consumed, the body decodes against the
+   --  model into the output, and the member is accepted exactly when its
+   --  trailer holds the CRC-32 the decoder recomputes over that output
+   --  plus the output's length. A compressor that provably stored those
+   --  values (Compress does) therefore gets Status = OK.
+   procedure Decompress
+     (Input    : in     Byte_Array;
+      Output   : in out Byte_Array;
+      Consumed :    out Natural;
+      Produced :    out Natural;
+      Status   :    out Status_Type)
+   with
+     Global => null,
+     Post   =>
+       (Consumed <= Input'Length
+        and then Produced <= Output'Length
+        and then (if Status = OK then Consumed > 0))
+       and then
+       (if Stored_Member (Input, Output'Length)
+        then
+          Consumed = Input'Length
+          and then Produced =
+                     Model.Stored_Decoded_Length
+                       (Input, Input'First + 10, Input'Last)
+          and then Model.Encodes_Stored
+                     (Input, Input'First + 10, Input'Last - 8,
+                      Output,
+                      (if Output'Length > 0 then Output'First else 1),
+                      (if Output'Length > 0
+                       then Output'First + (Produced - 1)
+                       else 0))
+          and then (if Stores_LE32
+                        (Input, Input'Last - 7,
+                         CRC32.Compute
+                           (Output (Output'First ..
+                                    Output'First - 1 + Produced)))
+                       and then Stores_LE32
+                                  (Input, Input'Last - 3, Word32 (Produced))
+                    then Status = OK));
+
+   --  Decompress consecutive gzip members until the input is exhausted,
+   --  concatenating their output — the semantics of `gzip -d` on the whole
+   --  file. Trailing data that is not a gzip member is an error
+   --  (GZip_Bad_Magic), as it is for `gzip`.
+   --
+   --  A file that is one member in the compressor's image (the whole-file
+   --  case of the round-trip theorem) carries the member contract through.
+   procedure Decompress_All
+     (Input    : in     Byte_Array;
+      Output   : in out Byte_Array;
+      Produced :    out Natural;
+      Status   :    out Status_Type)
+   with
+     Global => null,
+     Post   =>
+       Produced <= Output'Length
+       and then
+       (if Stored_Member (Input, Output'Length)
+        then
+          Produced = Model.Stored_Decoded_Length
+                       (Input, Input'First + 10, Input'Last)
+          and then Model.Encodes_Stored
+                     (Input, Input'First + 10, Input'Last - 8,
+                      Output,
+                      (if Output'Length > 0 then Output'First else 1),
+                      (if Output'Length > 0
+                       then Output'First + (Produced - 1)
+                       else 0))
+          and then (if Stores_LE32
+                        (Input, Input'Last - 7,
+                         CRC32.Compute
+                           (Output (Output'First ..
+                                    Output'First - 1 + Produced)))
+                       and then Stores_LE32
+                                  (Input, Input'Last - 3, Word32 (Produced))
+                    then Status = OK));
+
+   ---------------------------------------------------------------------
+   --  Compression
+   ---------------------------------------------------------------------
 
    --  Exact size of Compress's output for N input bytes: a 10-byte
    --  header, the stored-block body, an 8-byte trailer.
