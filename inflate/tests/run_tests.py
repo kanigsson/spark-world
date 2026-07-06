@@ -59,6 +59,42 @@ def case(mode, comp, expect, consumed=-1, tag=None):
     manifest.append((mode, inp, exp, str(cap), str(consumed)))
 
 
+compress_checks = []  # (input_path, original_bytes)
+
+
+def gen_compress(files):
+    """Round-trip cases for the stored-block compressor: the harness
+    compresses each file, checks its own round trip and the decode-model
+    relation, and writes <input>.gz; the driver then decodes that member
+    with C zlib and compares, so the compressor is differentially tested
+    from both sides."""
+    global n_files
+    for name, data in sorted(files.items()):
+        n_files += 1
+        inp = put("c%05d.in" % n_files, data)
+        manifest.append(("compress", inp, "-", str(len(data) + 64), "-1"))
+        compress_checks.append((inp, data))
+
+
+def check_compress_outputs():
+    bad = 0
+    for inp, data in compress_checks:
+        gz = inp + ".gz"
+        try:
+            out = gzip_mod.decompress(open(gz, "rb").read())
+        except (OSError, EOFError, zlib.error, struct.error) as e:
+            print("FAIL compress %s: zlib rejects our gzip: %s" % (inp, e))
+            bad += 1
+            continue
+        if out != data:
+            print("FAIL compress %s: zlib decodes %d bytes, expected %d"
+                  % (inp, len(out), len(data)))
+            bad += 1
+    print("compress differential: %d cases, %d failures"
+          % (len(compress_checks), bad))
+    return bad
+
+
 def zlib_verdict_raw(comp):
     """C zlib's one-shot verdict on a raw deflate stream.
 
@@ -495,6 +531,7 @@ def main():
     gen_crafted()
     gen_mutations(files)
     gen_zip(files)
+    gen_compress(files)
 
     mpath = os.path.join(WORK, "manifest")
     with open(mpath, "w") as f:
@@ -505,7 +542,8 @@ def main():
     r = subprocess.run([HARNESS, mpath], capture_output=True, text=True)
     sys.stdout.write(r.stdout[-4000:])
     sys.stderr.write(r.stderr[-2000:])
-    return r.returncode
+    bad = check_compress_outputs()
+    return r.returncode or (1 if bad else 0)
 
 
 if __name__ == "__main__":

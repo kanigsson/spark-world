@@ -1,12 +1,15 @@
-# inflate - a DEFLATE / zlib / gzip / ZIP decoder in SPARK
+# inflate - a DEFLATE / zlib / gzip / ZIP codec in SPARK
 
-A one-shot, no-heap decompression library: DEFLATE itself (RFC 1951), the
+A one-shot, no-heap compression library: DEFLATE itself (RFC 1951), the
 zlib (RFC 1950) and gzip (RFC 1952) containers with their checksums, and a
 ZIP central-directory walker with per-entry extraction. The entire library
-is SPARK. The current proof work is focused on absence of run-time errors,
-with termination and initialization/data-flow checks included in the proof
-run described below. Functional behavior is covered by differential tests
-against C zlib on 6415 valid and invalid streams.
+is SPARK. Decoding is proved free of run-time errors, with termination and
+initialization/data-flow checks included in the proof run described below;
+decoded bytes are differentially tested against C zlib. Compression (gzip
+with stored blocks) additionally carries a proved functional contract: its
+output stands in an executable decode-model relation to exactly the input
+(see "Compression" below). Ongoing work towards a fully proved round-trip
+codec is scoped in `compression.md`.
 
 The library is meant for callers that need to parse compressed data from
 untrusted input without dynamic allocation. There is no heap, no access
@@ -19,9 +22,10 @@ raising an exception.
 | Package           | Contents |
 |-------------------|----------|
 | `Inflate`         | `Byte_Array`, the `Status_Type` all layers report through |
-| `Inflate.Raw`     | DEFLATE (RFC 1951): stored/fixed/dynamic blocks, canonical Huffman decoding |
+| `Inflate.Raw`     | DEFLATE (RFC 1951): stored/fixed/dynamic blocks, canonical Huffman decoding; `Compress_Stored` |
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
-| `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All` |
+| `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
+| `Inflate.Model`   | executable decode model (currently the stored-block fragment) that functional contracts are stated against |
 | `Inflate.ZIP`     | ZIP archives: end-record lookup (comment scan-back), central-directory iteration, extraction with CRC/size verification |
 | `Inflate.CRC32`   | CRC-32 (gzip/ZIP polynomial), table computed at elaboration |
 | `Inflate.Adler32` | Adler-32 with the zlib batching bound |
@@ -43,16 +47,45 @@ with Global => null,
 trailers and concatenated members compose: the gzip/zlib wrappers and the
 ZIP extractor are ordinary clients of `Inflate.Raw`.
 
+## Compression
+
+The library compresses to standard gzip, using stored (uncompressed)
+DEFLATE blocks: any gzip decoder consumes the output; the size overhead is
+5 bytes per 64 KiB block plus 18 bytes of gzip framing (ratio just below
+1). What makes the compressor interesting is its contract, all proved:
+
+- **Totality and exact size.** Under the stated preconditions there is no
+  failure path, and the output size is exactly
+  `Stored_Size (Input'Length)` — the bound a caller allocates from.
+- **Round-trip, compress half.** The DEFLATE body of the output stands in
+  the relation `Inflate.Model.Encodes_Stored` to exactly the input bytes:
+  the emitted stream is well-formed and decodes to the input under the
+  model. The gzip trailer provably holds `CRC32.Compute (Input)` — the
+  same function the decoder recomputes, so checksum agreement at decode
+  time is definitional, not a separate trust assumption.
+
+`Inflate.Model` is deliberately executable (not ghost): the test suite
+runs the very relation the contracts are stated against, and C zlib
+independently decodes every produced member back to the original bytes.
+
+The missing half of the round-trip theorem — that `Decompress` itself
+provably agrees with the model on such streams — is the next milestone in
+`compression.md`. Today that half is differentially tested, not proved.
+
 ## Proof Status
 
-The most recent recorded `gnatprove --level=2` run reported **701 checks,
+The most recent recorded `gnatprove --level=2` run reported **1015 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
-initialization, data dependencies, and termination checks.
+initialization, data dependencies, and termination checks — and, for the
+compression half, the functional contracts described above (the decode
+model's recursion is proved terminating, and the compressor's
+postcondition ties its output to the model).
 
-The proof is mainly about showing that the implementation does not raise
-run-time errors when called within its contracts. It is not a proof that the
-decoded bytes are the correct DEFLATE/zlib/gzip/ZIP result.
+On the decoding side the proof is mainly about showing that the
+implementation does not raise run-time errors when called within its
+contracts. It is not yet a proof that the decoded bytes are the correct
+DEFLATE/zlib/gzip/ZIP result.
 
 Some proof-relevant structure:
 
@@ -64,15 +97,22 @@ Some proof-relevant structure:
   variable-exponent arithmetic.
 - Two table-internal bounds that would need ghost summation to prove
   as invariants are handled as defensive checks instead. If reached, those
-  paths return a defined error status.
+  paths return a defined error status. (`spikes/m2_kraft/` since proved,
+  in isolation, that both checks are dead code — the ghost-summation and
+  Kraft-equality lemmas discharge at `--level=2`; porting that proof into
+  the library is part of the `compression.md` ladder.)
+- The compressor emits blocks back to front: the decode-model relation
+  recurses front to back over the remaining stream, so a backward loop
+  makes each iteration exactly one unfolding of the relation and the
+  loop invariant is the relation itself on the already-written tail.
 
-Functional correctness is tested, not proved. The test suite compares
-accepted output against zlib and checks rejection behavior on malformed
-inputs. Container checksums are also checked at run time.
+Decode functional correctness is tested, not proved. The test suite
+compares accepted output against zlib and checks rejection behavior on
+malformed inputs. Container checksums are also checked at run time.
 
 ## Testing
 
-`tests/run_tests.py` generates **6415 cases** and runs them through the
+`tests/run_tests.py` generates **6431 cases** and runs them through the
 harness built with all checks on (`-gnata`); the expected verdict comes
 from C zlib (Python's binding) on the same bytes, so the suite is a
 differential test, not a self-test:
@@ -94,6 +134,10 @@ differential test, not a self-test:
   comments (including the maximal 65535-byte one), 200-entry archives,
   truncations, bit flips (robustness-only: zipfile's leniencies differ),
   ZIP64 markers, bzip2 method, encryption flag, corrupted CRCs.
+- Compression: each corpus file is gzip-compressed by the crate, round
+  tripped through the crate's own decoder, checked against the executable
+  decode-model relation, and independently decompressed by C zlib —
+  byte-for-byte in both directions.
 
 The recorded test run had zero failures and no escaping exception.
 

@@ -1,5 +1,5 @@
 name = "inflate"
-description = "DEFLATE/zlib/gzip decoder in SPARK (no heap, one-shot, AoRTE-focused)"
+description = "DEFLATE/zlib/gzip codec in SPARK (no heap, one-shot, proof-focused)"
 version = "0.1.0-dev"
 
 authors = ["kanig"]

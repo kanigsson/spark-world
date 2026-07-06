@@ -1,6 +1,3 @@
-with Inflate.Raw;
-with Inflate.CRC32;
-
 package body Inflate.GZip with SPARK_Mode => On is
 
    use Interfaces;
@@ -184,5 +181,66 @@ package body Inflate.GZip with SPARK_Mode => On is
          exit when Status /= OK or else In_Pos >= Input'Length;
       end loop;
    end Decompress_All;
+
+   --------------
+   -- Compress --
+   --------------
+
+   procedure Compress
+     (Input    : in     Byte_Array;
+      Output   : in out Byte_Array;
+      Produced :    out Natural)
+   is
+      N         : constant Natural      := Input'Length;
+      Body_Size : constant Positive     := Raw.Stored_Size (N);
+      CRC       : constant Word32       := CRC32.Compute (Input);
+      F         : constant Buffer_Index := Output'First;
+      T         : constant Buffer_Index := F + 10 + Body_Size;
+
+      In_First : constant Positive := (if N > 0 then Input'First else 1);
+      In_Last  : constant Natural  := (if N > 0 then Input'Last else 0);
+
+      Raw_Produced : Natural;
+      pragma Warnings (Off, Raw_Produced,
+                       Reason => "the size is known statically: the callee "
+                                 & "promises Raw_Produced = Stored_Size");
+   begin
+      --  Fixed header: deflate, no optional fields, MTIME unknown (0),
+      --  no XFL hints, OS unknown.
+      Output (F)     := 16#1F#;
+      Output (F + 1) := 16#8B#;
+      Output (F + 2) := 8;
+      Output (F + 3) := 0;
+      Output (F + 4) := 0;
+      Output (F + 5) := 0;
+      Output (F + 6) := 0;
+      Output (F + 7) := 0;
+      Output (F + 8) := 0;
+      Output (F + 9) := 16#FF#;
+
+      --  Trailer: CRC-32 of the data, then its length, little-endian.
+      --  Written before the body so that nothing is written after the
+      --  region the decode-model relation is stated on.
+      Output (T)     := Byte (CRC and 16#FF#);
+      Output (T + 1) := Byte (Shift_Right (CRC, 8) and 16#FF#);
+      Output (T + 2) := Byte (Shift_Right (CRC, 16) and 16#FF#);
+      Output (T + 3) := Byte (Shift_Right (CRC, 24));
+      Output (T + 4) := Byte (Word32 (N) and 16#FF#);
+      Output (T + 5) := Byte (Shift_Right (Word32 (N), 8) and 16#FF#);
+      Output (T + 6) := Byte (Shift_Right (Word32 (N), 16) and 16#FF#);
+      Output (T + 7) := Byte (Shift_Right (Word32 (N), 24));
+
+      --  The body goes exactly between header and trailer.
+      Raw.Compress_Stored (Input, Output (F + 10 .. T - 1), Raw_Produced);
+
+      --  The callee states the relation on the slice it was given;
+      --  restate it on Output itself (same bytes, same indices).
+      Model.Lemma_Encodes_Frame
+        (Output (F + 10 .. T - 1), Output,
+         F + 10, T - 1,
+         Input, Input, In_First, In_Last);
+
+      Produced := Body_Size + 18;
+   end Compress;
 
 end Inflate.GZip;

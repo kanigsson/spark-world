@@ -864,4 +864,102 @@ package body Inflate.Raw with SPARK_Mode => On is
       Produced := S.Produced;
    end Decompress;
 
+   ---------------------------------------------------------------------
+   --  Compression: stored blocks
+   ---------------------------------------------------------------------
+
+   procedure Compress_Stored
+     (Input    : in     Byte_Array;
+      Output   : in out Byte_Array;
+      Produced :    out Natural)
+   is
+      N      : constant Natural  := Input'Length;
+      Blocks : constant Positive := Stored_Block_Count (N);
+      Size   : constant Positive := Stored_Size (N);
+
+      Out_First : constant Buffer_Index := Output'First;
+      Out_Last  : constant Buffer_Index := Out_First + (Size - 1);
+
+      --  Normalized input cursors, meaningful even for an empty input
+      --  whose bounds carry no information.
+      In_First : constant Positive := (if N > 0 then Input'First else 1);
+      In_Last  : constant Natural  := (if N > 0 then Input'Last else 0);
+   begin
+      --  The two division facts every bound below leans on: all blocks
+      --  before the last are full, and the last one is not empty (unless
+      --  the input itself is).
+      pragma Assert (if N > 0 then (Blocks - 1) * Max_Stored_Block <= N - 1);
+      pragma Assert (N <= Blocks * Max_Stored_Block);
+
+      --  Blocks are written back to front: the decode-model relation
+      --  recurses front to back over the remaining stream, so walking
+      --  backwards makes every iteration exactly one unfolding of the
+      --  relation — the loop invariant is the relation itself on the
+      --  already-written tail, and no auxiliary induction is needed at
+      --  the end.
+      for J in reverse 0 .. Blocks - 1 loop
+         pragma Loop_Invariant
+           (if J < Blocks - 1 then
+              Model.Encodes_Stored
+                (Output,
+                 Out_First + (J + 1) * (Max_Stored_Block + 5), Out_Last,
+                 Input,
+                 In_First + (J + 1) * Max_Stored_Block, In_Last));
+         declare
+            O    : constant Buffer_Index :=
+              Out_First + J * (Max_Stored_Block + 5);
+            Len  : constant Natural :=
+              (if J = Blocks - 1
+               then N - J * Max_Stored_Block
+               else Max_Stored_Block);
+            I    : constant Positive := In_First + J * Max_Stored_Block;
+            Snap : constant Byte_Array := Output with Ghost;
+         begin
+            Output (O)     := (if J = Blocks - 1 then 1 else 0);
+            Output (O + 1) := Byte (Len mod 256);
+            Output (O + 2) := Byte (Len / 256);
+            Output (O + 3) := Byte ((Max_Stored_Block - Len) mod 256);
+            Output (O + 4) := Byte ((Max_Stored_Block - Len) / 256);
+            if Len > 0 then
+               Output (O + 5 .. O + 4 + Len) := Input (I .. I + (Len - 1));
+            end if;
+
+            if J < Blocks - 1 then
+               --  This block's bytes lie entirely before the tail written
+               --  by previous iterations: transport the relation across
+               --  the writes, then extend it by one block (the assertion
+               --  below, one unfolding of the relation).
+               Model.Lemma_Encodes_Frame
+                 (Snap, Output,
+                  O + (Max_Stored_Block + 5), Out_Last,
+                  Input, Input,
+                  I + Max_Stored_Block, In_Last);
+            end if;
+
+            --  One unfolding of the relation, conjunct by conjunct: the
+            --  header fields read back as written, the payload is the
+            --  input chunk, and the tail is covered by the final-block
+            --  arithmetic or by the transported relation above.
+            pragma Assert (Out_Last - O >= 4);
+            pragma Assert (Output (O) = (if J = Blocks - 1 then 1 else 0));
+            pragma Assert (Model.Block_Length (Output, O) = Len);
+            pragma Assert (Out_Last - (O + 4) >= Len);
+            pragma Assert (In_Last - I + 1 >= Len);
+            pragma Assert
+              (Natural (Output (O + 3)) + 256 * Natural (Output (O + 4)) =
+                 16#FFFF# - Len);
+            pragma Assert
+              (for all K in 0 .. Len - 1 => Output (O + 5 + K) = Input (I + K));
+            pragma Assert
+              (if J = Blocks - 1
+               then O + 4 + Len = Out_Last and then I + Len = In_Last + 1
+               else Model.Encodes_Stored
+                      (Output, O + 5 + Len, Out_Last, Input, I + Len, In_Last));
+            Model.Lemma_Encodes_Step (Output, O, Out_Last, Input, I, In_Last);
+         end;
+      end loop;
+
+      Produced := Size;
+   end Compress_Stored;
+
 end Inflate.Raw;

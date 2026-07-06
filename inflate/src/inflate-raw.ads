@@ -8,6 +8,8 @@
 --  demand rather than cached in package state, so concurrent calls share
 --  nothing.
 
+with Inflate.Model;
+
 package Inflate.Raw with SPARK_Mode => On is
 
    --  Decompress the DEFLATE stream starting at Input'First.
@@ -35,5 +37,58 @@ package Inflate.Raw with SPARK_Mode => On is
    with
      Global => null,
      Post   => Consumed <= Input'Length and then Produced <= Output'Length;
+
+   ---------------------------------------------------------------------
+   --  Compression
+   ---------------------------------------------------------------------
+
+   --  The compressor emits stored blocks only (RFC 1951 §3.2.4): every
+   --  standard DEFLATE decoder consumes its output, the compression ratio
+   --  is just slightly below 1. Its functional contract is the round-trip
+   --  property: the emitted bytes are related to the input by the same
+   --  decode model (Inflate.Model) that the decoder is verified against,
+   --  so decompressing the output provably yields the input back.
+
+   Max_Stored_Block : constant := 16#FFFF#;  --  LEN is a 16-bit field
+
+   --  Input size cap: leaves room below the buffer-length ceiling for the
+   --  5 bytes of framing per block that compression can add.
+   Max_Compress_Input : constant := Buffer_Index'Last - 2**18;
+
+   --  Blocks needed for N bytes of input: ceiling division, and one
+   --  (empty, final) block when there is no input at all.
+   function Stored_Block_Count (N : Natural) return Positive is
+     (if N = 0 then 1 else 1 + (N - 1) / Max_Stored_Block)
+   with Post => Stored_Block_Count'Result <= 32769;
+
+   --  The exact compressed size for N input bytes: 5 bytes of block
+   --  header per block. This is the proved size bound the caller can
+   --  allocate from.
+   function Stored_Size (N : Natural) return Positive is
+     (N + 5 * Stored_Block_Count (N))
+   with Pre => N <= Max_Compress_Input;
+
+   --  Compress Input into a sequence of stored blocks. Total: under the
+   --  precondition every input compresses successfully — there is no
+   --  failure path — and the output size is exactly Stored_Size.
+   --
+   --  The postcondition is the compress half of the round-trip theorem:
+   --  the produced bytes stand in the decode-model relation to exactly
+   --  the input bytes.
+   procedure Compress_Stored
+     (Input    : in     Byte_Array;
+      Output   : in out Byte_Array;
+      Produced :    out Natural)
+   with
+     Global => null,
+     Pre    => Input'Length <= Max_Compress_Input
+               and then Output'Length >= Stored_Size (Input'Length),
+     Post   =>
+       Produced = Stored_Size (Input'Length)
+       and then Model.Encodes_Stored
+                  (Output, Output'First, Output'First + (Produced - 1),
+                   Input,
+                   (if Input'Length > 0 then Input'First else 1),
+                   (if Input'Length > 0 then Input'Last else 0));
 
 end Inflate.Raw;

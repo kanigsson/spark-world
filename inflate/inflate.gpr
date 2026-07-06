@@ -1,6 +1,7 @@
 --  The library crate: pure SPARK, no I/O, no OS, no heap. A one-shot
 --  DEFLATE (RFC 1951) decoder with zlib (RFC 1950), gzip (RFC 1952), and
---  ZIP container parsing for bounded caller-provided buffers.
+--  ZIP container parsing for bounded caller-provided buffers, plus a
+--  gzip compressor (stored blocks) with a proved round-trip contract.
 
 library project Inflate is
 

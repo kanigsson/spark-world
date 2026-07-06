@@ -24,6 +24,7 @@ with Inflate.Raw;
 with Inflate.ZLib;
 with Inflate.GZip;
 with Inflate.ZIP;
+with Inflate.Model;
 
 procedure Test_Inflate is
 
@@ -52,6 +53,23 @@ procedure Test_Inflate is
          return Buf;
       end;
    end Load;
+
+   procedure Save (Name : String; Data : Byte_Array) is
+      use Ada.Streams.Stream_IO;
+      F   : Ada.Streams.Stream_IO.File_Type;
+      SEA : Stream_Element_Array
+              (1 .. Stream_Element_Offset (Data'Length));
+   begin
+      for I in SEA'Range loop
+         SEA (I) := Stream_Element
+           (Data (Data'First - 1 + Natural (I)));
+      end loop;
+      Create (F, Out_File, Name);
+      if Data'Length > 0 then
+         Write (F, SEA);
+      end if;
+      Close (F);
+   end Save;
 
    --  Fields of the current manifest line
    Line_Max : constant := 4096;
@@ -108,6 +126,44 @@ procedure Test_Inflate is
             end loop;
             Consumed := Input'Length;
          end;
+      elsif Mode = "compress" then
+         --  The input file holds the data to compress. Compress, check
+         --  the in-process round trip and the executable decode-model
+         --  relation, and drop the gzip member next to the input for the
+         --  Python driver's differential check against C zlib.
+         if Input'Length > Raw.Max_Compress_Input then
+            Fail ("input too large for the compressor");
+         else
+            declare
+               Comp : Byte_Array_Access := new Byte_Array
+                 (1 .. GZip.Compressed_Size (Input'Length));
+               Comp_Produced : Natural;
+            begin
+               GZip.Compress (Input.all, Comp.all, Comp_Produced);
+               GZip.Decompress
+                 (Comp.all, Output.all, Consumed, Produced, Status);
+               if Status /= OK then
+                  Fail ("round trip rejected with " & Status'Image);
+               elsif Produced /= Input'Length
+                 or else Output (1 .. Produced) /= Input.all
+               then
+                  Fail ("round trip differs (produced" & Produced'Image
+                        & ")");
+               elsif Consumed /= Comp_Produced then
+                  Fail ("round trip consumed" & Consumed'Image
+                        & ", expected" & Comp_Produced'Image);
+               elsif not Model.Is_Stored_Encoding
+                 (Comp (11 .. Comp_Produced - 8), Input.all)
+               then
+                  Fail ("decode-model relation does not hold");
+               end if;
+               Save (In_Path & ".gz", Comp.all);
+               Free (Comp);
+            end;
+         end if;
+         Free (Input);
+         Free (Output);
+         return;
       else
          Fail ("unknown mode");
          return;
