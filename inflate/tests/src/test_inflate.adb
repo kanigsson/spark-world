@@ -18,8 +18,10 @@ with Ada.Streams;               use Ada.Streams;
 with Ada.Streams.Stream_IO;
 with Ada.Text_IO;               use Ada.Text_IO;
 with Ada.Unchecked_Deallocation;
+with Interfaces;                 use type Interfaces.Unsigned_32;
 
 with Inflate;                   use Inflate;
+with Inflate.CRC32;
 with Inflate.Raw;
 with Inflate.ZLib;
 with Inflate.GZip;
@@ -202,10 +204,22 @@ procedure Test_Inflate is
    end Run_Case;
 
    Manifest : Ada.Text_IO.File_Type;
+   CRC_Check_Input : constant Byte_Array (1 .. 9) :=
+     (16#31#, 16#32#, 16#33#, 16#34#, 16#35#,
+      16#36#, 16#37#, 16#38#, 16#39#);
 begin
    if Argument_Count /= 1 then
       Put_Line ("usage: test_inflate MANIFEST");
       Set_Exit_Status (2);
+      return;
+   end if;
+
+   --  CRC-32/ISO-HDLC's standard check value for ASCII "123456789" pins
+   --  the reflected polynomial model's initialization and final XOR to the
+   --  external convention, independently of gzip parsing.
+   if Inflate.CRC32.Compute (CRC_Check_Input) /= 16#CBF4_3926# then
+      Put_Line ("FAIL CRC-32 standard check vector");
+      Set_Exit_Status (1);
       return;
    end if;
 

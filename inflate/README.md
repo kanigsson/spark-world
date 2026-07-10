@@ -30,7 +30,7 @@ raising an exception.
 | `Inflate.Model`   | executable decode model (currently the stored-block fragment) that functional contracts are stated against |
 | `Inflate.Theorems`| the proved gzip round-trip theorem, stated as an executable procedure |
 | `Inflate.ZIP`     | ZIP archives: end-record lookup (comment scan-back), central-directory iteration, extraction with CRC/size verification |
-| `Inflate.CRC32`   | CRC-32 (gzip/ZIP polynomial), table computed at elaboration |
+| `Inflate.CRC32`   | CRC-32 (gzip/ZIP polynomial), table proved equal to a reflected GF(2) specification |
 | `Inflate.Adler32` | Adler-32 with the zlib batching bound |
 
 All decoders share one shape:
@@ -88,7 +88,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=2` run reported **1791 checks,
+The most recent recorded `gnatprove --level=2` run reported **1826 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -125,9 +125,11 @@ Some proof-relevant structure:
   non-final-prefix relation, extended per block by a snoc lemma and
   closed against the final block by a composition lemma; a destructor
   lemma unfolds the input-side stream walk one block at a time.
-- The CRC's content-invariance (equal byte sequences from any state give
-  equal CRCs) is proved against a ghost fold model whose recursion is as
-  deep as the data.
+- The CRC table is proved to cache eight direct reflected polynomial-division
+  steps for each byte, and the optimized update loop is proved equal to a
+  ghost fold over that table-independent model. The CRC's content-invariance
+  (equal byte sequences from any state give equal CRCs) is proved against the
+  same fold, whose recursion is as deep as the data.
 - Evaluating the proof machinery — ghost buffer snapshots, recursive
   lemmas, invariants that re-walk the model relation — costs time
   proportional to the data, which would make assertion-enabled
@@ -200,7 +202,7 @@ registers and uses fused tables for length, distance, and extra bits.
 ```sh
 gprbuild -P inflate.gpr                  # release: -O2
 gprbuild -P inflate.gpr -XMODE=debug     # contracts as run-time assertions
-gnatprove -P inflate.gpr --mode=all -j0  # reproduce the proof, using all cores
+gnatprove -P inflate.gpr --mode=all -j0 --timeout=30  # reproduce the proof
 cd tests && gprbuild -P tests.gpr -XMODE=debug && python3 run_tests.py
 cd bench && gprbuild -P bench.gpr && python3 run_bench.py   # needs libz.a
 ```

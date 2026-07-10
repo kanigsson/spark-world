@@ -166,6 +166,15 @@ CRC32 = polynomial division mod the generator; Adler32 = the mod-65521 running
 sums. Self-contained and very tractable. No longer a bonus at the end: M6a needs
 gzip framing, so this lands early and makes container round-trip almost free.
 
+**Current status: partial.** CRC-32 is now connected to a table-independent
+reflected GF(2) model: the public contracts define a bit step using the standard
+generator, compose eight steps into a byte remainder, prove the elaborated table
+caches those remainders, and prove the table-driven update equals a fold over the
+polynomial model. The gzip compressor already pins down its fixed header and
+little-endian trailer bytes in its postcondition. Adler-32 still lacks the
+corresponding proof against its direct mod-65521 running-sums model, so M7 is not
+yet complete.
+
 ## Format choice
 
 - **Target gzip = DEFLATE + CRC32 + framing**, built on the existing `inflate`.

@@ -93,7 +93,7 @@ remain accepted:
 - `src/inflate-zip.adb:237-353`
 - `tests/run_tests.py:442-560`
 
-### 4. Medium: the formal round trip proves self-consistency, not RFC compliance
+### 4. Medium (partially resolved): the formal round trip still proves stored-format self-consistency
 
 `Inflate.Model` covers only the stored-block fragment emitted by the
 compressor:
@@ -105,18 +105,24 @@ decoder is proved to recover bytes satisfying the same relation. The
 functionality lemma then establishes equality. This is a real end-to-end
 theorem for the library's own compressor image.
 
-The checksum argument similarly proves agreement through the library's own
-CRC function. `CRC32.Fold` steps through the same generated table used by the
-implementation; there is no separate polynomial specification proving that
-the result is the standardized CRC-32:
+The CRC-specific part of this finding is resolved. `Inflate.CRC32` now defines
+a table-independent reflected GF(2) specification: one bit of polynomial
+division using the standard generator, compositions for eight bits, and a byte
+step. The table builder proves that every cached entry equals that direct byte
+remainder, and the optimized update loop proves equality with a fold over the
+polynomial step:
 
-- `src/inflate-crc32.ads:14-24`
-- `src/inflate-crc32.adb:38-54`
+- `src/inflate-crc32.ads:14-108`
+- `src/inflate-crc32.adb:18-124`
 
-Consequently, a shared wire-format or checksum mistake could satisfy the
-formal round-trip theorem while failing an independent gzip implementation.
-The tests against C zlib provide useful evidence against such a mistake, but
-they are not a proof that every conforming gzip decoder accepts every output.
+Thus a table-generation or table-lookup mistake cannot satisfy the proof merely
+because the model repeats the same table walk. The remaining issue is the stored
+DEFLATE wire format: compressor and decoder are still composed through the
+library's own executable relation rather than an independently formalized RFC
+semantics. A shared stored-format mistake could therefore satisfy the formal
+round-trip theorem while failing an independent gzip implementation. The tests
+against C zlib provide useful evidence against such a mistake, but they are not
+a proof that every conforming gzip decoder accepts every output.
 
 ### 5. Low: some prose is stronger than the contracts
 
@@ -140,10 +146,10 @@ a user-facing compression/decompression command.
 A current run of:
 
 ```sh
-gnatprove -P inflate.gpr --mode=all -j0
+gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
 ```
 
-completed successfully with 1,791 checks, all proved. The generated summary
+completed successfully with 1,826 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -157,8 +163,8 @@ Subject to public preconditions, the proof establishes:
 - the stored-block relation between compressor input and emitted body;
 - stored-stream decode success, exact consumption and production, and
   agreement with the model when the decoded data fits the output buffer;
-- gzip framing values used by the compressor, including the checksum computed
-  by the library's CRC function and the input length;
+- gzip framing values used by the compressor, including the input length and a
+  checksum proved equal to the reflected polynomial CRC model;
 - end-to-end restoration of the input by
   `Inflate.Theorems.GZip_Round_Trip` under its input-size and buffer-size
   preconditions.
@@ -204,7 +210,9 @@ The formal result does not establish:
   bit reader and Huffman decoder;
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;
-- CRC-32 or Adler-32 equivalence to an independent mathematical standard;
+- Adler-32 equivalence to an independent mathematical standard;
+- stored-DEFLATE, zlib, gzip, or ZIP wire semantics against an independently
+  formalized format specification;
 - gzip/DEFLATE interoperability with arbitrary third-party implementations;
 - time-complexity or stack-usage bounds;
 - compiler, run-time library, prover, or hardware correctness;

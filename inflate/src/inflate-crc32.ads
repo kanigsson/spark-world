@@ -11,6 +11,67 @@ package Inflate.CRC32 with SPARK_Mode => On is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Unsigned_32;
 
+   --  The specification functions below are used while the lookup table is
+   --  elaborated.  Keep their contracts proof-only so assertion-enabled
+   --  builds do not create elaboration-order calls through postconditions.
+   --  GNATprove still proves assertions under the Ignore policy.
+   pragma Assertion_Policy (Pre => Ignore, Post => Ignore, Ghost => Ignore);
+
+   --  Reflected representation of the CRC-32 generator polynomial
+   --
+   --    x**32 + x**26 + x**23 + x**22 + x**16 + x**12
+   --          + x**11 + x**10 + x**8 + x**7 + x**5 + x**4 + x**2 + x + 1.
+   --
+   --  Polynomial_Bit_Step is one division step in GF(2), least-significant
+   --  coefficient first.  Polynomial_Byte_Remainder applies exactly eight
+   --  such steps.  These functions are the table-independent mathematical
+   --  specification; the body merely caches their 256 byte remainders.
+   Reflected_Generator : constant Word32 := 16#EDB8_8320#;
+
+   function Polynomial_Bit_Step (Remainder : Word32) return Word32
+   with
+     Global => null,
+     Post   =>
+       Polynomial_Bit_Step'Result =
+         (if (Remainder and 1) /= 0
+          then Interfaces.Shift_Right (Remainder, 1) xor Reflected_Generator
+          else Interfaces.Shift_Right (Remainder, 1));
+
+   function Polynomial_Bits_2 (Remainder : Word32) return Word32
+   with
+     Global => null,
+     Post   =>
+       Polynomial_Bits_2'Result =
+         Polynomial_Bit_Step (Polynomial_Bit_Step (Remainder));
+
+   function Polynomial_Bits_4 (Remainder : Word32) return Word32
+   with
+     Global => null,
+     Post   =>
+       Polynomial_Bits_4'Result =
+         Polynomial_Bits_2 (Polynomial_Bits_2 (Remainder));
+
+   function Polynomial_Bits_8 (Remainder : Word32) return Word32
+   with
+     Global => null,
+     Post   =>
+       Polynomial_Bits_8'Result =
+         Polynomial_Bits_4 (Polynomial_Bits_4 (Remainder));
+
+   function Polynomial_Byte_Remainder (B : Byte) return Word32
+   with
+     Global => null,
+     Post   =>
+       Polynomial_Byte_Remainder'Result = Polynomial_Bits_8 (Word32 (B));
+
+   function Polynomial_Byte_Step (Remainder : Word32; B : Byte)
+      return Word32
+   with
+     Global => null,
+     Post   =>
+       Polynomial_Byte_Step'Result =
+         Polynomial_Bits_8 (Remainder xor Word32 (B));
+
    --  The functional model of the computation: the CRC state folded over
    --  the data bytes one at a time, front to back, with explicit cursors.
    --  Its recursion is as deep as the data is long, so the policy pragma
@@ -19,11 +80,9 @@ package Inflate.CRC32 with SPARK_Mode => On is
    --  assertions on; GNATprove still proves Ignore-policy assertions, so
    --  nothing is lost from the proof.
    --
-   --  The fold itself is defined in the body (it steps through the same
-   --  elaboration-computed table the implementation uses); externally it
-   --  is opaque, and clients rely on Lemma_Update_Content instead.
-   pragma Assertion_Policy (Pre => Ignore, Post => Ignore, Ghost => Ignore);
-
+   --  Fold is defined in terms of Polynomial_Byte_Step, not the lookup table.
+   --  Thus Update's postcondition connects the optimized implementation to
+   --  the polynomial specification rather than to a second table walk.
    function Fold
      (C : Word32; Data : Byte_Array; From : Positive; To : Natural)
       return Word32

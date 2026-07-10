@@ -15,33 +15,81 @@ package body Inflate.CRC32 with SPARK_Mode => On is
 
    use Interfaces;
 
+   -------------------------
+   -- Polynomial_Bit_Step --
+   -------------------------
+
+   function Polynomial_Bit_Step (Remainder : Word32) return Word32 is
+     (if (Remainder and 1) /= 0
+      then Shift_Right (Remainder, 1) xor Reflected_Generator
+      else Shift_Right (Remainder, 1));
+
+   -----------------------
+   -- Polynomial_Bits_2 --
+   -----------------------
+
+   function Polynomial_Bits_2 (Remainder : Word32) return Word32 is
+     (Polynomial_Bit_Step (Polynomial_Bit_Step (Remainder)));
+
+   -----------------------
+   -- Polynomial_Bits_4 --
+   -----------------------
+
+   function Polynomial_Bits_4 (Remainder : Word32) return Word32 is
+     (Polynomial_Bits_2 (Polynomial_Bits_2 (Remainder)));
+
+   -----------------------
+   -- Polynomial_Bits_8 --
+   -----------------------
+
+   function Polynomial_Bits_8 (Remainder : Word32) return Word32 is
+     (Polynomial_Bits_4 (Polynomial_Bits_4 (Remainder)));
+
+   -------------------------------
+   -- Polynomial_Byte_Remainder --
+   -------------------------------
+
+   function Polynomial_Byte_Remainder (B : Byte) return Word32 is
+     (Polynomial_Bits_8 (Word32 (B)));
+
+   --------------------------
+   -- Polynomial_Byte_Step --
+   --------------------------
+
+   function Polynomial_Byte_Step (Remainder : Word32; B : Byte)
+      return Word32 is
+     (Polynomial_Bits_8 (Remainder xor Word32 (B)));
+
    type Table_Type is array (Byte) of Word32;
 
-   function Build_Table return Table_Type with Global => null;
+   function Build_Table return Table_Type
+   with
+     Global => null,
+     Post   =>
+       (for all I in Byte =>
+          Build_Table'Result (I) = Polynomial_Byte_Remainder (I));
 
    function Build_Table return Table_Type is
-      T : Table_Type;
-      C : Word32;
+      T : Table_Type := (others => 0);
    begin
       for I in Byte loop
-         C := Word32 (I);
-         for K in 1 .. 8 loop
-            C := (if (C and 1) /= 0
-                  then 16#EDB8_8320# xor Shift_Right (C, 1)
-                  else Shift_Right (C, 1));
-         end loop;
-         T (I) := C;
+         T (I) := Polynomial_Byte_Remainder (I);
+         pragma Loop_Invariant
+           (for all J in Byte'First .. I =>
+              T (J) = Polynomial_Byte_Remainder (J));
       end loop;
       return T;
    end Build_Table;
 
    Table : constant Table_Type := Build_Table;
 
-   --  One byte folded into the running state: the loop body of Update,
-   --  named so the model can be stated in terms of it.
+   --  One optimized table step.  Its contract is the bridge from the cached
+   --  implementation to the direct polynomial-division specification.
    function Step (C : Word32; B : Byte) return Word32 is
      (Table (Byte (C and 16#FF#) xor B) xor Shift_Right (C, 8))
-   with Ghost, Global => null;
+   with
+     Global => null,
+     Post   => Step'Result = Polynomial_Byte_Step (C, B);
 
    ----------
    -- Fold --
@@ -51,7 +99,10 @@ package body Inflate.CRC32 with SPARK_Mode => On is
      (C : Word32; Data : Byte_Array; From : Positive; To : Natural)
       return Word32
    is
-     (if From > To then C else Fold (Step (C, Data (From)), Data, From + 1, To));
+     (if From > To
+      then C
+      else Fold
+        (Polynomial_Byte_Step (C, Data (From)), Data, From + 1, To));
 
    ------------
    -- Update --
@@ -66,7 +117,7 @@ package body Inflate.CRC32 with SPARK_Mode => On is
          pragma Loop_Invariant
            (Fold (CRC xor 16#FFFF_FFFF#, Data, Data'First, Data'Last) =
               Fold (C, Data, I, Data'Last));
-         C := Table (Byte (C and 16#FF#) xor Data (I)) xor Shift_Right (C, 8);
+         C := Step (C, Data (I));
       end loop;
       return C xor 16#FFFF_FFFF#;
    end Update;
@@ -101,11 +152,26 @@ package body Inflate.CRC32 with SPARK_Mode => On is
    is
    begin
       if F1 <= T1 then
+         pragma Assert (D2 (F2) = D1 (F1));
+         pragma Assert
+           (Polynomial_Byte_Step (C, D2 (F2)) =
+              Polynomial_Byte_Step (C, D1 (F1)));
          pragma Assert
            (for all K in 0 .. T1 - (F1 + 1) =>
               D2 ((F2 + 1) + K) = D1 ((F1 + 1) + K));
          Lemma_Fold_Content
-           (Step (C, D1 (F1)), D1, F1 + 1, T1, D2, F2 + 1, T2);
+           (Polynomial_Byte_Step (C, D1 (F1)),
+            D1, F1 + 1, T1, D2, F2 + 1, T2);
+         pragma Assert
+           (Fold (C, D1, F1, T1) =
+              Fold
+                (Polynomial_Byte_Step (C, D1 (F1)),
+                 D1, F1 + 1, T1));
+         pragma Assert
+           (Fold (C, D2, F2, T2) =
+              Fold
+                (Polynomial_Byte_Step (C, D2 (F2)),
+                 D2, F2 + 1, T2));
       end if;
    end Lemma_Fold_Content;
 
