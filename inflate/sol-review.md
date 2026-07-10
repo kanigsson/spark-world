@@ -7,30 +7,34 @@ are genuine. The project does not, however, prove full functional correctness
 of its DEFLATE, zlib, gzip, or ZIP decoders. General decoding and external
 format compatibility are supported by differential testing.
 
-Most of that boundary is stated accurately in the README. The main substantive
-gaps are unreliable separation of debug and release build artifacts, recursive
-executable contracts that can exhaust the stack, and incomplete ZIP consistency
-validation.
+Most of that boundary is stated accurately in the README. The debug/release
+artifact-separation issue identified by this review is now resolved. The main
+remaining substantive gaps are recursive executable contracts that can exhaust
+the stack and incomplete ZIP consistency validation.
 
 ## Findings
 
-### 1. High: debug and release builds reuse incompatible artifacts
+### 1. High (resolved): debug and release builds reused incompatible artifacts
 
-`inflate.gpr` selects materially different compiler switches through `MODE`,
-but both modes use the same `obj/` and `lib/` directories:
+`inflate.gpr` selects materially different compiler switches through `MODE`.
+It previously used the same `obj/` and `lib/` directories for both modes:
 
-- `inflate.gpr:11-18`
-- `inflate.gpr:20-29`
+- `inflate.gpr:11-20`
+- `inflate.gpr:22-30`
 
 After a forced release build, running the documented command with
 `-XMODE=debug` did not recompile the library. The resulting test executable
 continued to use the release library built with `-gnatp`, so contracts were
 still disabled even though debug mode had been requested.
 
-This can silently weaken the assertion-enabled test run. It can also work in
-the other direction and contaminate performance measurements with debug
-objects. Mode-specific object and library directories, or an explicit forced
-or clean rebuild, are required for reproducible mode selection.
+This could silently weaken the assertion-enabled test run. It could also work
+in the other direction and contaminate performance measurements with debug
+objects.
+
+This is resolved: the project now derives mode-specific object and library
+directories (`obj/debug`, `obj/release`, `lib/debug`, and `lib/release`) from
+`MODE`. Both variants can coexist, and switching modes selects the matching
+artifacts without requiring a forced or clean rebuild.
 
 ### 2. Medium: a checks-enabled build can overflow the stack on valid input
 

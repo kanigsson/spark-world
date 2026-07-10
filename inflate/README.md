@@ -200,7 +200,7 @@ registers and uses fused tables for length, distance, and extra bits.
 ```sh
 gprbuild -P inflate.gpr                  # release: -O2
 gprbuild -P inflate.gpr -XMODE=debug     # contracts as run-time assertions
-gnatprove -P inflate.gpr --mode=all      # reproduce the proof
+gnatprove -P inflate.gpr --mode=all -j0  # reproduce the proof, using all cores
 cd tests && gprbuild -P tests.gpr -XMODE=debug && python3 run_tests.py
 cd bench && gprbuild -P bench.gpr && python3 run_bench.py   # needs libz.a
 ```
