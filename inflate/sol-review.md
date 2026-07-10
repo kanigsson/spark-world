@@ -8,9 +8,9 @@ of its DEFLATE, zlib, gzip, or ZIP decoders. General decoding and external
 format compatibility are supported by differential testing.
 
 Most of that boundary is stated accurately in the README. The debug/release
-artifact-separation issue identified by this review is now resolved. The main
-remaining substantive gaps are recursive executable contracts that can exhaust
-the stack and incomplete ZIP consistency validation.
+artifact-separation and ZIP consistency issues identified by this review are
+now resolved. The main remaining substantive gap is recursive executable
+contracts that can exhaust the stack in checks-enabled builds.
 
 ## Findings
 
@@ -60,31 +60,38 @@ statements that the library has no recursion and reports malformed input as a
 status rather than an exception need to be qualified for assertion-enabled
 builds. The reproducer is valid input, not malformed input.
 
-### 3. Medium: ZIP consistency validation is incomplete
+### 3. Medium (resolved): ZIP consistency validation was incomplete
 
-`Inflate.ZIP.Open` reads the central-directory size from the EOCD but only
-checks that the declared range fits before the EOCD:
+`Inflate.ZIP.Open` previously read the central-directory size from the EOCD but
+only checked that the declared range fit before the EOCD.
 
-- `src/inflate-zip.adb:99-119`
-
-The size is not retained in `Cursor`, iteration is not bounded by it, and the
-entry count is not reconciled with it. A one-entry archive whose EOCD
+The size was not retained in `Cursor`, iteration was not bounded by it, and the
+entry count was not reconciled with it. A one-entry archive whose EOCD
 central-directory size was changed to zero was still accepted and extracted.
 
-The statement that `Entry_Info` need not be trusted because every field is
-revalidated is also stronger than the implementation:
+The statement that `Entry_Info` need not be trusted because every field was
+revalidated was also stronger than the implementation.
 
-- `src/inflate-zip.ads:69-81`
-- `src/inflate-zip.adb:197-298`
+`Extract` validated bounds, the local signature, data placement, output size,
+and CRC, but it could not link a caller-fabricated `Entry_Info` back to a
+central-directory entry. It also did not reconcile the local fields relevant
+to extraction with the central fields.
 
-`Extract` validates bounds, the local signature, data placement, output size,
-and CRC, but it cannot link a caller-fabricated `Entry_Info` back to a central
-directory entry. It also does not reconcile all local-header fields with the
-central fields.
+This is resolved. `Cursor` and `Entry_Info` are now opaque. The cursor retains
+the declared central-directory bounds, `Next` cannot cross them, and the last
+declared entry must end exactly at the declared limit. `Open` also rejects
+entry counts that cannot fit in the declared size. `Extract` re-reads the EOCD
+and central record carried by the opaque descriptor, then reconciles the local
+flags, method, name, and (when there is no data descriptor) CRC and sizes.
 
-The ZIP bit-flip tests deliberately have no functional oracle and only require
-the harness to return without an exception (`tests/run_tests.py:472-483`), so
-they do not detect this class of acceptance-policy issue.
+Focused tests now reject inconsistent EOCD sizes/counts and mismatched local
+metadata. A streaming ZIP case confirms that valid data-descriptor archives
+remain accepted:
+
+- `src/inflate-zip.ads:21-76`
+- `src/inflate-zip.adb:110-216`
+- `src/inflate-zip.adb:237-353`
+- `tests/run_tests.py:442-560`
 
 ### 4. Medium: the formal round trip proves self-consistency, not RFC compliance
 
@@ -133,10 +140,10 @@ a user-facing compression/decompression command.
 A current run of:
 
 ```sh
-gnatprove -P inflate.gpr --mode=all
+gnatprove -P inflate.gpr --mode=all -j0
 ```
 
-completed successfully with 1,705 checks, all proved. The generated summary
+completed successfully with 1,791 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -208,8 +215,8 @@ The formal result does not establish:
 After a forced debug rebuild, the full test suite completed with:
 
 ```text
-generated 6431 cases
-cases: 6431  failures: 0
+generated 6442 cases
+cases: 6442  failures: 0
 compress differential: 16 cases, 0 failures
 ```
 

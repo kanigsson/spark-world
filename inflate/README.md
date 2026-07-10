@@ -88,7 +88,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=2` run reported **1705 checks,
+The most recent recorded `gnatprove --level=2` run reported **1791 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -144,7 +144,7 @@ also checked at run time.
 
 ## Testing
 
-`tests/run_tests.py` generates **6431 cases** and runs them through the
+`tests/run_tests.py` generates **6442 cases** and runs them through the
 harness built with all checks on (`-gnata`); the expected verdict comes
 from C zlib (Python's binding) on the same bytes, so the suite is a
 differential test, not a self-test:

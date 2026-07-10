@@ -442,6 +442,22 @@ def zip_make(entries, comment=b"", method=zipfile.ZIP_DEFLATED, level=None,
     return bio.getvalue()
 
 
+def zip_make_streaming(entries):
+    """Write to an unseekable sink so zipfile uses data descriptors."""
+    class Unseekable(io.BytesIO):
+        def seekable(self):
+            return False
+
+        def seek(self, *args):
+            raise io.UnsupportedOperation("seek")
+
+    bio = Unseekable()
+    with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in entries:
+            zf.writestr(name, data)
+    return bio.getvalue()
+
+
 def zip_case_ok(entries, **kw):
     comp = zip_make(entries, **kw)
     expect = b"".join(d for _, d in entries)
@@ -468,6 +484,8 @@ def gen_zip(files):
     zip_case_ok(entries, comment=b"x" * 65535)              # maximal comment
     zip_case_ok([("one", b"1")])
     zip_case_ok([("many%04d" % i, bytes([i % 256]) * i) for i in range(200)])
+    case("zip", zip_make_streaming(entries),
+         b"".join(d for _, d in entries))                  # data descriptors
 
     good = zip_make(entries)
     # Truncations: every prefix must be rejected unless it still parses.
@@ -509,6 +527,35 @@ def gen_zip(files):
     # Encryption flag set (bit 0 of the central entry's flags)
     one = zip_make([("e.txt", b"secret-ish")], method=zipfile.ZIP_STORED)
     cd = one.rfind(b"PK\x01\x02")
+    eocd = one.rfind(b"PK\x05\x06")
+    # The EOCD count and central-directory size must describe exactly the
+    # entries walked by the library, rather than merely point somewhere
+    # before the EOCD.
+    buf = bytearray(one)
+    buf[eocd + 12:eocd + 16] = struct.pack("<I", 0)
+    case("zip", bytes(buf), None)
+    buf = bytearray(one)
+    cd_size = struct.unpack_from("<I", buf, eocd + 12)[0]
+    buf[eocd + 12:eocd + 16] = struct.pack("<I", cd_size - 1)
+    case("zip", bytes(buf), None)
+    buf = bytearray(one)
+    buf[eocd + 8:eocd + 12] = b"\0\0\0\0"
+    case("zip", bytes(buf), None)
+    buf = bytearray(one)
+    buf[eocd + 8:eocd + 12] = b"\2\0\2\0"
+    case("zip", bytes(buf), None)
+
+    # The local header must agree with its central entry. These cases used
+    # to extract successfully because only the central values were used.
+    local = struct.unpack_from("<I", one, cd + 42)[0]
+    for field in (6, 8, 14, 18, 22):
+        buf = bytearray(one)
+        buf[local + field] ^= 1
+        case("zip", bytes(buf), None)
+    buf = bytearray(one)
+    buf[local + 30] ^= 1
+    case("zip", bytes(buf), None)
+
     buf = bytearray(one)
     buf[cd + 8] |= 1
     case("zip", bytes(buf), None)
