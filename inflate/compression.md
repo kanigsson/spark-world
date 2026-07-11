@@ -80,7 +80,7 @@ Design decisions to make early:
 | M1 | Bit-reader functional model + Huffman decode equivalence | Medium | M0 | High |
 | M2 | Canonical Huffman construction: prefix-free + complete (Kraft) | **Hard** | M1 | Medium — the crux |
 | M3 | Huffman round-trip (encode/decode mutual inverse), standalone | — (done) | M2 | done |
-| M4 | LZ77 back-reference decode correctness (window model) | Medium | M1 | High |
+| M4 | LZ77 back-reference decode correctness (window model) | — (done) | M1 | done |
 | M5 | Full DEFLATE decode functional correctness vs ghost model | Medium | M1,M2,M4 | Medium |
 | M6a | Stored-only compressor + full gzip round-trip + CLI | Medium | M1,M7 | High |
 | M6 | Huffman/LZ77 compressor upgrade, same round-trip theorem | Medium–Hard | M2,M3,M4,M6a | Medium |
@@ -139,6 +139,24 @@ Window model: `output[i] = output[i - distance]`. The interesting case is
 overlapping copies where `distance < length` (RLE-style) — the code already handles
 the `Dist = 1` run and the general overlap loop; prove they realize the intended
 byte relation. **Medium.**
+
+**Current status: complete and connected to the shipping decoder.**
+`Inflate.Model.Copies_Match` is the executable relation: it preserves the
+already-produced prefix and states each appended byte as either a byte from
+that prefix or an earlier byte from the same match. `Inflate.LZ77.Copy_Match`
+implements and proves all three concrete paths — distance-one fill,
+non-overlapping slice copy, and forward byte-by-byte overlap — and
+`Inflate.Raw.Codes` now calls that proved primitive after validating length,
+distance, and output capacity. Thus M4 is a contract on the code users run,
+not only on a duplicate proof spike.
+
+The focused primitive proves 117 checks at `--level=2`; its combined M4/model
+project proves 515, and the full shipping library proves all 1,942 checks. The
+assertion-enabled differential quick suite passes 3,336 generated streams plus
+16 compressor interoperability cases, while the focused executable checks the
+three copy shapes directly. Quantified proof assertions are ignored in library
+executables to avoid quadratic debug instrumentation; the small M4 harness
+evaluates the executable relation explicitly.
 
 ### M5 — Full DEFLATE decode correctness
 Assemble M1+M2+M4 against a ghost decode model over block framing. Carries the
@@ -263,16 +281,15 @@ Why3-adjacent grind. Still SPARK-tractable — budget for it.
 
 ## Current next moves
 
-M1, the isolated M2 pressure test, M3, M6a's stored-compressor/round-trip core,
-and M7 are now complete. The remaining work naturally splits into proof depth
-and productization:
+M1 through M4, M6a's stored-compressor/round-trip core, and M7 are now
+complete. The remaining work naturally splits into integration and compression
+ratio upgrades:
 
-1. **M4, LZ77 back-reference semantics.** Model overlapping copies and connect
-   the shipping output loop to that model; this is the other independent input
-   needed by M5.
-2. **Integrate M3 toward M5/M6.** Generalize the bounded standalone API to the
-   shipping buffers and connect its canonical ranks to the shipping symbol map;
-   the prefix-code inverse itself is now proved.
-3. **M5 assembly after M4.** Connect the proved Huffman and back-reference
-   pieces to the executable DEFLATE model and validate that model on the
-   existing differential corpus.
+1. **M5 assembly.** Extend the executable DEFLATE model beyond stored blocks,
+   connect the shipping block loop to the proved M1/M2/M4 components, and
+   validate that model on the existing differential corpus.
+2. **Integrate M3 toward M6.** Generalize the bounded standalone API to the
+   shipping buffers and connect canonical ranks to the shipping symbol map;
+   the prefix-code inverse itself is already proved.
+3. **Begin M6 with fixed Huffman.** Reuse the M3 encoder and M4 match contract
+   for the first compression-ratio upgrade while preserving M6a's theorem.

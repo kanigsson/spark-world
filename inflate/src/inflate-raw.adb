@@ -17,6 +17,8 @@
 --  status instead — the proof then needs only the check, and the behavior
 --  on (impossible) violation is still defined.
 
+with Inflate.LZ77;
+
 package body Inflate.Raw with SPARK_Mode => On is
 
    --  The proof machinery in this body — ghost snapshots of whole
@@ -554,30 +556,9 @@ package body Inflate.Raw with SPARK_Mode => On is
                Status := Output_Too_Small;
                return;
             end if;
-            if Dist = 1 then
-               --  Replicate the previous byte
-               Output (Output'First + S.Produced ..
-                       Output'First - 1 + S.Produced + Len) :=
-                 (others => Output (Output'First + S.Produced - 1));
-               S.Produced := S.Produced + Len;
-            elsif Dist >= Len then
-               --  Source and destination cannot overlap: block copy
-               Output (Output'First + S.Produced ..
-                       Output'First - 1 + S.Produced + Len) :=
-                 Output (Output'First + S.Produced - Dist ..
-                         Output'First - 1 + S.Produced + Len - Dist);
-               S.Produced := S.Produced + Len;
-            else
-               --  Byte-by-byte, front to back: the match overlaps itself
-               --  (Dist < Len replicates the last Dist bytes).
-               for K in 1 .. Len loop
-                  pragma Loop_Invariant
-                    (S.Produced = S.Produced'Loop_Entry + (K - 1));
-                  Output (Output'First + S.Produced) :=
-                    Output (Output'First + S.Produced - Dist);
-                  S.Produced := S.Produced + 1;
-               end loop;
-            end if;
+            --  The match copy is factored into the M4 primitive whose
+            --  postcondition is the LZ77 window equation, including overlap.
+            Inflate.LZ77.Copy_Match (Output, S.Produced, Len, Dist);
 
          else
             --  285 < Symbol: reserved symbols 286/287

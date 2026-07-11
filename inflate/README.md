@@ -25,6 +25,7 @@ raising an exception.
 |-------------------|----------|
 | `Inflate`         | `Byte_Array`, the `Status_Type` all layers report through |
 | `Inflate.Raw`     | DEFLATE (RFC 1951): stored/fixed/dynamic blocks, canonical Huffman decoding; `Compress_Stored` |
+| `Inflate.LZ77`    | proved DEFLATE back-reference copying, including overlapping matches |
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
 | `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
 | `Inflate.Model`   | executable decode model (currently the stored-block fragment) that functional contracts are stated against |
@@ -88,19 +89,23 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=2` run reported **1851 checks,
+The most recent recorded `gnatprove --level=2` run reported **1942 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
 functional contracts described above: the compressor's postcondition ties
 its output to the decode model, the decoders' postconditions tie their
 output to the same model on the stored fragment, and the round-trip
-theorem composes them (all recursion in the model and its lemmas is
-proved terminating).
+theorem composes them. It also covers the M4 LZ77 contract: every validated
+match used by the shipping decoder preserves the already-produced prefix
+and appends bytes satisfying the back-reference window equation, including
+the forward-copy overlap case. All recursion in the model and its lemmas is
+proved terminating.
 
-On the decoding side, for streams outside the compressor's image the
-proof is about absence of run-time errors; that the decoded bytes are
-the correct DEFLATE/zlib/gzip/ZIP result on such foreign streams is
+On the decoding side, M4 proves the local semantics of back-reference
+copying, but the full control flow for streams outside the compressor's image
+is still proved only for absence of run-time errors; that the complete decoded
+bytes are the correct DEFLATE/zlib/gzip/ZIP result on such foreign streams is
 tested, not yet proved.
 
 Some proof-relevant structure:

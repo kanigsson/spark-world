@@ -23,6 +23,39 @@ package Inflate.Model with Pure, SPARK_Mode => On is
 
    use type Interfaces.Unsigned_8;
 
+   ---------------------------------------------------------------------
+   --  LZ77 match-copy model (M4)
+   ---------------------------------------------------------------------
+
+   --  After is Before with Length bytes appended at Produced by an LZ77
+   --  back-reference of Distance bytes.  The first Distance bytes come
+   --  from the pre-existing prefix; subsequent bytes may read bytes written
+   --  earlier by the same match.  The second conjunct is therefore the
+   --  literal window equation used by DEFLATE, including overlap:
+   --
+   --    After [Produced + K] = After [Produced + K - Distance]
+   --
+   --  where the right side below Produced is taken from Before.
+   function Copies_Match
+     (Before, After  : Byte_Array;
+      Produced       : Natural;
+      Length         : Natural;
+      Distance       : Natural) return Boolean
+   is
+     ((for all K in 0 .. Produced - 1 =>
+         After (After'First + K) = Before (Before'First + K))
+      and then
+      (for all K in 0 .. Length - 1 =>
+         After (After'First + Produced + K) =
+           (if K < Distance
+            then Before (Before'First + Produced - Distance + K)
+            else After (After'First + Produced + K - Distance))))
+   with
+     Pre => Before'Length = After'Length
+              and then Produced <= Before'Length
+              and then Length <= Before'Length - Produced
+              and then Distance in 1 .. Produced;
+
    --  The LEN field of the stored-block header starting at C (CF)
    --  (little-endian, so at most 16#FFFF#).
    function Block_Length (C : Byte_Array; CF : Positive) return Natural is
