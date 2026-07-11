@@ -139,6 +139,11 @@ independently of M2:
   totality — see the mechanization section), proved end to end through gzip;
 - the actual command-line tool over it.
 
+**Current status: proof core complete, CLI pending.** The stored compressor,
+executable relation, exact size/totality contracts, and full gzip round-trip
+theorem are in the library. The repository still has no user-facing command;
+the CLI bullet remains productization work rather than part of the proved core.
+
 Payoff: every later milestone becomes a **ratio upgrade that must preserve an
 already-stated theorem**, not a prerequisite for stating it. If M2 fights back
 harder than expected, a proved codec still ships. The theorem statement, ghost
@@ -166,14 +171,17 @@ CRC32 = polynomial division mod the generator; Adler32 = the mod-65521 running
 sums. Self-contained and very tractable. No longer a bonus at the end: M6a needs
 gzip framing, so this lands early and makes container round-trip almost free.
 
-**Current status: partial.** CRC-32 is now connected to a table-independent
+**Current status: complete.** CRC-32 is connected to a table-independent
 reflected GF(2) model: the public contracts define a bit step using the standard
 generator, compose eight steps into a byte remainder, prove the elaborated table
 caches those remainders, and prove the table-driven update equals a fold over the
 polynomial model. The gzip compressor already pins down its fixed header and
-little-endian trailer bytes in its postcondition. Adler-32 still lacks the
-corresponding proof against its direct mod-65521 running-sums model, so M7 is not
-yet complete.
+little-endian trailer bytes in its postcondition. Adler-32 now uses a direct
+modulus-65521 state and its public `Update` postcondition equates the result with
+a byte-by-byte fold of the two standard running sums. The implementation uses
+that direct step rather than the former 5,552-byte reduction batching; restoring
+batching would be a performance optimization with a new congruence proof, not a
+gap in the checksum specification.
 
 ## Format choice
 
@@ -231,16 +239,18 @@ Why3-adjacent grind. Still SPARK-tractable — budget for it.
 - **Residual (design limit, not a hole):** one-shot means input + output are held in
   memory at once (input capped ~2 GB); enforce an input-size limit before loading.
 
-## Recommended first move
+## Current next moves
 
-Two tracks in parallel, complementary rather than competing:
+M1, the isolated M2 pressure test, M6a's stored-compressor/round-trip core, and
+M7 are now complete. The remaining work naturally splits into proof depth and
+productization:
 
-1. **Bootstrap M6a** (via M1's bit-reader model and M7's checksums): the
-   round-trip theorem, the ghost decode model, and the CLI, all on the stored
-   fragment. This is the shortest path to "an actual tool with a proved
-   round-trip lemma" and debugs the theorem statement on easy ground.
-2. **Pressure-test M2** in isolation (the `next_code`/count-histogram ghost spec
-   and the Kraft-equality invariant). It is the cheapest way to learn whether the
-   *full* plan holds up — if the completeness lemma discharges, M3 and the rest
-   follow; if it fights back, that is the signal to rescope, and M6a's shipped
-   theorem is the fallback position.
+1. **M3, standalone Huffman round-trip.** Reuse the proved canonical-table
+   material from the M1/M2 spikes to establish the clean symbols-to-bits-to-symbols
+   inverse before integrating more of the shipping decoder.
+2. **M4, LZ77 back-reference semantics.** Model overlapping copies and connect
+   the shipping output loop to that model; this is the other independent input
+   needed by M5.
+3. **Finish M6a productization.** The stored compressor and full gzip theorem
+   exist, but the planned command-line wrapper does not. It remains an unproved
+   I/O layer with buffer-growth, ceiling, argument, and exit-status behavior.

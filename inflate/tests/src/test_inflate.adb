@@ -21,6 +21,7 @@ with Ada.Unchecked_Deallocation;
 with Interfaces;                 use type Interfaces.Unsigned_32;
 
 with Inflate;                   use Inflate;
+with Inflate.Adler32;
 with Inflate.CRC32;
 with Inflate.Raw;
 with Inflate.ZLib;
@@ -219,6 +220,23 @@ begin
    --  external convention, independently of gzip parsing.
    if Inflate.CRC32.Compute (CRC_Check_Input) /= 16#CBF4_3926# then
       Put_Line ("FAIL CRC-32 standard check vector");
+      Set_Exit_Status (1);
+      return;
+   end if;
+
+   --  The Adler-32 check value for the same conventional string pins the
+   --  direct running-sums model to the externally specified checksum.
+   if Inflate.Adler32.Compute (CRC_Check_Input) /= 16#091E_01DE# then
+      Put_Line ("FAIL Adler-32 standard check vector");
+      Set_Exit_Status (1);
+      return;
+   end if;
+
+   if Inflate.Adler32.Update
+        (Inflate.Adler32.Update (1, CRC_Check_Input (1 .. 4)),
+         CRC_Check_Input (5 .. 9)) /= 16#091E_01DE#
+   then
+      Put_Line ("FAIL incremental Adler-32 check vector");
       Set_Exit_Status (1);
       return;
    end if;

@@ -124,18 +124,19 @@ round-trip theorem while failing an independent gzip implementation. The tests
 against C zlib provide useful evidence against such a mistake, but they are not
 a proof that every conforming gzip decoder accepts every output.
 
-### 5. Low: some prose is stronger than the contracts
+### 5. Low (partially resolved): some prose was stronger than the contracts
 
 The gzip decoder contract proves that a correct stored-member trailer is
-sufficient for `Status = OK`; it does not state the converse, despite prose
-describing acceptance as "exactly when" the trailer matches:
+sufficient for `Status = OK`; it does not state the converse. The README now
+uses that one-way wording instead of describing acceptance as "exactly when"
+the trailer matches:
 
 - `src/inflate-gzip.ads:58-64`
 - `src/inflate-gzip.ads:78-98`
 
-Likewise, termination proofs do not establish the README's linear-complexity
-claim. The code structure makes linear behavior plausible for normal release
-execution, but no complexity bound is formalized.
+Likewise, termination proofs do not establish the project prose's
+linear-complexity claim. The code structure makes linear behavior plausible
+for normal release execution, but no complexity bound is formalized.
 
 Finally, `compression.md` includes a CLI in the M6a deliverable, but the current
 repository supplies a library, test harness, and benchmark harness rather than
@@ -149,7 +150,7 @@ A current run of:
 gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
 ```
 
-completed successfully with 1,826 checks, all proved. The generated summary
+completed successfully with 1,851 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -165,6 +166,8 @@ Subject to public preconditions, the proof establishes:
   agreement with the model when the decoded data fits the output buffer;
 - gzip framing values used by the compressor, including the input length and a
   checksum proved equal to the reflected polynomial CRC model;
+- Adler-32 checksum computation as a byte-by-byte fold of the two direct
+  modulus-65521 running sums used by zlib;
 - end-to-end restoration of the input by
   `Inflate.Theorems.GZip_Round_Trip` under its input-size and buffer-size
   preconditions.
@@ -210,7 +213,6 @@ The formal result does not establish:
   bit reader and Huffman decoder;
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;
-- Adler-32 equivalence to an independent mathematical standard;
 - stored-DEFLATE, zlib, gzip, or ZIP wire semantics against an independently
   formalized format specification;
 - gzip/DEFLATE interoperability with arbitrary third-party implementations;

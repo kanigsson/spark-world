@@ -31,7 +31,7 @@ raising an exception.
 | `Inflate.Theorems`| the proved gzip round-trip theorem, stated as an executable procedure |
 | `Inflate.ZIP`     | ZIP archives: end-record lookup (comment scan-back), central-directory iteration, extraction with CRC/size verification |
 | `Inflate.CRC32`   | CRC-32 (gzip/ZIP polynomial), table proved equal to a reflected GF(2) specification |
-| `Inflate.Adler32` | Adler-32 with the zlib batching bound |
+| `Inflate.Adler32` | Adler-32 over a direct modulus-65521 running-sums model |
 
 All decoders share one shape:
 
@@ -70,8 +70,8 @@ DEFLATE blocks: any gzip decoder consumes the output; the size overhead is
   in the compressor's image (characterized on the input side alone, by
   an executable walk of the stored-block structure) decoding succeeds,
   consumes exactly the stream, and produces bytes standing in the same
-  model relation; the member is accepted exactly when its trailer holds
-  the CRC-32/length the decoder recomputes over that output.
+  model relation; a trailer holding the CRC-32/length recomputed over that
+  output is sufficient for the member to be accepted.
 - **The theorem.** `Inflate.Theorems.GZip_Round_Trip` composes the two
   halves: for *every* input (within the size cap, given large enough
   buffers), `Decompress (Compress (Input))` returns `Status = OK` and
@@ -88,7 +88,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=2` run reported **1826 checks,
+The most recent recorded `gnatprove --level=2` run reported **1851 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -130,6 +130,11 @@ Some proof-relevant structure:
   ghost fold over that table-independent model. The CRC's content-invariance
   (equal byte sequences from any state give equal CRCs) is proved against the
   same fold, whose recursion is as deep as the data.
+- Adler-32 uses a modulus-65521 type for its two running sums and folds a
+  direct byte-step model over the input. Its public `Update` postcondition
+  exposes that fold, so zlib checksum verification is connected to the
+  standard running-sums definition rather than only to an opaque checksum
+  computation.
 - Evaluating the proof machinery — ghost buffer snapshots, recursive
   lemmas, invariants that re-walk the model relation — costs time
   proportional to the data, which would make assertion-enabled
