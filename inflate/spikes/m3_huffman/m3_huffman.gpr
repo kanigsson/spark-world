@@ -1,0 +1,19 @@
+--  M3 spike: standalone canonical-Huffman symbols -> bits -> symbols theorem.
+
+project M3_Huffman is
+
+   for Source_Dirs use ("src", "../m2_kraft/src");
+   for Object_Dir use "obj";
+   for Main use ("huffman_round_trip_test.adb");
+   for Exec_Dir use ".";
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        ("-gnat2022", "-gnatwa", "-gnata", "-g", "-O0");
+   end Compiler;
+
+   package Prove is
+      for Proof_Switches ("Ada") use ("--level=2", "--report=statistics");
+   end Prove;
+
+end M3_Huffman;

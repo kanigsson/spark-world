@@ -79,7 +79,7 @@ Design decisions to make early:
 | M0 | AoRTE for inflate/DEFLATE/gz/zlib/zip | — (done) | — | done |
 | M1 | Bit-reader functional model + Huffman decode equivalence | Medium | M0 | High |
 | M2 | Canonical Huffman construction: prefix-free + complete (Kraft) | **Hard** | M1 | Medium — the crux |
-| M3 | Huffman round-trip (encode/decode mutual inverse), standalone | Medium | M2 | High once M2 lands |
+| M3 | Huffman round-trip (encode/decode mutual inverse), standalone | — (done) | M2 | done |
 | M4 | LZ77 back-reference decode correctness (window model) | Medium | M1 | High |
 | M5 | Full DEFLATE decode functional correctness vs ghost model | Medium | M1,M2,M4 | Medium |
 | M6a | Stored-only compressor + full gzip round-trip + CLI | Medium | M1,M7 | High |
@@ -115,6 +115,25 @@ from LZ77 and block framing. A finite-alphabet **prefix-code bijection**:
 Cleanest, most self-contained, most defensible result in the plan. Land it first
 after M2. **Directly answers "is Huffman round-trip realistic?" — yes, gated on M2.**
 
+**Current status: complete as a standalone proved module.**
+`spikes/m3_huffman` reuses M2's exact histogram and scaled-Kraft result to admit
+only complete canonical codebooks, then proves an ordinary executable
+`Round_Trip` procedure for every sequence of up to 32 symbols (480 encoded bits).
+The encoder writes canonical code integers most-significant bit first; the
+decoder consumes only the resulting bit buffer and bit count and recovers each
+symbol through the canonical per-length interval and rank.  The original input
+appears on the decode side only in ghost assertions, not in executable control
+flow.  The proof includes the prefix-separation, code-prefix shortening,
+rank-uniqueness, and sequence-framing lemmas needed to compose individual
+codewords.  The complete M3/M2 project proves all 615 checks at `--level=2`;
+the executable harness covers a mixed `0, 10, 110, 111` code, the RFC 1951 fixed
+literal/length code over all 288 symbols, and the empty sequence.
+
+The bound is deliberately a proof-harness capacity rather than a Huffman
+limitation: the theorem is universal over every sequence fitting those buffers.
+Lifting it for integration into M6 is a buffer/API generalization, not new
+prefix-code mathematics.
+
 ### M4 — LZ77 back-reference decode
 Window model: `output[i] = output[i - distance]`. The interesting case is
 overlapping copies where `distance < length` (RLE-style) — the code already handles
@@ -139,10 +158,13 @@ independently of M2:
   totality — see the mechanization section), proved end to end through gzip;
 - the actual command-line tool over it.
 
-**Current status: proof core complete, CLI pending.** The stored compressor,
-executable relation, exact size/totality contracts, and full gzip round-trip
-theorem are in the library. The repository still has no user-facing command;
-the CLI bullet remains productization work rather than part of the proved core.
+**Current status: complete.** The stored compressor, executable relation, exact
+size/totality contracts, and full gzip round-trip theorem are in the library.
+The `inflate` command now compresses to stored-block gzip, decompresses gzip
+(including concatenated members), grows its output buffer on
+`Output_Too_Small`, and has focused interoperability and failure-path tests.
+As planned, this file-I/O and allocation wrapper remains outside the SPARK proof
+boundary.
 
 Payoff: every later milestone becomes a **ratio upgrade that must preserve an
 already-stated theorem**, not a prerequisite for stating it. If M2 fights back
@@ -241,16 +263,16 @@ Why3-adjacent grind. Still SPARK-tractable — budget for it.
 
 ## Current next moves
 
-M1, the isolated M2 pressure test, M6a's stored-compressor/round-trip core, and
-M7 are now complete. The remaining work naturally splits into proof depth and
-productization:
+M1, the isolated M2 pressure test, M3, M6a's stored-compressor/round-trip core,
+and M7 are now complete. The remaining work naturally splits into proof depth
+and productization:
 
-1. **M3, standalone Huffman round-trip.** Reuse the proved canonical-table
-   material from the M1/M2 spikes to establish the clean symbols-to-bits-to-symbols
-   inverse before integrating more of the shipping decoder.
-2. **M4, LZ77 back-reference semantics.** Model overlapping copies and connect
+1. **M4, LZ77 back-reference semantics.** Model overlapping copies and connect
    the shipping output loop to that model; this is the other independent input
    needed by M5.
-3. **Finish M6a productization.** The stored compressor and full gzip theorem
-   exist, but the planned command-line wrapper does not. It remains an unproved
-   I/O layer with buffer-growth, ceiling, argument, and exit-status behavior.
+2. **Integrate M3 toward M5/M6.** Generalize the bounded standalone API to the
+   shipping buffers and connect its canonical ranks to the shipping symbol map;
+   the prefix-code inverse itself is now proved.
+3. **M5 assembly after M4.** Connect the proved Huffman and back-reference
+   pieces to the executable DEFLATE model and validate that model on the
+   existing differential corpus.
