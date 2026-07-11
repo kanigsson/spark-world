@@ -206,10 +206,28 @@ registers and uses fused tables for length, distance, and extra bits.
 
 ```sh
 gprbuild -P inflate.gpr                  # release: -O2
+gprbuild -P inflate_cli.gpr              # builds bin/inflate
 gprbuild -P inflate.gpr -XMODE=debug     # contracts as run-time assertions
 gnatprove -P inflate.gpr --mode=all -j0 --timeout=30  # reproduce the proof
 cd tests && gprbuild -P tests.gpr -XMODE=debug && python3 run_tests.py
 cd bench && gprbuild -P bench.gpr && python3 run_bench.py   # needs libz.a
+```
+
+## Command line
+
+The command-line front end reads and writes whole files, like the one-shot
+library API. Compression produces a standard gzip member using stored DEFLATE
+blocks; decompression accepts ordinary gzip files and concatenated members.
+
+```sh
+bin/inflate compress input.dat output.gz
+bin/inflate decompress output.gz restored.dat
+```
+
+Run the focused CLI round-trip and compatibility checks with:
+
+```sh
+python3 tests/run_cli_tests.py
 ```
 
 ## Authorship
