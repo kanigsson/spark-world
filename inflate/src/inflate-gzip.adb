@@ -65,6 +65,10 @@ package body Inflate.GZip with SPARK_Mode => On is
                (if Output'Length > 0
                 then Output'First + (Raw_Produced - 1)
                 else 0));
+         elsif Fixed_Member (Input, Output'Length) then
+            pragma Assert (P = 10);
+            pragma Assert (Status = OK);
+            pragma Assert (Raw_Consumed = Input'Length - 18);
          end if;
       end Relate_Member;
    begin
@@ -273,7 +277,9 @@ package body Inflate.GZip with SPARK_Mode => On is
       Produced :    out Natural)
    is
       N         : constant Natural      := Input'Length;
-      Body_Size : constant Positive     := Raw.Stored_Size (N);
+      Use_Fixed : constant Boolean      := N <= Fixed.Max_Input;
+      Body_Size : constant Positive     :=
+        (if Use_Fixed then Fixed.Encoded_Size (Input) else Raw.Stored_Size (N));
       CRC       : constant Word32       := CRC32.Compute (Input);
       F         : constant Buffer_Index := Output'First;
       T         : constant Buffer_Index := F + 10 + Body_Size;
@@ -312,16 +318,44 @@ package body Inflate.GZip with SPARK_Mode => On is
       Output (T + 7) := Byte (Shift_Right (Word32 (N), 24));
 
       --  The body goes exactly between header and trailer.
-      Raw.Compress_Stored (Input, Output (F + 10 .. T - 1), Raw_Produced);
+      if Use_Fixed then
+         pragma Assert
+           (Output (F + 10 .. F + 17 + Fixed.Max_Size (N))'Length <=
+              Fixed.Max_Stream_Bytes);
+         Fixed.Compress
+           (Input,
+            Output (F + 10 .. T - 1), Raw_Produced);
+      else
+         Raw.Compress_Stored
+           (Input, Output (F + 10 .. T - 1), Raw_Produced);
+      end if;
+      pragma Assert
+        (if Use_Fixed
+         then Body_Size <= Fixed.Max_Size (N)
+         else Body_Size = Raw.Stored_Size (N));
+      pragma Assert (Raw_Produced = Body_Size);
 
       --  The callee states the relation on the slice it was given;
       --  restate it on Output itself (same bytes, same indices).
-      Model.Lemma_Encodes_Frame
-        (Output (F + 10 .. T - 1), Output,
-         F + 10, T - 1,
-         Input, Input, In_First, In_Last);
+      if not Use_Fixed then
+         Model.Lemma_Encodes_Frame
+           (Output (F + 10 .. T - 1), Output,
+            F + 10, T - 1,
+            Input, Input, In_First, In_Last);
+      else
+         Fixed.Lemma_Encoding_Frame
+           (Output (F + 10 .. T - 1),
+            Output (F + 10 .. F + 17 + Fixed.Max_Size (N)),
+            Raw_Produced, Input);
+      end if;
 
       Produced := Body_Size + 18;
+      pragma Assert
+        (Produced =
+           (if N <= Fixed.Max_Input
+            then Fixed.Encoded_Size (Input) + 18
+            else Raw.Stored_Size (N) + 18));
+      pragma Assert (Produced <= Compressed_Size (N));
    end Compress;
 
 end Inflate.GZip;

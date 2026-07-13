@@ -14,6 +14,7 @@
 with Inflate.Raw;
 with Inflate.Model;
 with Inflate.CRC32;
+with Inflate.Fixed;
 
 package Inflate.GZip with SPARK_Mode => On is
 
@@ -49,6 +50,24 @@ package Inflate.GZip with SPARK_Mode => On is
                  (Input, Input'First + 10, Input'Last) = Input'Last - 8
       and then Model.Stored_Decoded_Length
                  (Input, Input'First + 10, Input'Last) <= Out_Len);
+
+   function Fixed_Member
+     (Input : Byte_Array; Out_Len : Natural) return Boolean
+   is
+     (Input'Length >= 20
+      and then Input'Length - 10 <= Fixed.Max_Stream_Bytes
+      and then Input (Input'First) = 16#1F#
+      and then Input (Input'First + 1) = 16#8B#
+      and then Input (Input'First + 2) = 8
+      and then Input (Input'First + 3) = 0
+      and then Fixed.Analyze
+                 (Input (Input'First + 10 .. Input'Last)).Valid
+      and then (Fixed.Analyze
+                  (Input (Input'First + 10 .. Input'Last)).End_Bit + 7) / 8 =
+                 Input'Length - 18
+      and then Fixed.Analyze
+                 (Input (Input'First + 10 .. Input'Last)).Decoded_Length <=
+                 Out_Len);
 
    --  Decompress the gzip member starting at Input'First. Status = OK
    --  means well-formed *and* CRC-32 and length matched. On error,
@@ -95,7 +114,23 @@ package Inflate.GZip with SPARK_Mode => On is
                                     Output'First - 1 + Produced)))
                        and then Stores_LE32
                                   (Input, Input'Last - 3, Word32 (Produced))
-                    then Status = OK));
+                    then Status = OK))
+       and then
+       (if Fixed_Member (Input, Output'Length)
+        then Consumed = Input'Length
+             and then Produced = Fixed.Analyze
+               (Input (Input'First + 10 .. Input'Last)).Decoded_Length
+             and then Fixed.Is_Encoding
+               (Input (Input'First + 10 .. Input'Last), Input'Length - 18,
+                Output (Output'First .. Output'First - 1 + Produced))
+             and then
+               (if Stores_LE32
+                     (Input, Input'Last - 7,
+                      CRC32.Compute
+                        (Output (Output'First .. Output'First - 1 + Produced)))
+                    and then Stores_LE32
+                      (Input, Input'Last - 3, Word32 (Produced))
+                then Status = OK));
 
    --  Decompress consecutive gzip members until the input is exhausted,
    --  concatenating their output — the semantics of `gzip -d` on the whole
@@ -138,16 +173,17 @@ package Inflate.GZip with SPARK_Mode => On is
    --  Compression
    ---------------------------------------------------------------------
 
-   --  Exact size of Compress's output for N input bytes: a 10-byte
-   --  header, the stored-block body, an 8-byte trailer.
+   --  Allocation bound for Compress's output: header, the selected fixed or
+   --  stored body, and trailer.
    function Compressed_Size (N : Natural) return Positive is
-     (Raw.Stored_Size (N) + 18)
+     ((if N <= Fixed.Max_Input then Fixed.Max_Size (N)
+       else Raw.Stored_Size (N)) + 18)
    with Pre => N <= Raw.Max_Compress_Input;
 
-   --  Produce a complete gzip member holding Input, compressed as stored
-   --  blocks: consumable by any gzip decoder, at a compression ratio just
-   --  below 1. Total under the precondition — there is no failure path —
-   --  and of exactly Compressed_Size.
+   --  Produce a complete gzip member holding Input. Inputs within the M3
+   --  bound use fixed-Huffman literals; larger inputs use stored blocks.
+   --  Both are consumable by any gzip decoder and total under the
+   --  precondition; Compressed_Size is the caller's capacity bound.
    --
    --  The postcondition pins down the whole member: the fixed header (no
    --  optional fields, so the DEFLATE body starts 10 bytes in), the body
@@ -164,16 +200,27 @@ package Inflate.GZip with SPARK_Mode => On is
      Pre    => Input'Length <= Raw.Max_Compress_Input
                and then Output'Length >= Compressed_Size (Input'Length),
      Post   =>
-       Produced = Compressed_Size (Input'Length)
+       Produced =
+         (if Input'Length <= Fixed.Max_Input
+          then Fixed.Encoded_Size (Input) + 18
+          else Raw.Stored_Size (Input'Length) + 18)
+       and then Produced <= Compressed_Size (Input'Length)
        and then Output (Output'First) = 16#1F#
        and then Output (Output'First + 1) = 16#8B#
        and then Output (Output'First + 2) = 8
        and then Output (Output'First + 3) = 0
-       and then Model.Encodes_Stored
+       and then (if Input'Length <= Fixed.Max_Input
+                 then Fixed.Is_Encoding
+                   (Output
+                      (Output'First + 10 ..
+                       Output'First + 17 + Fixed.Max_Size (Input'Length)),
+                    Produced - 18,
+                    Input)
+                 else Model.Encodes_Stored
                   (Output, Output'First + 10, Output'First + (Produced - 9),
                    Input,
                    (if Input'Length > 0 then Input'First else 1),
-                   (if Input'Length > 0 then Input'Last else 0))
+                   (if Input'Length > 0 then Input'Last else 0)))
        and then Stores_LE32
                   (Output, Output'First + (Produced - 8),
                    CRC32.Compute (Input))

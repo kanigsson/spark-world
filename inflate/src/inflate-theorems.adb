@@ -1,5 +1,6 @@
 with Inflate.Model;
 with Inflate.CRC32;
+with Inflate.Fixed;
 
 package body Inflate.Theorems with SPARK_Mode => On is
 
@@ -43,22 +44,33 @@ package body Inflate.Theorems with SPARK_Mode => On is
    begin
       GZip.Compress (Input, Compressed, C_Size);
 
-      --  The compressor states its relation on Compressed; restate it on
-      --  the member slice the decoder will be handed (same bytes, same
-      --  indices), then convert the relational form into the input-side
-      --  walk hypothesis the decoder's contract is keyed on.
-      Model.Lemma_Encodes_Frame
-        (Compressed, Compressed (CF .. CF + (C_Size - 1)),
-         CF + 10, CF + (C_Size - 9),
-         Input, Input, In_First, In_Last);
-      Model.Lemma_Encodes_End
-        (Compressed (CF .. CF + (C_Size - 1)),
-         CF + 10, CF + (C_Size - 9),
-         Input, In_First, In_Last,
-         CF + (C_Size - 1));
-      pragma Assert
-        (GZip.Stored_Member
-           (Compressed (CF .. CF + (C_Size - 1)), Restored'Length));
+      if Input'Length <= Fixed.Max_Input then
+         Fixed.Lemma_Encoding_Frame
+           (Compressed
+              (CF + 10 .. CF + 17 + Fixed.Max_Size (Input'Length)),
+            Compressed (CF + 10 .. CF + (C_Size - 1)),
+            C_Size - 18, Input);
+         Fixed.Lemma_Encoding_Analyzes
+           (Compressed (CF + 10 .. CF + (C_Size - 1)),
+            C_Size - 18, Input);
+         pragma Assert
+           (GZip.Fixed_Member
+              (Compressed (CF .. CF + (C_Size - 1)), Restored'Length));
+      else
+         --  Stored fallback for inputs above the fixed-code slice.
+         Model.Lemma_Encodes_Frame
+           (Compressed, Compressed (CF .. CF + (C_Size - 1)),
+            CF + 10, CF + (C_Size - 9),
+            Input, Input, In_First, In_Last);
+         Model.Lemma_Encodes_End
+           (Compressed (CF .. CF + (C_Size - 1)),
+            CF + 10, CF + (C_Size - 9),
+            Input, In_First, In_Last,
+            CF + (C_Size - 1));
+         pragma Assert
+           (GZip.Stored_Member
+              (Compressed (CF .. CF + (C_Size - 1)), Restored'Length));
+      end if;
 
       GZip.Decompress
         (Compressed (CF .. CF + (C_Size - 1)), Restored,
@@ -68,11 +80,18 @@ package body Inflate.Theorems with SPARK_Mode => On is
       --  model; the relation is functional in the decoded bytes, so they
       --  agree byte for byte — and with them the CRC the decoder checked
       --  against the trailer the compressor wrote.
-      Model.Lemma_Encodes_Functional
-        (Compressed (CF .. CF + (C_Size - 1)),
-         CF + 10, CF + (C_Size - 9),
-         Input, In_First, In_Last,
-         Restored, RFN, RFN + (R_Size - 1));
+      if Input'Length <= Fixed.Max_Input then
+         Fixed.Lemma_Encoding_Functional
+           (Compressed (CF + 10 .. CF + (C_Size - 1)), C_Size - 18,
+            Input,
+            Restored (Restored'First .. Restored'First - 1 + R_Size));
+      else
+         Model.Lemma_Encodes_Functional
+           (Compressed (CF .. CF + (C_Size - 1)),
+            CF + 10, CF + (C_Size - 9),
+            Input, In_First, In_Last,
+            Restored, RFN, RFN + (R_Size - 1));
+      end if;
       CRC32.Lemma_Update_Content
         (0, Input,
          Restored (Restored'First .. Restored'First - 1 + R_Size));

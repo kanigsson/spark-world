@@ -63,7 +63,7 @@ compress_checks = []  # (input_path, original_bytes)
 
 
 def gen_compress(files):
-    """Round-trip cases for the stored-block compressor: the harness
+    """Round-trip cases for the adaptive compressor: the harness
     compresses each file, checks its own round trip and the decode-model
     relation, and writes <input>.gz; the driver then decodes that member
     with C zlib and compares, so the compressor is differentially tested
@@ -81,7 +81,8 @@ def check_compress_outputs():
     for inp, data in compress_checks:
         gz = inp + ".gz"
         try:
-            out = gzip_mod.decompress(open(gz, "rb").read())
+            member = open(gz, "rb").read()
+            out = gzip_mod.decompress(member)
         except (OSError, EOFError, zlib.error, struct.error) as e:
             print("FAIL compress %s: zlib rejects our gzip: %s" % (inp, e))
             bad += 1
@@ -89,6 +90,10 @@ def check_compress_outputs():
         if out != data:
             print("FAIL compress %s: zlib decodes %d bytes, expected %d"
                   % (inp, len(out), len(data)))
+            bad += 1
+        if len(data) <= 32 and (member[10] & 7) != 3:
+            print("FAIL compress %s: small input did not use final fixed block"
+                  % inp)
             bad += 1
     print("compress differential: %d cases, %d failures"
           % (len(compress_checks), bad))

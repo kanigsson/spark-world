@@ -1,12 +1,12 @@
 --  Inflate.Theorems — end-to-end statements about the codec, proved once
 --  for all inputs.
 --
---  GZip_Round_Trip is the round-trip theorem of the stored-fragment
---  codec (milestone M6a of the compression plan): gzip-compressing any
+--  GZip_Round_Trip is the round-trip theorem of the adaptive codec:
+--  gzip-compressing any
 --  input and decompressing the result restores the input exactly, with
 --  Status = OK, under the theorem's side conditions — the input is under
 --  the compressor's size cap and the buffers are large enough (the
---  compressed size is exactly GZip.Compressed_Size). The procedure is an
+--  compressed buffer uses the GZip.Compressed_Size bound). The procedure is an
 --  ordinary executable subprogram whose postcondition *is* the theorem;
 --  its proof composes the compressor's contract (the emitted member
 --  stands in the decode-model relation to the input) with the decoder's
@@ -45,7 +45,7 @@ package Inflate.Theorems with SPARK_Mode => On is
        and then Compressed'Length >= GZip.Compressed_Size (Input'Length)
        and then Restored'Length >= Input'Length,
      Post =>
-       C_Size = GZip.Compressed_Size (Input'Length)
+       C_Size <= GZip.Compressed_Size (Input'Length)
        and then R_Size = Input'Length
        and then (for all K in 0 .. Input'Length - 1 =>
                    Restored (Restored'First + K) = Input (Input'First + K));

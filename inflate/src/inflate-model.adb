@@ -765,7 +765,24 @@ package body Inflate.Model with SPARK_Mode => On is
       --  before any recursive model function is evaluated.
       if General_Decoding (Input, Output, Consumed, Produced) then
          return True;
-      elsif Input'Length >= 5 then
+      elsif Input'Length <= Fixed.Max_Stream_Bytes then
+         declare
+            Info : constant Fixed.Stream_Info := Fixed.Analyze (Input);
+         begin
+            if Info.Valid
+              and then Info.Decoded_Length <= Output'Length
+              and then Consumed = (Info.End_Bit + 7) / 8
+              and then Produced = Info.Decoded_Length
+              and then Fixed.Is_Encoding
+                (Input, Consumed,
+                 Output (Output'First .. Output'First - 1 + Produced))
+            then
+               return True;
+            end if;
+         end;
+      end if;
+
+      if Input'Length >= 5 then
          declare
             Stored_End : constant Natural :=
               Stored_Stream_End (Input, Input'First, Input'Last);
@@ -785,9 +802,8 @@ package body Inflate.Model with SPARK_Mode => On is
                         (Input, Input'First, Stored_End, Output, OFN,
                          OFN + (Produced - 1)));
          end;
-      else
-         return False;
       end if;
+      return False;
    end Is_Decoding;
 
 end Inflate.Model;

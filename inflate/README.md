@@ -8,7 +8,8 @@ initialization/data-flow checks included in the proof run described below.
 Every successful raw DEFLATE decode is also proved to satisfy an executable
 canonical decode model; that model and the returned bytes are differentially
 tested against C zlib. The gzip
-compressor (stored blocks) and decompressor additionally carry a **proved
+compressor (fixed Huffman for inputs up to 32 bytes, stored blocks otherwise)
+and decompressor additionally carry a **proved
 round-trip theorem**: `Inflate.Theorems.GZip_Round_Trip` states — and the
 proof establishes for every input — that decompressing the compressor's
 output restores the input exactly, with `Status = OK` (see "Compression"
@@ -29,6 +30,7 @@ status value instead of being handled by raising an exception.
 | `Inflate`         | `Byte_Array`, the `Status_Type` all layers report through |
 | `Inflate.Raw`     | DEFLATE (RFC 1951): stored/fixed/dynamic blocks, canonical Huffman decoding; `Compress_Stored` |
 | `Inflate.LZ77`    | proved DEFLATE back-reference copying, including overlapping matches |
+| `Inflate.Fixed`   | bounded fixed-Huffman literal encoder/decoder relation and analyzer |
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
 | `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
 | `Inflate.Model`   | executable canonical model for stored, fixed-Huffman, and dynamic-Huffman DEFLATE, plus the stored compressor relation |
@@ -56,26 +58,27 @@ ZIP extractor are ordinary clients of `Inflate.Raw`.
 
 ## Compression
 
-The library compresses to standard gzip, using stored (uncompressed)
-DEFLATE blocks: any gzip decoder consumes the output; the size overhead is
-5 bytes per 64 KiB block plus 18 bytes of gzip framing (ratio just below
-1). What makes the codec interesting is its contract, all proved:
+The library compresses to standard gzip. Inputs of at most 32 bytes use one
+final fixed-Huffman block containing literals and end-of-block; larger inputs
+retain the stored-block encoder. The 32-byte first slice deliberately reuses
+M3's proved message bound while moving real encoder code into the shipping
+codec; extending that bound and adding LZ77/dynamic trees remain later M6
+ratio work. Any gzip decoder consumes either output. The contract is preserved
+across both branches:
 
-- **Totality and exact size.** Under the stated preconditions there is no
-  failure path, and the output size is exactly
-  `Stored_Size (Input'Length)` — the bound a caller allocates from.
-- **Round-trip, compress half.** The DEFLATE body of the output stands in
-  the relation `Inflate.Model.Encodes_Stored` to exactly the input bytes:
-  the emitted stream is well-formed and decodes to the input under the
-  model. The gzip trailer provably holds `CRC32.Compute (Input)` — the
+- **Totality and size.** Under the stated preconditions there is no failure
+  path. `GZip.Compressed_Size` is the allocation bound; the produced size is
+  exact for the selected fixed or stored branch.
+- **Round-trip, compress half.** The DEFLATE body stands in
+  `Inflate.Fixed.Is_Encoding` or `Inflate.Model.Encodes_Stored` to exactly the
+  input bytes. The gzip trailer provably holds `CRC32.Compute (Input)` — the
   same function the decoder recomputes.
-- **Round-trip, decode half.** `Raw.Decompress`, `GZip.Decompress` and
-  `GZip.Decompress_All` carry postconditions stating that on any stream
-  in the compressor's image (characterized on the input side alone, by
-  an executable walk of the stored-block structure) decoding succeeds,
-  consumes exactly the stream, and produces bytes standing in the same
-  model relation; a trailer holding the CRC-32/length recomputed over that
-  output is sufficient for the member to be accepted.
+- **Round-trip, decode half.** `Raw.Decompress` and `GZip.Decompress` carry
+  postconditions stating that either compressor image, characterized on the
+  input side alone, decodes successfully and produces bytes in the matching
+  relation. `GZip.Decompress_All` retains the stored whole-file lifting
+  contract. A trailer holding the CRC-32/length recomputed over the output is
+  sufficient for the member to be accepted.
 - **The theorem.** `Inflate.Theorems.GZip_Round_Trip` composes the two
   halves: for *every* input (within the size cap, given large enough
   buffers), `Decompress (Compress (Input))` returns `Status = OK` and
@@ -84,13 +87,13 @@ DEFLATE blocks: any gzip decoder consumes the output; the size overhead is
   decompressor through the executable model, plus the functionality of
   that relation and the content-invariance of the CRC.
 
-`Inflate.Model` is deliberately executable (not ghost): the test suite
-runs the very relation the contracts are stated against, and C zlib
+The fixed and stored relations are deliberately executable (not ghost): the
+test suite runs the relation selected by the compressor, and C zlib
 independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=2` run reported **2242 checks,
+The most recent recorded `gnatprove --level=4` run reported **3223 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the

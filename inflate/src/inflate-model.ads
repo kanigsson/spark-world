@@ -19,6 +19,8 @@
 --  An empty decoded range is expressed as DF = DL + 1, which also covers
 --  buffers whose bounds are meaningless because they are empty.
 
+with Inflate.Fixed;
+
 package Inflate.Model with Pure, SPARK_Mode => On is
 
    use type Interfaces.Unsigned_8;
@@ -152,6 +154,16 @@ package Inflate.Model with Pure, SPARK_Mode => On is
                      (Input, Input'First, Input'First + (Consumed - 1),
                       Output, Output'First,
                       Output'First + (Produced - 1)))
+        then Is_Decoding'Result)
+       and then
+       (if Input'Length <= Fixed.Max_Stream_Bytes
+           and then Fixed.Analyze (Input).Valid
+           and then Fixed.Analyze (Input).Decoded_Length <= Output'Length
+           and then Consumed = (Fixed.Analyze (Input).End_Bit + 7) / 8
+           and then Produced = Fixed.Analyze (Input).Decoded_Length
+           and then Fixed.Is_Encoding
+                      (Input, Consumed,
+                       Output (Output'First .. Output'First - 1 + Produced))
         then Is_Decoding'Result);
 
    --  Where the well-formed stored-block stream starting at CF ends within

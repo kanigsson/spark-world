@@ -120,10 +120,10 @@ polynomial step:
 - `src/inflate-crc32.adb:18-124`
 
 Thus a table-generation or table-lookup mistake cannot satisfy the proof merely
-because the model repeats the same table walk. The remaining issue is the stored
-DEFLATE wire format: compressor and decoder are still composed through the
-library's own executable relation rather than an independently formalized RFC
-semantics. A shared stored-format mistake could therefore satisfy the formal
+because the model repeats the same table walk. The remaining issue is the
+compressor-image wire format: the bounded fixed-Huffman and stored branches are
+still composed through the library's own executable relations rather than an
+independently formalized RFC semantics. A shared format mistake could satisfy the formal
 round-trip theorem while failing an independent gzip implementation. The tests
 against C zlib provide useful evidence against such a mistake, but they are not
 a proof that every conforming gzip decoder accepts every output.
@@ -151,10 +151,10 @@ The earlier M6a productization gap is resolved: `inflate_cli.gpr` builds the
 A current run of:
 
 ```sh
-gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
+gnatprove -P inflate.gpr --level=4 -j0
 ```
 
-completed successfully with 2,242 checks, all proved. The generated summary
+completed successfully with 3,223 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -166,10 +166,12 @@ Subject to public preconditions, the proof establishes:
 - input and output cursor bounds for all decoders;
 - every successful raw DEFLATE result satisfies the executable full model over
   its exact consumed input and produced output;
-- exact stored-compression size and compressor totality;
-- the stored-block relation between compressor input and emitted body;
-- stored-stream decode success, exact consumption and production, and
-  agreement with the model when the decoded data fits the output buffer;
+- adaptive compressor totality and its exact selected-branch size within the
+  public allocation bound;
+- the fixed-Huffman or stored-block relation between compressor input and
+  emitted body;
+- compressor-image decode success, exact consumption and production, and
+  agreement with the selected relation when the decoded data fits the output;
 - gzip framing values used by the compressor, including the input length and a
   checksum proved equal to the reflected polynomial CRC model;
 - Adler-32 checksum computation as a byte-by-byte fold of the two direct

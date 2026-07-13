@@ -898,6 +898,7 @@ package body Inflate.Raw with SPARK_Mode => On is
         (Consumed => 0, Bit_Buf => 0, Bit_Cnt => 0, Produced => 0);
       BFinal, BType : Natural;
       Good, Valid     : Boolean;
+      Fixed_Success   : Boolean;
       Lit_Table, Dist_Table : Huffman_Table;
 
       --  Ghost state for the stored-fragment postcondition. H is that
@@ -996,6 +997,26 @@ package body Inflate.Raw with SPARK_Mode => On is
          end if;
       end Fold_Block;
    begin
+      if Input'Length <= Fixed.Max_Stream_Bytes then
+         Fixed.Decompress
+           (Input, Output, Consumed, Produced, Fixed_Success);
+         if Fixed_Success then
+            Status := OK;
+            pragma Assert (Fixed.Analyze (Input).Valid);
+            pragma Assert
+              (Fixed.Is_Encoding
+                 (Input, Consumed,
+                  Output (Output'First .. Output'First - 1 + Produced)));
+            pragma Assert
+              (not (Input'Length >= 5
+                    and then Model.Stored_Stream_End
+                      (Input, Input'First, Input'Last) > 0));
+            pragma Assert
+              (Model.Is_Decoding (Input, Output, Consumed, Produced));
+            return;
+         end if;
+      end if;
+
       --  The invariant's base case: nothing consumed, nothing produced,
       --  an empty prefix trivially in the relation.
       pragma Assert

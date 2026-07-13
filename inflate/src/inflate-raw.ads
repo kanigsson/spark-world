@@ -9,6 +9,7 @@
 --  nothing.
 
 with Inflate.Model;
+with Inflate.Fixed;
 
 package Inflate.Raw with SPARK_Mode => On is
 
@@ -50,6 +51,17 @@ package Inflate.Raw with SPARK_Mode => On is
        and then (if Status = OK
                  then Model.Is_Decoding
                         (Input, Output, Consumed, Produced))
+       and then
+       (if Input'Length <= Fixed.Max_Stream_Bytes
+           and then Fixed.Analyze (Input).Valid
+           and then Fixed.Analyze (Input).Decoded_Length <= Output'Length
+        then Status = OK
+             and then Consumed = (Fixed.Analyze (Input).End_Bit + 7) / 8
+             and then Produced = Fixed.Analyze (Input).Decoded_Length
+             and then Fixed.Is_Encoding
+                        (Input, Consumed,
+                         Output
+                           (Output'First .. Output'First - 1 + Produced)))
        and then
        (if Input'Length >= 5
            and then Model.Stored_Stream_End

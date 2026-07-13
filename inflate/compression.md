@@ -223,6 +223,17 @@ M2–M5, it does not avoid them.
   minimum-redundancy. Proving length-limiting *optimal* (package-merge) is a
   research project of its own and buys round-trip nothing.
 
+**Current status: in progress, with the first fixed-Huffman slice integrated.**
+`Inflate.Fixed` emits and recognizes one final fixed-code block containing
+literal symbols plus end-of-block. The bound is the same 32-symbol bound proved
+in M3; `Inflate.GZip.Compress` selects it within that bound and uses the stored
+encoder otherwise. `Inflate.Raw.Decompress` has a proved success path for this
+new image, and the unchanged `Inflate.Theorems.GZip_Round_Trip` theorem composes
+both branches. Generalizing the bound, emitting verified LZ77 matches, and then
+dynamic trees remain open M6 work. The focused fixed-code unit proves all 822
+checks and the full library all 3,223 checks at `--level=4`, with no
+justifications or assumptions.
+
 ### M7 — Checksums as math
 CRC32 = polynomial division mod the generator; Adler32 = the mod-65521 running
 sums. Self-contained and very tractable. No longer a bonus at the end: M6a needs
@@ -298,11 +309,11 @@ Why3-adjacent grind. Still SPARK-tractable — budget for it.
 
 ## Current next moves
 
-M1 through M5, M6a's stored-compressor/round-trip core, and M7 are now
-complete. The remaining work is the compression-ratio upgrade:
+M1 through M5, M6a, and M7 are complete. M6 now has a bounded fixed-Huffman
+shipping slice with the same full-domain gzip theorem. The remaining ratio work
+is:
 
-1. **Integrate M3 toward M6.** Generalize the bounded standalone API to the
-   shipping buffers and connect canonical ranks to the shipping symbol map;
-   the prefix-code inverse itself is already proved.
-2. **Begin M6 with fixed Huffman.** Reuse the M3 encoder and M4 match contract
-   for the first compression-ratio upgrade while preserving M6a's theorem.
+1. **Lift the fixed encoder bound.** Generalize the 32-literal proof/API while
+   preserving the integrated fixed relation and theorem.
+2. **Add verified LZ77 emission.** Reuse M4's match equation with a deliberately
+   simple match finder, then add dynamic trees without an optimality claim.

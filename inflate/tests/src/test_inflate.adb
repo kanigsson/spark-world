@@ -28,6 +28,7 @@ with Inflate.ZLib;
 with Inflate.GZip;
 with Inflate.ZIP;
 with Inflate.Model;
+with Inflate.Fixed;
 
 procedure Test_Inflate is
 
@@ -155,12 +156,18 @@ procedure Test_Inflate is
                elsif Consumed /= Comp_Produced then
                   Fail ("round trip consumed" & Consumed'Image
                         & ", expected" & Comp_Produced'Image);
-               elsif not Model.Is_Stored_Encoding
-                 (Comp (11 .. Comp_Produced - 8), Input.all)
+               elsif Input'Length <= Fixed.Max_Input
+                 and then not Fixed.Is_Encoding
+                   (Comp (11 .. Comp_Produced), Comp_Produced - 18, Input.all)
+               then
+                  Fail ("fixed decode-model relation does not hold");
+               elsif Input'Length > Fixed.Max_Input
+                 and then not Model.Is_Stored_Encoding
+                   (Comp (11 .. Comp_Produced - 8), Input.all)
                then
                   Fail ("decode-model relation does not hold");
                end if;
-               Save (In_Path & ".gz", Comp.all);
+               Save (In_Path & ".gz", Comp (1 .. Comp_Produced));
                Free (Comp);
             end;
          end if;
