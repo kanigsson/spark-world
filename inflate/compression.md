@@ -77,14 +77,14 @@ Design decisions to make early:
 | # | Milestone | Difficulty | Depends on | Confidence |
 |---|-----------|-----------|-----------|-----------|
 | M0 | AoRTE for inflate/DEFLATE/gz/zlib/zip | — (done) | — | done |
-| M1 | Bit-reader functional model + Huffman decode equivalence | Medium | M0 | High |
-| M2 | Canonical Huffman construction: prefix-free + complete (Kraft) | **Hard** | M1 | Medium — the crux |
+| M1 | Bit-reader functional model + Huffman decode equivalence | — (done) | M0 | done |
+| M2 | Canonical Huffman construction: prefix-free + complete (Kraft) | — (done) | M1 | done |
 | M3 | Huffman round-trip (encode/decode mutual inverse), standalone | — (done) | M2 | done |
 | M4 | LZ77 back-reference decode correctness (window model) | — (done) | M1 | done |
-| M5 | Full DEFLATE decode functional correctness vs ghost model | Medium | M1,M2,M4 | Medium |
-| M6a | Stored-only compressor + full gzip round-trip + CLI | Medium | M1,M7 | High |
+| M5 | Full DEFLATE decode functional correctness vs ghost model | — (done) | M1,M2,M4 | done |
+| M6a | Stored-only compressor + full gzip round-trip + CLI | — (done) | M1,M7 | done |
 | M6 | Huffman/LZ77 compressor upgrade, same round-trip theorem | Medium–Hard | M2,M3,M4,M6a | Medium |
-| M7 | CRC32/Adler32 = mathematical spec; container framing | Low | — | High |
+| M7 | CRC32/Adler32 = mathematical spec; container framing | — (done) | — | done |
 
 Numbering is by topic, not by schedule. The recommended *order* is:
 M1 → M7 → **M6a** (theorem + tool exist, end to end) — with **M2 pressure-tested
@@ -163,6 +163,23 @@ Assemble M1+M2+M4 against a ghost decode model over block framing. Carries the
 spec-faithfulness caveat — trustworthy only up to the ghost model, so make the
 ghost model executable and run it through the zlib differential suite (see the
 mechanization section). **Medium once the pieces exist.**
+
+**Current status: complete as checked refinement.** `Inflate.Model.Is_Decoding`
+is an independent executable canonical parser for stored, fixed-Huffman, and
+dynamic-Huffman blocks. It reads dynamic length RLE, builds its own canonical
+tables directly from the transmitted lengths, decodes symbols bit by bit, and
+validates literals and overlapping LZ77 matches against the returned output;
+it does not reuse the shipping fast table. `Inflate.Raw.Decompress` retains
+`Status = OK` only when that exact consumed/produced result satisfies the model,
+and its public postcondition exposes the relation. Thus the proof is
+unconditional for successful foreign DEFLATE streams but remains explicitly
+relative to this executable model, not to RFC prose.
+
+The focused model proves all 685 checks and the full library proves all 2,242
+checks at `--level=2`. The assertion-enabled differential suite passes 6,442
+generated/corpus cases plus 16 compressor interoperability cases. The ordinary
+model path is iterative; the older recursive stored-only relations remain for
+the M6a proof and retain their documented checks-enabled stack limit.
 
 ### M6a — Stored-only compressor + gzip round-trip + CLI ⬅ the bootstrap
 DEFLATE has a gift the ladder should exploit: **stored blocks** (type 00). A
@@ -281,15 +298,11 @@ Why3-adjacent grind. Still SPARK-tractable — budget for it.
 
 ## Current next moves
 
-M1 through M4, M6a's stored-compressor/round-trip core, and M7 are now
-complete. The remaining work naturally splits into integration and compression
-ratio upgrades:
+M1 through M5, M6a's stored-compressor/round-trip core, and M7 are now
+complete. The remaining work is the compression-ratio upgrade:
 
-1. **M5 assembly.** Extend the executable DEFLATE model beyond stored blocks,
-   connect the shipping block loop to the proved M1/M2/M4 components, and
-   validate that model on the existing differential corpus.
-2. **Integrate M3 toward M6.** Generalize the bounded standalone API to the
+1. **Integrate M3 toward M6.** Generalize the bounded standalone API to the
    shipping buffers and connect canonical ranks to the shipping symbol map;
    the prefix-code inverse itself is already proved.
-3. **Begin M6 with fixed Huffman.** Reuse the M3 encoder and M4 match contract
+2. **Begin M6 with fixed Huffman.** Reuse the M3 encoder and M4 match contract
    for the first compression-ratio upgrade while preserving M6a's theorem.

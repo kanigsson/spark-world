@@ -47,6 +47,9 @@ package Inflate.Raw with SPARK_Mode => On is
      Global => null,
      Post   =>
        (Consumed <= Input'Length and then Produced <= Output'Length)
+       and then (if Status = OK
+                 then Model.Is_Decoding
+                        (Input, Output, Consumed, Produced))
        and then
        (if Input'Length >= 5
            and then Model.Stored_Stream_End

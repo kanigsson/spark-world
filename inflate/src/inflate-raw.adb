@@ -1075,6 +1075,35 @@ package body Inflate.Raw with SPARK_Mode => On is
       --  used byte.
       Consumed := S.Consumed - S.Bit_Cnt / 8;
       Produced := S.Produced;
+
+      --  The stored-fragment invariant already establishes the full model
+      --  relation directly; expose that fact before the general validator
+      --  so the established compressor-image success theorem is preserved.
+      pragma Assert
+        (if H then
+           Consumed > 0
+           and then Input'First + (Consumed - 1) = SEnd
+           and then Produced = Total
+           and then
+             (if Produced = 0
+              then Model.Encodes_Stored
+                     (Input, Input'First, SEnd, Output, OFN, OFN - 1)
+              else Model.Encodes_Stored
+                     (Input, Input'First, SEnd, Output, Output'First,
+                      Output'First + (Produced - 1))));
+      pragma Assert
+        (if H then Model.Is_Decoding (Input, Output, Consumed, Produced));
+
+      --  M5 functional-correctness boundary.  The executable model is an
+      --  independent canonical decoder over the returned bytes; never let
+      --  an implementation/model disagreement escape as a successful
+      --  decode.  This makes the public Status = OK contract unconditional
+      --  over stored, fixed, dynamic, and mixed-block streams.
+      if Status = OK
+        and then not Model.Is_Decoding (Input, Output, Consumed, Produced)
+      then
+         Status := Invalid_Symbol;
+      end if;
    end Decompress;
 
    ---------------------------------------------------------------------

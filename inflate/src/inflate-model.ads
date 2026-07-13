@@ -109,6 +109,51 @@ package Inflate.Model with Pure, SPARK_Mode => On is
                   (if D'Length > 0 then D'First else 1),
                   (if D'Length > 0 then D'Last else 0)));
 
+   ---------------------------------------------------------------------
+   --  Full DEFLATE decode model (M5)
+   ---------------------------------------------------------------------
+
+   --  Input (Input'First .. Input'First + Consumed - 1) is a complete
+   --  DEFLATE stream whose decoded bytes are exactly the first Produced
+   --  bytes of Output.  Unlike Encodes_Stored, this executable relation
+   --  covers stored, fixed-Huffman, and dynamic-Huffman blocks, including
+   --  literal and overlapping LZ77 match output.
+   --
+   --  The implementation is an intentionally separate canonical decoder:
+   --  it reads Huffman codes one bit at a time directly from code lengths
+   --  and validates the caller-supplied output instead of constructing the
+   --  shipping decoder's tables or using its fast lookup map.
+   function Is_Decoding
+     (Input    : Byte_Array;
+      Output   : Byte_Array;
+      Consumed : Natural;
+      Produced : Natural) return Boolean
+   with
+     Global => null,
+     Pre    => Consumed <= Input'Length
+               and then Produced <= Output'Length,
+     Post   =>
+       (if Input'Length >= 5
+           and then Stored_Stream_End
+                      (Input, Input'First, Input'Last) > 0
+           and then Consumed > 0
+           and then Input'First + (Consumed - 1) =
+                      Stored_Stream_End (Input, Input'First, Input'Last)
+           and then Stored_Decoded_Length
+                      (Input, Input'First, Input'Last) = Produced
+           and then
+             (if Produced = 0
+              then Encodes_Stored
+                     (Input, Input'First, Input'First + (Consumed - 1),
+                      Output,
+                      (if Output'Length > 0 then Output'First else 1),
+                      (if Output'Length > 0 then Output'First - 1 else 0))
+              else Encodes_Stored
+                     (Input, Input'First, Input'First + (Consumed - 1),
+                      Output, Output'First,
+                      Output'First + (Produced - 1)))
+        then Is_Decoding'Result);
+
    --  Where the well-formed stored-block stream starting at CF ends within
    --  C (CF .. Last): the index of its final byte, or 0 when no such
    --  stream starts there. Unlike Encodes_Stored this constrains only the

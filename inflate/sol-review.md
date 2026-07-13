@@ -3,9 +3,10 @@
 ## Verdict
 
 The absence-of-run-time-errors proof and the stored-gzip round-trip theorem
-are genuine. The project does not, however, prove full functional correctness
-of its DEFLATE, zlib, gzip, or ZIP decoders. General decoding and external
-format compatibility are supported by differential testing.
+are genuine. Successful raw DEFLATE results are now also proved to satisfy an
+independent executable canonical model. This is functional correctness relative
+to that model; RFC and external-format compatibility remain supported by
+differential testing rather than a separately formalized wire specification.
 
 Most of that boundary is stated accurately in the README. The debug/release
 artifact-separation and ZIP consistency issues identified by this review are
@@ -93,17 +94,20 @@ remain accepted:
 - `src/inflate-zip.adb:237-353`
 - `tests/run_tests.py:442-560`
 
-### 4. Medium (partially resolved): the formal round trip still proves stored-format self-consistency
+### 4. Medium (partially resolved): format semantics remain model-relative
 
-`Inflate.Model` covers only the stored-block fragment emitted by the
-compressor:
+`Inflate.Model` now also covers stored, fixed-Huffman, and dynamic-Huffman
+foreign streams through `Is_Decoding`:
 
 - `src/inflate-model.ads:1-13`
 
-The compressor is proved to emit bytes satisfying that relation, and the
-decoder is proved to recover bytes satisfying the same relation. The
-functionality lemma then establishes equality. This is a real end-to-end
-theorem for the library's own compressor image.
+The full model independently parses block framing and dynamic headers, builds
+canonical tables from code lengths, decodes symbols bit by bit, and checks
+literal and LZ77 output. `Raw.Decompress` returns `OK` only when the optimized
+decoder's exact result passes this model, and the public postcondition states
+that fact. This resolves the earlier lack of a functional contract on general
+DEFLATE output, but by runtime checked refinement rather than a static proof of
+the fast decoder against the canonical parser.
 
 The CRC-specific part of this finding is resolved. `Inflate.CRC32` now defines
 a table-independent reflected GF(2) specification: one bit of polynomial
@@ -138,9 +142,9 @@ Likewise, termination proofs do not establish the project prose's
 linear-complexity claim. The code structure makes linear behavior plausible
 for normal release execution, but no complexity bound is formalized.
 
-Finally, `compression.md` includes a CLI in the M6a deliverable, but the current
-repository supplies a library, test harness, and benchmark harness rather than
-a user-facing compression/decompression command.
+The earlier M6a productization gap is resolved: `inflate_cli.gpr` builds the
+`bin/inflate` compression/decompression command, with end-to-end CLI tests in
+`tests/run_cli_tests.py`.
 
 ## What is actually proved
 
@@ -150,7 +154,7 @@ A current run of:
 gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
 ```
 
-completed successfully with 1,851 checks, all proved. The generated summary
+completed successfully with 2,242 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -160,6 +164,8 @@ Subject to public preconditions, the proof establishes:
 - initialization and data-dependency properties;
 - termination of analyzed loops, recursive model functions, and subprograms;
 - input and output cursor bounds for all decoders;
+- every successful raw DEFLATE result satisfies the executable full model over
+  its exact consumed input and produced output;
 - exact stored-compression size and compressor totality;
 - the stored-block relation between compressor input and emitted body;
 - stored-stream decode success, exact consumption and production, and
@@ -207,10 +213,9 @@ the shipping `Decode_Fast` and `Decode` procedures.
 
 The formal result does not establish:
 
-- functional correctness of general fixed- or dynamic-Huffman decoding;
-- correctness of LZ77 back-reference output against an independent model;
-- integration of the isolated fast-table equivalence proof into the shipping
-  bit reader and Huffman decoder;
+- static equivalence of the shipping fast decoder and canonical model without
+  the runtime validation pass;
+- integration of the isolated M1/M2 proofs into the shipping table builder;
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;
 - stored-DEFLATE, zlib, gzip, or ZIP wire semantics against an independently

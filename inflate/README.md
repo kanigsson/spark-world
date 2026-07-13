@@ -4,20 +4,23 @@ A one-shot, no-heap compression library: DEFLATE itself (RFC 1951), the
 zlib (RFC 1950) and gzip (RFC 1952) containers with their checksums, and a
 ZIP central-directory walker with per-entry extraction. The entire library
 is SPARK. Decoding is proved free of run-time errors, with termination and
-initialization/data-flow checks included in the proof run described below;
-decoded bytes are differentially tested against C zlib. The gzip
+initialization/data-flow checks included in the proof run described below.
+Every successful raw DEFLATE decode is also proved to satisfy an executable
+canonical decode model; that model and the returned bytes are differentially
+tested against C zlib. The gzip
 compressor (stored blocks) and decompressor additionally carry a **proved
 round-trip theorem**: `Inflate.Theorems.GZip_Round_Trip` states — and the
 proof establishes for every input — that decompressing the compressor's
 output restores the input exactly, with `Status = OK` (see "Compression"
-below). Ongoing work towards proved decoding of arbitrary foreign streams
-is scoped in `compression.md`.
+below). Compression-ratio upgrades are scoped in `compression.md`.
 
 The library is meant for callers that need to parse compressed data from
 untrusted input without dynamic allocation. There is no heap, no access
-type, no recursion, no OS dependency, and no package state in the library.
-Malformed input is reported as a status value instead of being handled by
-raising an exception.
+type, no OS dependency, and no package state in the library. The shipping
+decoder and the ordinary full-model validation path are iterative; recursive
+stored-fragment proof relations can still consume stack when contracts are
+executed in checks-enabled builds. Malformed input is normally reported as a
+status value instead of being handled by raising an exception.
 
 ## Packages
 
@@ -28,7 +31,7 @@ raising an exception.
 | `Inflate.LZ77`    | proved DEFLATE back-reference copying, including overlapping matches |
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
 | `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
-| `Inflate.Model`   | executable decode model (currently the stored-block fragment) that functional contracts are stated against |
+| `Inflate.Model`   | executable canonical model for stored, fixed-Huffman, and dynamic-Huffman DEFLATE, plus the stored compressor relation |
 | `Inflate.Theorems`| the proved gzip round-trip theorem, stated as an executable procedure |
 | `Inflate.ZIP`     | ZIP archives: end-record lookup (comment scan-back), central-directory iteration, extraction with CRC/size verification |
 | `Inflate.CRC32`   | CRC-32 (gzip/ZIP polynomial), table proved equal to a reflected GF(2) specification |
@@ -79,9 +82,7 @@ DEFLATE blocks: any gzip decoder consumes the output; the size overhead is
   exactly `Input`. The proof is spec-free — it trusts no external DEFLATE
   specification, only the agreement of the library's own compressor and
   decompressor through the executable model, plus the functionality of
-  that relation and the content-invariance of the CRC. It says nothing
-  about *foreign* streams (someone else's `gzip -9` output): decoding
-  those is differentially tested, and proving it is a later milestone.
+  that relation and the content-invariance of the CRC.
 
 `Inflate.Model` is deliberately executable (not ghost): the test suite
 runs the very relation the contracts are stated against, and C zlib
@@ -89,24 +90,29 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=2` run reported **1942 checks,
+The most recent recorded `gnatprove --level=2` run reported **2242 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
 functional contracts described above: the compressor's postcondition ties
-its output to the decode model, the decoders' postconditions tie their
-output to the same model on the stored fragment, and the round-trip
-theorem composes them. It also covers the M4 LZ77 contract: every validated
+its output to the decode model, and `Raw.Decompress` proves that every
+`Status = OK` result satisfies the full model over the exact consumed input
+and produced output. The decoder enforces this as a checked-refinement
+boundary: after its optimized pass succeeds, an independent canonical model
+validates the returned bytes; disagreement is a defined rejection. This is
+functional correctness relative to the executable model, not a proof that
+the model is RFC 1951. The proof also covers the M4 LZ77 contract: every validated
 match used by the shipping decoder preserves the already-produced prefix
 and appends bytes satisfying the back-reference window equation, including
 the forward-copy overlap case. All recursion in the model and its lemmas is
 proved terminating.
 
-On the decoding side, M4 proves the local semantics of back-reference
-copying, but the full control flow for streams outside the compressor's image
-is still proved only for absence of run-time errors; that the complete decoded
-bytes are the correct DEFLATE/zlib/gzip/ZIP result on such foreign streams is
-tested, not yet proved.
+The full model independently reads block framing and dynamic headers, builds
+canonical tables directly from code lengths, decodes codes bit by bit, and
+checks literal and overlapping-match output. The differential suite tests this
+trusted semantic base against C zlib. Container parsing beyond the raw DEFLATE
+payload remains specified by its implementation contracts and runtime checksum
+checks rather than a separate byte-level zlib/gzip/ZIP model.
 
 Some proof-relevant structure:
 
@@ -116,6 +122,10 @@ Some proof-relevant structure:
   strictly increases.
 - Masks and powers of two are concrete lookup tables instead of
   variable-exponent arithmetic.
+- The full model deliberately does not reuse the shipping Huffman table or
+  fast map. Its canonical table builder and parser prove 685 checks in the
+  focused model unit; the shipping decoder calls the model only after an
+  otherwise successful decode.
 - Two table-internal bounds that would need ghost summation to prove
   as invariants are handled as defensive checks instead. If reached, those
   paths return a defined error status. (`spikes/m2_kraft/` since proved,
@@ -149,10 +159,10 @@ Some proof-relevant structure:
   executable: the test suite still runs the very relation the contracts
   are stated against, on every stream.
 
-Decode functional correctness on general (non-stored) streams is tested,
-not proved: the test suite compares accepted output against zlib and
-checks rejection behavior on malformed inputs. Container checksums are
-also checked at run time.
+Agreement with RFC 1951 and third-party implementations remains test evidence,
+not a theorem: the test suite compares model-validated output against zlib and
+checks rejection behavior on malformed inputs. Container checksums are also
+checked at run time.
 
 ## Testing
 
@@ -187,7 +197,10 @@ The recorded test run had zero failures and no escaping exception.
 
 ## Performance
 
-`bench/run_bench.py`, release build (`-O2 -gnatp`). Reference: zlib 1.3.1,
+The table below predates M5's mandatory canonical validation pass and is kept
+only as historical fast-decoder data; it is not representative of current
+end-to-end throughput. `bench/run_bench.py`, release build (`-O2 -gnatp`).
+Reference: zlib 1.3.1,
 `-O2`, same machine, same buffers, best of 30. Throughput is decompressed
 output per second.
 
