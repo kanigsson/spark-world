@@ -8,7 +8,8 @@ initialization/data-flow checks included in the proof run described below.
 Every successful raw DEFLATE decode is also proved to satisfy an executable
 canonical decode model; that model and the returned bytes are differentially
 tested against C zlib. The gzip
-compressor (fixed Huffman for inputs up to 32 bytes, stored blocks otherwise)
+compressor (fixed Huffman throughout the fixed encoder's arithmetic domain,
+stored blocks above it)
 and decompressor additionally carry a **proved
 round-trip theorem**: `Inflate.Theorems.GZip_Round_Trip` states — and the
 proof establishes for every input — that decompressing the compressor's
@@ -30,7 +31,7 @@ status value instead of being handled by raising an exception.
 | `Inflate`         | `Byte_Array`, the `Status_Type` all layers report through |
 | `Inflate.Raw`     | DEFLATE (RFC 1951): stored/fixed/dynamic blocks, canonical Huffman decoding; `Compress_Stored` |
 | `Inflate.LZ77`    | proved DEFLATE back-reference copying, including overlapping matches |
-| `Inflate.Fixed`   | bounded fixed-Huffman literal encoder/decoder relation and analyzer |
+| `Inflate.Fixed`   | fixed-Huffman literal encoder, iterative analyzer, and executable relation |
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
 | `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
 | `Inflate.Model`   | executable canonical model for stored, fixed-Huffman, and dynamic-Huffman DEFLATE, plus the stored compressor relation |
@@ -58,13 +59,16 @@ ZIP extractor are ordinary clients of `Inflate.Raw`.
 
 ## Compression
 
-The library compresses to standard gzip. Inputs of at most 32 bytes use one
-final fixed-Huffman block containing literals and end-of-block; larger inputs
-retain the stored-block encoder. The 32-byte first slice deliberately reuses
-M3's proved message bound while moving real encoder code into the shipping
-codec; extending that bound and adding LZ77/dynamic trees remain later M6
-ratio work. Any gzip decoder consumes either output. The contract is preserved
-across both branches:
+The library compresses to standard gzip. The arbitrary 32-byte integration
+bound is gone: inputs through `Inflate.Fixed.Max_Input` use one final
+fixed-Huffman block containing literals and end-of-block. `Max_Input` is
+derived from the largest stream whose bit offsets plus the gzip trailer fit in
+`Natural` (238,609,285 input bytes on the current target), rather than from a
+proof-harness capacity. Still larger inputs retain the stored-block encoder,
+so the public compressor and theorem keep their original, larger domain.
+Adding LZ77 matches and dynamic trees remains later M6 ratio work. Any gzip
+decoder consumes either output. The contract is preserved across both
+branches:
 
 - **Totality and size.** Under the stated preconditions there is no failure
   path. `GZip.Compressed_Size` is the allocation bound; the produced size is
@@ -93,7 +97,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **3223 checks,
+The most recent recorded `gnatprove --level=4` run reported **3528 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the

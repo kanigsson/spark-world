@@ -11,14 +11,18 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
 
    use type Byte;
 
-   --  Keep every bit offset representable by Natural.  This is still well
-   --  above the practical range of the one-shot, caller-buffered API.
-   --  This first integrated fixed-code slice reuses M3's proved message
-   --  bound.  The public gzip compressor falls back to its established
-   --  stored encoder above this bound, so its theorem remains total for
-   --  every input in the existing API domain.
-   Max_Input : constant := 32;
-   Max_Stream_Bytes : constant := 47;
+   --  Proof helpers are deliberately absent from checks-enabled builds;
+   --  all executable relations below have ordinary non-ghost bodies.
+   pragma Assertion_Policy (Ghost => Ignore);
+
+   --  Keep every bit offset representable by Natural, including the eight
+   --  gzip trailer bytes that follow a fixed block in the slices passed to
+   --  the recognizer.  This is the largest literal count supported by that
+   --  arithmetic model; the public compressor retains its stored fallback
+   --  above it, so its theorem still covers the full existing API domain.
+   Max_Stream_Bytes : constant Natural := Natural'Last / 8;
+   Max_Input : constant Natural :=
+     (8 * (Max_Stream_Bytes - 8) - 10) / 9;
 
    function Code_Length (B : Byte) return Positive is
      (if B <= 143 then 8 else 9);
@@ -39,10 +43,12 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
       else Data_Bits (Data, Count - 1)
              + Code_Length (Data (Data'First + Count - 1)))
    with
+     Ghost,
      Pre  => Data'Length <= Max_Input and then Count <= Data'Length,
      Post => Data_Bits'Result in 8 * Count .. 9 * Count,
      Subprogram_Variant => (Decreases => Count);
 
+   pragma Assertion_Policy (Post => Ignore);
    function Long_Literal_Count
      (Data : Byte_Array; Count : Natural) return Natural
    with
@@ -50,14 +56,19 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      Post => Long_Literal_Count'Result <= Count
                and then Data_Bits (Data, Count) =
                           8 * Count + Long_Literal_Count'Result;
+   pragma Assertion_Policy (Post => Check);
 
    --  Exact raw-DEFLATE size for Data.  Unlike Max_Size, this accounts for
    --  the fixed code's eight-bit literals 0 .. 143.
+   pragma Assertion_Policy (Post => Ignore);
    function Encoded_Size (Data : Byte_Array) return Positive is
      (Data'Length + (Long_Literal_Count (Data, Data'Length) + 17) / 8)
    with
      Pre  => Data'Length <= Max_Input,
-     Post => Encoded_Size'Result <= Max_Size (Data'Length);
+     Post => Encoded_Size'Result <= Max_Size (Data'Length)
+               and then 3 + Data_Bits (Data, Data'Length) + 7 <=
+                          8 * Encoded_Size'Result;
+   pragma Assertion_Policy (Post => Check);
 
    --  Value of Length consecutive stream bits, interpreted in Huffman
    --  transmission order (first bit is the most significant code bit).
@@ -71,6 +82,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                and then Position < 8 * Input'Length,
      Post => Bit_Value'Result <= 1;
 
+   pragma Assertion_Policy (Post => Ignore);
    function Prefix_Value
      (Input : Byte_Array;
       Start : Natural;
@@ -88,6 +100,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                      2 * Prefix_Value (Input, Start, Length - 1)
                        + Bit_Value (Input, Start + Length - 1)),
      Subprogram_Variant => (Decreases => Length);
+   pragma Assertion_Policy (Post => Check);
 
    function Fixed_Header (Input : Byte_Array) return Boolean is
      (Input'Length > 0
@@ -104,14 +117,41 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      (3 + Data_Bits (Data, Count) <= 8 * Input'Length
       and then
       (for all I in 0 .. Count - 1 =>
-         Prefix_Value
+         3 + Data_Bits (Data, I)
+           + Code_Length (Data (Data'First + I)) <= 8 * Input'Length
+         and then Prefix_Value
            (Input, 3 + Data_Bits (Data, I),
             Code_Length (Data (Data'First + I))) =
-           Code (Data (Data'First + I))))
+              Code (Data (Data'First + I))))
    with
+     Ghost,
      Pre => Input'Length <= Max_Stream_Bytes
               and then Data'Length <= Max_Input
               and then Count <= Data'Length;
+
+   --  Linear executable check for the literal sequence and end-of-block.
+   --  The postcondition connects that implementation to the pointwise
+   --  relation used by the proof.  Keep that deliberately quantified
+   --  bridge out of checks-enabled executables; the body itself remains the
+   --  linear executable relation.
+   pragma Assertion_Policy (Post => Ignore);
+   function Encoding_Matches
+     (Input : Byte_Array;
+      Consumed : Natural;
+      Data : Byte_Array) return Boolean
+   with
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Consumed in 1 .. Input'Length
+               and then Fixed_Header (Input),
+     Post => Encoding_Matches'Result =
+       (3 + Data_Bits (Data, Data'Length) + 7 <= 8 * Input'Length
+        and then Encodes_Prefix (Input, Data, Data'Length)
+        and then Prefix_Value
+          (Input, 3 + Data_Bits (Data, Data'Length), 7) = 0
+        and then Consumed =
+          (3 + Data_Bits (Data, Data'Length) + 7 + 7) / 8);
+   pragma Assertion_Policy (Post => Check);
 
    --  Input's first Consumed bytes are exactly the literal-only fixed block
    --  for Data.  Bytes after Consumed may be a container trailer.
@@ -123,13 +163,8 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      (Consumed in 1 .. Input'Length
       and then Input'Length <= Max_Stream_Bytes
       and then Data'Length <= Max_Input
-      and then 3 + Data_Bits (Data, Data'Length) + 7 <= 8 * Consumed
       and then Fixed_Header (Input)
-      and then Encodes_Prefix (Input, Data, Data'Length)
-      and then Prefix_Value
-                 (Input, 3 + Data_Bits (Data, Data'Length), 7) = 0
-      and then Consumed =
-                 (3 + Data_Bits (Data, Data'Length) + 7 + 7) / 8);
+      and then Encoding_Matches (Input, Consumed, Data));
 
    type Stream_Info is record
       Valid          : Boolean;
@@ -145,6 +180,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
       Position : Natural;
    end record;
 
+   pragma Assertion_Policy (Post => Ignore);
    function Next_Symbol
      (Input : Byte_Array; Position : Natural) return Symbol_Result
    with
@@ -184,6 +220,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                      (Literal,
                       Byte (Prefix_Value (Input, Position, 9) - 256),
                       Position + 9));
+   pragma Assertion_Policy (Post => Check);
 
    --  Recursive mathematical walk used to specify the iterative analyzer.
    --  Position names the next Huffman code bit (the three block-header bits
@@ -236,13 +273,13 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
    with
      Pre => Input'Length <= Max_Stream_Bytes
               and then Position <= 8 * Input'Length,
-     Post => Walk'Result = Spec_Walk (Input, Position),
-     Subprogram_Variant => (Decreases => 8 * Input'Length - Position);
+     Post => Walk'Result = Spec_Walk (Input, Position);
    pragma Assertion_Policy (Post => Check);
 
-   --  Recognize the bounded literal-only fixed fragment.  End_Bit is
+   --  Recognize the literal-only fixed fragment.  End_Bit is
    --  immediately after the end-of-block code; the containing byte count is
    --  (End_Bit + 7) / 8.  Trailing bytes are ignored.
+   pragma Assertion_Policy (Post => Ignore);
    function Analyze (Input : Byte_Array) return Stream_Info
    with
      Pre  => Input'Length <= Max_Stream_Bytes,
@@ -256,6 +293,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                 and then Analyze'Result = Walk (Input, 3)
                 and then Analyze'Result.End_Bit in 10 .. 8 * Input'Length
                 and then Analyze'Result.Decoded_Length <= Max_Input);
+   pragma Assertion_Policy (Post => Check);
 
    procedure Lemma_Encoding_Analyzes
      (Input : Byte_Array; Consumed : Natural; Data : Byte_Array)

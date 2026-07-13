@@ -121,7 +121,7 @@ polynomial step:
 
 Thus a table-generation or table-lookup mistake cannot satisfy the proof merely
 because the model repeats the same table walk. The remaining issue is the
-compressor-image wire format: the bounded fixed-Huffman and stored branches are
+compressor-image wire format: the fixed-Huffman and stored branches are
 still composed through the library's own executable relations rather than an
 independently formalized RFC semantics. A shared format mistake could satisfy the formal
 round-trip theorem while failing an independent gzip implementation. The tests
@@ -154,7 +154,7 @@ A current run of:
 gnatprove -P inflate.gpr --level=4 -j0
 ```
 
-completed successfully with 3,223 checks, all proved. The generated summary
+completed successfully with 3,528 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 

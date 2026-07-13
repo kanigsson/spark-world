@@ -223,16 +223,20 @@ M2–M5, it does not avoid them.
   minimum-redundancy. Proving length-limiting *optimal* (package-merge) is a
   research project of its own and buys round-trip nothing.
 
-**Current status: in progress, with the first fixed-Huffman slice integrated.**
-`Inflate.Fixed` emits and recognizes one final fixed-code block containing
-literal symbols plus end-of-block. The bound is the same 32-symbol bound proved
-in M3; `Inflate.GZip.Compress` selects it within that bound and uses the stored
-encoder otherwise. `Inflate.Raw.Decompress` has a proved success path for this
-new image, and the unchanged `Inflate.Theorems.GZip_Round_Trip` theorem composes
-both branches. Generalizing the bound, emitting verified LZ77 matches, and then
-dynamic trees remain open M6 work. The focused fixed-code unit proves all 822
-checks and the full library all 3,223 checks at `--level=4`, with no
-justifications or assumptions.
+**Current status: in progress, with the fixed-Huffman literal slice integrated
+and generalized.** `Inflate.Fixed` emits and recognizes one final fixed-code
+block containing literal symbols plus end-of-block. The arbitrary 32-symbol M3
+harness bound is gone: `Max_Input` is derived from the largest stream whose bit
+offsets plus gzip trailer fit in `Natural` (238,609,285 input bytes on the
+current target). The analyzer is iterative and the executable encoding
+relation is linear; proof-only framing loops are erased from checks-enabled
+builds. `Inflate.GZip.Compress` selects fixed coding throughout that domain and
+uses the stored encoder above it. `Inflate.Raw.Decompress` retains a proved
+success path for this image, and the unchanged
+`Inflate.Theorems.GZip_Round_Trip` theorem composes both branches. Emitting
+verified LZ77 matches and then dynamic trees remain open M6 work. The focused
+fixed-code unit proves all 1,117 checks at `--level=2`; the full-library count
+is 3,528 checks at `--level=4`, with no justifications or assumptions.
 
 ### M7 — Checksums as math
 CRC32 = polynomial division mod the generator; Adler32 = the mod-65521 running
@@ -309,11 +313,11 @@ Why3-adjacent grind. Still SPARK-tractable — budget for it.
 
 ## Current next moves
 
-M1 through M5, M6a, and M7 are complete. M6 now has a bounded fixed-Huffman
-shipping slice with the same full-domain gzip theorem. The remaining ratio work
-is:
+M1 through M5, M6a, and M7 are complete. M6 now has a generalized
+fixed-Huffman literal slice with the same full-domain gzip theorem. The
+remaining ratio work is:
 
-1. **Lift the fixed encoder bound.** Generalize the 32-literal proof/API while
-   preserving the integrated fixed relation and theorem.
-2. **Add verified LZ77 emission.** Reuse M4's match equation with a deliberately
-   simple match finder, then add dynamic trees without an optimality claim.
+1. **Add verified LZ77 emission.** Reuse M4's match equation with a deliberately
+   simple match finder.
+2. **Add dynamic trees.** Preserve the same theorem without making an
+   optimality claim.

@@ -91,8 +91,8 @@ def check_compress_outputs():
             print("FAIL compress %s: zlib decodes %d bytes, expected %d"
                   % (inp, len(out), len(data)))
             bad += 1
-        if len(data) <= 32 and (member[10] & 7) != 3:
-            print("FAIL compress %s: small input did not use final fixed block"
+        if (member[10] & 7) != 3:
+            print("FAIL compress %s: input did not use final fixed block"
                   % inp)
             bad += 1
     print("compress differential: %d cases, %d failures"
