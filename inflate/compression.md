@@ -152,11 +152,12 @@ not only on a duplicate proof spike.
 
 The focused primitive proves 117 checks at `--level=2`; its combined M4/model
 project proves 515, and the full shipping library proves all 1,942 checks. The
-assertion-enabled differential quick suite passes 3,336 generated streams plus
+debug differential quick suite passes 3,337 generated streams plus
 16 compressor interoperability cases, while the focused executable checks the
 three copy shapes directly. Quantified proof assertions are ignored in library
-executables to avoid quadratic debug instrumentation; the small M4 harness
-evaluates the executable relation explicitly.
+executables to avoid quadratic debug instrumentation; project debug builds
+disable proof contracts while the small M4 harness evaluates the executable
+relation explicitly.
 
 ### M5 — Full DEFLATE decode correctness
 Assemble M1+M2+M4 against a ghost decode model over block framing. Carries the
@@ -176,10 +177,11 @@ unconditional for successful foreign DEFLATE streams but remains explicitly
 relative to this executable model, not to RFC prose.
 
 The focused model proves all 685 checks and the full library proves all 2,242
-checks at `--level=2`. The assertion-enabled differential suite passes 6,442
-generated/corpus cases plus 16 compressor interoperability cases. The ordinary
+checks at `--level=2`. The debug differential suite passes 6,443
+generated/corpus cases plus 16 compressor interoperability cases, with language
+checks enabled and proof contracts disabled. The ordinary
 model path is iterative; the older recursive stored-only relations remain for
-the M6a proof and retain their documented checks-enabled stack limit.
+the M6a proof but are not executed by project debug builds.
 
 ### M6a — Stored-only compressor + gzip round-trip + CLI ⬅ the bootstrap
 DEFLATE has a gift the ladder should exploit: **stored blocks** (type 00). A

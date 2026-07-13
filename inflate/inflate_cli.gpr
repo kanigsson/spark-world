@@ -13,7 +13,8 @@ project Inflate_CLI is
       case Mode is
          when "debug" =>
             for Default_Switches ("Ada") use
-              ("-gnat2012", "-gnatwa", "-gnata", "-g", "-O0");
+              ("-gnat2012", "-gnatwa", "-g", "-O0");
+            for Local_Configuration_Pragmas use "debug.adc";
          when "release" =>
             for Default_Switches ("Ada") use
               ("-gnat2012", "-gnatwa", "-O2");

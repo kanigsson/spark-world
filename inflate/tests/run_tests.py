@@ -297,6 +297,14 @@ def gen_crafted():
     # Stored, truncated payload
     differential_raw(b"\x01\x06\x00\xf9\xffhello", "stored-short")
 
+    # A deep chain of valid empty stored blocks used to exhaust the stack
+    # when debug builds executed the recursive proof relation in public
+    # postconditions. The shipping decoder is iterative; the debug project
+    # must keep contracts disabled so this remains an ordinary linear case.
+    deep_stored = b"\x00\x00\x00\xff\xff" * 32_767 + b"\x01\x00\x00\xff\xff"
+    case("raw", deep_stored, b"", consumed=len(deep_stored),
+         tag="deep-stored-chain")
+
     # Fixed block, just end-of-block (symbol 256 = 0000000 in 7 bits)
     differential_raw(BitWriter().b(1, 1).b(1, 2).huff(0, 7).bytes(), "fixed-empty")
     # Fixed block: literal 'A' (65 -> code 0x30+65=113, 8 bits), then EOB

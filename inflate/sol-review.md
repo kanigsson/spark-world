@@ -10,8 +10,8 @@ differential testing rather than a separately formalized wire specification.
 
 Most of that boundary is stated accurately in the README. The debug/release
 artifact-separation and ZIP consistency issues identified by this review are
-now resolved. The main remaining substantive gap is recursive executable
-contracts that can exhaust the stack in checks-enabled builds.
+now resolved. Project debug builds also disable proof-contract execution while
+retaining language run-time checks, closing the recursive-contract stack issue.
 
 ## Findings
 
@@ -37,7 +37,7 @@ directories (`obj/debug`, `obj/release`, `lib/debug`, and `lib/release`) from
 `MODE`. Both variants can coexist, and switching modes selects the matching
 artifacts without requiring a forced or clean rebuild.
 
-### 2. Medium: a checks-enabled build can overflow the stack on valid input
+### 2. Medium (resolved): a checks-enabled build could overflow the stack on valid input
 
 The implementation decoder is iterative, but the executable stored-block
 model is recursive:
@@ -55,11 +55,18 @@ about 164 KB of input and zero bytes of output, raised `Storage_Error` in a
 forced debug build. A forced release build decoded a much larger version of
 the stream successfully.
 
-This does not contradict SPARK's formal AoRTE result: stack and other resource
-exhaustion are outside that claim. It does mean that the README's broad
-statements that the library has no recursion and reports malformed input as a
-status rather than an exception need to be qualified for assertion-enabled
-builds. The reproducer is valid input, not malformed input.
+This did not contradict SPARK's formal AoRTE result: stack and other resource
+exhaustion are outside that claim. It meant that the README's broad statements
+that the library had no recursion and reported malformed input as a status
+rather than an exception needed qualification for assertion-enabled builds.
+The reproducer was valid input, not malformed input.
+
+This is resolved in the project debug path. `debug.adc` sets the assertion
+policy to `Ignore` and ignores later source-local `Assertion_Policy` pragmas;
+the library, CLI, and test projects use that configuration without `-gnata`.
+Range, overflow, index, and other language run-time checks remain enabled. The
+former 32,768-empty-block reproducer is now a permanent differential test and
+completes without `Storage_Error`.
 
 ### 3. Medium (resolved): ZIP consistency validation was incomplete
 
@@ -229,11 +236,12 @@ The formal result does not establish:
 
 ## Test evidence
 
-After a forced debug rebuild, the full test suite completed with:
+After a forced debug rebuild with language checks enabled and contracts
+disabled, the full test suite completed in 12.6 seconds with:
 
 ```text
-generated 6442 cases
-cases: 6442  failures: 0
+generated 6443 cases
+cases: 6443  failures: 0
 compress differential: 16 cases, 0 failures
 ```
 

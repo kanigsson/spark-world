@@ -20,9 +20,11 @@ The library is meant for callers that need to parse compressed data from
 untrusted input without dynamic allocation. There is no heap, no access
 type, no OS dependency, and no package state in the library. The shipping
 decoder and the ordinary full-model validation path are iterative; recursive
-stored-fragment proof relations can still consume stack when contracts are
-executed in checks-enabled builds. Malformed input is normally reported as a
-status value instead of being handled by raising an exception.
+stored-fragment relations remain in the proof layer. Project debug builds keep
+ordinary language run-time checks but disable execution of proof contracts via
+`debug.adc`, so those recursive relations are not an additional run-time stack
+path. Malformed input is normally reported as a status value instead of being
+handled by raising an exception.
 
 ## Packages
 
@@ -159,12 +161,13 @@ Some proof-relevant structure:
   computation.
 - Evaluating the proof machinery — ghost buffer snapshots, recursive
   lemmas, invariants that re-walk the model relation — costs time
-  proportional to the data, which would make assertion-enabled
-  executables quadratic; `Assertion_Policy (Ignore)` regions over the
-  bodies keep it out of them, while GNATprove proves Ignore-policy
-  assertions all the same. The subprogram contracts in the specs stay
-  executable: the test suite still runs the very relation the contracts
-  are stated against, on every stream.
+  proportional to the data, which can make assertion-enabled executables
+  quadratic or exhaust the stack. `debug.adc` therefore makes proof contracts
+  non-executable and prevents source-local assertion policies from re-enabling
+  them; GNATprove still proves the contracts in its normal release-mode proof
+  build. The shipping decoder independently invokes the iterative full model
+  before returning `Status = OK`, so the differential suite still exercises
+  that semantic boundary on every successful stream.
 
 Agreement with RFC 1951 and third-party implementations remains test evidence,
 not a theorem: the test suite compares model-validated output against zlib and
@@ -173,10 +176,10 @@ checked at run time.
 
 ## Testing
 
-`tests/run_tests.py` generates **6442 cases** and runs them through the
-harness built with all checks on (`-gnata`); the expected verdict comes
-from C zlib (Python's binding) on the same bytes, so the suite is a
-differential test, not a self-test:
+`tests/run_tests.py` generates **6443 cases** and runs them through the debug
+harness with language run-time checks enabled and proof contracts disabled;
+the expected verdict comes from C zlib (Python's binding) on the same bytes,
+so the suite is a differential test, not a self-test:
 
 - Canterbury corpus plus synthetic extremes (incompressible, constant,
   empty), compressed at levels 0/1/6/9, window sizes 9/12/15, and all five
@@ -232,7 +235,7 @@ registers and uses fused tables for length, distance, and extra bits.
 ```sh
 gprbuild -P inflate.gpr                  # release: -O2
 gprbuild -P inflate_cli.gpr              # builds bin/inflate
-gprbuild -P inflate.gpr -XMODE=debug     # contracts as run-time assertions
+gprbuild -P inflate.gpr -XMODE=debug     # language checks on; contracts off
 gnatprove -P inflate.gpr --mode=all -j0 --timeout=30  # reproduce the proof
 cd tests && gprbuild -P tests.gpr -XMODE=debug && python3 run_tests.py
 cd bench && gprbuild -P bench.gpr && python3 run_bench.py   # needs libz.a

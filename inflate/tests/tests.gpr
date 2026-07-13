@@ -6,9 +6,11 @@ project Tests is
    for Exec_Dir use ".";
    for Main use ("test_inflate.adb");
 
-   --  All checks on: the harness treats any propagated exception as a
-   --  test failure.
+   --  Keep language run-time checks on: the harness treats any propagated
+   --  exception as a test failure. Proof contracts are disabled by the same
+   --  configuration as the imported debug library.
    package Compiler is
-      for Default_Switches ("Ada") use ("-gnat2012", "-gnata", "-g", "-O1");
+      for Default_Switches ("Ada") use ("-gnat2012", "-g", "-O1");
+      for Local_Configuration_Pragmas use "../debug.adc";
    end Compiler;
 end Tests;

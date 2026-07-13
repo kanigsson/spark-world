@@ -5,8 +5,9 @@
 
 library project Inflate is
 
-   --  "debug" keeps -gnata (contracts run as assertions) and -O0; "release"
-   --  drops assertions and optimises.
+   --  "debug" keeps language run-time checks and debug information, but the
+   --  configuration pragmas disable execution of proof contracts. "release"
+   --  suppresses all checks and optimises.
    --  Select with `-XMODE=debug` on the gprbuild command line.
    type Mode_Type is ("debug", "release");
    Mode : Mode_Type := external ("MODE", "release");
@@ -23,7 +24,8 @@ library project Inflate is
       case Mode is
          when "debug" =>
             for Default_Switches ("Ada") use
-              ("-gnat2012", "-gnatwa", "-gnata", "-g", "-O0");
+              ("-gnat2012", "-gnatwa", "-g", "-O0");
+            for Local_Configuration_Pragmas use "debug.adc";
          when "release" =>
             for Default_Switches ("Ada") use
               ("-gnat2012", "-gnatwa", "-O2", "-gnatp");
