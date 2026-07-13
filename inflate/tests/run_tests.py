@@ -77,6 +77,13 @@ def gen_compress(files):
 
 
 def check_compress_outputs():
+    def stream_prefix(raw, start, length):
+        value = 0
+        for i in range(length):
+            value = (value << 1) | ((raw[(start + i) // 8]
+                                     >> ((start + i) % 8)) & 1)
+        return value
+
     bad = 0
     for inp, data in compress_checks:
         gz = inp + ".gz"
@@ -95,6 +102,19 @@ def check_compress_outputs():
             print("FAIL compress %s: input did not use final fixed block"
                   % inp)
             bad += 1
+        if len(data) >= 6 and not any(data):
+            raw = member[10:-8]
+            # Header (3 bits), then three fixed-code zero literals (24 bits),
+            # then the selected length-3 symbol and distance-1 symbol.
+            if (stream_prefix(raw, 27, 7) != 1
+                    or stream_prefix(raw, 34, 5) != 0):
+                print("FAIL compress %s: zero run did not emit the "
+                      "length-3/distance-1 match" % inp)
+                bad += 1
+            if len(member) * 4 >= len(data) * 3:
+                print("FAIL compress %s: zero-run ratio did not improve"
+                      % inp)
+                bad += 1
     print("compress differential: %d cases, %d failures"
           % (len(compress_checks), bad))
     return bad

@@ -10,24 +10,30 @@ package body Inflate.Fixed with SPARK_Mode => On is
 
    use Interfaces;
 
-   ------------------------
-   -- Long_Literal_Count --
-   ------------------------
+   -----------------------
+   -- Encoded_Bit_Count --
+   -----------------------
 
-   function Long_Literal_Count
-     (Data : Byte_Array; Count : Natural) return Natural
-   is
+   function Encoded_Bit_Count (Data : Byte_Array) return Natural is
       Result : Natural := 0;
+      Index  : Natural := 0;
    begin
-      for I in 0 .. Count - 1 loop
-         pragma Loop_Invariant (Result <= I);
-         pragma Loop_Invariant (Data_Bits (Data, I) = 8 * I + Result);
-         if Data (Data'First + I) > 143 then
-            Result := Result + 1;
+      while Index < Data'Length loop
+         pragma Loop_Invariant (Index <= Data'Length);
+         pragma Loop_Invariant (Result = Data_Bits (Data, Index));
+         pragma Loop_Invariant (Result <= 9 * Index);
+         pragma Loop_Invariant (not Match_Continuation (Data, Index));
+         pragma Loop_Variant (Decreases => Data'Length - Index);
+         if Match_Start (Data, Index) then
+            Result := Result + 12;
+            Index := Index + 3;
+         else
+            Result := Result + Code_Length (Data (Data'First + Index));
+            Index := Index + 1;
          end if;
       end loop;
       return Result;
-   end Long_Literal_Count;
+   end Encoded_Bit_Count;
 
    ------------------
    -- Prefix_Value --
@@ -58,41 +64,49 @@ package body Inflate.Fixed with SPARK_Mode => On is
       C     : Natural;
    begin
       if Total - Position < 7 then
-         return (Truncated, 0, Position);
+         return (Truncated, 0, 0, Position);
       end if;
 
       C := Prefix_Value (Input, Position, 7);
       if C <= 23 then
          if C = 0 then
             pragma Assert (Prefix_Value (Input, Position, 7) = 0);
-            return (End_Of_Block, 0, Position + 7);
+            return (End_Of_Block, 0, 0, Position + 7);
+         elsif C = 1 then
+            if Total - Position < 12 then
+               return (Truncated, 0, 0, Position);
+            elsif Prefix_Value (Input, Position + 7, 5) = 0 then
+               return (Match, 0, 3, Position + 12);
+            else
+               return (Other, 0, 0, Position + 12);
+            end if;
          else
-            return (Other, 0, Position + 7);
+            return (Other, 0, 0, Position + 7);
          end if;
       end if;
 
       if Total - Position < 8 then
-         return (Truncated, 0, Position);
+         return (Truncated, 0, 0, Position);
       end if;
       C := Prefix_Value (Input, Position, 8);
       if C in 48 .. 191 then
          pragma Assert (Code_Length (Byte (C - 48)) = 8);
          pragma Assert (Code (Byte (C - 48)) = C);
-         return (Literal, Byte (C - 48), Position + 8);
+         return (Literal, Byte (C - 48), 1, Position + 8);
       elsif C in 192 .. 199 then
-         return (Other, 0, Position + 8);
+         return (Other, 0, 0, Position + 8);
       end if;
 
       if Total - Position < 9 then
-         return (Truncated, 0, Position);
+         return (Truncated, 0, 0, Position);
       end if;
       C := Prefix_Value (Input, Position, 9);
       if C in 400 .. 511 then
          pragma Assert (Code_Length (Byte (C - 256)) = 9);
          pragma Assert (Code (Byte (C - 256)) = C);
-         return (Literal, Byte (C - 256), Position + 9);
+         return (Literal, Byte (C - 256), 1, Position + 9);
       else
-         return (Other, 0, Position + 9);
+         return (Other, 0, 0, Position + 9);
       end if;
    end Next_Symbol;
 
@@ -101,21 +115,41 @@ package body Inflate.Fixed with SPARK_Mode => On is
    ----------
 
    function Spec_Walk
-     (Input : Byte_Array; Position : Natural) return Stream_Info
+     (Input : Byte_Array; Position, Decoded : Natural) return Stream_Info
    is
       S : constant Symbol_Result := Next_Symbol (Input, Position);
    begin
       case S.Kind is
          when Literal =>
-            declare
-               Tail : constant Stream_Info := Spec_Walk (Input, S.Position);
-            begin
-               if Tail.Valid then
-                  return (True, Tail.End_Bit, Tail.Decoded_Length + 1);
-               else
-                  return (False, 0, 0);
-               end if;
-            end;
+            if Decoded = Max_Input then
+               return (False, 0, 0);
+            else
+               declare
+                  Tail : constant Stream_Info :=
+                    Spec_Walk (Input, S.Position, Decoded + 1);
+               begin
+                  if Tail.Valid then
+                     return (True, Tail.End_Bit, Tail.Decoded_Length + 1);
+                  else
+                     return (False, 0, 0);
+                  end if;
+               end;
+            end if;
+         when Match =>
+            if Decoded = 0 or else Decoded > Max_Input - 3 then
+               return (False, 0, 0);
+            else
+               declare
+                  Tail : constant Stream_Info :=
+                    Spec_Walk (Input, S.Position, Decoded + 3);
+               begin
+                  if Tail.Valid then
+                     return (True, Tail.End_Bit, Tail.Decoded_Length + 3);
+                  else
+                     return (False, 0, 0);
+                  end if;
+               end;
+            end if;
          when End_Of_Block =>
             return (True, S.Position, 0);
          when Other | Truncated =>
@@ -123,7 +157,9 @@ package body Inflate.Fixed with SPARK_Mode => On is
       end case;
    end Spec_Walk;
 
-   function Walk (Input : Byte_Array; Position : Natural) return Stream_Info is
+   function Walk
+     (Input : Byte_Array; Position, Decoded : Natural) return Stream_Info
+   is
       Start : constant Natural := Position;
       P     : Natural := Position;
       Count : Natural := 0;
@@ -131,22 +167,52 @@ package body Inflate.Fixed with SPARK_Mode => On is
    begin
       loop
          pragma Loop_Invariant (P in Start .. 8 * Input'Length);
-         pragma Loop_Invariant (Count <= (P - Start) / 8);
+         pragma Loop_Invariant (Count <= Max_Input - Decoded);
          pragma Loop_Invariant
-           (if Spec_Walk (Input, P).Valid
-            then Spec_Walk (Input, Start).Valid
-                 and then Spec_Walk (Input, Start).End_Bit =
-                            Spec_Walk (Input, P).End_Bit
-                 and then Spec_Walk (Input, Start).Decoded_Length =
-                            Count + Spec_Walk (Input, P).Decoded_Length
-            else not Spec_Walk (Input, Start).Valid);
+           (Spec_Walk (Input, Start, Decoded) =
+              (if Spec_Walk (Input, P, Decoded + Count).Valid
+               then (True,
+                     Spec_Walk (Input, P, Decoded + Count).End_Bit,
+                     Count
+                       + Spec_Walk (Input, P, Decoded + Count)
+                           .Decoded_Length)
+               else (False, 0, 0)));
          pragma Loop_Variant (Increases => P);
 
          S := Next_Symbol (Input, P);
          case S.Kind is
             when Literal =>
+               if Decoded + Count = Max_Input then
+                  return (False, 0, 0);
+               end if;
                P := S.Position;
                Count := Count + 1;
+               pragma Assert
+                 (Spec_Walk (Input, Start, Decoded) =
+                    (if Spec_Walk (Input, P, Decoded + Count).Valid
+                     then (True,
+                           Spec_Walk (Input, P, Decoded + Count).End_Bit,
+                           Count
+                             + Spec_Walk (Input, P, Decoded + Count)
+                                 .Decoded_Length)
+                     else (False, 0, 0)));
+            when Match =>
+               if Decoded + Count = 0
+                 or else Decoded + Count > Max_Input - 3
+               then
+                  return (False, 0, 0);
+               end if;
+               P := S.Position;
+               Count := Count + 3;
+               pragma Assert
+                 (Spec_Walk (Input, Start, Decoded) =
+                    (if Spec_Walk (Input, P, Decoded + Count).Valid
+                     then (True,
+                           Spec_Walk (Input, P, Decoded + Count).End_Bit,
+                           Count
+                             + Spec_Walk (Input, P, Decoded + Count)
+                                 .Decoded_Length)
+                     else (False, 0, 0)));
             when End_Of_Block =>
                return (True, S.Position, Count);
             when Other | Truncated =>
@@ -165,8 +231,8 @@ package body Inflate.Fixed with SPARK_Mode => On is
       if not Fixed_Header (Input) then
          return (False, 0, 0);
       end if;
-      Result := Walk (Input, 3);
-      if Result.Valid and then Result.Decoded_Length <= Max_Input then
+      Result := Walk (Input, 3, 0);
+      if Result.Valid then
          return Result;
       else
          return (False, 0, 0);
@@ -243,6 +309,22 @@ package body Inflate.Fixed with SPARK_Mode => On is
       end if;
    end Lemma_Code_Decodes;
 
+   procedure Lemma_Match_Decodes
+     (Input : Byte_Array; Position : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Position <= 8 * Input'Length
+               and then 12 <= 8 * Input'Length - Position
+               and then Prefix_Value (Input, Position, 7) = 1
+               and then Prefix_Value (Input, Position + 7, 5) = 0,
+     Post => Next_Symbol (Input, Position).Kind = Match
+               and then Next_Symbol (Input, Position).Length = 3
+               and then Next_Symbol (Input, Position).Position = Position + 12;
+
+   procedure Lemma_Match_Decodes
+     (Input : Byte_Array; Position : Natural) is null;
+
    procedure Lemma_EOB_Decodes
      (Input : Byte_Array; Position : Natural)
    with
@@ -261,62 +343,57 @@ package body Inflate.Fixed with SPARK_Mode => On is
       pragma Assert (Prefix_Value (Input, Position, 7) = 0);
    end Lemma_EOB_Decodes;
 
-   procedure Lemma_Walk_Encoding
+   procedure Lemma_Matches_Walk
      (Input : Byte_Array;
-      Data  : Byte_Array;
-      Index : Natural)
+      Consumed : Natural;
+      Data : Byte_Array;
+      Position, Index : Natural)
    with
      Ghost,
      Pre  => Input'Length <= Max_Stream_Bytes
                and then Data'Length <= Max_Input
+               and then Consumed in 1 .. Input'Length
+               and then Position <= 8 * Consumed
                and then Index <= Data'Length
-               and then 3 + Data_Bits (Data, Index) <= 8 * Input'Length
-               and then Encodes_Prefix (Input, Data, Data'Length)
-               and then 3 + Data_Bits (Data, Data'Length) + 7 <=
-                          8 * Input'Length
-               and then Prefix_Value
-                          (Input, 3 + Data_Bits (Data, Data'Length), 7) = 0,
-     Post => Walk (Input, 3 + Data_Bits (Data, Index)).Valid
-               and then Walk (Input, 3 + Data_Bits (Data, Index)).End_Bit =
-                          3 + Data_Bits (Data, Data'Length) + 7
-               and then Walk
-                          (Input, 3 + Data_Bits (Data, Index)).Decoded_Length =
-                            Data'Length - Index,
-     Subprogram_Variant => (Decreases => Data'Length - Index);
+               and then Spec_Matches
+                 (Input, Consumed, Data, Position, Index),
+     Post => Walk (Input, Position, Index).Valid
+               and then Walk (Input, Position, Index).End_Bit <= 8 * Consumed
+               and then (Walk (Input, Position, Index).End_Bit + 7) / 8 =
+                          Consumed
+               and then Walk (Input, Position, Index).Decoded_Length =
+                          Data'Length - Index,
+     Subprogram_Variant => (Decreases => 8 * Consumed - Position);
 
-   procedure Lemma_Walk_Encoding
+   procedure Lemma_Matches_Walk
      (Input : Byte_Array;
-      Data  : Byte_Array;
-      Index : Natural)
+      Consumed : Natural;
+      Data : Byte_Array;
+      Position, Index : Natural)
    is
-      Position : constant Natural := 3 + Data_Bits (Data, Index);
+      S : constant Symbol_Result := Next_Symbol (Input, Position);
    begin
-      if Index < Data'Length then
-         pragma Assert
-           (3 + Data_Bits (Data, Index)
-              + Code_Length (Data (Data'First + Index)) <=
-            8 * Input'Length);
-         pragma Assert
-           (Prefix_Value
-              (Input, Position,
-               Code_Length (Data (Data'First + Index))) =
-            Code (Data (Data'First + Index)));
-         Lemma_Code_Decodes
-           (Input, Position, Data (Data'First + Index));
-         pragma Assert
-           (3 + Data_Bits (Data, Index + 1) <= 8 * Input'Length);
-         Lemma_Walk_Encoding (Input, Data, Index + 1);
+      pragma Assert (S.Position <= 8 * Consumed);
+      if Index = Data'Length then
+         pragma Assert (S.Kind = End_Of_Block);
+      elsif S.Kind = Literal then
+         Lemma_Matches_Walk
+           (Input, Consumed, Data, S.Position, Index + 1);
       else
-         Lemma_EOB_Decodes (Input, Position);
+         pragma Assert (S.Kind = Match);
+         pragma Assert (Index > 0);
+         pragma Assert (Data'Length - Index >= 3);
+         Lemma_Matches_Walk
+           (Input, Consumed, Data, S.Position, Index + 3);
       end if;
-   end Lemma_Walk_Encoding;
+   end Lemma_Matches_Walk;
 
    procedure Lemma_Encoding_Analyzes
      (Input : Byte_Array; Consumed : Natural; Data : Byte_Array)
    is
-      pragma Unreferenced (Consumed);
    begin
-      Lemma_Walk_Encoding (Input, Data, 0);
+      pragma Assert (Spec_Matches (Input, Consumed, Data, 3, 0));
+      Lemma_Matches_Walk (Input, Consumed, Data, 3, 0);
    end Lemma_Encoding_Analyzes;
 
    -----------------
@@ -437,9 +514,16 @@ package body Inflate.Fixed with SPARK_Mode => On is
      Ghost,
      Pre  => Data'Length <= Max_Input
                and then Position < Count
+               and then not Match_Continuation (Data, Position)
+               and then (if Match_Start (Data, Position)
+                         then Position + 3 <= Count)
+               and then not Match_Continuation (Data, Count)
                and then Count <= Data'Length,
      Post => Data_Bits (Data, Position)
-               + Code_Length (Data (Data'First + Position)) <=
+               + (if Match_Start (Data, Position)
+                  then 12
+                  elsif Match_Continuation (Data, Position) then 0
+                  else Code_Length (Data (Data'First + Position))) <=
              Data_Bits (Data, Count),
      Subprogram_Variant => (Decreases => Count - Position);
 
@@ -447,55 +531,88 @@ package body Inflate.Fixed with SPARK_Mode => On is
    -- Encoding_Matches --
    ----------------------
 
+   function Spec_Matches
+     (Input : Byte_Array;
+      Consumed : Natural;
+      Data : Byte_Array;
+      Position, Index : Natural) return Boolean
+   is
+      S : constant Symbol_Result := Next_Symbol (Input, Position);
+   begin
+      if S.Position > 8 * Consumed then
+         return False;
+      elsif Index = Data'Length then
+         return S.Kind = End_Of_Block
+           and then Consumed = (S.Position + 7) / 8;
+      else
+         case S.Kind is
+            when Literal =>
+               return S.Value = Data (Data'First + Index)
+                 and then Spec_Matches
+                   (Input, Consumed, Data, S.Position, Index + 1);
+            when Match =>
+               return Index > 0
+                 and then Data'Length - Index >= 3
+                 and then Data (Data'First + Index) =
+                            Data (Data'First + Index - 1)
+                 and then Data (Data'First + Index + 1) =
+                            Data (Data'First + Index)
+                 and then Data (Data'First + Index + 2) =
+                            Data (Data'First + Index + 1)
+                 and then Spec_Matches
+                   (Input, Consumed, Data, S.Position, Index + 3);
+            when End_Of_Block | Other | Truncated =>
+               return False;
+         end case;
+      end if;
+   end Spec_Matches;
+
    function Encoding_Matches
      (Input : Byte_Array;
       Consumed : Natural;
       Data : Byte_Array) return Boolean
    is
       Position : Natural := 3;
+      Index    : Natural := 0;
       S        : Symbol_Result;
    begin
-      for I in 0 .. Data'Length - 1 loop
+      while Index < Data'Length loop
+         pragma Loop_Invariant (Position <= 8 * Consumed);
+         pragma Loop_Invariant (Index <= Data'Length);
          pragma Loop_Invariant
-           (Position = 3 + Data_Bits (Data, I));
-         pragma Loop_Invariant (Encodes_Prefix (Input, Data, I));
-
+           (Spec_Matches (Input, Consumed, Data, 3, 0) =
+              Spec_Matches (Input, Consumed, Data, Position, Index));
+         pragma Loop_Variant (Decreases => Data'Length - Index);
          S := Next_Symbol (Input, Position);
-         if S.Kind /= Literal
-           or else S.Value /= Data (Data'First + I)
-         then
-            declare
-               procedure Prove_Mismatch with Ghost;
-
-               procedure Prove_Mismatch is
-               begin
-                  if 3 + Data_Bits (Data, Data'Length) + 7 <=
-                       8 * Input'Length
-                    and then Encodes_Prefix (Input, Data, Data'Length)
-                  then
-                     Lemma_Data_Bits_Segment (Data, I, Data'Length);
-                     Lemma_Code_Decodes
-                       (Input, Position, Data (Data'First + I));
-                     pragma Assert (S.Kind = Literal);
-                     pragma Assert (S.Value = Data (Data'First + I));
-                  end if;
-               end Prove_Mismatch;
-            begin
-               Prove_Mismatch;
-               return False;
-            end;
+         if S.Position > 8 * Consumed then
+            return False;
          end if;
-
-         pragma Assert
-           (Prefix_Value
-              (Input, Position,
-               Code_Length (Data (Data'First + I))) =
-            Code (Data (Data'First + I)));
-         Position := S.Position;
+         case S.Kind is
+            when Literal =>
+               if S.Value /= Data (Data'First + Index) then
+                  return False;
+               end if;
+               Position := S.Position;
+               Index := Index + 1;
+            when Match =>
+               if Index = 0
+                 or else Data'Length - Index < 3
+                 or else Data (Data'First + Index) /=
+                           Data (Data'First + Index - 1)
+                 or else Data (Data'First + Index + 1) /=
+                           Data (Data'First + Index)
+                 or else Data (Data'First + Index + 2) /=
+                           Data (Data'First + Index + 1)
+               then
+                  return False;
+               end if;
+               Position := S.Position;
+               Index := Index + 3;
+            when End_Of_Block | Other | Truncated =>
+               return False;
+         end case;
       end loop;
 
-      pragma Assert
-        (Position = 3 + Data_Bits (Data, Data'Length));
       S := Next_Symbol (Input, Position);
       if S.Kind /= End_Of_Block then
          return False;
@@ -523,36 +640,213 @@ package body Inflate.Fixed with SPARK_Mode => On is
                  (3 + Data_Bits (Data, Data'Length) + 7 + 7) / 8,
      Post => Encoding_Matches (Input, Consumed, Data);
 
+   procedure Lemma_Encoding_Next
+     (Data : Byte_Array; Index : Natural)
+   with
+     Ghost,
+     Pre  => Data'Length <= Max_Input
+               and then Index < Data'Length
+               and then not Match_Continuation (Data, Index),
+     Post => (if Match_Start (Data, Index)
+              then Index + 3 <= Data'Length
+                   and then not Match_Continuation (Data, Index + 3)
+                   and then Data_Bits (Data, Index + 3) =
+                              Data_Bits (Data, Index) + 12
+              else not Match_Continuation (Data, Index + 1)
+                   and then Data_Bits (Data, Index + 1) =
+                              Data_Bits (Data, Index)
+                                + Code_Length
+                                    (Data (Data'First + Index)));
+
+   procedure Lemma_Encoding_Next
+     (Data : Byte_Array; Index : Natural)
+   is
+   begin
+      if Match_Start (Data, Index) then
+         pragma Assert ((Index + 3) mod 3 = 0);
+      elsif Index mod 3 = 0 then
+         pragma Assert (not Match_Start (Data, Index));
+      elsif Index mod 3 = 1 then
+         pragma Assert (not Match_Start (Data, Index - 1));
+      else
+         pragma Assert ((Index + 1) mod 3 = 0);
+      end if;
+   end Lemma_Encoding_Next;
+
+   procedure Lemma_Compressor_Spec
+     (Input : Byte_Array;
+      Consumed : Natural;
+      Data : Byte_Array;
+      Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Consumed in 1 .. Input'Length
+               and then Index <= Data'Length
+               and then not Match_Continuation (Data, Index)
+               and then Encodes_Prefix (Input, Data, Data'Length)
+               and then 3 + Data_Bits (Data, Data'Length) + 7 <=
+                          8 * Input'Length
+               and then Prefix_Value
+                 (Input, 3 + Data_Bits (Data, Data'Length), 7) = 0
+               and then Consumed =
+                 (3 + Data_Bits (Data, Data'Length) + 7 + 7) / 8,
+     Post => Spec_Matches
+       (Input, Consumed, Data, 3 + Data_Bits (Data, Index), Index),
+     Subprogram_Variant => (Decreases => Data'Length - Index);
+
+   procedure Lemma_Compressor_Spec
+     (Input : Byte_Array;
+      Consumed : Natural;
+      Data : Byte_Array;
+      Index : Natural)
+   is
+      Position : constant Natural := 3 + Data_Bits (Data, Index);
+   begin
+      if Index = Data'Length then
+         Lemma_EOB_Decodes (Input, Position);
+         pragma Assert
+           (Spec_Matches (Input, Consumed, Data, Position, Index));
+      elsif Match_Start (Data, Index) then
+         Lemma_Encoding_Next (Data, Index);
+         Lemma_Data_Bits_Segment (Data, Index, Data'Length);
+         Lemma_Match_Decodes (Input, Position);
+         Lemma_Compressor_Spec (Input, Consumed, Data, Index + 3);
+         pragma Assert
+           (Spec_Matches
+              (Input, Consumed, Data, Position + 12, Index + 3));
+      else
+         Lemma_Encoding_Next (Data, Index);
+         Lemma_Data_Bits_Segment (Data, Index, Data'Length);
+         Lemma_Code_Decodes
+           (Input, Position, Data (Data'First + Index));
+         Lemma_Compressor_Spec (Input, Consumed, Data, Index + 1);
+         pragma Assert
+           (Spec_Matches
+              (Input, Consumed, Data,
+               Position + Code_Length (Data (Data'First + Index)),
+               Index + 1));
+      end if;
+   end Lemma_Compressor_Spec;
+
    procedure Lemma_Encoding_Matches
      (Input : Byte_Array;
       Consumed : Natural;
-      Data : Byte_Array) is null;
+      Data : Byte_Array)
+   is
+   begin
+      Lemma_Compressor_Spec (Input, Consumed, Data, 0);
+      pragma Assert (Spec_Matches (Input, Consumed, Data, 3, 0));
+      pragma Assert (Encoding_Matches (Input, Consumed, Data));
+   end Lemma_Encoding_Matches;
+
+   procedure Lemma_Next_Frame
+     (Before, After : Byte_Array; Consumed, Position : Natural)
+   with
+     Ghost,
+     Pre  => Before'Length <= Max_Stream_Bytes
+               and then After'Length <= Max_Stream_Bytes
+               and then Consumed <= Before'Length
+               and then Consumed <= After'Length
+               and then Position <= 8 * Consumed
+               and then Next_Symbol (Before, Position).Kind in
+                          Literal | Match | End_Of_Block
+               and then Next_Symbol (Before, Position).Position <=
+                          8 * Consumed
+               and then
+             (for all I in 0 .. Consumed - 1 =>
+                After (After'First + I) = Before (Before'First + I)),
+     Post => Next_Symbol (After, Position) =
+               Next_Symbol (Before, Position);
+
+   procedure Lemma_Next_Frame
+     (Before, After : Byte_Array; Consumed, Position : Natural)
+   is
+      S : constant Symbol_Result := Next_Symbol (Before, Position);
+   begin
+      case S.Kind is
+         when Literal =>
+            Lemma_Byte_Prefix_Frame
+              (Before, After, Consumed, Position, Code_Length (S.Value));
+            Lemma_Code_Decodes (After, Position, S.Value);
+            pragma Assert (Next_Symbol (After, Position) = S);
+         when Match =>
+            Lemma_Byte_Prefix_Frame
+              (Before, After, Consumed, Position, 7);
+            Lemma_Byte_Prefix_Frame
+              (Before, After, Consumed, Position + 7, 5);
+            Lemma_Match_Decodes (After, Position);
+            pragma Assert (Next_Symbol (After, Position) = S);
+         when End_Of_Block =>
+            Lemma_Byte_Prefix_Frame
+              (Before, After, Consumed, Position, 7);
+            Lemma_EOB_Decodes (After, Position);
+            pragma Assert (Next_Symbol (After, Position) = S);
+         when Other | Truncated =>
+            pragma Assert (False);
+      end case;
+   end Lemma_Next_Frame;
+
+   procedure Lemma_Spec_Frame
+     (Before, After : Byte_Array;
+      Consumed : Natural;
+      Data : Byte_Array;
+      Position, Index : Natural)
+   with
+     Ghost,
+     Pre  => Before'Length <= Max_Stream_Bytes
+               and then After'Length <= Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Consumed in 1 .. Before'Length
+               and then Consumed <= After'Length
+               and then Position <= 8 * Consumed
+               and then Index <= Data'Length
+               and then Spec_Matches
+                 (Before, Consumed, Data, Position, Index)
+               and then
+             (for all I in 0 .. Consumed - 1 =>
+                After (After'First + I) = Before (Before'First + I)),
+     Post => Spec_Matches
+               (After, Consumed, Data, Position, Index),
+     Subprogram_Variant => (Decreases => Data'Length - Index,
+                            Decreases => 8 * Consumed - Position);
+
+   procedure Lemma_Spec_Frame
+     (Before, After : Byte_Array;
+      Consumed : Natural;
+      Data : Byte_Array;
+      Position, Index : Natural)
+   is
+      S : constant Symbol_Result := Next_Symbol (Before, Position);
+   begin
+      pragma Assert (S.Position <= 8 * Consumed);
+      if Index = Data'Length then
+         pragma Assert (S.Kind = End_Of_Block);
+         Lemma_Next_Frame (Before, After, Consumed, Position);
+      else
+         pragma Assert (S.Kind in Literal | Match);
+         Lemma_Next_Frame (Before, After, Consumed, Position);
+         if S.Kind = Literal then
+            Lemma_Spec_Frame
+              (Before, After, Consumed, Data, S.Position, Index + 1);
+         else
+            pragma Assert (Data'Length - Index >= 3);
+            Lemma_Spec_Frame
+              (Before, After, Consumed, Data, S.Position, Index + 3);
+         end if;
+      end if;
+   end Lemma_Spec_Frame;
 
    procedure Lemma_Encoding_Frame
      (Before, After : Byte_Array; Consumed : Natural; Data : Byte_Array)
    is
    begin
-      pragma Assert (Before (Before'First) = After (After'First));
-      pragma Assert (Fixed_Header (After));
-      for I in 0 .. Data'Length - 1 loop
-         pragma Loop_Invariant (Encodes_Prefix (After, Data, I));
-         Lemma_Data_Bits_Segment (Data, I, Data'Length);
-         Lemma_Byte_Prefix_Frame
-           (Before, After, Consumed, 3 + Data_Bits (Data, I),
-            Code_Length (Data (Data'First + I)));
-      end loop;
-      Lemma_Byte_Prefix_Frame
-        (Before, After, Consumed,
-         3 + Data_Bits (Data, Data'Length), 7);
       pragma Assert
-        (3 + Data_Bits (Data, Data'Length) + 7 <= 8 * After'Length);
-      pragma Assert (Encodes_Prefix (After, Data, Data'Length));
+        (Spec_Matches (Before, Consumed, Data, 3, 0));
+      Lemma_Spec_Frame (Before, After, Consumed, Data, 3, 0);
       pragma Assert
-        (Prefix_Value
-           (After, 3 + Data_Bits (Data, Data'Length), 7) = 0);
-      pragma Assert
-        (Consumed =
-           (3 + Data_Bits (Data, Data'Length) + 7 + 7) / 8);
+        (Spec_Matches (After, Consumed, Data, 3, 0));
       pragma Assert (Encoding_Matches (After, Consumed, Data));
    end Lemma_Encoding_Frame;
 
@@ -582,102 +876,113 @@ package body Inflate.Fixed with SPARK_Mode => On is
    procedure Lemma_Data_Bits_Segment
      (Data : Byte_Array; Position, Count : Natural)
    is
+      Next : constant Natural :=
+        (if Match_Start (Data, Position) then Position + 3 else Position + 1);
    begin
-      if Position + 1 < Count then
-         Lemma_Data_Bits_Segment (Data, Position, Count - 1);
+      pragma Assert (Next <= Count);
+      pragma Assert
+        (Data_Bits (Data, Next) =
+           Data_Bits (Data, Position)
+             + (if Match_Start (Data, Position)
+                then 12
+                else Code_Length (Data (Data'First + Position))));
+      if Next < Count then
+         Lemma_Data_Bits_Segment (Data, Next, Count);
       end if;
    end Lemma_Data_Bits_Segment;
 
-   procedure Lemma_Data_Bits_Frame
-     (Before, After : Byte_Array; Count : Natural)
+   procedure Lemma_Spec_Functional
+     (Input : Byte_Array;
+      Consumed : Natural;
+      Left, Right : Byte_Array;
+      Position, Index : Natural)
    with
      Ghost,
-     Pre  => Before'Length = After'Length
-               and then Before'Length <= Max_Input
-               and then Count <= Before'Length
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Left'Length <= Max_Input
+               and then Right'Length <= Max_Input
+               and then Consumed in 1 .. Input'Length
+               and then Position <= 8 * Consumed
+               and then Index <= Left'Length
+               and then Index <= Right'Length
+               and then Spec_Matches
+                 (Input, Consumed, Left, Position, Index)
+               and then Spec_Matches
+                 (Input, Consumed, Right, Position, Index)
                and then
-             (for all I in 0 .. Count - 1 =>
-                Before (Before'First + I) = After (After'First + I)),
-     Post => Data_Bits (Before, Count) = Data_Bits (After, Count),
-     Subprogram_Variant => (Decreases => Count);
+             (for all I in 0 .. Index - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Post => Left'Length = Right'Length
+               and then
+             (for all I in 0 .. Left'Length - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Subprogram_Variant => (Decreases => 8 * Consumed - Position);
 
-   procedure Lemma_Data_Bits_Frame
-     (Before, After : Byte_Array; Count : Natural)
+   procedure Lemma_Last_Equal
+     (Left, Right : Byte_Array; Index : Positive)
+   with
+     Ghost,
+     Pre  => Index <= Left'Length
+               and then Index <= Right'Length
+               and then
+             (for all I in 0 .. Index - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Post => Left (Left'First + Index - 1) =
+               Right (Right'First + Index - 1);
+
+   procedure Lemma_Last_Equal
+     (Left, Right : Byte_Array; Index : Positive) is null;
+
+   procedure Lemma_Spec_Functional
+     (Input : Byte_Array;
+      Consumed : Natural;
+      Left, Right : Byte_Array;
+      Position, Index : Natural)
    is
+      S : constant Symbol_Result := Next_Symbol (Input, Position);
    begin
-      if Count > 0 then
-         Lemma_Data_Bits_Frame (Before, After, Count - 1);
+      pragma Assert (S.Position <= 8 * Consumed);
+      if Index = Left'Length then
+         pragma Assert (S.Kind = End_Of_Block);
+         pragma Assert (Index = Right'Length);
+      elsif S.Kind = Literal then
+         pragma Assert (Index < Right'Length);
+         pragma Assert
+           (Left (Left'First + Index) = S.Value
+              and then Right (Right'First + Index) = S.Value);
+         Lemma_Spec_Functional
+           (Input, Consumed, Left, Right, S.Position, Index + 1);
+      else
+         pragma Assert (S.Kind = Match);
+         pragma Assert (Index > 0);
+         pragma Assert (Left'Length - Index >= 3);
+         pragma Assert (Right'Length - Index >= 3);
+         Lemma_Last_Equal (Left, Right, Index);
+         pragma Assert
+           (Left (Left'First + Index - 1) =
+              Right (Right'First + Index - 1));
+         pragma Assert
+           (Left (Left'First + Index) = Right (Right'First + Index));
+         pragma Assert
+           (Left (Left'First + Index + 1) =
+              Right (Right'First + Index + 1));
+         pragma Assert
+           (Left (Left'First + Index + 2) =
+              Right (Right'First + Index + 2));
+         Lemma_Spec_Functional
+           (Input, Consumed, Left, Right, S.Position, Index + 3);
       end if;
-   end Lemma_Data_Bits_Frame;
+   end Lemma_Spec_Functional;
 
    procedure Lemma_Encoding_Functional
      (Input : Byte_Array; Consumed : Natural; Left, Right : Byte_Array)
    is
    begin
-      Lemma_Encoding_Analyzes (Input, Consumed, Left);
-      Lemma_Encoding_Analyzes (Input, Consumed, Right);
-      pragma Assert (Left'Length = Right'Length);
-      for I in 0 .. Left'Length - 1 loop
-         pragma Loop_Invariant
-           (for all J in 0 .. I - 1 =>
-              Left (Left'First + J) = Right (Right'First + J));
-         Lemma_Data_Bits_Frame (Left, Right, I);
-         declare
-            Position : constant Natural := 3 + Data_Bits (Left, I);
-         begin
-            pragma Assert
-              (Position + Code_Length (Left (Left'First + I)) <=
-               8 * Input'Length);
-            pragma Assert
-              (3 + Data_Bits (Right, I)
-                 + Code_Length (Right (Right'First + I)) <=
-               8 * Input'Length);
-            Lemma_Code_Decodes
-              (Input, Position, Left (Left'First + I));
-            Lemma_Code_Decodes
-              (Input, Position, Right (Right'First + I));
-            pragma Assert
-              (Next_Symbol (Input, Position).Value = Left (Left'First + I));
-            pragma Assert
-              (Next_Symbol (Input, Position).Value = Right (Right'First + I));
-         end;
-      end loop;
+      pragma Assert (Spec_Matches (Input, Consumed, Left, 3, 0));
+      pragma Assert (Spec_Matches (Input, Consumed, Right, 3, 0));
+      Lemma_Spec_Functional
+        (Input, Consumed, Left, Right, 3, 0);
    end Lemma_Encoding_Functional;
-
-   procedure Lemma_Encoding_Prefix_Frame
-     (Input : Byte_Array; Before, After : Byte_Array; Count : Natural)
-   with
-     Ghost,
-     Pre  => Input'Length <= Max_Stream_Bytes
-               and then Before'Length = After'Length
-               and then Before'Length <= Max_Input
-               and then Count <= Before'Length
-               and then 3 + Data_Bits (Before, Count) <= 8 * Input'Length
-               and then Encodes_Prefix (Input, Before, Count)
-               and then
-             (for all I in 0 .. Count - 1 =>
-                Before (Before'First + I) = After (After'First + I)),
-     Post => Data_Bits (Before, Count) = Data_Bits (After, Count)
-               and then Encodes_Prefix (Input, After, Count),
-     Subprogram_Variant => (Decreases => Count);
-
-   procedure Lemma_Encoding_Prefix_Frame
-     (Input : Byte_Array; Before, After : Byte_Array; Count : Natural)
-   is
-   begin
-      if Count > 0 then
-         Lemma_Encoding_Prefix_Frame (Input, Before, After, Count - 1);
-         pragma Assert
-           (Prefix_Value
-              (Input, 3 + Data_Bits (Before, Count - 1),
-               Code_Length (Before (Before'First + Count - 1))) =
-            Code (Before (Before'First + Count - 1)));
-         pragma Assert
-           (Before (Before'First + Count - 1) =
-              After (After'First + Count - 1));
-      end if;
-      Lemma_Data_Bits_Frame (Before, After, Count);
-   end Lemma_Encoding_Prefix_Frame;
 
    ----------------
    -- Write_Code --
@@ -720,6 +1025,89 @@ package body Inflate.Fixed with SPARK_Mode => On is
       end if;
    end Write_Code;
 
+   procedure Lemma_Encodes_Frame
+     (Before, After : Byte_Array;
+      Data : Byte_Array;
+      Count : Natural)
+   with
+     Ghost,
+     Pre  => Before'Length = After'Length
+               and then Before'Length <= Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Count <= Data'Length
+               and then not Match_Continuation (Data, Count)
+               and then Encodes_Prefix (Before, Data, Count)
+               and then
+             (for all P in 0 .. 3 + Data_Bits (Data, Count) - 1 =>
+                Bit_Value (After, P) = Bit_Value (Before, P)),
+     Post => Encodes_Prefix (After, Data, Count);
+
+   procedure Lemma_Encodes_Frame
+     (Before, After : Byte_Array;
+      Data : Byte_Array;
+      Count : Natural)
+   is
+   begin
+      for J in 0 .. Count - 1 loop
+         pragma Loop_Invariant (Encodes_Prefix (After, Data, J));
+         if Match_Start (Data, J) then
+            pragma Assert (J + 3 <= Count);
+            Lemma_Data_Bits_Segment (Data, J, Count);
+            Lemma_Prefix_Frame
+              (Before, After, 3 + Data_Bits (Data, J), 7);
+            Lemma_Prefix_Frame
+              (Before, After, 3 + Data_Bits (Data, J) + 7, 5);
+         elsif not Match_Continuation (Data, J) then
+            Lemma_Data_Bits_Segment (Data, J, Count);
+            Lemma_Prefix_Frame
+              (Before, After, 3 + Data_Bits (Data, J),
+               Code_Length (Data (Data'First + J)));
+         end if;
+      end loop;
+   end Lemma_Encodes_Frame;
+
+   procedure Lemma_Encodes_Add
+     (Output : Byte_Array;
+      Data : Byte_Array;
+      Index, New_Index : Natural)
+   with
+     Ghost,
+     Pre  => Output'Length <= Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Index < Data'Length
+               and then not Match_Continuation (Data, Index)
+               and then New_Index =
+                 (if Match_Start (Data, Index) then Index + 3 else Index + 1)
+               and then New_Index <= Data'Length
+               and then Encodes_Prefix (Output, Data, Index)
+               and then
+             (if Match_Start (Data, Index)
+              then 3 + Data_Bits (Data, Index) + 12 <= 8 * Output'Length
+                   and then Prefix_Value
+                     (Output, 3 + Data_Bits (Data, Index), 7) = 1
+                   and then Prefix_Value
+                     (Output, 3 + Data_Bits (Data, Index) + 7, 5) = 0
+              else 3 + Data_Bits (Data, Index)
+                     + Code_Length (Data (Data'First + Index)) <=
+                       8 * Output'Length
+                   and then Prefix_Value
+                     (Output, 3 + Data_Bits (Data, Index),
+                      Code_Length (Data (Data'First + Index))) =
+                        Code (Data (Data'First + Index))),
+     Post => Encodes_Prefix (Output, Data, New_Index);
+
+   procedure Lemma_Encodes_Add
+     (Output : Byte_Array;
+      Data : Byte_Array;
+      Index, New_Index : Natural)
+   is
+   begin
+      for J in Index .. New_Index - 1 loop
+         pragma Loop_Invariant (Encodes_Prefix (Output, Data, J));
+         null;
+      end loop;
+   end Lemma_Encodes_Add;
+
    --------------
    -- Compress --
    --------------
@@ -731,7 +1119,7 @@ package body Inflate.Fixed with SPARK_Mode => On is
    is
       Size : constant Positive := Encoded_Size (Input);
       Bits : Natural := 3;
-      Written : Natural := 0 with Ghost;
+      Index : Natural := 0;
    begin
       Output (Output'First .. Output'First + Size - 1) := (others => 0);
       Set_Stream_Bit (Output, 0, 1);
@@ -739,58 +1127,81 @@ package body Inflate.Fixed with SPARK_Mode => On is
       pragma Assert (Bit_Value (Output, 2) = 0);
       pragma Assert (Fixed_Header (Output));
 
-      for I in 0 .. Input'Length - 1 loop
-         pragma Loop_Invariant (Written = I);
-         pragma Loop_Invariant (Bits = 3 + Data_Bits (Input, I));
+      while Index < Input'Length loop
+         pragma Loop_Invariant (Index <= Input'Length);
+         pragma Loop_Invariant (Bits = 3 + Data_Bits (Input, Index));
+         pragma Loop_Invariant (not Match_Continuation (Input, Index));
          pragma Loop_Invariant
            (3 + Data_Bits (Input, Input'Length) + 7 <=
             8 * Output'Length);
-         pragma Loop_Invariant (Encodes_Prefix (Output, Input, Written));
+         pragma Loop_Invariant (Encodes_Prefix (Output, Input, Index));
          pragma Loop_Invariant (Fixed_Header (Output));
          pragma Loop_Invariant
            (for all P in Bits .. 3 + Data_Bits (Input, Input'Length) + 6 =>
               Bit_Value (Output, P) = 0);
          declare
-            B      : constant Byte := Input (Input'First + I);
-            Before : constant Byte_Array := Output with Ghost;
-
-            procedure Preserve_Previous_Codes with Ghost;
-
-            procedure Preserve_Previous_Codes is
-            begin
-               --  Earlier codes occupy disjoint bit intervals and therefore
-               --  survive this write (the same framing argument as M3).
-               for J in 0 .. I - 1 loop
-                  pragma Loop_Invariant
-                    (Encodes_Prefix (Output, Input, J));
-                  Lemma_Data_Bits_Segment (Input, J, I);
-                  pragma Assert
-                    (for all P in
-                       3 + Data_Bits (Input, J) ..
-                       3 + Data_Bits (Input, J)
-                         + Code_Length (Input (Input'First + J)) - 1 =>
-                       Bit_Value (Output, P) = Bit_Value (Before, P));
-                  Lemma_Prefix_Frame
-                    (Before, Output, 3 + Data_Bits (Input, J),
-                     Code_Length (Input (Input'First + J)));
-               end loop;
-            end Preserve_Previous_Codes;
+            B         : constant Byte := Input (Input'First + Index);
+            Before    : constant Byte_Array := Output with Ghost;
+            Old_Index : constant Natural := Index;
+            Old_Bits  : constant Natural := Bits;
          begin
-            Lemma_Data_Bits_Segment (Input, I, Input'Length);
-            Write_Code (Output, Bits, Code_Length (B), Code (B));
-            Preserve_Previous_Codes;
-            pragma Assert (Encodes_Prefix (Output, Input, I));
-            pragma Assert
-              (Prefix_Value
-                 (Output, 3 + Data_Bits (Input, I), Code_Length (B)) =
-               Code (B));
-            pragma Assert (Encodes_Prefix (Output, Input, I + 1));
-            Bits := Bits + Code_Length (B);
-            Written := Written + 1;
+            Lemma_Encoding_Next (Input, Index);
+            Lemma_Data_Bits_Segment (Input, Index, Input'Length);
+            if Match_Start (Input, Index) then
+               Write_Code (Output, Bits, 7, 1);
+               pragma Assert
+                 (for all P in 0 .. Old_Bits - 1 =>
+                    Bit_Value (Output, P) = Bit_Value (Before, P));
+               Lemma_Encodes_Frame (Before, Output, Input, Old_Index);
+               Lemma_Zero_Prefix (Output, Bits + 7, 5);
+               pragma Assert
+                 (Prefix_Value (Output, Old_Bits, 7) = 1);
+               pragma Assert
+                 (Prefix_Value (Output, Old_Bits + 7, 5) = 0);
+               Lemma_Encodes_Add
+                 (Output, Input, Old_Index, Old_Index + 3);
+               pragma Assert
+                 (for all P in Old_Bits + 12 ..
+                    3 + Data_Bits (Input, Input'Length) + 6 =>
+                    Bit_Value (Output, P) = 0);
+               pragma Assert
+                 (Data_Bits (Input, Old_Index + 3) =
+                    Data_Bits (Input, Old_Index) + 12);
+               pragma Assert
+                 (not Match_Continuation (Input, Old_Index + 3));
+               Bits := Bits + 12;
+               Index := Index + 3;
+               pragma Assert (Bits = 3 + Data_Bits (Input, Index));
+               pragma Assert (Encodes_Prefix (Output, Input, Index));
+            else
+               Write_Code (Output, Bits, Code_Length (B), Code (B));
+               pragma Assert
+                 (for all P in 0 .. Old_Bits - 1 =>
+                    Bit_Value (Output, P) = Bit_Value (Before, P));
+               Lemma_Encodes_Frame (Before, Output, Input, Old_Index);
+               Lemma_Encodes_Add
+                 (Output, Input, Old_Index, Old_Index + 1);
+               pragma Assert
+                 (for all P in Old_Bits + Code_Length (B) ..
+                    3 + Data_Bits (Input, Input'Length) + 6 =>
+                    Bit_Value (Output, P) = 0);
+               pragma Assert
+                 (Data_Bits (Input, Old_Index + 1) =
+                    Data_Bits (Input, Old_Index) + Code_Length (B));
+               pragma Assert
+                 (not Match_Continuation (Input, Old_Index + 1));
+               Bits := Bits + Code_Length (B);
+               Index := Index + 1;
+               pragma Assert (Bits = 3 + Data_Bits (Input, Index));
+               pragma Assert (Encodes_Prefix (Output, Input, Index));
+            end if;
+            pragma Assert (Bit_Value (Output, 0) = Bit_Value (Before, 0));
+            pragma Assert (Bit_Value (Output, 1) = Bit_Value (Before, 1));
+            pragma Assert (Bit_Value (Output, 2) = Bit_Value (Before, 2));
          end;
       end loop;
-      pragma Assert (Written = Input'Length);
-      pragma Assert (Encodes_Prefix (Output, Input, Written));
+      pragma Assert (Index = Input'Length);
+      pragma Assert (Encodes_Prefix (Output, Input, Index));
 
       --  The fixed end-of-block code is seven zero bits; the output was
       --  zero-initialized and no literal write reaches this interval.
@@ -806,8 +1217,367 @@ package body Inflate.Fixed with SPARK_Mode => On is
       pragma Assert
         (Produced =
            (3 + Data_Bits (Input, Input'Length) + 7 + 7) / 8);
+      Lemma_Encoding_Matches (Output, Produced, Input);
       pragma Assert (Encoding_Matches (Output, Produced, Input));
    end Compress;
+
+   function Prefix_Matches
+     (Input : Byte_Array;
+      Data : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural) return Boolean
+   with
+     Ghost,
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Position <= End_Position
+               and then End_Position <= 8 * Input'Length
+               and then Index <= End_Index
+               and then End_Index <= Data'Length,
+     Contract_Cases =>
+       (Position = End_Position or else Index = End_Index =>
+          Prefix_Matches'Result =
+            (Position = End_Position and then Index = End_Index),
+        Position < End_Position
+          and then Index < End_Index
+          and then Next_Symbol (Input, Position).Kind = Literal =>
+          Prefix_Matches'Result =
+            (Next_Symbol (Input, Position).Position <= End_Position
+             and then Next_Symbol (Input, Position).Value =
+                        Data (Data'First + Index)
+             and then Prefix_Matches
+               (Input, Data,
+                Next_Symbol (Input, Position).Position, Index + 1,
+                End_Position, End_Index)),
+        Position < End_Position
+          and then Index < End_Index
+          and then Next_Symbol (Input, Position).Kind = Match =>
+          Prefix_Matches'Result =
+            (Next_Symbol (Input, Position).Position <= End_Position
+             and then Index > 0
+             and then End_Index - Index >= 3
+             and then Data (Data'First + Index) =
+                        Data (Data'First + Index - 1)
+             and then Data (Data'First + Index + 1) =
+                        Data (Data'First + Index)
+             and then Data (Data'First + Index + 2) =
+                        Data (Data'First + Index + 1)
+             and then Prefix_Matches
+               (Input, Data,
+                Next_Symbol (Input, Position).Position, Index + 3,
+                End_Position, End_Index)),
+        others => not Prefix_Matches'Result),
+     Subprogram_Variant => (Decreases => End_Position - Position);
+
+   function Prefix_Matches
+     (Input : Byte_Array;
+      Data : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural) return Boolean
+   is
+      S : constant Symbol_Result := Next_Symbol (Input, Position);
+   begin
+      if Position = End_Position or else Index = End_Index then
+         return Position = End_Position and then Index = End_Index;
+      end if;
+      case S.Kind is
+         when Literal =>
+            return S.Position <= End_Position
+              and then S.Value = Data (Data'First + Index)
+              and then Prefix_Matches
+                (Input, Data, S.Position, Index + 1,
+                 End_Position, End_Index);
+         when Match =>
+            return S.Position <= End_Position
+              and then Index > 0
+              and then End_Index - Index >= 3
+              and then Data (Data'First + Index) =
+                         Data (Data'First + Index - 1)
+              and then Data (Data'First + Index + 1) =
+                         Data (Data'First + Index)
+              and then Data (Data'First + Index + 2) =
+                         Data (Data'First + Index + 1)
+              and then Prefix_Matches
+                (Input, Data, S.Position, Index + 3,
+                 End_Position, End_Index);
+         when End_Of_Block | Other | Truncated =>
+            return False;
+      end case;
+   end Prefix_Matches;
+
+   function One_Token_Matches
+     (Input : Byte_Array;
+      Data : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural) return Boolean
+   with
+     Ghost,
+     Pre => Input'Length <= Max_Stream_Bytes
+              and then Data'Length <= Max_Input
+              and then Position <= 8 * Input'Length
+              and then Index < End_Index
+              and then End_Index <= Data'Length
+              and then End_Position <= 8 * Input'Length,
+     Contract_Cases =>
+       (Next_Symbol (Input, Position).Kind = Literal =>
+          One_Token_Matches'Result =
+            (End_Position = Next_Symbol (Input, Position).Position
+             and then End_Index = Index + 1
+             and then Data (Data'First + Index) =
+                        Next_Symbol (Input, Position).Value),
+        Next_Symbol (Input, Position).Kind = Match =>
+          One_Token_Matches'Result =
+            (End_Position = Next_Symbol (Input, Position).Position
+             and then End_Index = Index + 3
+             and then Index > 0
+             and then Data (Data'First + Index) =
+                        Data (Data'First + Index - 1)
+             and then Data (Data'First + Index + 1) =
+                        Data (Data'First + Index)
+             and then Data (Data'First + Index + 2) =
+                        Data (Data'First + Index + 1)),
+        others => not One_Token_Matches'Result);
+
+   function One_Token_Matches
+     (Input : Byte_Array;
+      Data : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural) return Boolean
+   is
+      S : constant Symbol_Result := Next_Symbol (Input, Position);
+   begin
+      if S.Kind = Literal then
+         return End_Position = S.Position
+           and then End_Index = Index + 1
+           and then Data (Data'First + Index) = S.Value;
+      elsif S.Kind = Match then
+         return End_Position = S.Position
+           and then End_Index = Index + 3
+           and then Index > 0
+           and then Data (Data'First + Index) =
+                      Data (Data'First + Index - 1)
+           and then Data (Data'First + Index + 1) =
+                      Data (Data'First + Index)
+           and then Data (Data'First + Index + 2) =
+                      Data (Data'First + Index + 1);
+      else
+         return False;
+      end if;
+   end One_Token_Matches;
+
+   procedure Lemma_Array_Prefix_Element
+     (Before, After : Byte_Array; Count, Position : Natural)
+   with
+     Ghost,
+     Pre  => Before'Length = After'Length
+               and then Count <= Before'Length
+               and then Position < Count
+               and then
+             (for all I in 0 .. Count - 1 =>
+                After (After'First + I) = Before (Before'First + I)),
+     Post => After (After'First + Position) =
+               Before (Before'First + Position);
+
+   procedure Lemma_Array_Prefix_Element
+     (Before, After : Byte_Array; Count, Position : Natural) is null;
+
+   procedure Lemma_Prefix_Data_Frame
+     (Input : Byte_Array;
+      Before, After : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Before'Length = After'Length
+               and then Before'Length <= Max_Input
+               and then Position <= End_Position
+               and then End_Position <= 8 * Input'Length
+               and then Index <= End_Index
+               and then End_Index <= Before'Length
+               and then Prefix_Matches
+                 (Input, Before, Position, Index, End_Position, End_Index)
+               and then
+             (for all I in 0 .. End_Index - 1 =>
+                After (After'First + I) = Before (Before'First + I)),
+     Post => Prefix_Matches
+       (Input, After, Position, Index, End_Position, End_Index),
+     Subprogram_Variant => (Decreases => End_Position - Position);
+
+   procedure Lemma_Prefix_Data_Frame
+     (Input : Byte_Array;
+      Before, After : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural)
+   is
+      S : constant Symbol_Result := Next_Symbol (Input, Position);
+   begin
+      if Position = End_Position then
+         pragma Assert (Index = End_Index);
+      elsif S.Kind = Literal then
+         pragma Assert
+           (After (After'First + Index) = Before (Before'First + Index));
+         Lemma_Prefix_Data_Frame
+           (Input, Before, After, S.Position, Index + 1,
+            End_Position, End_Index);
+         pragma Assert
+           (Prefix_Matches
+              (Input, After, S.Position, Index + 1,
+               End_Position, End_Index));
+      else
+         pragma Assert (S.Kind = Match);
+         pragma Assert (Index > 0);
+         pragma Assert (End_Index - Index >= 3);
+         Lemma_Array_Prefix_Element
+           (Before, After, End_Index, Index - 1);
+         Lemma_Array_Prefix_Element
+           (Before, After, End_Index, Index);
+         Lemma_Array_Prefix_Element
+           (Before, After, End_Index, Index + 1);
+         Lemma_Array_Prefix_Element
+           (Before, After, End_Index, Index + 2);
+         Lemma_Prefix_Data_Frame
+           (Input, Before, After, S.Position, Index + 3,
+            End_Position, End_Index);
+         pragma Assert
+           (Prefix_Matches
+              (Input, After, S.Position, Index + 3,
+               End_Position, End_Index));
+      end if;
+      pragma Assert
+        (Prefix_Matches
+           (Input, After, Position, Index, End_Position, End_Index));
+   end Lemma_Prefix_Data_Frame;
+
+   procedure Lemma_Prefix_Snoc
+     (Input : Byte_Array;
+      Data : Byte_Array;
+      Position, Index, Old_Position, Old_Index,
+      New_Position, New_Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Position <= Old_Position
+               and then Old_Position < New_Position
+               and then New_Position <= 8 * Input'Length
+               and then Index <= Old_Index
+               and then Old_Index < New_Index
+               and then New_Index <= Data'Length
+               and then Prefix_Matches
+                 (Input, Data, Position, Index, Old_Position, Old_Index)
+               and then One_Token_Matches
+                 (Input, Data, Old_Position, Old_Index,
+                  New_Position, New_Index),
+     Post => Prefix_Matches
+       (Input, Data, Position, Index, New_Position, New_Index),
+     Subprogram_Variant => (Decreases => Old_Position - Position);
+
+   procedure Lemma_Prefix_Snoc
+     (Input : Byte_Array;
+      Data : Byte_Array;
+      Position, Index, Old_Position, Old_Index,
+      New_Position, New_Index : Natural)
+   is
+      S : constant Symbol_Result := Next_Symbol (Input, Position);
+   begin
+      if Position = Old_Position then
+         pragma Assert (Index = Old_Index);
+         pragma Assert
+           (Prefix_Matches
+              (Input, Data, Position, Index, New_Position, New_Index));
+      elsif S.Kind = Literal then
+         Lemma_Prefix_Snoc
+           (Input, Data, S.Position, Index + 1,
+            Old_Position, Old_Index, New_Position, New_Index);
+      else
+         pragma Assert (S.Kind = Match);
+         Lemma_Prefix_Snoc
+           (Input, Data, S.Position, Index + 3,
+            Old_Position, Old_Index, New_Position, New_Index);
+      end if;
+   end Lemma_Prefix_Snoc;
+
+   procedure Lemma_Prefix_Extend
+     (Input : Byte_Array;
+      Before, After : Byte_Array;
+      Position, Index, Old_Position, Old_Index,
+      New_Position, New_Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Before'Length = After'Length
+               and then Before'Length <= Max_Input
+               and then Position <= Old_Position
+               and then Old_Position < New_Position
+               and then New_Position <= 8 * Input'Length
+               and then Index <= Old_Index
+               and then Old_Index < New_Index
+               and then New_Index <= Before'Length
+               and then Prefix_Matches
+                 (Input, Before, Position, Index, Old_Position, Old_Index)
+               and then One_Token_Matches
+                 (Input, After, Old_Position, Old_Index,
+                  New_Position, New_Index)
+               and then
+             (for all I in 0 .. Old_Index - 1 =>
+                After (After'First + I) = Before (Before'First + I)),
+     Post => Prefix_Matches
+       (Input, After, Position, Index, New_Position, New_Index);
+
+   procedure Lemma_Prefix_Extend
+     (Input : Byte_Array;
+      Before, After : Byte_Array;
+      Position, Index, Old_Position, Old_Index,
+      New_Position, New_Index : Natural)
+   is
+   begin
+      Lemma_Prefix_Data_Frame
+        (Input, Before, After, Position, Index,
+         Old_Position, Old_Index);
+      Lemma_Prefix_Snoc
+        (Input, After, Position, Index,
+         Old_Position, Old_Index, New_Position, New_Index);
+   end Lemma_Prefix_Extend;
+
+   procedure Lemma_Prefix_Close
+     (Input : Byte_Array;
+      Consumed : Natural;
+      Data : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Consumed in 1 .. Input'Length
+               and then Position <= End_Position
+               and then End_Position <= 8 * Consumed
+               and then Index <= End_Index
+               and then End_Index = Data'Length
+               and then Prefix_Matches
+                 (Input, Data, Position, Index, End_Position, End_Index)
+               and then Next_Symbol (Input, End_Position).Kind = End_Of_Block
+               and then Consumed =
+                 (Next_Symbol (Input, End_Position).Position + 7) / 8,
+     Post => Spec_Matches
+       (Input, Consumed, Data, Position, Index),
+     Subprogram_Variant => (Decreases => End_Position - Position);
+
+   procedure Lemma_Prefix_Close
+     (Input : Byte_Array;
+      Consumed : Natural;
+      Data : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural)
+   is
+      S : constant Symbol_Result := Next_Symbol (Input, Position);
+   begin
+      if Position = End_Position then
+         pragma Assert (Index = End_Index);
+      elsif S.Kind = Literal then
+         Lemma_Prefix_Close
+           (Input, Consumed, Data, S.Position, Index + 1,
+            End_Position, End_Index);
+      else
+         pragma Assert (S.Kind = Match);
+         Lemma_Prefix_Close
+           (Input, Consumed, Data, S.Position, Index + 3,
+            End_Position, End_Index);
+      end if;
+   end Lemma_Prefix_Close;
 
    ----------------
    -- Decompress --
@@ -838,71 +1608,108 @@ package body Inflate.Fixed with SPARK_Mode => On is
          loop
             pragma Loop_Invariant (Position in 3 .. Info.End_Bit);
             pragma Loop_Invariant (Count <= Info.Decoded_Length);
-            pragma Loop_Invariant (Walk (Input, Position).Valid);
             pragma Loop_Invariant
-              (Walk (Input, Position).End_Bit = Info.End_Bit);
+              (Spec_Walk (Input, Position, Count).Valid);
             pragma Loop_Invariant
-              (Count + Walk (Input, Position).Decoded_Length =
+              (Spec_Walk (Input, Position, Count).End_Bit = Info.End_Bit);
+            pragma Loop_Invariant
+              (Count + Spec_Walk (Input, Position, Count).Decoded_Length =
                  Info.Decoded_Length);
             pragma Loop_Invariant
-              (Position = 3 + Data_Bits (Data, Count));
-            pragma Loop_Invariant (Encodes_Prefix (Input, Data, Count));
+              (Prefix_Matches (Input, Data, 3, 0, Position, Count));
             pragma Loop_Variant (Increases => Position);
             S := Next_Symbol (Input, Position);
             case S.Kind is
                when Literal =>
                   pragma Assert (Count < Info.Decoded_Length);
+                  pragma Assert
+                    (Spec_Walk (Input, S.Position, Count + 1).Valid);
+                  pragma Assert
+                    (Spec_Walk (Input, S.Position, Count + 1).End_Bit =
+                       Info.End_Bit);
+                  pragma Assert
+                    (Count + 1
+                       + Spec_Walk (Input, S.Position, Count + 1)
+                           .Decoded_Length = Info.Decoded_Length);
                   declare
-                     Before : constant Byte_Array := Data with Ghost;
+                     Before       : constant Byte_Array := Data with Ghost;
+                     Old_Position : constant Natural := Position;
+                     Old_Count    : constant Natural := Count;
                   begin
                      Data (Data'First + Count) := S.Value;
-                     pragma Assert
-                       (for all I in 0 .. Count - 1 =>
-                          Before (Before'First + I) =
-                            Data (Data'First + I));
-                     Lemma_Encoding_Prefix_Frame
-                       (Input, Before, Data, Count);
-                     pragma Assert
-                       (Prefix_Value
-                          (Input, Position, Code_Length (S.Value)) =
-                            Code (S.Value));
-                     pragma Assert
-                       (Data (Data'First + Count) = S.Value);
-                     pragma Assert
-                       (Data_Bits (Data, Count + 1) =
-                          Data_Bits (Data, Count)
-                            + Code_Length (Data (Data'First + Count)));
-                     pragma Assert
-                       (Data_Bits (Data, Count + 1) =
-                          Data_Bits (Data, Count) + Code_Length (S.Value));
-                     pragma Assert
-                       (S.Position = Position + Code_Length (S.Value));
                      Position := S.Position;
                      Count := Count + 1;
+                     pragma Assert
+                       (for all I in 0 .. Old_Count - 1 =>
+                          Data (Data'First + I) =
+                            Before (Before'First + I));
+                     pragma Assert
+                       (One_Token_Matches
+                          (Input, Data, Old_Position, Old_Count,
+                           Position, Count));
+                     Lemma_Prefix_Extend
+                       (Input, Before, Data, 3, 0,
+                        Old_Position, Old_Count, Position, Count);
+                  end;
+               when Match =>
+                  pragma Assert (Count > 0);
+                  pragma Assert (Info.Decoded_Length - Count >= 3);
+                  pragma Assert
+                    (Spec_Walk (Input, S.Position, Count + 3).Valid);
+                  pragma Assert
+                    (Spec_Walk (Input, S.Position, Count + 3).End_Bit =
+                       Info.End_Bit);
+                  pragma Assert
+                    (Count + 3
+                       + Spec_Walk (Input, S.Position, Count + 3)
+                           .Decoded_Length = Info.Decoded_Length);
+                  declare
+                     Before       : constant Byte_Array := Data with Ghost;
+                     Old_Position : constant Natural := Position;
+                     Old_Count    : constant Natural := Count;
+                  begin
+                     Data (Data'First + Count) :=
+                       Data (Data'First + Count - 1);
+                     Data (Data'First + Count + 1) :=
+                       Data (Data'First + Count);
+                     Data (Data'First + Count + 2) :=
+                       Data (Data'First + Count + 1);
+                     Position := S.Position;
+                     Count := Count + 3;
+                     pragma Assert
+                       (for all I in 0 .. Old_Count - 1 =>
+                          Data (Data'First + I) =
+                            Before (Before'First + I));
+                     pragma Assert
+                       (Data (Data'First + Old_Count) =
+                          Data (Data'First + Old_Count - 1));
+                     pragma Assert
+                       (Data (Data'First + Old_Count + 1) =
+                          Data (Data'First + Old_Count));
+                     pragma Assert
+                       (Data (Data'First + Old_Count + 2) =
+                          Data (Data'First + Old_Count + 1));
+                     pragma Assert (S.Kind = Match);
+                     pragma Assert (Position = S.Position);
+                     pragma Assert (Count = Old_Count + 3);
+                     pragma Assert
+                       (One_Token_Matches
+                          (Input, Data, Old_Position, Old_Count,
+                           Position, Count));
+                     Lemma_Prefix_Extend
+                       (Input, Before, Data, 3, 0,
+                        Old_Position, Old_Count, Position, Count);
                   end;
                when End_Of_Block =>
                   pragma Assert (Count = Info.Decoded_Length);
                   pragma Assert (S.Position = Info.End_Bit);
-                  pragma Assert (Data'Length <= Max_Input);
-                  pragma Assert (Fixed_Header (Input));
-                  pragma Assert
-                    (3 + Data_Bits (Data, Data'Length) + 7 <=
-                     8 * Input'Length);
-                  pragma Assert (Encodes_Prefix (Input, Data, Data'Length));
-                  pragma Assert
-                    (Prefix_Value
-                       (Input, 3 + Data_Bits (Data, Data'Length), 7) = 0);
-                  pragma Assert
-                    ((S.Position + 7) / 8 =
-                       (3 + Data_Bits (Data, Data'Length) + 7 + 7) / 8);
-                  pragma Assert
-                    ((S.Position + 7) / 8 in 1 .. Input'Length);
-                  Lemma_Encoding_Matches
-                    (Input,
-                     (3 + Data_Bits (Data, Data'Length) + 7 + 7) / 8,
-                     Data);
                   Consumed := (S.Position + 7) / 8;
                   Produced := Count;
+                  Lemma_Prefix_Close
+                    (Input, Consumed, Data, 3, 0, Position, Count);
+                  pragma Assert
+                    (Spec_Matches (Input, Consumed, Data, 3, 0));
+                  pragma Assert (Encoding_Matches (Input, Consumed, Data));
                   Success := True;
                   return;
                when Other | Truncated =>

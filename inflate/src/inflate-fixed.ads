@@ -1,9 +1,9 @@
---  Inflate.Fixed -- the RFC 1951 fixed-Huffman literal fragment.
+--  Inflate.Fixed -- the RFC 1951 fixed-Huffman compressor image.
 --
---  This package is the first M6 encoder: one final fixed-Huffman block,
---  containing literal symbols followed by end-of-block.  It deliberately
---  emits no length/distance pairs yet.  The format is nevertheless ordinary
---  DEFLATE, and the contracts below state both halves of its round trip.
+--  The encoder emits one final fixed-Huffman block.  Most bytes are literals;
+--  aligned three-byte runs are represented by the deliberately simple M6
+--  match (length 3, distance 1).  The contracts below state both halves of
+--  that image's round trip without making any compression-optimality claim.
 
 with Interfaces;
 
@@ -37,32 +37,62 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      (N + (N + 17) / 8)
    with Pre => N <= Max_Input;
 
-   --  Number of bits occupied by the first Count bytes of Data.
+   --  The intentionally small match finder considers each aligned group of
+   --  three bytes.  A group after the first is a match when all three bytes
+   --  repeat the byte immediately before it.  The resulting DEFLATE pair is
+   --  length 3, distance 1, including the overlapping-copy case from M4.
+   function Match_Start
+     (Data : Byte_Array; Position : Natural) return Boolean
+   is
+     (Position > 0
+      and then Position < Data'Length
+      and then Position mod 3 = 0
+      and then Data'Length - Position >= 3
+      and then Data (Data'First + Position) =
+                 Data (Data'First + Position - 1)
+      and then Data (Data'First + Position + 1) =
+                 Data (Data'First + Position - 1)
+      and then Data (Data'First + Position + 2) =
+                 Data (Data'First + Position - 1));
+
+   function Match_Continuation
+     (Data : Byte_Array; Position : Natural) return Boolean
+   is
+     (Position < Data'Length
+      and then Position mod 3 /= 0
+      and then Match_Start (Data, Position - Position mod 3));
+
+   --  Number of bits occupied by the encoding of the first Count bytes.
+   --  Inside a selected match group, intermediate Count values retain the
+   --  group's starting offset; at the group boundary all twelve match bits
+   --  are charged at once.  Encoder and proof cursors only use boundaries.
    function Data_Bits (Data : Byte_Array; Count : Natural) return Natural is
      (if Count = 0 then 0
+      elsif Count mod 3 /= 0
+        and then Match_Start (Data, Count - Count mod 3)
+      then Data_Bits (Data, Count - Count mod 3)
+      elsif Count >= 3 and then Match_Start (Data, Count - 3)
+      then Data_Bits (Data, Count - 3) + 12
       else Data_Bits (Data, Count - 1)
              + Code_Length (Data (Data'First + Count - 1)))
    with
      Ghost,
      Pre  => Data'Length <= Max_Input and then Count <= Data'Length,
-     Post => Data_Bits'Result in 8 * Count .. 9 * Count,
+     Post => Data_Bits'Result <= 9 * Count,
      Subprogram_Variant => (Decreases => Count);
 
    pragma Assertion_Policy (Post => Ignore);
-   function Long_Literal_Count
-     (Data : Byte_Array; Count : Natural) return Natural
+   function Encoded_Bit_Count (Data : Byte_Array) return Natural
    with
-     Pre  => Data'Length <= Max_Input and then Count <= Data'Length,
-     Post => Long_Literal_Count'Result <= Count
-               and then Data_Bits (Data, Count) =
-                          8 * Count + Long_Literal_Count'Result;
+     Pre  => Data'Length <= Max_Input,
+     Post => Encoded_Bit_Count'Result = Data_Bits (Data, Data'Length)
+               and then Encoded_Bit_Count'Result <= 9 * Data'Length;
    pragma Assertion_Policy (Post => Check);
 
-   --  Exact raw-DEFLATE size for Data.  Unlike Max_Size, this accounts for
-   --  the fixed code's eight-bit literals 0 .. 143.
+   --  Exact raw-DEFLATE size for Data, including selected matches.
    pragma Assertion_Policy (Post => Ignore);
    function Encoded_Size (Data : Byte_Array) return Positive is
-     (Data'Length + (Long_Literal_Count (Data, Data'Length) + 17) / 8)
+     ((Encoded_Bit_Count (Data) + 17) / 8)
    with
      Pre  => Data'Length <= Max_Input,
      Post => Encoded_Size'Result <= Max_Size (Data'Length)
@@ -89,7 +119,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
       Length : Natural) return Natural
    with
      Pre  => Input'Length <= Max_Stream_Bytes
-               and then Length <= 9
+               and then Length <= 12
                and then Start <= 8 * Input'Length
                and then Length <= 8 * Input'Length - Start,
      Post => Prefix_Value'Result < 2 ** Length
@@ -109,31 +139,156 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
       and then Bit_Value (Input, 2) = 0)
    with Pre => Input'Length <= Max_Stream_Bytes;
 
-   --  The first Count symbols of Data occur as fixed-Huffman literals at
-   --  their canonical bit offsets in Input.
+   --  The selected literal or match token at every encoding position before
+   --  Count occurs at its canonical bit offset in Input.
    function Encodes_Prefix
      (Input : Byte_Array; Data : Byte_Array; Count : Natural) return Boolean
    is
      (3 + Data_Bits (Data, Count) <= 8 * Input'Length
       and then
       (for all I in 0 .. Count - 1 =>
-         3 + Data_Bits (Data, I)
-           + Code_Length (Data (Data'First + I)) <= 8 * Input'Length
-         and then Prefix_Value
-           (Input, 3 + Data_Bits (Data, I),
-            Code_Length (Data (Data'First + I))) =
-              Code (Data (Data'First + I))))
+         (if Match_Start (Data, I)
+          then 3 + Data_Bits (Data, I) + 12 <= 8 * Input'Length
+               and then Prefix_Value
+                 (Input, 3 + Data_Bits (Data, I), 7) = 1
+               and then Prefix_Value
+                 (Input, 3 + Data_Bits (Data, I) + 7, 5) = 0
+          elsif not Match_Continuation (Data, I)
+          then 3 + Data_Bits (Data, I)
+                 + Code_Length (Data (Data'First + I)) <= 8 * Input'Length
+               and then Prefix_Value
+                 (Input, 3 + Data_Bits (Data, I),
+                  Code_Length (Data (Data'First + I))) =
+                    Code (Data (Data'First + I)))))
    with
      Ghost,
      Pre => Input'Length <= Max_Stream_Bytes
               and then Data'Length <= Max_Input
               and then Count <= Data'Length;
 
-   --  Linear executable check for the literal sequence and end-of-block.
-   --  The postcondition connects that implementation to the pointwise
-   --  relation used by the proof.  Keep that deliberately quantified
-   --  bridge out of checks-enabled executables; the body itself remains the
-   --  linear executable relation.
+   type Symbol_Kind is
+     (Literal, Match, End_Of_Block, Other, Truncated);
+
+   type Symbol_Result is record
+      Kind     : Symbol_Kind;
+      Value    : Byte;
+      Length   : Natural;
+      Position : Natural;
+   end record;
+
+   --  Parse one symbol from the fixed block.  Match denotes precisely the
+   --  encoder's length-3/distance-1 pair.
+   pragma Assertion_Policy (Post => Ignore);
+   function Next_Symbol
+     (Input : Byte_Array; Position : Natural) return Symbol_Result
+   with
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Position <= 8 * Input'Length,
+     Post => Next_Symbol'Result.Position in Position .. 8 * Input'Length
+               and then
+             (if Next_Symbol'Result.Kind /= Truncated
+              then Next_Symbol'Result.Position > Position)
+               and then
+             (if Next_Symbol'Result.Kind = Literal
+              then Next_Symbol'Result.Length = 1
+                   and then Next_Symbol'Result.Position =
+                     Position + Code_Length (Next_Symbol'Result.Value)
+                   and then Prefix_Value
+                     (Input, Position,
+                      Code_Length (Next_Symbol'Result.Value)) =
+                     Code (Next_Symbol'Result.Value))
+               and then
+             (if Next_Symbol'Result.Kind = Match
+              then Next_Symbol'Result.Length = 3
+                   and then Next_Symbol'Result.Position = Position + 12
+                   and then Prefix_Value (Input, Position, 7) = 1
+                   and then Prefix_Value (Input, Position + 7, 5) = 0)
+               and then
+             (if Next_Symbol'Result.Kind = End_Of_Block
+              then Next_Symbol'Result.Length = 0
+                   and then Next_Symbol'Result.Position = Position + 7
+                   and then Prefix_Value (Input, Position, 7) = 0)
+               and then
+             (if 7 <= 8 * Input'Length - Position
+                   and then Prefix_Value (Input, Position, 7) = 0
+              then Next_Symbol'Result =
+                     (End_Of_Block, 0, 0, Position + 7))
+               and then
+             (if 12 <= 8 * Input'Length - Position
+                   and then Prefix_Value (Input, Position, 7) = 1
+                   and then Prefix_Value (Input, Position + 7, 5) = 0
+              then Next_Symbol'Result = (Match, 0, 3, Position + 12))
+               and then
+             (if 8 <= 8 * Input'Length - Position
+                   and then Prefix_Value (Input, Position, 8) in 48 .. 191
+              then Next_Symbol'Result =
+                     (Literal,
+                      Byte (Prefix_Value (Input, Position, 8) - 48),
+                      1,
+                      Position + 8))
+               and then
+             (if 9 <= 8 * Input'Length - Position
+                   and then Prefix_Value (Input, Position, 9) in 400 .. 511
+              then Next_Symbol'Result =
+                     (Literal,
+                      Byte (Prefix_Value (Input, Position, 9) - 256),
+                      1,
+                      Position + 9));
+   pragma Assertion_Policy (Post => Check);
+
+   --  Recursive mathematical relation specified by the iterative executable
+   --  checker below.  Index is the decoded cursor in Data.
+   function Spec_Matches
+     (Input : Byte_Array;
+      Consumed : Natural;
+      Data : Byte_Array;
+      Position, Index : Natural) return Boolean
+   with
+     Ghost,
+     Pre => Input'Length <= Max_Stream_Bytes
+              and then Data'Length <= Max_Input
+              and then Consumed in 1 .. Input'Length
+              and then Position <= 8 * Consumed
+              and then Index <= Data'Length,
+     Contract_Cases =>
+       (Next_Symbol (Input, Position).Position > 8 * Consumed =>
+          not Spec_Matches'Result,
+        Next_Symbol (Input, Position).Position <= 8 * Consumed
+          and then Index = Data'Length =>
+          Spec_Matches'Result =
+            (Next_Symbol (Input, Position).Kind = End_Of_Block
+             and then Consumed =
+               (Next_Symbol (Input, Position).Position + 7) / 8),
+        Next_Symbol (Input, Position).Position <= 8 * Consumed
+          and then Index < Data'Length
+          and then Next_Symbol (Input, Position).Kind = Literal =>
+          Spec_Matches'Result =
+            (Next_Symbol (Input, Position).Value =
+               Data (Data'First + Index)
+             and then Spec_Matches
+               (Input, Consumed, Data,
+                Next_Symbol (Input, Position).Position, Index + 1)),
+        Next_Symbol (Input, Position).Position <= 8 * Consumed
+          and then Index < Data'Length
+          and then Next_Symbol (Input, Position).Kind = Match =>
+          Spec_Matches'Result =
+            (Index > 0
+             and then Data'Length - Index >= 3
+             and then Data (Data'First + Index) =
+                        Data (Data'First + Index - 1)
+             and then Data (Data'First + Index + 1) =
+                        Data (Data'First + Index)
+             and then Data (Data'First + Index + 2) =
+                        Data (Data'First + Index + 1)
+             and then Spec_Matches
+               (Input, Consumed, Data,
+                Next_Symbol (Input, Position).Position, Index + 3)),
+        others => not Spec_Matches'Result),
+     Subprogram_Variant => (Decreases => Data'Length - Index,
+                            Decreases => 8 * Consumed - Position);
+
+   --  Linear executable check for literals, length-3/distance-1 matches, and
+   --  end-of-block.  Its proof-only postcondition connects it to Spec_Matches.
    pragma Assertion_Policy (Post => Ignore);
    function Encoding_Matches
      (Input : Byte_Array;
@@ -145,16 +300,11 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                and then Consumed in 1 .. Input'Length
                and then Fixed_Header (Input),
      Post => Encoding_Matches'Result =
-       (3 + Data_Bits (Data, Data'Length) + 7 <= 8 * Input'Length
-        and then Encodes_Prefix (Input, Data, Data'Length)
-        and then Prefix_Value
-          (Input, 3 + Data_Bits (Data, Data'Length), 7) = 0
-        and then Consumed =
-          (3 + Data_Bits (Data, Data'Length) + 7 + 7) / 8);
+               Spec_Matches (Input, Consumed, Data, 3, 0);
    pragma Assertion_Policy (Post => Check);
 
-   --  Input's first Consumed bytes are exactly the literal-only fixed block
-   --  for Data.  Bytes after Consumed may be a container trailer.
+   --  Input's first Consumed bytes are a fixed block decoding exactly to
+   --  Data.  Bytes after Consumed may be a container trailer.
    function Is_Encoding
      (Input : Byte_Array;
       Consumed : Natural;
@@ -172,95 +322,46 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
       Decoded_Length : Natural;
    end record;
 
-   type Symbol_Kind is (Literal, End_Of_Block, Other, Truncated);
-
-   type Symbol_Result is record
-      Kind     : Symbol_Kind;
-      Value    : Byte;
-      Position : Natural;
-   end record;
-
-   pragma Assertion_Policy (Post => Ignore);
-   function Next_Symbol
-     (Input : Byte_Array; Position : Natural) return Symbol_Result
-   with
-     Pre  => Input'Length <= Max_Stream_Bytes
-               and then Position <= 8 * Input'Length,
-     Post => Next_Symbol'Result.Position in Position .. 8 * Input'Length
-               and then
-             (if Next_Symbol'Result.Kind /= Truncated
-              then Next_Symbol'Result.Position > Position)
-               and then
-             (if Next_Symbol'Result.Kind = Literal
-              then Next_Symbol'Result.Position =
-                     Position + Code_Length (Next_Symbol'Result.Value)
-                   and then Prefix_Value
-                     (Input, Position,
-                      Code_Length (Next_Symbol'Result.Value)) =
-                     Code (Next_Symbol'Result.Value))
-               and then
-             (if Next_Symbol'Result.Kind = End_Of_Block
-              then Next_Symbol'Result.Position = Position + 7
-                   and then Prefix_Value (Input, Position, 7) = 0)
-               and then
-             (if 7 <= 8 * Input'Length - Position
-                   and then Prefix_Value (Input, Position, 7) = 0
-              then Next_Symbol'Result.Kind = End_Of_Block)
-               and then
-             (if 8 <= 8 * Input'Length - Position
-                   and then Prefix_Value (Input, Position, 8) in 48 .. 191
-              then Next_Symbol'Result =
-                     (Literal,
-                      Byte (Prefix_Value (Input, Position, 8) - 48),
-                      Position + 8))
-               and then
-             (if 9 <= 8 * Input'Length - Position
-                   and then Prefix_Value (Input, Position, 9) in 400 .. 511
-              then Next_Symbol'Result =
-                     (Literal,
-                      Byte (Prefix_Value (Input, Position, 9) - 256),
-                      Position + 9));
-   pragma Assertion_Policy (Post => Check);
-
    --  Recursive mathematical walk used to specify the iterative analyzer.
    --  Position names the next Huffman code bit (the three block-header bits
    --  have already been consumed).
-   function Spec_Walk (Input : Byte_Array; Position : Natural) return Stream_Info
+   function Spec_Walk
+     (Input : Byte_Array; Position, Decoded : Natural) return Stream_Info
    with
      Ghost,
      Pre => Input'Length <= Max_Stream_Bytes
-              and then Position <= 8 * Input'Length,
+              and then Position <= 8 * Input'Length
+              and then Decoded <= Max_Input,
      Post => (if Spec_Walk'Result.Valid then
                 Spec_Walk'Result.End_Bit in Position + 7 .. 8 * Input'Length
                 and then Spec_Walk'Result.Decoded_Length <=
-                           (8 * Input'Length - Position) / 8
-                and then
-                  (if Next_Symbol (Input, Position).Kind = Literal
-                   then Spec_Walk (Input,
-                              Next_Symbol (Input, Position).Position).Valid
-                        and then Spec_Walk'Result.End_Bit =
-                          Spec_Walk (Input,
-                                Next_Symbol (Input, Position).Position).End_Bit
-                        and then Spec_Walk'Result.Decoded_Length =
-                          Spec_Walk
-                            (Input,
-                             Next_Symbol (Input, Position).Position)
-                              .Decoded_Length + 1
-                   else Next_Symbol (Input, Position).Kind = End_Of_Block
-                        and then Spec_Walk'Result.End_Bit =
-                                   Next_Symbol (Input, Position).Position
-                        and then Spec_Walk'Result.Decoded_Length = 0)),
+                           Max_Input - Decoded),
      Contract_Cases =>
-       (Next_Symbol (Input, Position).Kind = Literal =>
+       (Next_Symbol (Input, Position).Kind = Literal
+          and then Decoded < Max_Input =>
           (if Spec_Walk
-             (Input, Next_Symbol (Input, Position).Position).Valid
+             (Input, Next_Symbol (Input, Position).Position, Decoded + 1).Valid
            then Spec_Walk'Result =
              (True,
               Spec_Walk
-                (Input, Next_Symbol (Input, Position).Position).End_Bit,
+                (Input, Next_Symbol (Input, Position).Position, Decoded + 1)
+                  .End_Bit,
               Spec_Walk
-                (Input, Next_Symbol (Input, Position).Position)
+                (Input, Next_Symbol (Input, Position).Position, Decoded + 1)
                   .Decoded_Length + 1)
+           else Spec_Walk'Result = (False, 0, 0)),
+        Next_Symbol (Input, Position).Kind = Match
+          and then (Decoded in 1 .. Max_Input - 3) =>
+          (if Spec_Walk
+             (Input, Next_Symbol (Input, Position).Position, Decoded + 3).Valid
+           then Spec_Walk'Result =
+             (True,
+              Spec_Walk
+                (Input, Next_Symbol (Input, Position).Position, Decoded + 3)
+                  .End_Bit,
+              Spec_Walk
+                (Input, Next_Symbol (Input, Position).Position, Decoded + 3)
+                  .Decoded_Length + 3)
            else Spec_Walk'Result = (False, 0, 0)),
         Next_Symbol (Input, Position).Kind = End_Of_Block =>
           Spec_Walk'Result =
@@ -269,14 +370,16 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      Subprogram_Variant => (Decreases => 8 * Input'Length - Position);
 
    pragma Assertion_Policy (Post => Ignore);
-   function Walk (Input : Byte_Array; Position : Natural) return Stream_Info
+   function Walk
+     (Input : Byte_Array; Position, Decoded : Natural) return Stream_Info
    with
      Pre => Input'Length <= Max_Stream_Bytes
-              and then Position <= 8 * Input'Length,
-     Post => Walk'Result = Spec_Walk (Input, Position);
+              and then Position <= 8 * Input'Length
+              and then Decoded <= Max_Input,
+     Post => Walk'Result = Spec_Walk (Input, Position, Decoded);
    pragma Assertion_Policy (Post => Check);
 
-   --  Recognize the literal-only fixed fragment.  End_Bit is
+   --  Recognize this fixed literal/match fragment.  End_Bit is
    --  immediately after the end-of-block code; the containing byte count is
    --  (End_Bit + 7) / 8.  Trailing bytes are ignored.
    pragma Assertion_Policy (Post => Ignore);
@@ -284,13 +387,12 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
    with
      Pre  => Input'Length <= Max_Stream_Bytes,
      Post => (if Fixed_Header (Input)
-                   and then Walk (Input, 3).Valid
-                   and then Walk (Input, 3).Decoded_Length <= Max_Input
-              then Analyze'Result = Walk (Input, 3))
+                   and then Walk (Input, 3, 0).Valid
+              then Analyze'Result = Walk (Input, 3, 0))
                and then
              (if Analyze'Result.Valid then
                 Fixed_Header (Input)
-                and then Analyze'Result = Walk (Input, 3)
+                and then Analyze'Result = Walk (Input, 3, 0)
                 and then Analyze'Result.End_Bit in 10 .. 8 * Input'Length
                 and then Analyze'Result.Decoded_Length <= Max_Input);
    pragma Assertion_Policy (Post => Check);
@@ -301,8 +403,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      Ghost,
      Pre  => Is_Encoding (Input, Consumed, Data),
      Post => Analyze (Input).Valid
-               and then Analyze (Input).End_Bit =
-                          3 + Data_Bits (Data, Data'Length) + 7
+               and then (Analyze (Input).End_Bit + 7) / 8 = Consumed
                and then Analyze (Input).Decoded_Length = Data'Length;
 
    procedure Lemma_Encoding_Frame
@@ -328,7 +429,8 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
              (for all I in 0 .. Left'Length - 1 =>
                 Left (Left'First + I) = Right (Right'First + I));
 
-   --  Emit one final fixed-Huffman block containing only literals.
+   --  Emit one final fixed-Huffman block containing literals and selected
+   --  length-3/distance-1 matches.
    procedure Compress
      (Input    : in     Byte_Array;
       Output   : in out Byte_Array;
@@ -342,7 +444,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                and then Is_Encoding
                           (Output, Produced, Input);
 
-   --  Decode the fixed-literal fragment when it is present.  Success=False
+   --  Decode this fixed literal/match fragment when it is present. Success=False
    --  means only that this specialized fragment did not apply; callers may
    --  fall back to the general DEFLATE decoder.
    procedure Decompress

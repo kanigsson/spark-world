@@ -180,8 +180,9 @@ package Inflate.GZip with SPARK_Mode => On is
        else Raw.Stored_Size (N)) + 18)
    with Pre => N <= Raw.Max_Compress_Input;
 
-   --  Produce a complete gzip member holding Input. Inputs within the M3
-   --  bound use fixed-Huffman literals; larger inputs use stored blocks.
+   --  Produce a complete gzip member holding Input. Inputs within the fixed
+   --  arithmetic domain use fixed-Huffman literals and selected verified
+   --  matches; larger inputs use stored blocks.
    --  Both are consumable by any gzip decoder and total under the
    --  precondition; Compressed_Size is the caller's capacity bound.
    --

@@ -161,7 +161,7 @@ A current run of:
 gnatprove -P inflate.gpr --level=4 -j0
 ```
 
-completed successfully with 3,528 checks, all proved. The generated summary
+completed successfully with 4,221 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 

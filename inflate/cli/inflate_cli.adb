@@ -30,7 +30,10 @@ procedure Inflate_CLI is
       Put_Line (File, "       inflate decompress INPUT OUTPUT");
       Put_Line (File, "       inflate --help");
       New_Line (File);
-      Put_Line (File, "Compress creates a gzip file using stored DEFLATE blocks.");
+      Put_Line
+        (File,
+         "Compress creates a gzip file using fixed Huffman coding and "
+         & "verified run matches.");
       Put_Line (File, "Decompress accepts gzip files, including concatenated members.");
    end Usage;
 

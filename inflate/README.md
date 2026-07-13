@@ -7,9 +7,9 @@ is SPARK. Decoding is proved free of run-time errors, with termination and
 initialization/data-flow checks included in the proof run described below.
 Every successful raw DEFLATE decode is also proved to satisfy an executable
 canonical decode model; that model and the returned bytes are differentially
-tested against C zlib. The gzip
-compressor (fixed Huffman throughout the fixed encoder's arithmetic domain,
-stored blocks above it)
+tested against C zlib. The gzip compressor (fixed Huffman with verified run
+matches throughout the fixed encoder's arithmetic domain, stored blocks above
+it)
 and decompressor additionally carry a **proved
 round-trip theorem**: `Inflate.Theorems.GZip_Round_Trip` states — and the
 proof establishes for every input — that decompressing the compressor's
@@ -33,7 +33,7 @@ handled by raising an exception.
 | `Inflate`         | `Byte_Array`, the `Status_Type` all layers report through |
 | `Inflate.Raw`     | DEFLATE (RFC 1951): stored/fixed/dynamic blocks, canonical Huffman decoding; `Compress_Stored` |
 | `Inflate.LZ77`    | proved DEFLATE back-reference copying, including overlapping matches |
-| `Inflate.Fixed`   | fixed-Huffman literal encoder, iterative analyzer, and executable relation |
+| `Inflate.Fixed`   | fixed-Huffman literal/match encoder, iterative analyzer, and executable relation |
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
 | `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
 | `Inflate.Model`   | executable canonical model for stored, fixed-Huffman, and dynamic-Huffman DEFLATE, plus the stored compressor relation |
@@ -61,16 +61,18 @@ ZIP extractor are ordinary clients of `Inflate.Raw`.
 
 ## Compression
 
-The library compresses to standard gzip. The arbitrary 32-byte integration
-bound is gone: inputs through `Inflate.Fixed.Max_Input` use one final
-fixed-Huffman block containing literals and end-of-block. `Max_Input` is
-derived from the largest stream whose bit offsets plus the gzip trailer fit in
-`Natural` (238,609,285 input bytes on the current target), rather than from a
-proof-harness capacity. Still larger inputs retain the stored-block encoder,
-so the public compressor and theorem keep their original, larger domain.
-Adding LZ77 matches and dynamic trees remains later M6 ratio work. Any gzip
-decoder consumes either output. The contract is preserved across both
-branches:
+The library compresses to standard gzip. Inputs through
+`Inflate.Fixed.Max_Input` use one final fixed-Huffman block. A deliberately
+small match finder replaces aligned three-byte runs with the fixed-code
+`(length = 3, distance = 1)` pair; other bytes remain literals. This exercises
+the overlapping LZ77 copy equation and roughly halves the fixed body for long
+single-byte runs without making an optimality claim. `Max_Input` is derived
+from the largest stream whose bit offsets plus the gzip trailer fit in
+`Natural` (238,609,285 input bytes on the current target). Still larger inputs
+retain the stored-block encoder, so the public compressor and theorem keep
+their original domain. Dynamic trees and a broader match finder remain M6
+ratio work. Any gzip decoder consumes either output. The contract is preserved
+across both branches:
 
 - **Totality and size.** Under the stated preconditions there is no failure
   path. `GZip.Compressed_Size` is the allocation bound; the produced size is
@@ -99,7 +101,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **3528 checks,
+The most recent recorded `gnatprove --level=4` run reported **4,221 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -244,8 +246,9 @@ cd bench && gprbuild -P bench.gpr && python3 run_bench.py   # needs libz.a
 ## Command line
 
 The command-line front end reads and writes whole files, like the one-shot
-library API. Compression produces a standard gzip member using stored DEFLATE
-blocks; decompression accepts ordinary gzip files and concatenated members.
+library API. Compression produces a standard gzip member using fixed Huffman
+coding with verified run matches (and the stored fallback above the fixed
+domain); decompression accepts ordinary gzip files and concatenated members.
 
 ```sh
 bin/inflate compress input.dat output.gz
