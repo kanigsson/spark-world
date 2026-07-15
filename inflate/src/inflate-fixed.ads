@@ -1,9 +1,10 @@
 --  Inflate.Fixed -- the RFC 1951 fixed-Huffman compressor image.
 --
 --  The encoder emits one final fixed-Huffman block.  Most bytes are literals;
---  aligned three-byte groups may be represented by deliberately simple M6
---  matches of length 3 and distance 1 or 3.  The contracts below state both
---  halves of that image's round trip without making any
+--  its deliberately simple M6 plan selects length-4 distance-1 runs at any
+--  reached token boundary, with length-3 distance-1 or distance-3 matches as
+--  fallbacks.  The contracts below state both halves of that image's round
+--  trip without making any
 --  compression-optimality claim.
 
 with Interfaces;
@@ -41,6 +42,17 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      (N + (N + 17) / 8)
    with Pre => N <= Max_Input;
 
+   type Symbol_Kind is
+     (Literal, Match, End_Of_Block, Other, Truncated);
+
+   type Symbol_Result is record
+      Kind     : Symbol_Kind;
+      Value    : Byte;
+      Length   : Natural;
+      Distance : Natural;
+      Position : Natural;
+   end record;
+
    --  A selected match reproduces Length bytes of Data through the same
    --  window equation used by M4.  Stating that equation once keeps the
    --  compressor plan independent of the concrete patterns it recognizes.
@@ -56,66 +68,148 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
            Data (Data'First + Position + K) =
              Data (Data'First + Position + K - Distance)));
 
-   --  The intentionally small match finder considers aligned groups of
-   --  three bytes.  It first recognizes a distance-1 run, including M4's
-   --  overlapping-copy case, and otherwise recognizes repetition of the
-   --  preceding three-byte group at distance 3.  Zero means use a literal.
-   function Match_Distance
-     (Data : Byte_Array; Position : Natural) return Natural
+   --  Select the token beginning at a reached compression-plan boundary.
+   --  Four-byte distance-one runs take priority, so a run can begin at any
+   --  reached byte position rather than only at a multiple of three.  The
+   --  existing length-three run and repeated-three-byte tokens remain as the
+   --  fallback match shapes.
+   function Selected_Token
+     (Data : Byte_Array; Position : Natural) return Symbol_Result
    is
-     (if Position = 0
-          or else Position >= Data'Length
-          or else Position mod 3 /= 0
-          or else Data'Length - Position < 3
-      then 0
-      elsif Data (Data'First + Position) =
-              Data (Data'First + Position - 1)
-        and then Data (Data'First + Position + 1) =
-              Data (Data'First + Position - 1)
-        and then Data (Data'First + Position + 2) =
-              Data (Data'First + Position - 1)
-      then 1
-      elsif Position >= 3
+     (if Position > 0
+          and then Data'Length - Position >= 4
+          and then Data (Data'First + Position) =
+                     Data (Data'First + Position - 1)
+          and then Data (Data'First + Position + 1) =
+                     Data (Data'First + Position - 1)
+          and then Data (Data'First + Position + 2) =
+                     Data (Data'First + Position - 1)
+          and then Data (Data'First + Position + 3) =
+                     Data (Data'First + Position - 1)
+      then (Match, 0, 4, 1, Position + 4)
+      elsif Position > 0
+        and then Data'Length - Position >= 3
         and then Data (Data'First + Position) =
-              Data (Data'First + Position - 3)
+                   Data (Data'First + Position - 1)
         and then Data (Data'First + Position + 1) =
-              Data (Data'First + Position - 2)
+                   Data (Data'First + Position - 1)
         and then Data (Data'First + Position + 2) =
-              Data (Data'First + Position - 1)
-      then 3
-      else 0)
+                   Data (Data'First + Position - 1)
+      then (Match, 0, 3, 1, Position + 3)
+      elsif Position >= 3
+        and then Data'Length - Position >= 3
+        and then Data (Data'First + Position) =
+                   Data (Data'First + Position - 3)
+        and then Data (Data'First + Position + 1) =
+                   Data (Data'First + Position - 2)
+        and then Data (Data'First + Position + 2) =
+                   Data (Data'First + Position - 1)
+      then (Match, 0, 3, 3, Position + 3)
+      else (Literal, Data (Data'First + Position), 1, 0, Position + 1))
    with
-     Post => Match_Distance'Result in 0 | 1 | 3
+     Pre  => Data'Length <= Max_Input and then Position < Data'Length,
+     Post => Selected_Token'Result.Kind in Literal | Match
+               and then Selected_Token'Result.Position in
+                          Position + 1 .. Data'Length
                and then
-             (if Match_Distance'Result > 0
-              then Match_Applies
-                     (Data, Position, 3, Match_Distance'Result));
+             (if Selected_Token'Result.Kind = Literal
+              then Selected_Token'Result.Value =
+                     Data (Data'First + Position)
+                   and then Selected_Token'Result.Length = 1
+                   and then Selected_Token'Result.Distance = 0
+                   and then Selected_Token'Result.Position = Position + 1
+              else Selected_Token'Result.Length in 3 | 4
+                   and then Selected_Token'Result.Distance in 1 | 3
+                   and then Selected_Token'Result.Position =
+                              Position + Selected_Token'Result.Length
+                   and then
+                     (if Selected_Token'Result.Distance = 3
+                      then Selected_Token'Result.Length = 3)
+                   and then Match_Applies
+                     (Data, Position,
+                      Selected_Token'Result.Length,
+                      Selected_Token'Result.Distance));
 
-   function Match_Start
-     (Data : Byte_Array; Position : Natural) return Boolean
+   function Next_Position
+     (Data : Byte_Array; Position : Natural) return Natural
+   is (Selected_Token (Data, Position).Position)
+   with
+     Pre  => Data'Length <= Max_Input and then Position < Data'Length,
+     Post => Next_Position'Result in Position + 1 .. Data'Length
+               and then Next_Position'Result =
+                          Position + Selected_Token (Data, Position).Length;
+
+   function Token_Bit_Cost
+     (Data : Byte_Array; Position : Natural) return Positive
    is
-     (Match_Distance (Data, Position) > 0);
+     (if Selected_Token (Data, Position).Kind = Match
+      then 12
+      else Code_Length (Selected_Token (Data, Position).Value))
+   with
+     Pre  => Data'Length <= Max_Input and then Position < Data'Length,
+     Post => Token_Bit_Cost'Result <=
+               9 * (Next_Position (Data, Position) - Position);
 
-   function Match_Continuation
-     (Data : Byte_Array; Position : Natural) return Boolean
+   --  Number of bytes after Count that remain in the token, if any, selected
+   --  at the preceding boundary.  This single forward recurrence gives every
+   --  byte position a deterministic plan state.
+   function Plan_Remaining
+     (Data : Byte_Array; Count : Natural) return Natural
    is
-     (Position < Data'Length
-      and then Position mod 3 /= 0
-      and then Match_Start (Data, Position - Position mod 3));
+     (if Count = 0 then 0
+      elsif Plan_Remaining (Data, Count - 1) = 0
+      then Selected_Token (Data, Count - 1).Length - 1
+      else Plan_Remaining (Data, Count - 1) - 1)
+   with
+     Ghost,
+     Pre  => Data'Length <= Max_Input and then Count <= Data'Length,
+     Post => Plan_Remaining'Result <= 3
+               and then Plan_Remaining'Result <= Data'Length - Count,
+     Subprogram_Variant => (Decreases => Count);
 
-   --  Number of bits occupied by the encoding of the first Count bytes.
-   --  Inside a selected match group, intermediate Count values retain the
-   --  group's starting offset; at the group boundary all twelve match bits
-   --  are charged at once.  Encoder and proof cursors only use boundaries.
+   --  Count is reached by repeatedly advancing through the selected tokens.
+   --  This replaces the old modulo-three continuation convention and makes
+   --  variable token lengths explicit in every encoder invariant.
+   function Token_Boundary
+     (Data : Byte_Array; Count : Natural) return Boolean
+   is (Plan_Remaining (Data, Count) = 0)
+   with
+     Ghost,
+     Pre  => Data'Length <= Max_Input and then Count <= Data'Length;
+
+   --  Start of the token containing Count - 1.  At a nonzero boundary this
+   --  is the preceding token's start; inside a token it is the current
+   --  token's start.
+   function Plan_Start
+     (Data : Byte_Array; Count : Natural) return Natural
+   is
+     (if Count = 0 then 0
+      elsif Token_Boundary (Data, Count - 1) then Count - 1
+      else Plan_Start (Data, Count - 1))
+   with
+     Ghost,
+     Pre  => Data'Length <= Max_Input and then Count <= Data'Length,
+     Post => Plan_Start'Result <= Count
+               and then
+             (if Count > 0
+              then Plan_Start'Result < Count
+                   and then Token_Boundary (Data, Plan_Start'Result)
+                   and then Count <=
+                     Next_Position (Data, Plan_Start'Result)
+                   and then
+                     (if Token_Boundary (Data, Count)
+                      then Next_Position (Data, Plan_Start'Result) = Count)),
+     Subprogram_Variant => (Decreases => Count);
+
+   --  Number of bits occupied by the complete selected tokens ending no later
+   --  than Count.  At a token boundary this is the exact payload bit count;
+   --  inside a token it remains at the preceding boundary's value.
    function Data_Bits (Data : Byte_Array; Count : Natural) return Natural is
      (if Count = 0 then 0
-      elsif Count mod 3 /= 0
-        and then Match_Start (Data, Count - Count mod 3)
-      then Data_Bits (Data, Count - Count mod 3)
-      elsif Count >= 3 and then Match_Start (Data, Count - 3)
-      then Data_Bits (Data, Count - 3) + 12
-      else Data_Bits (Data, Count - 1)
-             + Code_Length (Data (Data'First + Count - 1)))
+      elsif Token_Boundary (Data, Count)
+      then Data_Bits (Data, Plan_Start (Data, Count))
+        + Token_Bit_Cost (Data, Plan_Start (Data, Count))
+      else Data_Bits (Data, Count - 1))
    with
      Ghost,
      Pre  => Data'Length <= Max_Input and then Count <= Data'Length,
@@ -188,14 +282,16 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      (3 + Data_Bits (Data, Count) <= 8 * Input'Length
       and then
       (for all I in 0 .. Count - 1 =>
-         (if Match_Start (Data, I)
+         (if Token_Boundary (Data, I)
+               and then Selected_Token (Data, I).Kind = Match
           then 3 + Data_Bits (Data, I) + 12 <= 8 * Input'Length
                and then Prefix_Value
-                 (Input, 3 + Data_Bits (Data, I), 7) = 1
+                 (Input, 3 + Data_Bits (Data, I), 7) =
+                   Selected_Token (Data, I).Length - 2
                and then Prefix_Value
                  (Input, 3 + Data_Bits (Data, I) + 7, 5) =
-                   Match_Distance (Data, I) - 1
-          elsif not Match_Continuation (Data, I)
+                   Selected_Token (Data, I).Distance - 1
+          elsif Token_Boundary (Data, I)
           then 3 + Data_Bits (Data, I)
                  + Code_Length (Data (Data'First + I)) <= 8 * Input'Length
                and then Prefix_Value
@@ -208,19 +304,8 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
               and then Data'Length <= Max_Input
               and then Count <= Data'Length;
 
-   type Symbol_Kind is
-     (Literal, Match, End_Of_Block, Other, Truncated);
-
-   type Symbol_Result is record
-      Kind     : Symbol_Kind;
-      Value    : Byte;
-      Length   : Natural;
-      Distance : Natural;
-      Position : Natural;
-   end record;
-
    --  Parse one symbol from the fixed block.  Match denotes one of the
-   --  encoder's length-3 pairs, at distance 1 or 3.
+   --  encoder's length-3/4 pairs, at distance 1 or 3.
    pragma Assertion_Policy (Post => Ignore);
    function Next_Symbol
      (Input : Byte_Array; Position : Natural) return Symbol_Result
@@ -242,10 +327,14 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                      Code (Next_Symbol'Result.Value))
                and then
              (if Next_Symbol'Result.Kind = Match
-              then Next_Symbol'Result.Length = 3
+              then Next_Symbol'Result.Length in 3 | 4
                    and then Next_Symbol'Result.Distance in 1 | 3
+                   and then
+                     (if Next_Symbol'Result.Distance = 3
+                      then Next_Symbol'Result.Length = 3)
                    and then Next_Symbol'Result.Position = Position + 12
-                   and then Prefix_Value (Input, Position, 7) = 1
+                   and then Prefix_Value (Input, Position, 7) =
+                              Next_Symbol'Result.Length - 2
                    and then Prefix_Value (Input, Position + 7, 5) =
                               Next_Symbol'Result.Distance - 1)
                and then
@@ -263,6 +352,11 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                    and then Prefix_Value (Input, Position, 7) = 1
                    and then Prefix_Value (Input, Position + 7, 5) = 0
               then Next_Symbol'Result = (Match, 0, 3, 1, Position + 12))
+               and then
+             (if 12 <= 8 * Input'Length - Position
+                   and then Prefix_Value (Input, Position, 7) = 2
+                   and then Prefix_Value (Input, Position + 7, 5) = 0
+              then Next_Symbol'Result = (Match, 0, 4, 1, Position + 12))
                and then
              (if 12 <= 8 * Input'Length - Position
                    and then Prefix_Value (Input, Position, 7) = 1
@@ -336,8 +430,8 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      Subprogram_Variant => (Decreases => Data'Length - Index,
                             Decreases => 8 * Consumed - Position);
 
-   --  Linear executable check for literals, length-3 matches at distance 1 or
-   --  3, and end-of-block.  Its proof-only postcondition connects it to
+   --  Linear executable check for literals, length-3/4 matches at distance 1
+   --  or 3, and end-of-block.  Its proof-only postcondition connects it to
    --  Spec_Matches.
    pragma Assertion_Policy (Post => Ignore);
    function Encoding_Matches
@@ -485,7 +579,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                 Left (Left'First + I) = Right (Right'First + I));
 
    --  Emit one final fixed-Huffman block containing literals and selected
-   --  length-3 matches at distance 1 or 3.
+   --  length-3/4 matches at distance 1 or 3.
    procedure Compress
      (Input    : in     Byte_Array;
       Output   : in out Byte_Array;

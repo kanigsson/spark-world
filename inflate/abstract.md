@@ -80,18 +80,41 @@ closes all 4,358 checks, while the debug suite passes 6,444 regular cases and
 17 compressor differential cases.  The distance-3 compressor image is decoded
 independently by C zlib in the new differential case.
 
-This is not yet a general LZ77 compressor.  Match length remains fixed at
-three, distances remain limited to one and three, and selection remains tied
-to aligned three-byte groups.  The important result is narrower: explicit
-match semantics can replace specialized equations without introducing a
+At that point this was not yet a general LZ77 compressor: match length remained
+fixed at three, distances were limited to one and three, and selection was tied
+to aligned three-byte groups.  The important result was narrower: explicit
+match semantics could replace specialized equations without introducing a
 second representation or degrading the complete proof run.
+
+## Successful next step: explicit boundaries and variable length
+
+The compression plan is now explicit without adding a parallel token type.
+`Selected_Token` chooses the existing `Symbol_Result`; `Next_Position` and
+`Token_Bit_Cost` expose its cursor and encoding effects.  `Plan_Remaining`,
+`Plan_Start`, and `Token_Boundary` describe the unique token partition with a
+single forward recurrence, replacing `Match_Start`, `Match_Continuation`, and
+all modulo-three reasoning.
+
+That boundary made the first variable-length extension local.  At any reached
+position, including unaligned byte position one, a four-byte continuation of a
+single-byte run becomes `(length = 4, distance = 1)`.  The existing
+length-three distance-one and distance-three choices remain fallbacks.  Each
+selected match proves `Match_Applies`, and `Copy_Selected_Match` gives the
+specialized decoder one local operation whose postcondition is that same M4
+window equation for lengths three and four.
+
+The focused fixed-code run proves all 1,920 checks at level 2.  The complete
+level-4 library proof closes all 4,342 checks with no assumptions or
+justifications, and the debug suite passes 6,444 regular cases plus 17
+compressor differential cases.  The zero-run regression checks the exact
+length-four/distance-one bits and C zlib independently decodes the result.
 
 ## 1. Give tokens explicit semantics
 
 `Symbol_Result` is already the working token abstraction: its `Match` case
 carries explicit `Length` and `Distance`, and `Match_Applies` gives those
-fields byte-level meaning.  Keep extending that representation in place while
-it remains manageable.  If variable-length matching makes invalid field
+fields byte-level meaning.  The first length-three/four plan still makes that
+representation manageable.  If broader matching makes invalid field
 combinations burdensome, a discriminated token type could then look like this:
 
 ```ada
@@ -174,20 +197,18 @@ arbitrary number of tokens within the existing input bound.
 
 ## 3. Make the compression plan explicit
 
-The current plan is encoded indirectly by `Match_Start`,
-`Match_Continuation`, and `Data_Bits`.  As a result, `Data_Bits` must have a
-meaning at byte positions inside a match even though the encoder never visits
-those positions.
-
-Define operations only at token boundaries:
+This step is now complete.  Selection and advancement are exposed directly:
 
 ```ada
 Selected_Token (Data, Position)
 Next_Position  (Data, Position)
-Token_Bit_Cost (Book, Selected_Token (...))
+Token_Bit_Cost (Data, Position)
 ```
 
-The compressor loop can then use the invariant:
+`Plan_Remaining` advances one byte at a time and records how much of the current
+token remains; `Plan_Start` recovers its start and `Token_Boundary` identifies
+the positions the compressor visits.  The compressor loop now uses the
+invariant:
 
 ```text
 Position is a token boundary
@@ -195,9 +216,11 @@ and the selected tokens before Position expand to Data (0 .. Position - 1)
 and the bits written so far serialize exactly those tokens.
 ```
 
-This should eliminate `Match_Continuation` and most of the current modulo-3
-reasoning.  Broadening the match finder then changes `Selected_Token` and its
-soundness proof, rather than changing all relations over encoded bytes.
+This eliminated `Match_Continuation` and the modulo-three reasoning.
+`Data_Bits` retains a value at intermediate byte counts only to support
+prefix relations, but charges the token at its boundary.  Broadening the match
+finder now changes `Selected_Token` and its soundness proof rather than the
+shape of every relation over encoded bytes.
 
 ## 4. Reason about an append-only logical bitstream
 
@@ -277,12 +300,12 @@ fixed-image decoder proof.
 ## When to introduce the abstractions
 
 Do not make all of these abstractions a prerequisite phase for the remaining
-M6 work.  The narrow fixed-Huffman compressor, now with length-3 matches at
-distances one and three, is already connected through `Inflate.GZip.Compress`,
-the raw decoder's proved success path, and
-`Inflate.Theorems.GZip_Round_Trip`.  The remaining work is to support
-unaligned, variable-length, wider-distance matches and add dynamic trees
-without breaking that connection.
+M6 work.  The fixed-Huffman compressor, now with boundary-based length-three
+and length-four matches at distances one and three, is connected through
+`Inflate.GZip.Compress`, the raw decoder's proved success path, and
+`Inflate.Theorems.GZip_Round_Trip`.  The remaining work is to support more
+lengths and wider distances, then add dynamic trees without breaking that
+connection.
 
 Introducing abstractions before features can prevent duplication, but proof
 abstractions also introduce quantified relations, conversion theorems, and
@@ -298,23 +321,23 @@ wrapped a working specialized relation without removing it.
 | Abstraction | Best time to attempt it |
 |-------------|-------------------------|
 | Explicit token semantics | Started successfully: `Symbol_Result` now carries length and distance, and `Match_Applies` replaced the `(3, 1)` equations.  Extend this representation in place; add another token type only if it can replace it. |
-| Explicit compression plan | Before variable-length matching.  Variable token boundaries make `Selected_Token` and `Next_Position` real requirements rather than speculative structure. |
-| `Trace_Cursor` and `Step`/`Trace` | After variable-length fixed-Huffman matching works.  Proceed only if the trace can delete `Spec_Matches`, `Prefix_Matches`, and `One_Token_Matches`, plus a meaningful part of `Spec_Walk`. |
+| Explicit compression plan | Complete: `Selected_Token`, `Next_Position`, `Token_Bit_Cost`, and the forward boundary state replaced the modulo-three plan before the first variable-length token landed. |
+| `Trace_Cursor` and `Step`/`Trace` | After the fixed-Huffman matcher covers a materially broader range of lengths and distances.  Proceed only if the trace can delete `Spec_Matches`, `Prefix_Matches`, and `One_Token_Matches`, plus a meaningful part of `Spec_Walk`. |
 | Append-only logical bitstream | During dynamic-Huffman work, if the concrete header and payload proofs multiply framing lemmas.  The working fixed writer alone does not justify this refactor. |
 | Codebook abstraction | Just before integrating the dynamic payload, once the fixed and dynamic implementations provide two concrete instances from which to shape the interface. |
 | `Body_Encodes` | After the dynamic body has a local encoding relation, but before wiring it into gzip and the round-trip theorem.  At that point it can replace stored/fixed/dynamic branches instead of wrapping only the current two. |
 
 ## Recommended M6 order
 
-1. Keep the proved distance-3 extension as the stable baseline.  It establishes
+1. **Complete.** Keep the proved distance-3 extension as the stable baseline.  It establishes
    explicit match meaning in the existing representation without a parallel
    token model; the complete proof and runtime suites pass.
-2. Before adding variable lengths, make the compression plan explicit with
-   boundary-only `Selected_Token`, `Next_Position`, and `Token_Bit_Cost`
-   operations.  Then broaden selection to unaligned, variable-length, and
-   wider-distance matches while retaining the local M4 back-reference witness.
-3. Run the complete relevant proof and runtime suites again.  This establishes
-   a genuinely general-LZ77 fixed-code baseline before another proof
+2. **Complete for the first variable-length slice.** The plan is boundary-only,
+   and unaligned length-four distance-one runs retain the local M4
+   back-reference witness.
+3. Broaden the fixed selector beyond lengths three/four and distances one/three,
+   then rerun the complete proof and runtime suites.  This establishes a
+   materially general-LZ77 fixed-code baseline before another proof
    architecture change.
 4. Reassess `Step`/`Trace` against that baseline.  Attempt it only with an
    explicit list of existing relations and lemmas that the new model will

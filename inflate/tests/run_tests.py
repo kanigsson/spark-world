@@ -107,12 +107,13 @@ def check_compress_outputs():
             bad += 1
         if len(data) >= 6 and not any(data):
             raw = member[10:-8]
-            # Header (3 bits), then three fixed-code zero literals (24 bits),
-            # then the selected length-3 symbol and distance-1 symbol.
-            if (stream_prefix(raw, 27, 7) != 1
-                    or stream_prefix(raw, 34, 5) != 0):
+            # Header (3 bits), then one fixed-code zero literal (8 bits).
+            # Position 1 is an unaligned token boundary; the selector emits
+            # fixed length symbol 258 (length 4, code 2), then distance 1.
+            if (stream_prefix(raw, 11, 7) != 2
+                    or stream_prefix(raw, 18, 5) != 0):
                 print("FAIL compress %s: zero run did not emit the "
-                      "length-3/distance-1 match" % inp)
+                      "unaligned length-4/distance-1 match" % inp)
                 bad += 1
             if len(member) * 4 >= len(data) * 3:
                 print("FAIL compress %s: zero-run ratio did not improve"

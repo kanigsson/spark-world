@@ -161,7 +161,7 @@ A current run of:
 gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
 ```
 
-completed successfully with 4,358 checks, all proved. The generated summary
+completed successfully with 4,342 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -175,9 +175,9 @@ Subject to public preconditions, the proof establishes:
   its exact consumed input and produced output;
 - adaptive compressor totality and its exact selected-branch size within the
   public allocation bound;
-- the fixed-Huffman relation, including selected length-3 matches at distances
-  one and three, or the stored-block relation between compressor input and
-  emitted body;
+- the fixed-Huffman relation, including boundary-based length-3/4 matches at
+  distances one and three and their local M4 window witness, or the stored-block
+  relation between compressor input and emitted body;
 - compressor-image decode success, exact consumption and production, and
   agreement with the selected relation when the decoded data fits the output;
 - gzip framing values used by the compressor, including the input length and a
@@ -227,7 +227,8 @@ The formal result does not establish:
   the runtime validation pass;
 - integration of the isolated M1/M2 proofs into the shipping table builder;
 - general or optimal LZ77 selection in the compressor: fixed-Huffman matching
-  remains limited to aligned length-3 tokens at distances one and three;
+  remains limited to lengths three/four and distances one/three, although its
+  token boundaries are no longer alignment-restricted;
 - dynamic-Huffman output from the compressor;
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;

@@ -28,15 +28,14 @@ package body Inflate.Fixed with SPARK_Mode => On is
          pragma Loop_Invariant (Index <= Data'Length);
          pragma Loop_Invariant (Result = Data_Bits (Data, Index));
          pragma Loop_Invariant (Result <= 9 * Index);
-         pragma Loop_Invariant (not Match_Continuation (Data, Index));
+         pragma Loop_Invariant (Token_Boundary (Data, Index));
          pragma Loop_Variant (Decreases => Data'Length - Index);
-         if Match_Start (Data, Index) then
-            Result := Result + 12;
-            Index := Index + 3;
-         else
-            Result := Result + Code_Length (Data (Data'First + Index));
-            Index := Index + 1;
-         end if;
+         declare
+            Next : constant Natural := Next_Position (Data, Index);
+         begin
+            Result := Result + Token_Bit_Cost (Data, Index);
+            Index := Next;
+         end;
       end loop;
       return Result;
    end Encoded_Bit_Count;
@@ -84,12 +83,14 @@ package body Inflate.Fixed with SPARK_Mode => On is
          if C = 0 then
             pragma Assert (Prefix_Value (Input, Position, 7) = 0);
             return (End_Of_Block, 0, 0, 0, Position + 7);
-         elsif C = 1 then
+         elsif C in 1 | 2 then
             if Total - Position < 12 then
                return (Truncated, 0, 0, 0, Position);
             elsif Prefix_Value (Input, Position + 7, 5) = 0 then
-               return (Match, 0, 3, 1, Position + 12);
-            elsif Prefix_Value (Input, Position + 7, 5) = 2 then
+               return (Match, 0, C + 2, 1, Position + 12);
+            elsif C = 1
+              and then Prefix_Value (Input, Position + 7, 5) = 2
+            then
                return (Match, 0, 3, 3, Position + 12);
             else
                return (Other, 0, 0, 0, Position + 12);
@@ -327,22 +328,24 @@ package body Inflate.Fixed with SPARK_Mode => On is
    end Lemma_Code_Decodes;
 
    procedure Lemma_Match_Decodes
-     (Input : Byte_Array; Position, Distance : Natural)
+     (Input : Byte_Array; Position, Length, Distance : Natural)
    with
      Ghost,
      Pre  => Input'Length <= Max_Stream_Bytes
                and then Position <= 8 * Input'Length
+               and then Length in 3 | 4
                and then Distance in 1 | 3
+               and then (if Distance = 3 then Length = 3)
                and then 12 <= 8 * Input'Length - Position
-               and then Prefix_Value (Input, Position, 7) = 1
+               and then Prefix_Value (Input, Position, 7) = Length - 2
                and then Prefix_Value (Input, Position + 7, 5) = Distance - 1,
      Post => Next_Symbol (Input, Position).Kind = Match
-               and then Next_Symbol (Input, Position).Length = 3
+               and then Next_Symbol (Input, Position).Length = Length
                and then Next_Symbol (Input, Position).Distance = Distance
                and then Next_Symbol (Input, Position).Position = Position + 12;
 
    procedure Lemma_Match_Decodes
-     (Input : Byte_Array; Position, Distance : Natural) is null;
+     (Input : Byte_Array; Position, Length, Distance : Natural) is null;
 
    procedure Lemma_EOB_Decodes
      (Input : Byte_Array; Position : Natural)
@@ -533,16 +536,11 @@ package body Inflate.Fixed with SPARK_Mode => On is
      Ghost,
      Pre  => Data'Length <= Max_Input
                and then Position < Count
-               and then not Match_Continuation (Data, Position)
-               and then (if Match_Start (Data, Position)
-                         then Position + 3 <= Count)
-               and then not Match_Continuation (Data, Count)
-               and then Count <= Data'Length,
+               and then Count <= Data'Length
+               and then Token_Boundary (Data, Position)
+               and then Token_Boundary (Data, Count),
      Post => Data_Bits (Data, Position)
-               + (if Match_Start (Data, Position)
-                  then 12
-                  elsif Match_Continuation (Data, Position) then 0
-                  else Code_Length (Data (Data'First + Position))) <=
+               + Token_Bit_Cost (Data, Position) <=
              Data_Bits (Data, Count),
      Subprogram_Variant => (Decreases => Count - Position);
 
@@ -654,31 +652,34 @@ package body Inflate.Fixed with SPARK_Mode => On is
      Ghost,
      Pre  => Data'Length <= Max_Input
                and then Index < Data'Length
-               and then not Match_Continuation (Data, Index),
-     Post => (if Match_Start (Data, Index)
-              then Index + 3 <= Data'Length
-                   and then not Match_Continuation (Data, Index + 3)
-                   and then Data_Bits (Data, Index + 3) =
-                              Data_Bits (Data, Index) + 12
-              else not Match_Continuation (Data, Index + 1)
-                   and then Data_Bits (Data, Index + 1) =
-                              Data_Bits (Data, Index)
-                                + Code_Length
-                                    (Data (Data'First + Index)));
+               and then Token_Boundary (Data, Index),
+     Post => Token_Boundary (Data, Next_Position (Data, Index))
+               and then Data_Bits (Data, Next_Position (Data, Index)) =
+                          Data_Bits (Data, Index)
+                            + Token_Bit_Cost (Data, Index);
 
    procedure Lemma_Encoding_Next
      (Data : Byte_Array; Index : Natural)
    is
    begin
-      if Match_Start (Data, Index) then
-         pragma Assert ((Index + 3) mod 3 = 0);
-      elsif Index mod 3 = 0 then
-         pragma Assert (not Match_Start (Data, Index));
-      elsif Index mod 3 = 1 then
-         pragma Assert (not Match_Start (Data, Index - 1));
+      if Next_Position (Data, Index) = Index + 4 then
+         pragma Assert (Selected_Token (Data, Index).Length = 4);
+         pragma Assert (Plan_Remaining (Data, Index + 1) = 3);
+         pragma Assert (Plan_Remaining (Data, Index + 2) = 2);
+         pragma Assert (Plan_Remaining (Data, Index + 3) = 1);
+         pragma Assert (Plan_Remaining (Data, Index + 4) = 0);
+      elsif Next_Position (Data, Index) = Index + 3 then
+         pragma Assert (Selected_Token (Data, Index).Length = 3);
+         pragma Assert (Plan_Remaining (Data, Index + 1) = 2);
+         pragma Assert (Plan_Remaining (Data, Index + 2) = 1);
+         pragma Assert (Plan_Remaining (Data, Index + 3) = 0);
       else
-         pragma Assert ((Index + 1) mod 3 = 0);
+         pragma Assert (Next_Position (Data, Index) = Index + 1);
+         pragma Assert (Selected_Token (Data, Index).Length = 1);
+         pragma Assert (Plan_Remaining (Data, Index + 1) = 0);
       end if;
+      pragma Assert
+        (Plan_Start (Data, Next_Position (Data, Index)) = Index);
    end Lemma_Encoding_Next;
 
    procedure Lemma_Compressor_Spec
@@ -692,7 +693,7 @@ package body Inflate.Fixed with SPARK_Mode => On is
                and then Data'Length <= Max_Input
                and then Consumed in 1 .. Input'Length
                and then Index <= Data'Length
-               and then not Match_Continuation (Data, Index)
+               and then Token_Boundary (Data, Index)
                and then Encodes_Prefix (Input, Data, Data'Length)
                and then 3 + Data_Bits (Data, Data'Length) + 7 <=
                           8 * Input'Length
@@ -711,31 +712,34 @@ package body Inflate.Fixed with SPARK_Mode => On is
       Index : Natural)
    is
       Position : constant Natural := 3 + Data_Bits (Data, Index);
+      S        : Symbol_Result;
    begin
       if Index = Data'Length then
          Lemma_EOB_Decodes (Input, Position);
          pragma Assert
            (Spec_Matches (Input, Consumed, Data, Position, Index));
-      elsif Match_Start (Data, Index) then
-         Lemma_Encoding_Next (Data, Index);
-         Lemma_Data_Bits_Segment (Data, Index, Data'Length);
-         Lemma_Match_Decodes
-           (Input, Position, Match_Distance (Data, Index));
-         Lemma_Compressor_Spec (Input, Consumed, Data, Index + 3);
-         pragma Assert
-           (Spec_Matches
-              (Input, Consumed, Data, Position + 12, Index + 3));
       else
+         S := Selected_Token (Data, Index);
          Lemma_Encoding_Next (Data, Index);
          Lemma_Data_Bits_Segment (Data, Index, Data'Length);
-         Lemma_Code_Decodes
-           (Input, Position, Data (Data'First + Index));
-         Lemma_Compressor_Spec (Input, Consumed, Data, Index + 1);
-         pragma Assert
-           (Spec_Matches
-              (Input, Consumed, Data,
-               Position + Code_Length (Data (Data'First + Index)),
-               Index + 1));
+         if S.Kind = Match then
+            Lemma_Match_Decodes
+              (Input, Position, S.Length, S.Distance);
+            Lemma_Compressor_Spec
+              (Input, Consumed, Data, S.Position);
+            pragma Assert
+              (Spec_Matches
+                 (Input, Consumed, Data, Position + 12, S.Position));
+         else
+            Lemma_Code_Decodes
+              (Input, Position, S.Value);
+            Lemma_Compressor_Spec
+              (Input, Consumed, Data, S.Position);
+            pragma Assert
+              (Spec_Matches
+                 (Input, Consumed, Data,
+                  Position + Code_Length (S.Value), S.Position));
+         end if;
       end if;
    end Lemma_Compressor_Spec;
 
@@ -785,7 +789,8 @@ package body Inflate.Fixed with SPARK_Mode => On is
               (Before, After, Consumed, Position, 7);
             Lemma_Byte_Prefix_Frame
               (Before, After, Consumed, Position + 7, 5);
-            Lemma_Match_Decodes (After, Position, S.Distance);
+            Lemma_Match_Decodes
+              (After, Position, S.Length, S.Distance);
             pragma Assert (Next_Symbol (After, Position) = S);
          when End_Of_Block =>
             Lemma_Byte_Prefix_Frame
@@ -886,16 +891,13 @@ package body Inflate.Fixed with SPARK_Mode => On is
    procedure Lemma_Data_Bits_Segment
      (Data : Byte_Array; Position, Count : Natural)
    is
-      Next : constant Natural :=
-        (if Match_Start (Data, Position) then Position + 3 else Position + 1);
+      Next : constant Natural := Next_Position (Data, Position);
    begin
       pragma Assert (Next <= Count);
       pragma Assert
         (Data_Bits (Data, Next) =
            Data_Bits (Data, Position)
-             + (if Match_Start (Data, Position)
-                then 12
-                else Code_Length (Data (Data'First + Position))));
+             + Token_Bit_Cost (Data, Position));
       if Next < Count then
          Lemma_Data_Bits_Segment (Data, Next, Count);
       end if;
@@ -944,80 +946,70 @@ package body Inflate.Fixed with SPARK_Mode => On is
      (Left, Right : Byte_Array; Count, Index : Natural) is null;
 
    procedure Lemma_Match_Functional
-     (Left, Right : Byte_Array; Index, Distance : Natural)
+     (Left, Right : Byte_Array; Index, Length, Distance : Natural)
    with
      Ghost,
      Pre  => Left'Length <= Max_Input
                and then Right'Length <= Max_Input
+               and then Length in 3 | 4
                and then Distance in 1 | 3
+               and then (if Distance = 3 then Length = 3)
                and then Distance <= Index
-               and then 3 <= Left'Length - Index
-               and then 3 <= Right'Length - Index
-               and then Match_Applies (Left, Index, 3, Distance)
-               and then Match_Applies (Right, Index, 3, Distance)
+               and then Length <= Left'Length - Index
+               and then Length <= Right'Length - Index
+               and then Match_Applies (Left, Index, Length, Distance)
+               and then Match_Applies (Right, Index, Length, Distance)
                and then
              (for all I in 0 .. Index - 1 =>
                 Left (Left'First + I) = Right (Right'First + I)),
      Post =>
-       (for all K in 0 .. 2 =>
+       (for all K in 0 .. Length - 1 =>
           Left (Left'First + Index + K) =
             Right (Right'First + Index + K));
 
    procedure Lemma_Match_Functional
-     (Left, Right : Byte_Array; Index, Distance : Natural)
+     (Left, Right : Byte_Array; Index, Length, Distance : Natural)
    is
    begin
-      if Distance = 1 then
-         Lemma_Prefix_Element_Equal
-           (Left, Right, Index, Index - 1);
+      for K in 0 .. Length - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. K - 1 =>
+              Left (Left'First + Index + J) =
+                Right (Right'First + Index + J));
+         if K < Distance then
+            Lemma_Prefix_Element_Equal
+              (Left, Right, Index, Index + K - Distance);
+         else
+            pragma Assert (K - Distance < K);
+         end if;
          pragma Assert
-           (Left (Left'First + Index) = Right (Right'First + Index));
-         pragma Assert
-           (Left (Left'First + Index + 1) =
-              Right (Right'First + Index + 1));
-         pragma Assert
-           (Left (Left'First + Index + 2) =
-              Right (Right'First + Index + 2));
-      else
-         pragma Assert (Distance = 3);
-         Lemma_Prefix_Element_Equal
-           (Left, Right, Index, Index - 3);
-         Lemma_Prefix_Element_Equal
-           (Left, Right, Index, Index - 2);
-         Lemma_Prefix_Element_Equal
-           (Left, Right, Index, Index - 1);
-         pragma Assert
-           (Left (Left'First + Index) = Right (Right'First + Index));
-         pragma Assert
-           (Left (Left'First + Index + 1) =
-              Right (Right'First + Index + 1));
-         pragma Assert
-           (Left (Left'First + Index + 2) =
-              Right (Right'First + Index + 2));
-      end if;
+           (Left (Left'First + Index + K) =
+              Right (Right'First + Index + K));
+      end loop;
    end Lemma_Match_Functional;
 
-   procedure Lemma_Prefix_Extend_Three
-     (Left, Right : Byte_Array; Index : Natural)
+   procedure Lemma_Prefix_Extend_Match
+     (Left, Right : Byte_Array; Index, Length : Natural)
    with
      Ghost,
      Pre  => Index <= Left'Length
                and then Index <= Right'Length
-               and then 3 <= Left'Length - Index
-               and then 3 <= Right'Length - Index
+               and then Length in 3 | 4
+               and then Length <= Left'Length - Index
+               and then Length <= Right'Length - Index
                and then
              (for all I in 0 .. Index - 1 =>
                 Left (Left'First + I) = Right (Right'First + I))
                and then
-             (for all K in 0 .. 2 =>
+             (for all K in 0 .. Length - 1 =>
                 Left (Left'First + Index + K) =
                   Right (Right'First + Index + K)),
      Post =>
-       (for all I in 0 .. Index + 2 =>
+       (for all I in 0 .. Index + Length - 1 =>
           Left (Left'First + I) = Right (Right'First + I));
 
-   procedure Lemma_Prefix_Extend_Three
-     (Left, Right : Byte_Array; Index : Natural) is null;
+   procedure Lemma_Prefix_Extend_Match
+     (Left, Right : Byte_Array; Index, Length : Natural) is null;
 
    procedure Lemma_Spec_Functional
      (Input : Byte_Array;
@@ -1043,9 +1035,9 @@ package body Inflate.Fixed with SPARK_Mode => On is
          pragma Assert (S.Distance <= Index);
          pragma Assert (S.Length <= Left'Length - Index);
          pragma Assert (S.Length <= Right'Length - Index);
-         pragma Assert (S.Length = 3);
-         Lemma_Match_Functional (Left, Right, Index, S.Distance);
-         Lemma_Prefix_Extend_Three (Left, Right, Index);
+         Lemma_Match_Functional
+           (Left, Right, Index, S.Length, S.Distance);
+         Lemma_Prefix_Extend_Match (Left, Right, Index, S.Length);
          pragma Assert
            (for all I in 0 .. Index + S.Length - 1 =>
               Left (Left'First + I) = Right (Right'First + I));
@@ -1116,7 +1108,7 @@ package body Inflate.Fixed with SPARK_Mode => On is
                and then Before'Length <= Max_Stream_Bytes
                and then Data'Length <= Max_Input
                and then Count <= Data'Length
-               and then not Match_Continuation (Data, Count)
+               and then Token_Boundary (Data, Count)
                and then Encodes_Prefix (Before, Data, Count)
                and then
              (for all P in 0 .. 3 + Data_Bits (Data, Count) - 1 =>
@@ -1131,14 +1123,16 @@ package body Inflate.Fixed with SPARK_Mode => On is
    begin
       for J in 0 .. Count - 1 loop
          pragma Loop_Invariant (Encodes_Prefix (After, Data, J));
-         if Match_Start (Data, J) then
-            pragma Assert (J + 3 <= Count);
+         if Token_Boundary (Data, J)
+           and then Selected_Token (Data, J).Kind = Match
+         then
+            pragma Assert (Next_Position (Data, J) <= Count);
             Lemma_Data_Bits_Segment (Data, J, Count);
             Lemma_Prefix_Frame
               (Before, After, 3 + Data_Bits (Data, J), 7);
             Lemma_Prefix_Frame
               (Before, After, 3 + Data_Bits (Data, J) + 7, 5);
-         elsif not Match_Continuation (Data, J) then
+         elsif Token_Boundary (Data, J) then
             Lemma_Data_Bits_Segment (Data, J, Count);
             Lemma_Prefix_Frame
               (Before, After, 3 + Data_Bits (Data, J),
@@ -1156,19 +1150,19 @@ package body Inflate.Fixed with SPARK_Mode => On is
      Pre  => Output'Length <= Max_Stream_Bytes
                and then Data'Length <= Max_Input
                and then Index < Data'Length
-               and then not Match_Continuation (Data, Index)
-               and then New_Index =
-                 (if Match_Start (Data, Index) then Index + 3 else Index + 1)
+               and then Token_Boundary (Data, Index)
+               and then New_Index = Next_Position (Data, Index)
                and then New_Index <= Data'Length
                and then Encodes_Prefix (Output, Data, Index)
                and then
-             (if Match_Start (Data, Index)
+             (if Selected_Token (Data, Index).Kind = Match
               then 3 + Data_Bits (Data, Index) + 12 <= 8 * Output'Length
                    and then Prefix_Value
-                     (Output, 3 + Data_Bits (Data, Index), 7) = 1
+                     (Output, 3 + Data_Bits (Data, Index), 7) =
+                       Selected_Token (Data, Index).Length - 2
                    and then Prefix_Value
                      (Output, 3 + Data_Bits (Data, Index) + 7, 5) =
-                       Match_Distance (Data, Index) - 1
+                       Selected_Token (Data, Index).Distance - 1
               else 3 + Data_Bits (Data, Index)
                      + Code_Length (Data (Data'First + Index)) <=
                        8 * Output'Length
@@ -1184,6 +1178,12 @@ package body Inflate.Fixed with SPARK_Mode => On is
       Index, New_Index : Natural)
    is
    begin
+      Lemma_Encoding_Next (Data, Index);
+      pragma Assert
+        (Data_Bits (Data, New_Index) =
+           Data_Bits (Data, Index) + Token_Bit_Cost (Data, Index));
+      pragma Assert
+        (3 + Data_Bits (Data, New_Index) <= 8 * Output'Length);
       for J in Index .. New_Index - 1 loop
          pragma Loop_Invariant (Encodes_Prefix (Output, Data, J));
          null;
@@ -1212,7 +1212,7 @@ package body Inflate.Fixed with SPARK_Mode => On is
       while Index < Input'Length loop
          pragma Loop_Invariant (Index <= Input'Length);
          pragma Loop_Invariant (Bits = 3 + Data_Bits (Input, Index));
-         pragma Loop_Invariant (not Match_Continuation (Input, Index));
+         pragma Loop_Invariant (Token_Boundary (Input, Index));
          pragma Loop_Invariant
            (3 + Data_Bits (Input, Input'Length) + 7 <=
             8 * Output'Length);
@@ -1223,20 +1223,21 @@ package body Inflate.Fixed with SPARK_Mode => On is
               Bit_Value (Output, P) = 0);
          declare
             B         : constant Byte := Input (Input'First + Index);
+            S         : constant Symbol_Result := Selected_Token (Input, Index);
             Before    : constant Byte_Array := Output with Ghost;
             Old_Index : constant Natural := Index;
             Old_Bits  : constant Natural := Bits;
          begin
             Lemma_Encoding_Next (Input, Index);
             Lemma_Data_Bits_Segment (Input, Index, Input'Length);
-            if Match_Start (Input, Index) then
-               Write_Code (Output, Bits, 7, 1);
+            if S.Kind = Match then
+               Write_Code (Output, Bits, 7, S.Length - 2);
                declare
                   Before_Distance : constant Byte_Array := Output with Ghost;
                begin
                   Write_Code
                     (Output, Bits + 7, 5,
-                     Match_Distance (Input, Index) - 1);
+                     S.Distance - 1);
                   Lemma_Prefix_Frame
                     (Before_Distance, Output, Bits, 7);
                end;
@@ -1245,23 +1246,24 @@ package body Inflate.Fixed with SPARK_Mode => On is
                     Bit_Value (Output, P) = Bit_Value (Before, P));
                Lemma_Encodes_Frame (Before, Output, Input, Old_Index);
                pragma Assert
-                 (Prefix_Value (Output, Old_Bits, 7) = 1);
+                 (Prefix_Value (Output, Old_Bits, 7) = S.Length - 2);
                pragma Assert
                  (Prefix_Value (Output, Old_Bits + 7, 5) =
-                    Match_Distance (Input, Old_Index) - 1);
+                    S.Distance - 1);
                Lemma_Encodes_Add
-                 (Output, Input, Old_Index, Old_Index + 3);
+                 (Output, Input, Old_Index, S.Position);
                pragma Assert
                  (for all P in Old_Bits + 12 ..
                     3 + Data_Bits (Input, Input'Length) + 6 =>
                     Bit_Value (Output, P) = 0);
                pragma Assert
-                 (Data_Bits (Input, Old_Index + 3) =
-                    Data_Bits (Input, Old_Index) + 12);
+                 (Data_Bits (Input, S.Position) =
+                    Data_Bits (Input, Old_Index)
+                      + Token_Bit_Cost (Input, Old_Index));
                pragma Assert
-                 (not Match_Continuation (Input, Old_Index + 3));
+                 (Token_Boundary (Input, S.Position));
                Bits := Bits + 12;
-               Index := Index + 3;
+               Index := S.Position;
                pragma Assert (Bits = 3 + Data_Bits (Input, Index));
                pragma Assert (Encodes_Prefix (Output, Input, Index));
             else
@@ -1280,7 +1282,7 @@ package body Inflate.Fixed with SPARK_Mode => On is
                  (Data_Bits (Input, Old_Index + 1) =
                     Data_Bits (Input, Old_Index) + Code_Length (B));
                pragma Assert
-                 (not Match_Continuation (Input, Old_Index + 1));
+                 (Token_Boundary (Input, Old_Index + 1));
                Bits := Bits + Code_Length (B);
                Index := Index + 1;
                pragma Assert (Bits = 3 + Data_Bits (Input, Index));
@@ -1486,27 +1488,29 @@ package body Inflate.Fixed with SPARK_Mode => On is
 
    procedure Lemma_Match_Frame
      (Before, After : Byte_Array;
-      Count, Index, Distance : Natural)
+      Count, Index, Length, Distance : Natural)
    with
      Ghost,
      Pre  => Before'Length = After'Length
                and then Count <= Before'Length
+               and then Length in 3 | 4
                and then Distance in 1 | 3
+               and then (if Distance = 3 then Length = 3)
                and then Distance <= Index
                and then Index <= Count
-               and then 3 <= Count - Index
-               and then Match_Applies (Before, Index, 3, Distance)
+               and then Length <= Count - Index
+               and then Match_Applies (Before, Index, Length, Distance)
                and then
              (for all I in 0 .. Count - 1 =>
                 After (After'First + I) = Before (Before'First + I)),
-     Post => Match_Applies (After, Index, 3, Distance);
+     Post => Match_Applies (After, Index, Length, Distance);
 
    procedure Lemma_Match_Frame
      (Before, After : Byte_Array;
-      Count, Index, Distance : Natural)
+      Count, Index, Length, Distance : Natural)
    is
    begin
-      for K in 0 .. 2 loop
+      for K in 0 .. Length - 1 loop
          Lemma_Array_Prefix_Element
            (Before, After, Count, Index + K - Distance);
          Lemma_Array_Prefix_Element
@@ -1562,9 +1566,8 @@ package body Inflate.Fixed with SPARK_Mode => On is
          pragma Assert (S.Kind = Match);
          pragma Assert (S.Distance <= Index);
          pragma Assert (S.Length <= End_Index - Index);
-         pragma Assert (S.Length = 3);
          Lemma_Match_Frame
-           (Before, After, End_Index, Index, S.Distance);
+           (Before, After, End_Index, Index, S.Length, S.Distance);
          Lemma_Prefix_Data_Frame
            (Input, Before, After, S.Position, Index + S.Length,
             End_Position, End_Index);
@@ -1715,6 +1718,64 @@ package body Inflate.Fixed with SPARK_Mode => On is
       end if;
    end Lemma_Prefix_Close;
 
+   -------------------------
+   -- Copy_Selected_Match --
+   -------------------------
+
+   --  Execute the concrete match shapes admitted by Next_Symbol and expose
+   --  the same window equation used by the M4 copy primitive.  Keeping this
+   --  operation local avoids duplicating byte-wise copy reasoning in the
+   --  specialized decoder loop.
+   procedure Copy_Selected_Match
+     (Data     : in out Byte_Array;
+      Produced : in out Natural;
+      Length   : in     Natural;
+      Distance : in     Natural)
+   with
+     Pre  => Data'Length <= Max_Input
+               and then Produced <= Data'Length
+               and then Length in 3 | 4
+               and then Distance in 1 | 3
+               and then (if Distance = 3 then Length = 3)
+               and then Distance <= Produced
+               and then Length <= Data'Length - Produced,
+     Post => Produced = Produced'Old + Length
+               and then
+             (for all I in 0 .. Produced'Old - 1 =>
+                Data (Data'First + I) = Data'Old (Data'First + I))
+               and then Match_Applies
+                 (Data, Produced'Old, Length, Distance)
+   is
+      First  : constant Buffer_Index := Data'First;
+      P      : constant Natural := Produced;
+      Before : constant Byte_Array := Data with Ghost;
+   begin
+      if Distance = 1 then
+         Data (First + P .. First - 1 + P + Length) :=
+           (others => Data (First + P - 1));
+         Produced := P + Length;
+         pragma Assert
+           (for all I in 0 .. P - 1 =>
+              Data (First + I) = Before (First + I));
+         pragma Assert
+           (for all K in 0 .. Length - 1 =>
+              Data (First + P + K) = Before (First + P - 1));
+         pragma Assert (Match_Applies (Data, P, Length, Distance));
+      else
+         pragma Assert (Distance = 3 and then Length = 3);
+         Data (First + P .. First + P + 2) :=
+           Data (First + P - 3 .. First + P - 1);
+         Produced := P + Length;
+         pragma Assert
+           (for all I in 0 .. P - 1 =>
+              Data (First + I) = Before (First + I));
+         pragma Assert
+           (for all K in 0 .. Length - 1 =>
+              Data (First + P + K) = Before (First + P - Distance + K));
+         pragma Assert (Match_Applies (Data, P, Length, Distance));
+      end if;
+   end Copy_Selected_Match;
+
    ----------------
    -- Decompress --
    ----------------
@@ -1808,37 +1869,9 @@ package body Inflate.Fixed with SPARK_Mode => On is
                      Old_Position : constant Natural := Position;
                      Old_Count    : constant Natural := Count;
                   begin
-                     pragma Assert (S.Length = 3);
-                     if S.Distance = 1 then
-                        Data (Data'First + Old_Count) :=
-                          Data (Data'First + Old_Count - 1);
-                        Data (Data'First + Old_Count + 1) :=
-                          Data (Data'First + Old_Count);
-                        Data (Data'First + Old_Count + 2) :=
-                          Data (Data'First + Old_Count + 1);
-                     else
-                        pragma Assert (S.Distance = 3);
-                        Data (Data'First + Old_Count) :=
-                          Data (Data'First + Old_Count - 3);
-                        Data (Data'First + Old_Count + 1) :=
-                          Data (Data'First + Old_Count - 2);
-                        Data (Data'First + Old_Count + 2) :=
-                          Data (Data'First + Old_Count - 1);
-                     end if;
-                     pragma Assert
-                       (Data (Data'First + Old_Count) =
-                          Data
-                            (Data'First + Old_Count - S.Distance));
-                     pragma Assert
-                       (Data (Data'First + Old_Count + 1) =
-                          Data
-                            (Data'First + Old_Count + 1 - S.Distance));
-                     pragma Assert
-                       (Data (Data'First + Old_Count + 2) =
-                          Data
-                            (Data'First + Old_Count + 2 - S.Distance));
+                     Copy_Selected_Match
+                       (Data, Count, S.Length, S.Distance);
                      Position := S.Position;
-                     Count := Count + S.Length;
                      pragma Assert
                        (for all I in 0 .. Old_Count - 1 =>
                           Data (Data'First + I) =
