@@ -329,6 +329,12 @@ package body Inflate.GZip with SPARK_Mode => On is
          Raw.Compress_Stored
            (Input, Output (F + 10 .. T - 1), Raw_Produced);
       end if;
+      --  Make the slice frame explicit before the larger body-relation proof
+      --  context is introduced below.
+      pragma Assert (Output (F) = 16#1F#);
+      pragma Assert (Output (F + 1) = 16#8B#);
+      pragma Assert (Output (F + 2) = 8);
+      pragma Assert (Output (F + 3) = 0);
       pragma Assert
         (if Use_Fixed
          then Body_Size <= Fixed.Max_Size (N)

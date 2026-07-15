@@ -158,10 +158,10 @@ The earlier M6a productization gap is resolved: `inflate_cli.gpr` builds the
 A current run of:
 
 ```sh
-gnatprove -P inflate.gpr --level=4 -j0
+gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
 ```
 
-completed successfully with 4,221 checks, all proved. The generated summary
+completed successfully with 4,358 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -175,7 +175,8 @@ Subject to public preconditions, the proof establishes:
   its exact consumed input and produced output;
 - adaptive compressor totality and its exact selected-branch size within the
   public allocation bound;
-- the fixed-Huffman or stored-block relation between compressor input and
+- the fixed-Huffman relation, including selected length-3 matches at distances
+  one and three, or the stored-block relation between compressor input and
   emitted body;
 - compressor-image decode success, exact consumption and production, and
   agreement with the selected relation when the decoded data fits the output;
@@ -225,6 +226,9 @@ The formal result does not establish:
 - static equivalence of the shipping fast decoder and canonical model without
   the runtime validation pass;
 - integration of the isolated M1/M2 proofs into the shipping table builder;
+- general or optimal LZ77 selection in the compressor: fixed-Huffman matching
+  remains limited to aligned length-3 tokens at distances one and three;
+- dynamic-Huffman output from the compressor;
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;
 - stored-DEFLATE, zlib, gzip, or ZIP wire semantics against an independently
@@ -236,13 +240,13 @@ The formal result does not establish:
 
 ## Test evidence
 
-After a forced debug rebuild with language checks enabled and contracts
-disabled, the full test suite completed in 12.6 seconds with:
+With language checks enabled and proof contracts disabled, the full debug test
+suite completed successfully with:
 
 ```text
-generated 6443 cases
-cases: 6443  failures: 0
-compress differential: 16 cases, 0 failures
+generated 6444 cases
+cases: 6444  failures: 0
+compress differential: 17 cases, 0 failures
 ```
 
 This is substantial evidence for general DEFLATE/zlib/gzip behavior, malformed

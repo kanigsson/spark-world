@@ -10,6 +10,12 @@ package body Inflate.Fixed with SPARK_Mode => On is
 
    use Interfaces;
 
+   function Small_Power_Bound
+     (Value, Exponent : Natural) return Boolean
+   is (Value <= 2 ** 11 - 1)
+   with Ghost,
+        Pre => Exponent <= 11 and then Value < 2 ** Exponent;
+
    -----------------------
    -- Encoded_Bit_Count --
    -----------------------
@@ -48,8 +54,14 @@ package body Inflate.Fixed with SPARK_Mode => On is
       if Length = 0 then
          return 0;
       else
-         return 2 * Prefix_Value (Input, Start, Length - 1)
-           + Bit_Value (Input, Start + Length - 1);
+         declare
+            Prefix : constant Natural :=
+              Prefix_Value (Input, Start, Length - 1);
+         begin
+            pragma Assert (Length - 1 <= 11);
+            pragma Assert (Small_Power_Bound (Prefix, Length - 1));
+            return 2 * Prefix + Bit_Value (Input, Start + Length - 1);
+         end;
       end if;
    end Prefix_Value;
 
@@ -64,49 +76,51 @@ package body Inflate.Fixed with SPARK_Mode => On is
       C     : Natural;
    begin
       if Total - Position < 7 then
-         return (Truncated, 0, 0, Position);
+         return (Truncated, 0, 0, 0, Position);
       end if;
 
       C := Prefix_Value (Input, Position, 7);
       if C <= 23 then
          if C = 0 then
             pragma Assert (Prefix_Value (Input, Position, 7) = 0);
-            return (End_Of_Block, 0, 0, Position + 7);
+            return (End_Of_Block, 0, 0, 0, Position + 7);
          elsif C = 1 then
             if Total - Position < 12 then
-               return (Truncated, 0, 0, Position);
+               return (Truncated, 0, 0, 0, Position);
             elsif Prefix_Value (Input, Position + 7, 5) = 0 then
-               return (Match, 0, 3, Position + 12);
+               return (Match, 0, 3, 1, Position + 12);
+            elsif Prefix_Value (Input, Position + 7, 5) = 2 then
+               return (Match, 0, 3, 3, Position + 12);
             else
-               return (Other, 0, 0, Position + 12);
+               return (Other, 0, 0, 0, Position + 12);
             end if;
          else
-            return (Other, 0, 0, Position + 7);
+            return (Other, 0, 0, 0, Position + 7);
          end if;
       end if;
 
       if Total - Position < 8 then
-         return (Truncated, 0, 0, Position);
+         return (Truncated, 0, 0, 0, Position);
       end if;
       C := Prefix_Value (Input, Position, 8);
       if C in 48 .. 191 then
          pragma Assert (Code_Length (Byte (C - 48)) = 8);
          pragma Assert (Code (Byte (C - 48)) = C);
-         return (Literal, Byte (C - 48), 1, Position + 8);
+         return (Literal, Byte (C - 48), 1, 0, Position + 8);
       elsif C in 192 .. 199 then
-         return (Other, 0, 0, Position + 8);
+         return (Other, 0, 0, 0, Position + 8);
       end if;
 
       if Total - Position < 9 then
-         return (Truncated, 0, 0, Position);
+         return (Truncated, 0, 0, 0, Position);
       end if;
       C := Prefix_Value (Input, Position, 9);
       if C in 400 .. 511 then
          pragma Assert (Code_Length (Byte (C - 256)) = 9);
          pragma Assert (Code (Byte (C - 256)) = C);
-         return (Literal, Byte (C - 256), 1, Position + 9);
+         return (Literal, Byte (C - 256), 1, 0, Position + 9);
       else
-         return (Other, 0, 0, Position + 9);
+         return (Other, 0, 0, 0, Position + 9);
       end if;
    end Next_Symbol;
 
@@ -136,15 +150,18 @@ package body Inflate.Fixed with SPARK_Mode => On is
                end;
             end if;
          when Match =>
-            if Decoded = 0 or else Decoded > Max_Input - 3 then
+            if S.Distance > Decoded
+              or else S.Length > Max_Input - Decoded
+            then
                return (False, 0, 0);
             else
                declare
                   Tail : constant Stream_Info :=
-                    Spec_Walk (Input, S.Position, Decoded + 3);
+                    Spec_Walk (Input, S.Position, Decoded + S.Length);
                begin
                   if Tail.Valid then
-                     return (True, Tail.End_Bit, Tail.Decoded_Length + 3);
+                     return
+                       (True, Tail.End_Bit, Tail.Decoded_Length + S.Length);
                   else
                      return (False, 0, 0);
                   end if;
@@ -197,13 +214,13 @@ package body Inflate.Fixed with SPARK_Mode => On is
                                  .Decoded_Length)
                      else (False, 0, 0)));
             when Match =>
-               if Decoded + Count = 0
-                 or else Decoded + Count > Max_Input - 3
+               if S.Distance > Decoded + Count
+                 or else S.Length > Max_Input - (Decoded + Count)
                then
                   return (False, 0, 0);
                end if;
                P := S.Position;
-               Count := Count + 3;
+               Count := Count + S.Length;
                pragma Assert
                  (Spec_Walk (Input, Start, Decoded) =
                     (if Spec_Walk (Input, P, Decoded + Count).Valid
@@ -310,20 +327,22 @@ package body Inflate.Fixed with SPARK_Mode => On is
    end Lemma_Code_Decodes;
 
    procedure Lemma_Match_Decodes
-     (Input : Byte_Array; Position : Natural)
+     (Input : Byte_Array; Position, Distance : Natural)
    with
      Ghost,
      Pre  => Input'Length <= Max_Stream_Bytes
                and then Position <= 8 * Input'Length
+               and then Distance in 1 | 3
                and then 12 <= 8 * Input'Length - Position
                and then Prefix_Value (Input, Position, 7) = 1
-               and then Prefix_Value (Input, Position + 7, 5) = 0,
+               and then Prefix_Value (Input, Position + 7, 5) = Distance - 1,
      Post => Next_Symbol (Input, Position).Kind = Match
                and then Next_Symbol (Input, Position).Length = 3
+               and then Next_Symbol (Input, Position).Distance = Distance
                and then Next_Symbol (Input, Position).Position = Position + 12;
 
    procedure Lemma_Match_Decodes
-     (Input : Byte_Array; Position : Natural) is null;
+     (Input : Byte_Array; Position, Distance : Natural) is null;
 
    procedure Lemma_EOB_Decodes
      (Input : Byte_Array; Position : Natural)
@@ -381,10 +400,10 @@ package body Inflate.Fixed with SPARK_Mode => On is
            (Input, Consumed, Data, S.Position, Index + 1);
       else
          pragma Assert (S.Kind = Match);
-         pragma Assert (Index > 0);
-         pragma Assert (Data'Length - Index >= 3);
+         pragma Assert (S.Distance <= Index);
+         pragma Assert (S.Length <= Data'Length - Index);
          Lemma_Matches_Walk
-           (Input, Consumed, Data, S.Position, Index + 3);
+           (Input, Consumed, Data, S.Position, Index + S.Length);
       end if;
    end Lemma_Matches_Walk;
 
@@ -551,16 +570,11 @@ package body Inflate.Fixed with SPARK_Mode => On is
                  and then Spec_Matches
                    (Input, Consumed, Data, S.Position, Index + 1);
             when Match =>
-               return Index > 0
-                 and then Data'Length - Index >= 3
-                 and then Data (Data'First + Index) =
-                            Data (Data'First + Index - 1)
-                 and then Data (Data'First + Index + 1) =
-                            Data (Data'First + Index)
-                 and then Data (Data'First + Index + 2) =
-                            Data (Data'First + Index + 1)
+               return Match_Applies
+                 (Data, Index, S.Length, S.Distance)
                  and then Spec_Matches
-                   (Input, Consumed, Data, S.Position, Index + 3);
+                   (Input, Consumed, Data,
+                    S.Position, Index + S.Length);
             when End_Of_Block | Other | Truncated =>
                return False;
          end case;
@@ -595,19 +609,13 @@ package body Inflate.Fixed with SPARK_Mode => On is
                Position := S.Position;
                Index := Index + 1;
             when Match =>
-               if Index = 0
-                 or else Data'Length - Index < 3
-                 or else Data (Data'First + Index) /=
-                           Data (Data'First + Index - 1)
-                 or else Data (Data'First + Index + 1) /=
-                           Data (Data'First + Index)
-                 or else Data (Data'First + Index + 2) /=
-                           Data (Data'First + Index + 1)
+               if not Match_Applies
+                 (Data, Index, S.Length, S.Distance)
                then
                   return False;
                end if;
                Position := S.Position;
-               Index := Index + 3;
+               Index := Index + S.Length;
             when End_Of_Block | Other | Truncated =>
                return False;
          end case;
@@ -711,7 +719,8 @@ package body Inflate.Fixed with SPARK_Mode => On is
       elsif Match_Start (Data, Index) then
          Lemma_Encoding_Next (Data, Index);
          Lemma_Data_Bits_Segment (Data, Index, Data'Length);
-         Lemma_Match_Decodes (Input, Position);
+         Lemma_Match_Decodes
+           (Input, Position, Match_Distance (Data, Index));
          Lemma_Compressor_Spec (Input, Consumed, Data, Index + 3);
          pragma Assert
            (Spec_Matches
@@ -776,7 +785,7 @@ package body Inflate.Fixed with SPARK_Mode => On is
               (Before, After, Consumed, Position, 7);
             Lemma_Byte_Prefix_Frame
               (Before, After, Consumed, Position + 7, 5);
-            Lemma_Match_Decodes (After, Position);
+            Lemma_Match_Decodes (After, Position, S.Distance);
             pragma Assert (Next_Symbol (After, Position) = S);
          when End_Of_Block =>
             Lemma_Byte_Prefix_Frame
@@ -831,9 +840,10 @@ package body Inflate.Fixed with SPARK_Mode => On is
             Lemma_Spec_Frame
               (Before, After, Consumed, Data, S.Position, Index + 1);
          else
-            pragma Assert (Data'Length - Index >= 3);
+            pragma Assert (S.Length <= Data'Length - Index);
             Lemma_Spec_Frame
-              (Before, After, Consumed, Data, S.Position, Index + 3);
+              (Before, After, Consumed, Data,
+               S.Position, Index + S.Length);
          end if;
       end if;
    end Lemma_Spec_Frame;
@@ -918,20 +928,96 @@ package body Inflate.Fixed with SPARK_Mode => On is
                 Left (Left'First + I) = Right (Right'First + I)),
      Subprogram_Variant => (Decreases => 8 * Consumed - Position);
 
-   procedure Lemma_Last_Equal
-     (Left, Right : Byte_Array; Index : Positive)
+   procedure Lemma_Prefix_Element_Equal
+     (Left, Right : Byte_Array; Count, Index : Natural)
+   with
+     Ghost,
+     Pre  => Count <= Left'Length
+               and then Count <= Right'Length
+               and then Index < Count
+               and then
+             (for all I in 0 .. Count - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Post => Left (Left'First + Index) = Right (Right'First + Index);
+
+   procedure Lemma_Prefix_Element_Equal
+     (Left, Right : Byte_Array; Count, Index : Natural) is null;
+
+   procedure Lemma_Match_Functional
+     (Left, Right : Byte_Array; Index, Distance : Natural)
+   with
+     Ghost,
+     Pre  => Left'Length <= Max_Input
+               and then Right'Length <= Max_Input
+               and then Distance in 1 | 3
+               and then Distance <= Index
+               and then 3 <= Left'Length - Index
+               and then 3 <= Right'Length - Index
+               and then Match_Applies (Left, Index, 3, Distance)
+               and then Match_Applies (Right, Index, 3, Distance)
+               and then
+             (for all I in 0 .. Index - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Post =>
+       (for all K in 0 .. 2 =>
+          Left (Left'First + Index + K) =
+            Right (Right'First + Index + K));
+
+   procedure Lemma_Match_Functional
+     (Left, Right : Byte_Array; Index, Distance : Natural)
+   is
+   begin
+      if Distance = 1 then
+         Lemma_Prefix_Element_Equal
+           (Left, Right, Index, Index - 1);
+         pragma Assert
+           (Left (Left'First + Index) = Right (Right'First + Index));
+         pragma Assert
+           (Left (Left'First + Index + 1) =
+              Right (Right'First + Index + 1));
+         pragma Assert
+           (Left (Left'First + Index + 2) =
+              Right (Right'First + Index + 2));
+      else
+         pragma Assert (Distance = 3);
+         Lemma_Prefix_Element_Equal
+           (Left, Right, Index, Index - 3);
+         Lemma_Prefix_Element_Equal
+           (Left, Right, Index, Index - 2);
+         Lemma_Prefix_Element_Equal
+           (Left, Right, Index, Index - 1);
+         pragma Assert
+           (Left (Left'First + Index) = Right (Right'First + Index));
+         pragma Assert
+           (Left (Left'First + Index + 1) =
+              Right (Right'First + Index + 1));
+         pragma Assert
+           (Left (Left'First + Index + 2) =
+              Right (Right'First + Index + 2));
+      end if;
+   end Lemma_Match_Functional;
+
+   procedure Lemma_Prefix_Extend_Three
+     (Left, Right : Byte_Array; Index : Natural)
    with
      Ghost,
      Pre  => Index <= Left'Length
                and then Index <= Right'Length
+               and then 3 <= Left'Length - Index
+               and then 3 <= Right'Length - Index
                and then
              (for all I in 0 .. Index - 1 =>
-                Left (Left'First + I) = Right (Right'First + I)),
-     Post => Left (Left'First + Index - 1) =
-               Right (Right'First + Index - 1);
+                Left (Left'First + I) = Right (Right'First + I))
+               and then
+             (for all K in 0 .. 2 =>
+                Left (Left'First + Index + K) =
+                  Right (Right'First + Index + K)),
+     Post =>
+       (for all I in 0 .. Index + 2 =>
+          Left (Left'First + I) = Right (Right'First + I));
 
-   procedure Lemma_Last_Equal
-     (Left, Right : Byte_Array; Index : Positive) is null;
+   procedure Lemma_Prefix_Extend_Three
+     (Left, Right : Byte_Array; Index : Natural) is null;
 
    procedure Lemma_Spec_Functional
      (Input : Byte_Array;
@@ -954,23 +1040,18 @@ package body Inflate.Fixed with SPARK_Mode => On is
            (Input, Consumed, Left, Right, S.Position, Index + 1);
       else
          pragma Assert (S.Kind = Match);
-         pragma Assert (Index > 0);
-         pragma Assert (Left'Length - Index >= 3);
-         pragma Assert (Right'Length - Index >= 3);
-         Lemma_Last_Equal (Left, Right, Index);
+         pragma Assert (S.Distance <= Index);
+         pragma Assert (S.Length <= Left'Length - Index);
+         pragma Assert (S.Length <= Right'Length - Index);
+         pragma Assert (S.Length = 3);
+         Lemma_Match_Functional (Left, Right, Index, S.Distance);
+         Lemma_Prefix_Extend_Three (Left, Right, Index);
          pragma Assert
-           (Left (Left'First + Index - 1) =
-              Right (Right'First + Index - 1));
-         pragma Assert
-           (Left (Left'First + Index) = Right (Right'First + Index));
-         pragma Assert
-           (Left (Left'First + Index + 1) =
-              Right (Right'First + Index + 1));
-         pragma Assert
-           (Left (Left'First + Index + 2) =
-              Right (Right'First + Index + 2));
+           (for all I in 0 .. Index + S.Length - 1 =>
+              Left (Left'First + I) = Right (Right'First + I));
          Lemma_Spec_Functional
-           (Input, Consumed, Left, Right, S.Position, Index + 3);
+           (Input, Consumed, Left, Right,
+            S.Position, Index + S.Length);
       end if;
    end Lemma_Spec_Functional;
 
@@ -1086,7 +1167,8 @@ package body Inflate.Fixed with SPARK_Mode => On is
                    and then Prefix_Value
                      (Output, 3 + Data_Bits (Data, Index), 7) = 1
                    and then Prefix_Value
-                     (Output, 3 + Data_Bits (Data, Index) + 7, 5) = 0
+                     (Output, 3 + Data_Bits (Data, Index) + 7, 5) =
+                       Match_Distance (Data, Index) - 1
               else 3 + Data_Bits (Data, Index)
                      + Code_Length (Data (Data'First + Index)) <=
                        8 * Output'Length
@@ -1149,15 +1231,24 @@ package body Inflate.Fixed with SPARK_Mode => On is
             Lemma_Data_Bits_Segment (Input, Index, Input'Length);
             if Match_Start (Input, Index) then
                Write_Code (Output, Bits, 7, 1);
+               declare
+                  Before_Distance : constant Byte_Array := Output with Ghost;
+               begin
+                  Write_Code
+                    (Output, Bits + 7, 5,
+                     Match_Distance (Input, Index) - 1);
+                  Lemma_Prefix_Frame
+                    (Before_Distance, Output, Bits, 7);
+               end;
                pragma Assert
                  (for all P in 0 .. Old_Bits - 1 =>
                     Bit_Value (Output, P) = Bit_Value (Before, P));
                Lemma_Encodes_Frame (Before, Output, Input, Old_Index);
-               Lemma_Zero_Prefix (Output, Bits + 7, 5);
                pragma Assert
                  (Prefix_Value (Output, Old_Bits, 7) = 1);
                pragma Assert
-                 (Prefix_Value (Output, Old_Bits + 7, 5) = 0);
+                 (Prefix_Value (Output, Old_Bits + 7, 5) =
+                    Match_Distance (Input, Old_Index) - 1);
                Lemma_Encodes_Add
                  (Output, Input, Old_Index, Old_Index + 3);
                pragma Assert
@@ -1253,17 +1344,16 @@ package body Inflate.Fixed with SPARK_Mode => On is
           and then Next_Symbol (Input, Position).Kind = Match =>
           Prefix_Matches'Result =
             (Next_Symbol (Input, Position).Position <= End_Position
-             and then Index > 0
-             and then End_Index - Index >= 3
-             and then Data (Data'First + Index) =
-                        Data (Data'First + Index - 1)
-             and then Data (Data'First + Index + 1) =
-                        Data (Data'First + Index)
-             and then Data (Data'First + Index + 2) =
-                        Data (Data'First + Index + 1)
+             and then Next_Symbol (Input, Position).Length <=
+                        End_Index - Index
+             and then Match_Applies
+               (Data, Index,
+                Next_Symbol (Input, Position).Length,
+                Next_Symbol (Input, Position).Distance)
              and then Prefix_Matches
                (Input, Data,
-                Next_Symbol (Input, Position).Position, Index + 3,
+                Next_Symbol (Input, Position).Position,
+                Index + Next_Symbol (Input, Position).Length,
                 End_Position, End_Index)),
         others => not Prefix_Matches'Result),
      Subprogram_Variant => (Decreases => End_Position - Position);
@@ -1287,16 +1377,11 @@ package body Inflate.Fixed with SPARK_Mode => On is
                  End_Position, End_Index);
          when Match =>
             return S.Position <= End_Position
-              and then Index > 0
-              and then End_Index - Index >= 3
-              and then Data (Data'First + Index) =
-                         Data (Data'First + Index - 1)
-              and then Data (Data'First + Index + 1) =
-                         Data (Data'First + Index)
-              and then Data (Data'First + Index + 2) =
-                         Data (Data'First + Index + 1)
+              and then S.Length <= End_Index - Index
+              and then Match_Applies
+                (Data, Index, S.Length, S.Distance)
               and then Prefix_Matches
-                (Input, Data, S.Position, Index + 3,
+                (Input, Data, S.Position, Index + S.Length,
                  End_Position, End_Index);
          when End_Of_Block | Other | Truncated =>
             return False;
@@ -1325,14 +1410,12 @@ package body Inflate.Fixed with SPARK_Mode => On is
         Next_Symbol (Input, Position).Kind = Match =>
           One_Token_Matches'Result =
             (End_Position = Next_Symbol (Input, Position).Position
-             and then End_Index = Index + 3
-             and then Index > 0
-             and then Data (Data'First + Index) =
-                        Data (Data'First + Index - 1)
-             and then Data (Data'First + Index + 1) =
-                        Data (Data'First + Index)
-             and then Data (Data'First + Index + 2) =
-                        Data (Data'First + Index + 1)),
+             and then End_Index =
+                        Index + Next_Symbol (Input, Position).Length
+             and then Match_Applies
+               (Data, Index,
+                Next_Symbol (Input, Position).Length,
+                Next_Symbol (Input, Position).Distance)),
         others => not One_Token_Matches'Result);
 
    function One_Token_Matches
@@ -1348,18 +1431,42 @@ package body Inflate.Fixed with SPARK_Mode => On is
            and then Data (Data'First + Index) = S.Value;
       elsif S.Kind = Match then
          return End_Position = S.Position
-           and then End_Index = Index + 3
-           and then Index > 0
-           and then Data (Data'First + Index) =
-                      Data (Data'First + Index - 1)
-           and then Data (Data'First + Index + 1) =
-                      Data (Data'First + Index)
-           and then Data (Data'First + Index + 2) =
-                      Data (Data'First + Index + 1);
+           and then End_Index = Index + S.Length
+           and then Match_Applies
+             (Data, Index, S.Length, S.Distance);
       else
          return False;
       end if;
    end One_Token_Matches;
+
+   procedure Lemma_One_Match_Token
+     (Input : Byte_Array;
+      Data : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Position <= 8 * Input'Length
+               and then Index < End_Index
+               and then End_Index <= Data'Length
+               and then End_Position <= 8 * Input'Length
+               and then Next_Symbol (Input, Position).Kind = Match
+               and then End_Position =
+                          Next_Symbol (Input, Position).Position
+               and then End_Index =
+                          Index + Next_Symbol (Input, Position).Length
+               and then Match_Applies
+                 (Data, Index,
+                  Next_Symbol (Input, Position).Length,
+                  Next_Symbol (Input, Position).Distance),
+     Post => One_Token_Matches
+       (Input, Data, Position, Index, End_Position, End_Index);
+
+   procedure Lemma_One_Match_Token
+     (Input : Byte_Array;
+      Data : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural) is null;
 
    procedure Lemma_Array_Prefix_Element
      (Before, After : Byte_Array; Count, Position : Natural)
@@ -1376,6 +1483,39 @@ package body Inflate.Fixed with SPARK_Mode => On is
 
    procedure Lemma_Array_Prefix_Element
      (Before, After : Byte_Array; Count, Position : Natural) is null;
+
+   procedure Lemma_Match_Frame
+     (Before, After : Byte_Array;
+      Count, Index, Distance : Natural)
+   with
+     Ghost,
+     Pre  => Before'Length = After'Length
+               and then Count <= Before'Length
+               and then Distance in 1 | 3
+               and then Distance <= Index
+               and then Index <= Count
+               and then 3 <= Count - Index
+               and then Match_Applies (Before, Index, 3, Distance)
+               and then
+             (for all I in 0 .. Count - 1 =>
+                After (After'First + I) = Before (Before'First + I)),
+     Post => Match_Applies (After, Index, 3, Distance);
+
+   procedure Lemma_Match_Frame
+     (Before, After : Byte_Array;
+      Count, Index, Distance : Natural)
+   is
+   begin
+      for K in 0 .. 2 loop
+         Lemma_Array_Prefix_Element
+           (Before, After, Count, Index + K - Distance);
+         Lemma_Array_Prefix_Element
+           (Before, After, Count, Index + K);
+         pragma Assert
+           (After (After'First + Index + K) =
+              After (After'First + Index + K - Distance));
+      end loop;
+   end Lemma_Match_Frame;
 
    procedure Lemma_Prefix_Data_Frame
      (Input : Byte_Array;
@@ -1420,22 +1560,17 @@ package body Inflate.Fixed with SPARK_Mode => On is
                End_Position, End_Index));
       else
          pragma Assert (S.Kind = Match);
-         pragma Assert (Index > 0);
-         pragma Assert (End_Index - Index >= 3);
-         Lemma_Array_Prefix_Element
-           (Before, After, End_Index, Index - 1);
-         Lemma_Array_Prefix_Element
-           (Before, After, End_Index, Index);
-         Lemma_Array_Prefix_Element
-           (Before, After, End_Index, Index + 1);
-         Lemma_Array_Prefix_Element
-           (Before, After, End_Index, Index + 2);
+         pragma Assert (S.Distance <= Index);
+         pragma Assert (S.Length <= End_Index - Index);
+         pragma Assert (S.Length = 3);
+         Lemma_Match_Frame
+           (Before, After, End_Index, Index, S.Distance);
          Lemma_Prefix_Data_Frame
-           (Input, Before, After, S.Position, Index + 3,
+           (Input, Before, After, S.Position, Index + S.Length,
             End_Position, End_Index);
          pragma Assert
            (Prefix_Matches
-              (Input, After, S.Position, Index + 3,
+              (Input, After, S.Position, Index + S.Length,
                End_Position, End_Index));
       end if;
       pragma Assert
@@ -1486,8 +1621,9 @@ package body Inflate.Fixed with SPARK_Mode => On is
             Old_Position, Old_Index, New_Position, New_Index);
       else
          pragma Assert (S.Kind = Match);
+         pragma Assert (Index + S.Length <= Old_Index);
          Lemma_Prefix_Snoc
-           (Input, Data, S.Position, Index + 3,
+           (Input, Data, S.Position, Index + S.Length,
             Old_Position, Old_Index, New_Position, New_Index);
       end if;
    end Lemma_Prefix_Snoc;
@@ -1574,7 +1710,7 @@ package body Inflate.Fixed with SPARK_Mode => On is
       else
          pragma Assert (S.Kind = Match);
          Lemma_Prefix_Close
-           (Input, Consumed, Data, S.Position, Index + 3,
+           (Input, Consumed, Data, S.Position, Index + S.Length,
             End_Position, End_Index);
       end if;
    end Lemma_Prefix_Close;
@@ -1652,46 +1788,83 @@ package body Inflate.Fixed with SPARK_Mode => On is
                         Old_Position, Old_Count, Position, Count);
                   end;
                when Match =>
-                  pragma Assert (Count > 0);
-                  pragma Assert (Info.Decoded_Length - Count >= 3);
+                  pragma Assert (S.Distance <= Count);
                   pragma Assert
-                    (Spec_Walk (Input, S.Position, Count + 3).Valid);
+                    (S.Length <= Info.Decoded_Length - Count);
                   pragma Assert
-                    (Spec_Walk (Input, S.Position, Count + 3).End_Bit =
-                       Info.End_Bit);
+                    (Spec_Walk
+                       (Input, S.Position, Count + S.Length).Valid);
                   pragma Assert
-                    (Count + 3
-                       + Spec_Walk (Input, S.Position, Count + 3)
+                    (Spec_Walk
+                       (Input, S.Position, Count + S.Length).End_Bit =
+                         Info.End_Bit);
+                  pragma Assert
+                    (Count + S.Length
+                       + Spec_Walk
+                           (Input, S.Position, Count + S.Length)
                            .Decoded_Length = Info.Decoded_Length);
                   declare
                      Before       : constant Byte_Array := Data with Ghost;
                      Old_Position : constant Natural := Position;
                      Old_Count    : constant Natural := Count;
                   begin
-                     Data (Data'First + Count) :=
-                       Data (Data'First + Count - 1);
-                     Data (Data'First + Count + 1) :=
-                       Data (Data'First + Count);
-                     Data (Data'First + Count + 2) :=
-                       Data (Data'First + Count + 1);
+                     pragma Assert (S.Length = 3);
+                     if S.Distance = 1 then
+                        Data (Data'First + Old_Count) :=
+                          Data (Data'First + Old_Count - 1);
+                        Data (Data'First + Old_Count + 1) :=
+                          Data (Data'First + Old_Count);
+                        Data (Data'First + Old_Count + 2) :=
+                          Data (Data'First + Old_Count + 1);
+                     else
+                        pragma Assert (S.Distance = 3);
+                        Data (Data'First + Old_Count) :=
+                          Data (Data'First + Old_Count - 3);
+                        Data (Data'First + Old_Count + 1) :=
+                          Data (Data'First + Old_Count - 2);
+                        Data (Data'First + Old_Count + 2) :=
+                          Data (Data'First + Old_Count - 1);
+                     end if;
+                     pragma Assert
+                       (Data (Data'First + Old_Count) =
+                          Data
+                            (Data'First + Old_Count - S.Distance));
+                     pragma Assert
+                       (Data (Data'First + Old_Count + 1) =
+                          Data
+                            (Data'First + Old_Count + 1 - S.Distance));
+                     pragma Assert
+                       (Data (Data'First + Old_Count + 2) =
+                          Data
+                            (Data'First + Old_Count + 2 - S.Distance));
                      Position := S.Position;
-                     Count := Count + 3;
+                     Count := Count + S.Length;
                      pragma Assert
                        (for all I in 0 .. Old_Count - 1 =>
                           Data (Data'First + I) =
                             Before (Before'First + I));
                      pragma Assert
-                       (Data (Data'First + Old_Count) =
-                          Data (Data'First + Old_Count - 1));
-                     pragma Assert
-                       (Data (Data'First + Old_Count + 1) =
-                          Data (Data'First + Old_Count));
-                     pragma Assert
-                       (Data (Data'First + Old_Count + 2) =
-                          Data (Data'First + Old_Count + 1));
+                       (Match_Applies
+                          (Data, Old_Count, S.Length, S.Distance));
                      pragma Assert (S.Kind = Match);
                      pragma Assert (Position = S.Position);
-                     pragma Assert (Count = Old_Count + 3);
+                     pragma Assert (Count = Old_Count + S.Length);
+                     pragma Assert
+                       (Next_Symbol (Input, Old_Position) = S);
+                     pragma Assert
+                       (Position =
+                          Next_Symbol (Input, Old_Position).Position);
+                     pragma Assert
+                       (Count = Old_Count
+                          + Next_Symbol (Input, Old_Position).Length);
+                     pragma Assert
+                       (Match_Applies
+                          (Data, Old_Count,
+                           Next_Symbol (Input, Old_Position).Length,
+                           Next_Symbol (Input, Old_Position).Distance));
+                     Lemma_One_Match_Token
+                       (Input, Data, Old_Position, Old_Count,
+                        Position, Count);
                      pragma Assert
                        (One_Token_Matches
                           (Input, Data, Old_Position, Old_Count,

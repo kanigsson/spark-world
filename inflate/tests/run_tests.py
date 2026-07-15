@@ -60,6 +60,7 @@ def case(mode, comp, expect, consumed=-1, tag=None):
 
 
 compress_checks = []  # (input_path, original_bytes)
+TRIPLE_RUN = b"ABC" * 1000
 
 
 def gen_compress(files):
@@ -69,7 +70,9 @@ def gen_compress(files):
     with C zlib and compares, so the compressor is differentially tested
     from both sides."""
     global n_files
-    for name, data in sorted(files.items()):
+    inputs = dict(files)
+    inputs["triple-run.bin"] = TRIPLE_RUN
+    for name, data in sorted(inputs.items()):
         n_files += 1
         inp = put("c%05d.in" % n_files, data)
         manifest.append(("compress", inp, "-", str(len(data) + 64), "-1"))
@@ -114,6 +117,15 @@ def check_compress_outputs():
             if len(member) * 4 >= len(data) * 3:
                 print("FAIL compress %s: zero-run ratio did not improve"
                       % inp)
+                bad += 1
+        if data == TRIPLE_RUN:
+            raw = member[10:-8]
+            # Header and three literals consume 27 bits.  The next token is
+            # length 3 followed by fixed distance code 2 (distance 3).
+            if (stream_prefix(raw, 27, 7) != 1
+                    or stream_prefix(raw, 34, 5) != 2):
+                print("FAIL compress %s: repeated triple did not emit the "
+                      "length-3/distance-3 match" % inp)
                 bad += 1
     print("compress differential: %d cases, %d failures"
           % (len(compress_checks), bad))

@@ -8,8 +8,8 @@ initialization/data-flow checks included in the proof run described below.
 Every successful raw DEFLATE decode is also proved to satisfy an executable
 canonical decode model; that model and the returned bytes are differentially
 tested against C zlib. The gzip compressor (fixed Huffman with verified run
-matches throughout the fixed encoder's arithmetic domain, stored blocks above
-it)
+and repeated-three-byte matches throughout the fixed encoder's arithmetic
+domain, stored blocks above it)
 and decompressor additionally carry a **proved
 round-trip theorem**: `Inflate.Theorems.GZip_Round_Trip` states — and the
 proof establishes for every input — that decompressing the compressor's
@@ -63,16 +63,18 @@ ZIP extractor are ordinary clients of `Inflate.Raw`.
 
 The library compresses to standard gzip. Inputs through
 `Inflate.Fixed.Max_Input` use one final fixed-Huffman block. A deliberately
-small match finder replaces aligned three-byte runs with the fixed-code
-`(length = 3, distance = 1)` pair; other bytes remain literals. This exercises
-the overlapping LZ77 copy equation and roughly halves the fixed body for long
-single-byte runs without making an optimality claim. `Max_Input` is derived
-from the largest stream whose bit offsets plus the gzip trailer fit in
-`Natural` (238,609,285 input bytes on the current target). Still larger inputs
-retain the stored-block encoder, so the public compressor and theorem keep
-their original domain. Dynamic trees and a broader match finder remain M6
-ratio work. Any gzip decoder consumes either output. The contract is preserved
-across both branches:
+small match finder replaces aligned groups with fixed-code length-3 matches:
+distance 1 for single-byte runs, or distance 3 when a group repeats the
+preceding three bytes. Other bytes remain literals. This exercises both the
+overlapping and non-overlapping LZ77 window equations, improves periodic
+three-byte data as well as long runs, and makes no optimality claim.
+`Max_Input` is derived from the largest stream whose bit offsets plus the gzip
+trailer fit in `Natural` (238,609,285 input bytes on the current target). Still
+larger inputs retain the stored-block encoder, so the public compressor and
+theorem keep their original domain. Dynamic trees and unaligned,
+variable-length, or wider-distance matches remain M6 ratio work. Any gzip
+decoder consumes either output. The contract is preserved across both
+branches:
 
 - **Totality and size.** Under the stated preconditions there is no failure
   path. `GZip.Compressed_Size` is the allocation bound; the produced size is
@@ -101,7 +103,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **4,221 checks,
+The most recent recorded `gnatprove --level=4` run reported **4,358 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -178,7 +180,7 @@ checked at run time.
 
 ## Testing
 
-`tests/run_tests.py` generates **6443 cases** and runs them through the debug
+`tests/run_tests.py` generates **6444 cases** and runs them through the debug
 harness with language run-time checks enabled and proof contracts disabled;
 the expected verdict comes from C zlib (Python's binding) on the same bytes,
 so the suite is a differential test, not a self-test:
@@ -247,8 +249,9 @@ cd bench && gprbuild -P bench.gpr && python3 run_bench.py   # needs libz.a
 
 The command-line front end reads and writes whole files, like the one-shot
 library API. Compression produces a standard gzip member using fixed Huffman
-coding with verified run matches (and the stored fallback above the fixed
-domain); decompression accepts ordinary gzip files and concatenated members.
+coding with verified run and repeated-three-byte matches (and the stored
+fallback above the fixed domain); decompression accepts ordinary gzip files
+and concatenated members.
 
 ```sh
 bin/inflate compress input.dat output.gz

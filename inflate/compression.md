@@ -176,10 +176,10 @@ and its public postcondition exposes the relation. Thus the proof is
 unconditional for successful foreign DEFLATE streams but remains explicitly
 relative to this executable model, not to RFC prose.
 
-The focused model proves all 685 checks and the full library proves all 2,242
-checks at `--level=2`. The debug differential suite passes 6,443
-generated/corpus cases plus 16 compressor interoperability cases, with language
-checks enabled and proof contracts disabled. The ordinary
+At that milestone, the focused model proved all 685 checks and the full library
+proved all 2,242 checks at `--level=2`. The debug differential suite passed
+6,443 generated/corpus cases plus 16 compressor interoperability cases, with
+language checks enabled and proof contracts disabled. The ordinary
 model path is iterative; the older recursive stored-only relations remain for
 the M6a proof but are not executed by project debug builds.
 
@@ -228,12 +228,14 @@ M2–M5, it does not avoid them.
 **Current status: in progress, with a verified fixed-Huffman LZ77 slice.**
 `Inflate.Fixed` emits and recognizes one final fixed-code block containing
 literals, selected matches, and end-of-block. Its deliberately small match
-finder partitions the input into aligned three-byte groups and emits
-`(length = 3, distance = 1)` when all three bytes repeat the preceding byte.
-That is a real overlapping back-reference, locally justified by the same M4
-window equation; all other bytes remain literals. Long single-byte runs now
-take about four compressed bits per byte instead of eight, while arbitrary
-data retains the literal path.
+finder partitions the input into aligned three-byte groups. It emits
+`(length = 3, distance = 1)` when a group continues a single-byte run, or
+`(length = 3, distance = 3)` when the group repeats the preceding three bytes.
+Both are real back-references locally justified by the same M4 window equation:
+the first overlaps and the second does not. All other bytes remain literals.
+Long single-byte runs now take about four compressed bits per byte instead of
+eight, repeated three-byte phrases benefit as well, and arbitrary data retains
+the literal path.
 
 The arbitrary 32-symbol M3 harness bound remains gone: `Max_Input` is derived
 from the largest stream whose bit offsets plus gzip trailer fit in `Natural`
@@ -243,10 +245,10 @@ recursive relations and framing lemmas are erased from checks-enabled builds.
 `Inflate.GZip.Compress` selects this fixed coding throughout that domain and
 uses the stored encoder above it. `Inflate.Raw.Decompress` retains a proved
 success path for the expanded image, and the unchanged
-`Inflate.Theorems.GZip_Round_Trip` theorem composes both branches. A broader
-match finder and dynamic trees remain open M6 ratio work. The focused
-fixed-code unit proves all 1,810 checks and the full library all 4,221 checks at
-`--level=4`, with no justifications or assumptions.
+`Inflate.Theorems.GZip_Round_Trip` theorem composes both branches. Unaligned,
+variable-length, and wider-distance matches plus dynamic trees remain open M6
+ratio work. The focused fixed-code unit proves all 1,936 checks and the full
+library all 4,358 checks at `--level=4`, with no justifications or assumptions.
 
 ### M7 — Checksums as math
 CRC32 = polynomial division mod the generator; Adler32 = the mod-65521 running
@@ -327,7 +329,8 @@ M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
 literal/match slice with the same full-domain gzip theorem. The remaining ratio
 work is:
 
-1. **Broaden verified match selection.** Move beyond aligned single-byte runs
-   while retaining the local M4 back-reference witness.
+1. **Broaden verified match selection further.** Move beyond aligned
+   length-three tokens to variable lengths, unrestricted token boundaries,
+   and wider distances while retaining the local M4 back-reference witness.
 2. **Add dynamic trees.** Preserve the same theorem without making an
    optimality claim.

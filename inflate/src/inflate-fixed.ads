@@ -1,9 +1,10 @@
 --  Inflate.Fixed -- the RFC 1951 fixed-Huffman compressor image.
 --
 --  The encoder emits one final fixed-Huffman block.  Most bytes are literals;
---  aligned three-byte runs are represented by the deliberately simple M6
---  match (length 3, distance 1).  The contracts below state both halves of
---  that image's round trip without making any compression-optimality claim.
+--  aligned three-byte groups may be represented by deliberately simple M6
+--  matches of length 3 and distance 1 or 3.  The contracts below state both
+--  halves of that image's round trip without making any
+--  compression-optimality claim.
 
 with Interfaces;
 
@@ -24,11 +25,14 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
    Max_Input : constant Natural :=
      (8 * (Max_Stream_Bytes - 8) - 10) / 9;
 
-   function Code_Length (B : Byte) return Positive is
+   subtype Code_Bit_Length is Positive range 8 .. 9;
+
+   function Code_Length (B : Byte) return Code_Bit_Length is
      (if B <= 143 then 8 else 9);
 
    function Code (B : Byte) return Natural is
-     (if B <= 143 then 48 + Natural (B) else 256 + Natural (B));
+     (if B <= 143 then 48 + Natural (B) else 256 + Natural (B))
+   with Post => Code'Result < 2 ** Code_Length (B);
 
    --  Maximum raw-DEFLATE bytes needed for N literals: three block-header
    --  bits, at most nine bits per literal, seven end-of-block bits, rounded
@@ -37,23 +41,60 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      (N + (N + 17) / 8)
    with Pre => N <= Max_Input;
 
-   --  The intentionally small match finder considers each aligned group of
-   --  three bytes.  A group after the first is a match when all three bytes
-   --  repeat the byte immediately before it.  The resulting DEFLATE pair is
-   --  length 3, distance 1, including the overlapping-copy case from M4.
+   --  A selected match reproduces Length bytes of Data through the same
+   --  window equation used by M4.  Stating that equation once keeps the
+   --  compressor plan independent of the concrete patterns it recognizes.
+   function Match_Applies
+     (Data : Byte_Array;
+      Position, Length, Distance : Natural) return Boolean
+   is
+     (Position <= Data'Length
+      and then Length in 1 .. Data'Length - Position
+      and then Distance in 1 .. Position
+      and then
+        (for all K in 0 .. Length - 1 =>
+           Data (Data'First + Position + K) =
+             Data (Data'First + Position + K - Distance)));
+
+   --  The intentionally small match finder considers aligned groups of
+   --  three bytes.  It first recognizes a distance-1 run, including M4's
+   --  overlapping-copy case, and otherwise recognizes repetition of the
+   --  preceding three-byte group at distance 3.  Zero means use a literal.
+   function Match_Distance
+     (Data : Byte_Array; Position : Natural) return Natural
+   is
+     (if Position = 0
+          or else Position >= Data'Length
+          or else Position mod 3 /= 0
+          or else Data'Length - Position < 3
+      then 0
+      elsif Data (Data'First + Position) =
+              Data (Data'First + Position - 1)
+        and then Data (Data'First + Position + 1) =
+              Data (Data'First + Position - 1)
+        and then Data (Data'First + Position + 2) =
+              Data (Data'First + Position - 1)
+      then 1
+      elsif Position >= 3
+        and then Data (Data'First + Position) =
+              Data (Data'First + Position - 3)
+        and then Data (Data'First + Position + 1) =
+              Data (Data'First + Position - 2)
+        and then Data (Data'First + Position + 2) =
+              Data (Data'First + Position - 1)
+      then 3
+      else 0)
+   with
+     Post => Match_Distance'Result in 0 | 1 | 3
+               and then
+             (if Match_Distance'Result > 0
+              then Match_Applies
+                     (Data, Position, 3, Match_Distance'Result));
+
    function Match_Start
      (Data : Byte_Array; Position : Natural) return Boolean
    is
-     (Position > 0
-      and then Position < Data'Length
-      and then Position mod 3 = 0
-      and then Data'Length - Position >= 3
-      and then Data (Data'First + Position) =
-                 Data (Data'First + Position - 1)
-      and then Data (Data'First + Position + 1) =
-                 Data (Data'First + Position - 1)
-      and then Data (Data'First + Position + 2) =
-                 Data (Data'First + Position - 1));
+     (Match_Distance (Data, Position) > 0);
 
    function Match_Continuation
      (Data : Byte_Array; Position : Natural) return Boolean
@@ -152,7 +193,8 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                and then Prefix_Value
                  (Input, 3 + Data_Bits (Data, I), 7) = 1
                and then Prefix_Value
-                 (Input, 3 + Data_Bits (Data, I) + 7, 5) = 0
+                 (Input, 3 + Data_Bits (Data, I) + 7, 5) =
+                   Match_Distance (Data, I) - 1
           elsif not Match_Continuation (Data, I)
           then 3 + Data_Bits (Data, I)
                  + Code_Length (Data (Data'First + I)) <= 8 * Input'Length
@@ -173,11 +215,12 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
       Kind     : Symbol_Kind;
       Value    : Byte;
       Length   : Natural;
+      Distance : Natural;
       Position : Natural;
    end record;
 
-   --  Parse one symbol from the fixed block.  Match denotes precisely the
-   --  encoder's length-3/distance-1 pair.
+   --  Parse one symbol from the fixed block.  Match denotes one of the
+   --  encoder's length-3 pairs, at distance 1 or 3.
    pragma Assertion_Policy (Post => Ignore);
    function Next_Symbol
      (Input : Byte_Array; Position : Natural) return Symbol_Result
@@ -200,9 +243,11 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                and then
              (if Next_Symbol'Result.Kind = Match
               then Next_Symbol'Result.Length = 3
+                   and then Next_Symbol'Result.Distance in 1 | 3
                    and then Next_Symbol'Result.Position = Position + 12
                    and then Prefix_Value (Input, Position, 7) = 1
-                   and then Prefix_Value (Input, Position + 7, 5) = 0)
+                   and then Prefix_Value (Input, Position + 7, 5) =
+                              Next_Symbol'Result.Distance - 1)
                and then
              (if Next_Symbol'Result.Kind = End_Of_Block
               then Next_Symbol'Result.Length = 0
@@ -212,12 +257,17 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
              (if 7 <= 8 * Input'Length - Position
                    and then Prefix_Value (Input, Position, 7) = 0
               then Next_Symbol'Result =
-                     (End_Of_Block, 0, 0, Position + 7))
+                     (End_Of_Block, 0, 0, 0, Position + 7))
                and then
              (if 12 <= 8 * Input'Length - Position
                    and then Prefix_Value (Input, Position, 7) = 1
                    and then Prefix_Value (Input, Position + 7, 5) = 0
-              then Next_Symbol'Result = (Match, 0, 3, Position + 12))
+              then Next_Symbol'Result = (Match, 0, 3, 1, Position + 12))
+               and then
+             (if 12 <= 8 * Input'Length - Position
+                   and then Prefix_Value (Input, Position, 7) = 1
+                   and then Prefix_Value (Input, Position + 7, 5) = 2
+              then Next_Symbol'Result = (Match, 0, 3, 3, Position + 12))
                and then
              (if 8 <= 8 * Input'Length - Position
                    and then Prefix_Value (Input, Position, 8) in 48 .. 191
@@ -225,6 +275,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                      (Literal,
                       Byte (Prefix_Value (Input, Position, 8) - 48),
                       1,
+                      0,
                       Position + 8))
                and then
              (if 9 <= 8 * Input'Length - Position
@@ -233,6 +284,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                      (Literal,
                       Byte (Prefix_Value (Input, Position, 9) - 256),
                       1,
+                      0,
                       Position + 9));
    pragma Assertion_Policy (Post => Check);
 
@@ -272,23 +324,21 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
           and then Index < Data'Length
           and then Next_Symbol (Input, Position).Kind = Match =>
           Spec_Matches'Result =
-            (Index > 0
-             and then Data'Length - Index >= 3
-             and then Data (Data'First + Index) =
-                        Data (Data'First + Index - 1)
-             and then Data (Data'First + Index + 1) =
-                        Data (Data'First + Index)
-             and then Data (Data'First + Index + 2) =
-                        Data (Data'First + Index + 1)
+            (Match_Applies
+               (Data, Index,
+                Next_Symbol (Input, Position).Length,
+                Next_Symbol (Input, Position).Distance)
              and then Spec_Matches
                (Input, Consumed, Data,
-                Next_Symbol (Input, Position).Position, Index + 3)),
+                Next_Symbol (Input, Position).Position,
+                Index + Next_Symbol (Input, Position).Length)),
         others => not Spec_Matches'Result),
      Subprogram_Variant => (Decreases => Data'Length - Index,
                             Decreases => 8 * Consumed - Position);
 
-   --  Linear executable check for literals, length-3/distance-1 matches, and
-   --  end-of-block.  Its proof-only postcondition connects it to Spec_Matches.
+   --  Linear executable check for literals, length-3 matches at distance 1 or
+   --  3, and end-of-block.  Its proof-only postcondition connects it to
+   --  Spec_Matches.
    pragma Assertion_Policy (Post => Ignore);
    function Encoding_Matches
      (Input : Byte_Array;
@@ -351,17 +401,22 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                   .Decoded_Length + 1)
            else Spec_Walk'Result = (False, 0, 0)),
         Next_Symbol (Input, Position).Kind = Match
-          and then (Decoded in 1 .. Max_Input - 3) =>
+          and then Next_Symbol (Input, Position).Distance <= Decoded
+          and then Next_Symbol (Input, Position).Length <=
+                     Max_Input - Decoded =>
           (if Spec_Walk
-             (Input, Next_Symbol (Input, Position).Position, Decoded + 3).Valid
+             (Input, Next_Symbol (Input, Position).Position,
+              Decoded + Next_Symbol (Input, Position).Length).Valid
            then Spec_Walk'Result =
              (True,
               Spec_Walk
-                (Input, Next_Symbol (Input, Position).Position, Decoded + 3)
+                (Input, Next_Symbol (Input, Position).Position,
+                 Decoded + Next_Symbol (Input, Position).Length)
                   .End_Bit,
               Spec_Walk
-                (Input, Next_Symbol (Input, Position).Position, Decoded + 3)
-                  .Decoded_Length + 3)
+                (Input, Next_Symbol (Input, Position).Position,
+                 Decoded + Next_Symbol (Input, Position).Length)
+                  .Decoded_Length + Next_Symbol (Input, Position).Length)
            else Spec_Walk'Result = (False, 0, 0)),
         Next_Symbol (Input, Position).Kind = End_Of_Block =>
           Spec_Walk'Result =
@@ -430,7 +485,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                 Left (Left'First + I) = Right (Right'First + I));
 
    --  Emit one final fixed-Huffman block containing literals and selected
-   --  length-3/distance-1 matches.
+   --  length-3 matches at distance 1 or 3.
    procedure Compress
      (Input    : in     Byte_Array;
       Output   : in out Byte_Array;
@@ -444,9 +499,9 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                and then Is_Encoding
                           (Output, Produced, Input);
 
-   --  Decode this fixed literal/match fragment when it is present. Success=False
-   --  means only that this specialized fragment did not apply; callers may
-   --  fall back to the general DEFLATE decoder.
+   --  Decode this fixed literal/match fragment when it is present.
+   --  Success=False means only that this specialized fragment did not apply;
+   --  callers may fall back to the general DEFLATE decoder.
    procedure Decompress
      (Input    : in     Byte_Array;
       Output   : in out Byte_Array;
