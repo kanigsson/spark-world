@@ -109,12 +109,36 @@ justifications, and the debug suite passes 6,444 regular cases plus 17
 compressor differential cases.  The zero-run regression checks the exact
 length-four/distance-one bits and C zlib independently decodes the result.
 
+## Successful broader fixed-code baseline
+
+The selector now searches distances one through four at every reached token
+boundary and chooses the longest match of length three through ten, preferring
+the smaller distance on a tie.  This rectangular domain is the useful first
+general baseline: all its fixed literal/length and distance symbols need no
+extra bits, so the payload format stays at twelve bits per match while the
+finder exercises every overlap shape from period one through four.
+
+`Matching_Length` proves the byte recurrence as it scans.  `Selected_Token`
+exports that recurrence through `Match_Applies`, and the specialized decoder
+now uses one forward-copy loop instead of separate distance-one and
+distance-three implementations.  The token-boundary lemma was generalized to
+all lengths in the domain and remains the sole bridge into the existing prefix
+and framing relations.
+
+The focused fixed-code run proves all 1,919 checks at level 2.  The complete
+level-4 library proof closes all 4,341 checks with no assumptions or
+justifications.  The debug suite passes 6,445 regular cases plus 18 compressor
+differential cases; exact bit-level regressions exercise length-ten matches at
+distances one, three, and four, and C zlib independently decodes every emitted
+member.
+
 ## 1. Give tokens explicit semantics
 
 `Symbol_Result` is already the working token abstraction: its `Match` case
 carries explicit `Length` and `Distance`, and `Match_Applies` gives those
-fields byte-level meaning.  The first length-three/four plan still makes that
-representation manageable.  If broader matching makes invalid field
+fields byte-level meaning.  The current length-three-through-ten and
+distance-one-through-four domain still makes that representation manageable.
+If broader matching makes invalid field
 combinations burdensome, a discriminated token type could then look like this:
 
 ```ada
@@ -300,12 +324,13 @@ fixed-image decoder proof.
 ## When to introduce the abstractions
 
 Do not make all of these abstractions a prerequisite phase for the remaining
-M6 work.  The fixed-Huffman compressor, now with boundary-based length-three
-and length-four matches at distances one and three, is connected through
-`Inflate.GZip.Compress`, the raw decoder's proved success path, and
+M6 work.  The fixed-Huffman compressor, now with boundary-based longest
+matches of length three through ten at distances one through four, is connected
+through `Inflate.GZip.Compress`, the raw decoder's proved success path, and
 `Inflate.Theorems.GZip_Round_Trip`.  The remaining work is to support more
 lengths and wider distances, then add dynamic trees without breaking that
-connection.
+connection.  The broader fixed-code baseline is now complete, so the next
+decision is the deliberately bounded `Step`/`Trace` reassessment below.
 
 Introducing abstractions before features can prevent duplication, but proof
 abstractions also introduce quantified relations, conversion theorems, and
@@ -335,10 +360,9 @@ wrapped a working specialized relation without removing it.
 2. **Complete for the first variable-length slice.** The plan is boundary-only,
    and unaligned length-four distance-one runs retain the local M4
    back-reference witness.
-3. Broaden the fixed selector beyond lengths three/four and distances one/three,
-   then rerun the complete proof and runtime suites.  This establishes a
-   materially general-LZ77 fixed-code baseline before another proof
-   architecture change.
+3. **Complete.** The fixed selector now chooses the longest length-three
+   through length-ten match over distances one through four; the complete
+   proof and runtime suites pass.
 4. Reassess `Step`/`Trace` against that baseline.  Attempt it only with an
    explicit list of existing relations and lemmas that the new model will
    delete.

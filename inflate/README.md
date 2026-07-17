@@ -7,8 +7,8 @@ is SPARK. Decoding is proved free of run-time errors, with termination and
 initialization/data-flow checks included in the proof run described below.
 Every successful raw DEFLATE decode is also proved to satisfy an executable
 canonical decode model; that model and the returned bytes are differentially
-tested against C zlib. The gzip compressor (fixed Huffman with verified run
-and repeated-three-byte matches plus unaligned length-four runs throughout
+tested against C zlib. The gzip compressor (fixed Huffman with verified
+longest matches of length 3 through 10 at distances 1 through 4 throughout
 the fixed encoder's arithmetic domain, stored blocks above it) and
 decompressor additionally carry a **proved
 round-trip theorem**: `Inflate.Theorems.GZip_Round_Trip` states — and the
@@ -63,19 +63,18 @@ ZIP extractor are ordinary clients of `Inflate.Raw`.
 
 The library compresses to standard gzip. Inputs through
 `Inflate.Fixed.Max_Input` use one final fixed-Huffman block. A deliberately
-small match finder advances through explicit token boundaries. At any reached
-boundary it prefers a fixed-code length-4, distance-1 match when four bytes
-continue a single-byte run; otherwise it may emit a length-3 match at distance
-1, or at distance 3 when the next three bytes repeat the preceding three.
-Other bytes remain literals. This exercises overlapping and non-overlapping
-LZ77 window equations, permits unaligned and variable-length token selection,
-improves periodic three-byte data as well as long runs, and makes no
-optimality claim.
+small match finder advances through explicit token boundaries. At every
+reached boundary it searches distances 1 through 4 and selects the longest
+verified match of length 3 through 10, preferring the smaller distance on a
+tie; other bytes remain literals. This no-extra-bit fixed-code slice exercises
+overlapping and non-overlapping LZ77 window equations, permits unaligned and
+variable-length token selection, and makes no optimality claim.
 `Max_Input` is derived from the largest stream whose bit offsets plus the gzip
 trailer fit in `Natural` (238,609,285 input bytes on the current target). Still
 larger inputs retain the stored-block encoder, so the public compressor and
-theorem keep their original domain. Dynamic trees, more match lengths, and
-wider distances remain M6 ratio work. Any gzip decoder consumes either output.
+theorem keep their original domain. Dynamic trees, lengths requiring extra
+bits, and wider distances remain M6 ratio work. Any gzip decoder consumes
+either output.
 The contract is preserved across both branches:
 
 - **Totality and size.** Under the stated preconditions there is no failure
@@ -105,7 +104,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **4,342 checks,
+The most recent recorded `gnatprove --level=4` run reported **4,341 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -182,7 +181,7 @@ checked at run time.
 
 ## Testing
 
-`tests/run_tests.py` generates **6444 cases** and runs them through the debug
+`tests/run_tests.py` generates **6445 cases** and runs them through the debug
 harness with language run-time checks enabled and proof contracts disabled;
 the expected verdict comes from C zlib (Python's binding) on the same bytes,
 so the suite is a differential test, not a self-test:
@@ -251,9 +250,9 @@ cd bench && gprbuild -P bench.gpr && python3 run_bench.py   # needs libz.a
 
 The command-line front end reads and writes whole files, like the one-shot
 library API. Compression produces a standard gzip member using fixed Huffman
-coding with verified length-3/4 run and repeated-three-byte matches (and the
-stored fallback above the fixed domain); decompression accepts ordinary gzip
-files and concatenated members.
+coding with verified length-3 through length-10 matches at distances 1 through
+4 (and the stored fallback above the fixed domain); decompression accepts
+ordinary gzip files and concatenated members.
 
 ```sh
 bin/inflate compress input.dat output.gz

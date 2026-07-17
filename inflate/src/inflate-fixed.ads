@@ -1,10 +1,9 @@
 --  Inflate.Fixed -- the RFC 1951 fixed-Huffman compressor image.
 --
---  The encoder emits one final fixed-Huffman block.  Most bytes are literals;
---  its deliberately simple M6 plan selects length-4 distance-1 runs at any
---  reached token boundary, with length-3 distance-1 or distance-3 matches as
---  fallbacks.  The contracts below state both halves of that image's round
---  trip without making any
+--  The encoder emits one final fixed-Huffman block.  At every reached token
+--  boundary its bounded M6 finder selects the longest match of length 3 .. 10
+--  at distance 1 .. 4, with literals as the fallback.  The contracts below
+--  state both halves of that image's round trip without making any
 --  compression-optimality claim.
 
 with Interfaces;
@@ -69,43 +68,12 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
              Data (Data'First + Position + K - Distance)));
 
    --  Select the token beginning at a reached compression-plan boundary.
-   --  Four-byte distance-one runs take priority, so a run can begin at any
-   --  reached byte position rather than only at a multiple of three.  The
-   --  existing length-three run and repeated-three-byte tokens remain as the
-   --  fallback match shapes.
+   --  The bounded finder chooses the longest match of length 3 .. 10 at
+   --  distance 1 .. 4, preferring the smaller distance on equal lengths.
+   --  These are exactly the fixed-code length and distance ranges that need
+   --  no extra bits, so every selected match still occupies twelve bits.
    function Selected_Token
      (Data : Byte_Array; Position : Natural) return Symbol_Result
-   is
-     (if Position > 0
-          and then Data'Length - Position >= 4
-          and then Data (Data'First + Position) =
-                     Data (Data'First + Position - 1)
-          and then Data (Data'First + Position + 1) =
-                     Data (Data'First + Position - 1)
-          and then Data (Data'First + Position + 2) =
-                     Data (Data'First + Position - 1)
-          and then Data (Data'First + Position + 3) =
-                     Data (Data'First + Position - 1)
-      then (Match, 0, 4, 1, Position + 4)
-      elsif Position > 0
-        and then Data'Length - Position >= 3
-        and then Data (Data'First + Position) =
-                   Data (Data'First + Position - 1)
-        and then Data (Data'First + Position + 1) =
-                   Data (Data'First + Position - 1)
-        and then Data (Data'First + Position + 2) =
-                   Data (Data'First + Position - 1)
-      then (Match, 0, 3, 1, Position + 3)
-      elsif Position >= 3
-        and then Data'Length - Position >= 3
-        and then Data (Data'First + Position) =
-                   Data (Data'First + Position - 3)
-        and then Data (Data'First + Position + 1) =
-                   Data (Data'First + Position - 2)
-        and then Data (Data'First + Position + 2) =
-                   Data (Data'First + Position - 1)
-      then (Match, 0, 3, 3, Position + 3)
-      else (Literal, Data (Data'First + Position), 1, 0, Position + 1))
    with
      Pre  => Data'Length <= Max_Input and then Position < Data'Length,
      Post => Selected_Token'Result.Kind in Literal | Match
@@ -118,13 +86,10 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                    and then Selected_Token'Result.Length = 1
                    and then Selected_Token'Result.Distance = 0
                    and then Selected_Token'Result.Position = Position + 1
-              else Selected_Token'Result.Length in 3 | 4
-                   and then Selected_Token'Result.Distance in 1 | 3
+              else Selected_Token'Result.Length in 3 .. 10
+                   and then Selected_Token'Result.Distance in 1 .. 4
                    and then Selected_Token'Result.Position =
                               Position + Selected_Token'Result.Length
-                   and then
-                     (if Selected_Token'Result.Distance = 3
-                      then Selected_Token'Result.Length = 3)
                    and then Match_Applies
                      (Data, Position,
                       Selected_Token'Result.Length,
@@ -163,7 +128,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
    with
      Ghost,
      Pre  => Data'Length <= Max_Input and then Count <= Data'Length,
-     Post => Plan_Remaining'Result <= 3
+     Post => Plan_Remaining'Result <= 9
                and then Plan_Remaining'Result <= Data'Length - Count,
      Subprogram_Variant => (Decreases => Count);
 
@@ -305,7 +270,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
               and then Count <= Data'Length;
 
    --  Parse one symbol from the fixed block.  Match denotes one of the
-   --  encoder's length-3/4 pairs, at distance 1 or 3.
+   --  encoder's no-extra-bit length/distance pairs.
    pragma Assertion_Policy (Post => Ignore);
    function Next_Symbol
      (Input : Byte_Array; Position : Natural) return Symbol_Result
@@ -327,11 +292,8 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                      Code (Next_Symbol'Result.Value))
                and then
              (if Next_Symbol'Result.Kind = Match
-              then Next_Symbol'Result.Length in 3 | 4
-                   and then Next_Symbol'Result.Distance in 1 | 3
-                   and then
-                     (if Next_Symbol'Result.Distance = 3
-                      then Next_Symbol'Result.Length = 3)
+              then Next_Symbol'Result.Length in 3 .. 10
+                   and then Next_Symbol'Result.Distance in 1 .. 4
                    and then Next_Symbol'Result.Position = Position + 12
                    and then Prefix_Value (Input, Position, 7) =
                               Next_Symbol'Result.Length - 2
@@ -349,19 +311,14 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                      (End_Of_Block, 0, 0, 0, Position + 7))
                and then
              (if 12 <= 8 * Input'Length - Position
-                   and then Prefix_Value (Input, Position, 7) = 1
-                   and then Prefix_Value (Input, Position + 7, 5) = 0
-              then Next_Symbol'Result = (Match, 0, 3, 1, Position + 12))
-               and then
-             (if 12 <= 8 * Input'Length - Position
-                   and then Prefix_Value (Input, Position, 7) = 2
-                   and then Prefix_Value (Input, Position + 7, 5) = 0
-              then Next_Symbol'Result = (Match, 0, 4, 1, Position + 12))
-               and then
-             (if 12 <= 8 * Input'Length - Position
-                   and then Prefix_Value (Input, Position, 7) = 1
-                   and then Prefix_Value (Input, Position + 7, 5) = 2
-              then Next_Symbol'Result = (Match, 0, 3, 3, Position + 12))
+                   and then Prefix_Value (Input, Position, 7) in 1 .. 8
+                   and then Prefix_Value (Input, Position + 7, 5) <= 3
+              then Next_Symbol'Result =
+                     (Match,
+                      0,
+                      Prefix_Value (Input, Position, 7) + 2,
+                      Prefix_Value (Input, Position + 7, 5) + 1,
+                      Position + 12))
                and then
              (if 8 <= 8 * Input'Length - Position
                    and then Prefix_Value (Input, Position, 8) in 48 .. 191
@@ -430,9 +387,9 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      Subprogram_Variant => (Decreases => Data'Length - Index,
                             Decreases => 8 * Consumed - Position);
 
-   --  Linear executable check for literals, length-3/4 matches at distance 1
-   --  or 3, and end-of-block.  Its proof-only postcondition connects it to
-   --  Spec_Matches.
+   --  Linear executable check for literals, length-3 .. 10 matches at
+   --  distance 1 .. 4, and end-of-block.  Its proof-only postcondition
+   --  connects it to Spec_Matches.
    pragma Assertion_Policy (Post => Ignore);
    function Encoding_Matches
      (Input : Byte_Array;
@@ -579,7 +536,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                 Left (Left'First + I) = Right (Right'First + I));
 
    --  Emit one final fixed-Huffman block containing literals and selected
-   --  length-3/4 matches at distance 1 or 3.
+   --  length-3 .. 10 matches at distance 1 .. 4.
    procedure Compress
      (Input    : in     Byte_Array;
       Output   : in out Byte_Array;

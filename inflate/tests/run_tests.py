@@ -61,6 +61,7 @@ def case(mode, comp, expect, consumed=-1, tag=None):
 
 compress_checks = []  # (input_path, original_bytes)
 TRIPLE_RUN = b"ABC" * 1000
+QUAD_RUN = b"ABCD" * 1000
 
 
 def gen_compress(files):
@@ -72,6 +73,7 @@ def gen_compress(files):
     global n_files
     inputs = dict(files)
     inputs["triple-run.bin"] = TRIPLE_RUN
+    inputs["quad-run.bin"] = QUAD_RUN
     for name, data in sorted(inputs.items()):
         n_files += 1
         inp = put("c%05d.in" % n_files, data)
@@ -108,12 +110,13 @@ def check_compress_outputs():
         if len(data) >= 6 and not any(data):
             raw = member[10:-8]
             # Header (3 bits), then one fixed-code zero literal (8 bits).
-            # Position 1 is an unaligned token boundary; the selector emits
-            # fixed length symbol 258 (length 4, code 2), then distance 1.
-            if (stream_prefix(raw, 11, 7) != 2
+            # Position 1 is an unaligned token boundary; the longest-match
+            # selector emits fixed length symbol 264 (length 10, code 8),
+            # then distance 1.
+            if (stream_prefix(raw, 11, 7) != 8
                     or stream_prefix(raw, 18, 5) != 0):
                 print("FAIL compress %s: zero run did not emit the "
-                      "unaligned length-4/distance-1 match" % inp)
+                      "unaligned length-10/distance-1 match" % inp)
                 bad += 1
             if len(member) * 4 >= len(data) * 3:
                 print("FAIL compress %s: zero-run ratio did not improve"
@@ -121,12 +124,21 @@ def check_compress_outputs():
                 bad += 1
         if data == TRIPLE_RUN:
             raw = member[10:-8]
-            # Header and three literals consume 27 bits.  The next token is
-            # length 3 followed by fixed distance code 2 (distance 3).
-            if (stream_prefix(raw, 27, 7) != 1
+            # Header and three literals consume 27 bits.  The longest match
+            # has length 10 followed by fixed distance code 2 (distance 3).
+            if (stream_prefix(raw, 27, 7) != 8
                     or stream_prefix(raw, 34, 5) != 2):
                 print("FAIL compress %s: repeated triple did not emit the "
-                      "length-3/distance-3 match" % inp)
+                      "length-10/distance-3 match" % inp)
+                bad += 1
+        if data == QUAD_RUN:
+            raw = member[10:-8]
+            # Header and four eight-bit literals consume 35 bits.  The next
+            # token is the longest no-extra-bit match at distance 4.
+            if (stream_prefix(raw, 35, 7) != 8
+                    or stream_prefix(raw, 42, 5) != 3):
+                print("FAIL compress %s: repeated quad did not emit the "
+                      "length-10/distance-4 match" % inp)
                 bad += 1
     print("compress differential: %d cases, %d failures"
           % (len(compress_checks), bad))

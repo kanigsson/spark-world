@@ -230,16 +230,14 @@ M2–M5, it does not avoid them.
 literals, selected matches, and end-of-block. Its compression plan is now
 explicit: `Selected_Token`, `Next_Position`, and `Token_Bit_Cost` operate only
 at positions reached by the deterministic token-boundary relation. At any such
-boundary the deliberately small finder prefers `(length = 4, distance = 1)`
-when four bytes continue a single-byte run, then falls back to the existing
-length-three match at distance one or three. Thus the first match in a constant
-stream begins at unaligned byte position one, while repeated three-byte phrases
-retain the non-overlapping distance-three path. Every selected match carries a
-local `Match_Applies` witness for the M4 window equation, and one local copy
-primitive establishes that equation for the specialized decoder. All other
-bytes remain literals. Long single-byte runs now approach three compressed bits
-per byte, repeated three-byte phrases benefit as well, and arbitrary data
-retains the literal path.
+boundary the bounded finder examines distances one through four and selects the
+longest verified match of length three through ten, preferring the smaller
+distance on a tie. These fixed literal/length and distance symbols need no
+extra bits, so every match remains a twelve-bit token. Every selected match
+carries a local `Match_Applies` witness for the M4 window equation, and one
+forward-copy primitive establishes that equation for all overlapping and
+non-overlapping shapes in the specialized decoder. All other bytes remain
+literals.
 
 The arbitrary 32-symbol M3 harness bound remains gone: `Max_Input` is derived
 from the largest stream whose bit offsets plus gzip trailer fit in `Natural`
@@ -249,12 +247,13 @@ recursive relations and framing lemmas are erased from checks-enabled builds.
 `Inflate.GZip.Compress` selects this fixed coding throughout that domain and
 uses the stored encoder above it. `Inflate.Raw.Decompress` retains a proved
 success path for the expanded image, and the unchanged
-`Inflate.Theorems.GZip_Round_Trip` theorem composes both branches. More match
-lengths, wider distances, and dynamic trees remain open M6 ratio work. A
-focused fixed-code run proves all 1,920 checks at `--level=2`; the full library
-proves all 4,342 checks at `--level=4`, with no justifications or assumptions.
-The complete debug suite passes 6,444 cases and 17 compressor differential
-cases, including an exact bit-level check for the unaligned length-four token.
+`Inflate.Theorems.GZip_Round_Trip` theorem composes both branches. Match
+lengths requiring extra bits, wider distances, and dynamic trees remain open
+M6 ratio work. A focused fixed-code run proves all 1,919 checks at `--level=2`;
+the full library proves all 4,341 checks at `--level=4`, with no justifications
+or assumptions. The complete debug suite passes 6,445 cases and 18 compressor
+differential cases, including exact bit-level checks for length-ten matches at
+distances one, three, and four.
 
 ### M7 — Checksums as math
 CRC32 = polynomial division mod the generator; Adler32 = the mod-65521 running
@@ -335,8 +334,8 @@ M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
 literal/match slice with the same full-domain gzip theorem. The remaining ratio
 work is:
 
-1. **Broaden verified match selection further.** Extend the boundary-based
-   plan beyond lengths three/four and distances one/three while retaining the
-   local M4 back-reference witness.
+1. **Reassess the token trace abstraction.** Attempt `Step`/`Trace` only if it
+   deletes the existing specialized relations and a meaningful part of
+   `Spec_Walk`; otherwise retain the current boundary proof.
 2. **Add dynamic trees.** Preserve the same theorem without making an
    optimality claim.
