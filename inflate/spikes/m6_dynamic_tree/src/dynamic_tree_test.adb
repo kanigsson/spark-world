@@ -3,6 +3,7 @@ with Inflate;          use Inflate;
 with Inflate.Codebooks;
 with Inflate.Dynamic;  use Inflate.Dynamic;
 with Inflate.Fixed;
+with Inflate.Raw;
 
 procedure Dynamic_Tree_Test is
 
@@ -57,6 +58,15 @@ procedure Dynamic_Tree_Test is
       Character'Pos ('a'), Character'Pos ('b'), Character'Pos ('c'));
    Payload_Bits : Byte_Array (1 .. 8) := (others => 0);
    Payload_End  : Natural;
+
+   Body_Output : Byte_Array (1 .. Max_Size (Payload_Data'Length)) :=
+     (others => 16#A5#);
+   Body_Produced : Natural;
+   Decoded       : Byte_Array (Payload_Data'Range) := (others => 0);
+   Body_Consumed, Decoded_Length : Natural;
+   Body_Status : Status_Type;
+
+   Hex_Digits : constant String := "0123456789abcdef";
 begin
    Check ("empty code-length alphabet", Empty_Code_Lengths, 2);
 
@@ -102,6 +112,34 @@ begin
    pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 9, 1) = 1);
    pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 10, 3) = 6);
    Put_Line ("shared dynamic payload serialization passed");
+
+   pragma Assert (Books_Encodable (Literal_Book, Distance_Book));
+   Serialize_Body
+     (Payload_Data, Literal_Book, Distance_Book,
+      Body_Output, Body_Produced);
+   pragma Assert (Body_Produced <= Body_Output'Length);
+   pragma Assert
+     (Header_Encodes (Body_Output, Literal_Book, Distance_Book));
+
+   Inflate.Raw.Decompress
+     (Body_Output, Decoded, Body_Consumed, Decoded_Length, Body_Status);
+   pragma Assert (Body_Status = OK);
+   pragma Assert (Body_Consumed = Body_Produced);
+   pragma Assert (Decoded_Length = Payload_Data'Length);
+   pragma Assert (Decoded = Payload_Data);
+   Put_Line ("dynamic header/body round trip passed");
+
+   Put ("dynamic body hex: ");
+   for I in 0 .. Body_Produced - 1 loop
+      declare
+         Value : constant Natural :=
+           Natural (Body_Output (Body_Output'First + I));
+      begin
+         Put (Hex_Digits (Value / 16 + 1));
+         Put (Hex_Digits (Value mod 16 + 1));
+      end;
+   end loop;
+   New_Line;
 
    Put_Line ("all dynamic-tree runtime checks passed");
 end Dynamic_Tree_Test;

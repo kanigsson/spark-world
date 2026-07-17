@@ -161,7 +161,7 @@ A current run of:
 gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
 ```
 
-completed successfully with 5,100 checks, all proved. The generated summary
+completed successfully with 5,309 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -185,6 +185,10 @@ Subject to public preconditions, the proof establishes:
 - fixed and canonical encoder codebooks satisfy one ready/length/code boundary,
   and the shared token-payload writer emits the selected literal or match codes
   plus end-of-block at exact offsets while preserving bits outside its result;
+- the local dynamic-header writer emits a complete four-bit code-length
+  alphabet and all 286 literal/length plus 30 distance lengths, while the local
+  dynamic-body relation composes those reconstructed books with the shared
+  payload relation;
 - compressor-image decode success, exact consumption and production, and
   agreement with the selected relation when the decoded data fits the output;
 - gzip framing values used by the compressor, including the input length and a
@@ -236,8 +240,8 @@ The formal result does not establish:
 - general or optimal LZ77 selection in the compressor: fixed-Huffman matching
   remains limited to lengths three through ten and distances one through four,
   without extra-bit length or distance codes;
-- a serialized dynamic-Huffman block header or dynamic-Huffman output from the
-  top-level compressor (only the local canonical-codebook payload path exists);
+- dynamic-Huffman output from the top-level gzip compressor (the serialized
+  header and body currently remain a proved local path);
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;
 - stored-DEFLATE, zlib, gzip, or ZIP wire semantics against an independently

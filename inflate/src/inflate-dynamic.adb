@@ -1,4 +1,8 @@
+with Interfaces;
+
 package body Inflate.Dynamic with SPARK_Mode => On is
+
+   use Interfaces;
 
    function Is_Dummy
      (Frequencies : Frequency_Array;
@@ -183,6 +187,87 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       Lengths (Position) := Value;
       Lemma_Model_Frame (Before, Lengths, Position);
    end Set_Length;
+
+   --------------------
+   -- Set_Stream_Bit --
+   --------------------
+
+   procedure Set_Stream_Bit
+     (Output   : in out Byte_Array;
+      Position : Natural;
+      Value    : Natural)
+   with
+     Pre  => Output'Length <= Fixed.Max_Stream_Bytes
+               and then Position < 8 * Output'Length
+               and then Value <= 1,
+     Post => Fixed.Bit_Value (Output, Position) = Value
+               and then
+             (for all P in 0 .. 8 * Output'Length - 1 =>
+                (if P /= Position
+                 then Fixed.Bit_Value (Output, P) =
+                        Fixed.Bit_Value (Output'Old, P)))
+   is
+      Offset : constant Natural := Position / 8;
+      Shift  : constant Natural := Position mod 8;
+      Mask   : constant Byte := Shift_Left (Byte (1), Shift);
+      P      : constant Buffer_Index := Output'First + Offset;
+   begin
+      if Value = 0 then
+         Output (P) := Output (P) and not Mask;
+      else
+         Output (P) := Output (P) or Mask;
+      end if;
+   end Set_Stream_Bit;
+
+   -----------------------
+   -- Write_Length_Code --
+   -----------------------
+
+   procedure Write_Length_Code
+     (Output : in out Byte_Array;
+      Start  : Natural;
+      Value  : Code_Length)
+   with
+     Pre  => Output'Length <= Fixed.Max_Stream_Bytes
+               and then Start <= 8 * Output'Length
+               and then 4 <= 8 * Output'Length - Start,
+     Post => Length_Code_At (Output, Start, Value)
+               and then
+             (for all Position in 0 .. 8 * Output'Length - 1 =>
+                (if Position < Start or else Position >= Start + 4
+                 then Fixed.Bit_Value (Output, Position) =
+                        Fixed.Bit_Value (Output'Old, Position)))
+   is
+   begin
+      Set_Stream_Bit (Output, Start, Value / 8);
+      Set_Stream_Bit (Output, Start + 1, (Value / 4) mod 2);
+      Set_Stream_Bit (Output, Start + 2, (Value / 2) mod 2);
+      Set_Stream_Bit (Output, Start + 3, Value mod 2);
+   end Write_Length_Code;
+
+   procedure Lemma_Header_Frame
+     (Before, After  : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook)
+   with
+     Ghost,
+     Pre  => Before'Length <= Fixed.Max_Stream_Bytes
+               and then After'Length <= Fixed.Max_Stream_Bytes
+               and then Before'Length >= Header_Byte_Count
+               and then After'Length >= Header_Byte_Count
+               and then Books_Encodable (Literal_Lengths, Distances)
+               and then Header_Encodes
+                 (Before, Literal_Lengths, Distances)
+               and then
+             (for all Position in 0 .. Header_Bit_Count - 1 =>
+                Fixed.Bit_Value (After, Position) =
+                  Fixed.Bit_Value (Before, Position)),
+     Post => Header_Encodes (After, Literal_Lengths, Distances);
+
+   procedure Lemma_Header_Frame
+     (Before, After  : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook) is null;
 
    procedure Build_Lengths
      (Frequencies : in     Frequency_Array;
@@ -389,6 +474,91 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       Codebooks.Build (Full, Book, Success);
    end Build_Codebook;
 
+   ----------------------
+   -- Serialize_Header --
+   ----------------------
+
+   procedure Serialize_Header
+     (Literal_Lengths : in     Codebooks.Codebook;
+      Distances       : in     Codebooks.Codebook;
+      Output          : in out Byte_Array;
+      Next_Bit        :    out Natural)
+   is
+      Initial : constant Byte_Array := Output with Ghost;
+   begin
+      --  BFINAL=1, BTYPE=10, HLIT=29, HDIST=29, HCLEN=15, followed by
+      --  nineteen three-bit code-length-code lengths.  Symbols 16, 17, and
+      --  18 have length zero; symbols 0 .. 15 all have length four.
+      for Position in 0 .. Header_Prefix_Bits - 1 loop
+         pragma Loop_Invariant
+           (for all P in 0 .. Position - 1 =>
+              Fixed.Bit_Value (Output, P) = Expected_Header_Bit (P));
+         pragma Loop_Invariant
+           (for all P in Position .. 8 * Output'Length - 1 =>
+              Fixed.Bit_Value (Output, P) =
+                Fixed.Bit_Value (Initial, P));
+         Set_Stream_Bit
+           (Output, Position, Expected_Header_Bit (Position));
+      end loop;
+
+      pragma Assert
+        (for all Position in 0 .. Header_Prefix_Bits - 1 =>
+           Fixed.Bit_Value (Output, Position) =
+             Expected_Header_Bit (Position));
+
+      for I in 0 .. Literal_Length_Count - 1 loop
+         pragma Loop_Invariant
+           (for all Position in 0 .. Header_Prefix_Bits - 1 =>
+              Fixed.Bit_Value (Output, Position) =
+                Expected_Header_Bit (Position));
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              Length_Code_At
+                (Output, Header_Prefix_Bits + 4 * J,
+                 Codebooks.Length_Of (Literal_Lengths, J)));
+         pragma Loop_Invariant
+           (for all P in Header_Prefix_Bits + 4 * I ..
+              8 * Output'Length - 1 =>
+                Fixed.Bit_Value (Output, P) =
+                  Fixed.Bit_Value (Initial, P));
+         Write_Length_Code
+           (Output, Header_Prefix_Bits + 4 * I,
+            Codebooks.Length_Of (Literal_Lengths, I));
+      end loop;
+
+      for I in 0 .. Distance_Count - 1 loop
+         pragma Loop_Invariant
+           (for all Position in 0 .. Header_Prefix_Bits - 1 =>
+              Fixed.Bit_Value (Output, Position) =
+                Expected_Header_Bit (Position));
+         pragma Loop_Invariant
+           (for all J in 0 .. Literal_Length_Count - 1 =>
+              Length_Code_At
+                (Output, Header_Prefix_Bits + 4 * J,
+                 Codebooks.Length_Of (Literal_Lengths, J)));
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              Length_Code_At
+                (Output,
+                 Header_Prefix_Bits
+                   + 4 * (Literal_Length_Count + J),
+                 Codebooks.Length_Of (Distances, J)));
+         pragma Loop_Invariant
+           (for all P in
+              Header_Prefix_Bits
+                + 4 * (Literal_Length_Count + I) ..
+              8 * Output'Length - 1 =>
+                Fixed.Bit_Value (Output, P) =
+                  Fixed.Bit_Value (Initial, P));
+         Write_Length_Code
+           (Output,
+            Header_Prefix_Bits + 4 * (Literal_Length_Count + I),
+            Codebooks.Length_Of (Distances, I));
+      end loop;
+
+      Next_Bit := Header_Bit_Count;
+   end Serialize_Header;
+
    -----------------------
    -- Serialize_Payload --
    -----------------------
@@ -405,5 +575,41 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       Payload.Serialize
         (Data, Literal_Lengths, Distances, Output, Start, Next_Bit);
    end Serialize_Payload;
+
+   --------------------
+   -- Serialize_Body --
+   --------------------
+
+   procedure Serialize_Body
+     (Data            : in     Byte_Array;
+      Literal_Lengths : in     Codebooks.Codebook;
+      Distances       : in     Codebooks.Codebook;
+      Output          : in out Byte_Array;
+      Produced        :    out Natural)
+   is
+      Header_End : Natural;
+      Body_End   : Natural;
+   begin
+      Serialize_Header
+        (Literal_Lengths, Distances, Output, Header_End);
+      pragma Assert (Header_End = Header_Bit_Count);
+
+      declare
+         Header_Output : constant Byte_Array := Output with Ghost;
+      begin
+         Serialize_Payload
+           (Data, Literal_Lengths, Distances,
+            Output, Header_End, Body_End);
+         pragma Assert
+           (for all Position in 0 .. Header_Bit_Count - 1 =>
+              Fixed.Bit_Value (Output, Position) =
+                Fixed.Bit_Value (Header_Output, Position));
+         Lemma_Header_Frame
+           (Header_Output, Output, Literal_Lengths, Distances);
+      end;
+
+      Produced := (Body_End + 7) / 8;
+      pragma Assert (Produced <= Max_Size (Data'Length));
+   end Serialize_Body;
 
 end Inflate.Dynamic;

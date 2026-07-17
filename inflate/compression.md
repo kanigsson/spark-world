@@ -225,8 +225,8 @@ M2–M5, it does not avoid them.
   minimum-redundancy. Proving length-limiting *optimal* (package-merge) is a
   research project of its own and buys round-trip nothing.
 
-**Current status: in progress, with a verified fixed-Huffman LZ77 slice,
-dynamic codebook builder, and shared payload serializer.**
+**Current status: in progress, with a verified fixed-Huffman LZ77 slice and a
+proved local dynamic-Huffman body serializer.**
 `Inflate.Fixed` emits and recognizes one final fixed-code block containing
 literals, selected matches, and end-of-block. Its compression plan is now
 explicit: `Selected_Token`, `Next_Position`, and `Token_Bit_Cost` operate only
@@ -249,31 +249,38 @@ recursive relations and framing lemmas are erased from checks-enabled builds.
 uses the stored encoder above it. `Inflate.Raw.Decompress` retains a proved
 success path for the expanded image, and the unchanged
 `Inflate.Theorems.GZip_Round_Trip` theorem composes both branches. Match
-lengths requiring extra bits, wider distances, and dynamic block serialization
-remain open M6 ratio work. `Inflate.Dynamic.Build_Lengths` is the completed
-local tree-building step: it includes every symbol with nonzero frequency,
+lengths requiring extra bits, wider distances, and top-level dynamic-block
+selection remain open M6 ratio work. `Inflate.Dynamic.Build_Lengths` is the
+completed local tree-building step: it includes every symbol with nonzero frequency,
 adds dummy leaves only for the degenerate zero/one-symbol cases, and produces a
 balanced complete code. For alphabets of 2 through 286 symbols its contract
 proves that all used symbols receive a code, all lengths are at most nine, and
-the Kraft sum is exactly one. The construction is intentionally not optimal
-and is not yet connected to a dynamic header. `Inflate.Codebooks` now provides
+the Kraft sum is exactly one. The construction is intentionally not optimal.
+`Inflate.Codebooks` provides
 constant fixed books and checked canonical books through one `Ready`,
 `Length_Of`, and `Code_Of` interface. `Inflate.Payload.Serialize` consumes that
 interface and owns the shared literal, length/distance, and end-of-block writer,
 including exact bit-count, semantic-encoding, and frame contracts. The fixed
 compressor delegates to it, while `Inflate.Dynamic.Build_Codebook` and
-`Serialize_Payload` exercise the canonical path. No append-only logical-stream
-layer was needed: moving the existing concrete writer behind this boundary
-removed the duplicated payload implementation while retaining one framing
-proof.
+`Serialize_Payload` exercise the canonical path. `Serialize_Header` now emits a
+complete RFC 1951 dynamic header around those books. It deliberately transmits
+all 286 literal/length and 30 distance lengths directly through a complete
+four-bit code-length alphabet: the header is larger than an RLE-optimized one,
+but its reconstruction proof has no repeat-code cases. `Header_Encodes` states
+the exact header bits and reconstructed lengths, while the local
+`Inflate.Dynamic.Is_Encoding` relation composes that header with the shared
+payload. `Serialize_Body` establishes the relation without yet widening the
+gzip compressor branch. No append-only logical-stream layer was needed: the
+concrete header and payload writers retain explicit frame contracts.
 
-The focused dynamic proof closes all 367 checks, the codebook proof all 82,
-and the shared payload proof all 459 at `--level=2`. The full library proves all
-5,100 checks at `--level=4`, with no justifications or assumptions. The dynamic
-runtime harness covers empty, singleton, sparse, and full DEFLATE alphabets and
-an exact shared-payload bit pattern. The complete debug suite passes 6,445
-cases and 18 compressor differential cases, including exact bit-level checks
-for length-ten matches at distances one, three, and four.
+The focused dynamic proof closes all 576 checks at `--level=4`; the full library
+proves all 5,309 checks at `--level=4`, with no justifications or assumptions.
+The dynamic runtime harness covers empty, singleton, sparse, and full DEFLATE
+alphabets, an exact shared-payload bit pattern, and a complete dynamic body that
+round trips through the shipping decoder and its independent model. C zlib
+independently decodes that body. The complete debug suite passes 6,445 cases and
+18 compressor differential cases, including exact bit-level checks for
+length-ten matches at distances one, three, and four.
 
 The planned token-trace reassessment against this broader baseline is also
 complete. A `Step` relation would restate `One_Token_Matches`, while `Trace`
@@ -363,12 +370,10 @@ Why3-adjacent grind. Still SPARK-tractable — budget for it.
 
 M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
 literal/match slice with the same full-domain gzip theorem, plus a proved
-dynamic codebook and shared fixed/dynamic payload serializer. The remaining
-ratio work is:
+local dynamic header and body serializer. The remaining ratio work is:
 
-1. **Serialize the dynamic header and establish a local dynamic-body
-   relation.** Reuse the proved length construction without widening the gzip
-   branch yet.
-2. **Connect the dynamic body through `Body_Encodes`.** Introduce the common
-   body relation before adding the dynamic gzip branch, preserving the existing
-   round-trip theorem.
+1. **Connect stored, fixed, and dynamic bodies through `Body_Encodes`.** Replace
+   the format-specific compressor-image branches with the common body relation
+   before widening gzip.
+2. **Add the dynamic gzip branch.** Select the proved dynamic body locally and
+   lift it through the existing framing, decoder-success, and round-trip proof.

@@ -36,7 +36,7 @@ handled by raising an exception.
 | `Inflate.Fixed`   | fixed-Huffman literal/match encoder, iterative analyzer, and executable relation |
 | `Inflate.Codebooks` | shared fixed/canonical encoder codebook boundary with proved construction and validity |
 | `Inflate.Payload` | shared literal, match, and end-of-block serializer over a ready codebook |
-| `Inflate.Dynamic` | bounded dynamic-Huffman code-length/codebook builder and shared-payload adapter |
+| `Inflate.Dynamic` | bounded dynamic-Huffman codebook, header, and local body serializer |
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
 | `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
 | `Inflate.Model`   | executable canonical model for stored, fixed-Huffman, and dynamic-Huffman DEFLATE, plus the stored compressor relation |
@@ -79,10 +79,14 @@ theorem keep their original domain. `Inflate.Codebooks` now separates fixed
 and canonical assignments from `Inflate.Payload`, which serializes the common
 literal, length/distance, and end-of-block token payload. The fixed compressor
 uses that shared writer, and `Inflate.Dynamic` constructs a proved balanced
-complete codebook and exposes the same payload path. No dynamic block header is
-emitted yet, so dynamic-block integration, lengths requiring extra bits, and
-wider distances remain M6 ratio work. Any gzip decoder consumes either current
-fixed or stored output.
+complete codebook and a local dynamic body around the same payload path. The
+dynamic header transmits all lengths directly through a complete four-bit
+code-length alphabet; this is intentionally larger than an RLE-optimized header
+but keeps reconstruction local and proved. The focused harness round trips that
+body through the shipping decoder and independent model, and C zlib decodes the
+same bytes. The top-level gzip compressor does not select the dynamic body yet,
+so gzip integration, lengths requiring extra bits, and wider distances remain
+M6 ratio work. Any gzip decoder consumes the current fixed or stored output.
 The contract is preserved across both branches:
 
 - **Totality and size.** Under the stated preconditions there is no failure
@@ -112,7 +116,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **5,100 checks,
+The most recent recorded `gnatprove --level=4` run reported **5,309 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -150,8 +154,11 @@ Some proof-relevant structure:
   a code, all lengths are at most nine (stronger than DEFLATE's limit of
   fifteen), and the scaled Kraft sum is exactly complete. The resulting
   canonical book feeds the same proved payload serializer as the fixed book;
-  the focused runtime harness exercises that path. It deliberately makes no
-  optimality claim and is not yet connected to a dynamic block header.
+  the focused runtime harness exercises that path. The local header serializer
+  emits exact `HLIT`, `HDIST`, and `HCLEN` fields, a complete code-length
+  alphabet, and all reconstructed literal/length and distance lengths. Its
+  body relation composes that header with the shared payload without making an
+  optimality claim or adding a top-level gzip branch.
 - The shared payload contract states exact bit consumption, the code selected
   for every reached token boundary, the end-of-block code, and preservation of
   every bit outside the returned half-open interval. Fixed and dynamic adapters

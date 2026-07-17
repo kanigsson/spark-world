@@ -321,8 +321,13 @@ the single literal, length/distance, and end-of-block writer, with exact
 bit-count, encoding, and frame contracts.  `Inflate.Fixed.Compress` delegates
 to it and bridges the common relation to the existing fixed-image theorem,
 while the dynamic runtime harness serializes the same token plan through
-canonical books.  Header-to-decoder reconstruction remains separate and is the
-next local body step.
+canonical books.  The local body step is now complete as well:
+`Inflate.Dynamic.Serialize_Header` emits all literal/length and distance lengths
+through a deliberately simple complete four-bit code-length alphabet, avoiding
+repeat-code cases.  `Header_Encodes` records the exact reconstructed books, and
+`Inflate.Dynamic.Is_Encoding` composes that header with the shared payload
+relation.  The focused harness round trips the resulting body through the
+shipping decoder and independent model, then C zlib decodes the same bytes.
 
 ## 6. Express one compressor-image relation above block formats
 
@@ -410,11 +415,11 @@ wrapped a working specialized relation without removing it.
    assignments, and `Inflate.Payload.Serialize` replaces the fixed writer while
    also serving the dynamic codebook adapter.  Actual framing duplication did
    not justify an append-only logical-stream layer.
-7. Serialize the dynamic header and establish its local body relation without
-   widening the gzip branch.
-8. Once the dynamic body relation is established, introduce `Body_Encodes` and
-   use it to connect dynamic compression to gzip and the existing round-trip
-   theorem.
+7. **Complete.** The dynamic header serializes complete canonical books without
+   RLE, and the local dynamic-body relation composes it with the shared payload
+   without widening the gzip branch.
+8. Introduce `Body_Encodes`, then use it to connect dynamic compression to gzip
+   and the existing round-trip theorem.
 
 This is feature-driven abstraction: establish a semantic seam before concrete
 proof logic is duplicated, but generalize it only when the next feature gives
