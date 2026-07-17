@@ -6,6 +6,7 @@
 --
 --    Inflate.Raw     — DEFLATE itself (RFC 1951), the compression core
 --    Inflate.LZ77    — proved back-reference match copying, including overlap
+--    Inflate.Dynamic — proved bounded dynamic-Huffman length construction
 --    Inflate.ZLib    — the zlib container (RFC 1950), Adler-32 checked
 --    Inflate.GZip    — the gzip container (RFC 1952), CRC-32 checked
 --    Inflate.CRC32   — CRC-32 (the gzip/zip polynomial)

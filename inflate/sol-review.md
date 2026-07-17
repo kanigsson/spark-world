@@ -161,7 +161,7 @@ A current run of:
 gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
 ```
 
-completed successfully with 4,341 checks, all proved. The generated summary
+completed successfully with 4,669 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -179,6 +179,9 @@ Subject to public preconditions, the proof establishes:
   length three through ten at distances one through four and their local M4
   window witness, or the stored-block relation between compressor input and
   emitted body;
+- bounded dynamic-Huffman length construction: every nonzero-frequency symbol
+  is assigned a code of length at most nine and the resulting code is complete
+  by exact scaled Kraft equality, without an optimality claim;
 - compressor-image decode success, exact consumption and production, and
   agreement with the selected relation when the decoded data fits the output;
 - gzip framing values used by the compressor, including the input length and a

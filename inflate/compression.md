@@ -225,7 +225,8 @@ M2–M5, it does not avoid them.
   minimum-redundancy. Proving length-limiting *optimal* (package-merge) is a
   research project of its own and buys round-trip nothing.
 
-**Current status: in progress, with a verified fixed-Huffman LZ77 slice.**
+**Current status: in progress, with a verified fixed-Huffman LZ77 slice and
+local dynamic-tree builder.**
 `Inflate.Fixed` emits and recognizes one final fixed-code block containing
 literals, selected matches, and end-of-block. Its compression plan is now
 explicit: `Selected_Token`, `Next_Position`, and `Token_Bit_Cost` operate only
@@ -248,11 +249,20 @@ recursive relations and framing lemmas are erased from checks-enabled builds.
 uses the stored encoder above it. `Inflate.Raw.Decompress` retains a proved
 success path for the expanded image, and the unchanged
 `Inflate.Theorems.GZip_Round_Trip` theorem composes both branches. Match
-lengths requiring extra bits, wider distances, and dynamic trees remain open
-M6 ratio work. A focused fixed-code run proves all 1,919 checks at `--level=2`;
-the full library proves all 4,341 checks at `--level=4`, with no justifications
-or assumptions. The complete debug suite passes 6,445 cases and 18 compressor
-differential cases, including exact bit-level checks for length-ten matches at
+lengths requiring extra bits, wider distances, and dynamic block serialization
+remain open M6 ratio work. `Inflate.Dynamic.Build_Lengths` is the completed
+local tree-building step: it includes every symbol with nonzero frequency,
+adds dummy leaves only for the degenerate zero/one-symbol cases, and produces a
+balanced complete code. For alphabets of 2 through 286 symbols its contract
+proves that all used symbols receive a code, all lengths are at most nine, and
+the Kraft sum is exactly one. The construction is intentionally not optimal
+and is not yet connected to header or payload serialization. Its focused
+runtime harness covers empty, singleton, sparse, and full DEFLATE alphabets,
+and its focused proof closes all 328 checks. A focused fixed-code run proves
+all 1,919 checks at `--level=2`; the full library proves all 4,669 checks at
+`--level=4`, with no justifications or assumptions. The complete debug suite
+passes 6,445 cases and 18 compressor differential cases, including exact
+bit-level checks for length-ten matches at
 distances one, three, and four.
 
 The planned token-trace reassessment against this broader baseline is also
@@ -342,16 +352,16 @@ Why3-adjacent grind. Still SPARK-tractable — budget for it.
 ## Current next moves
 
 M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
-literal/match slice with the same full-domain gzip theorem. The remaining ratio
-work is:
+literal/match slice with the same full-domain gzip theorem, plus a proved local
+dynamic-tree builder. The remaining ratio work is:
 
-1. **Add dynamic trees locally.** Build and prove a complete prefix code with
-   lengths at most 15, without making an optimality claim or adding another
-   top-level gzip branch yet.
-2. **Share payload serialization at the codebook boundary.** Shape the
+1. **Share payload serialization at the codebook boundary.** Shape the
    abstraction from the fixed and dynamic implementations once both concrete
    cases exist; add an append-only bitstream only if framing proof duplication
    actually appears.
+2. **Serialize the dynamic header and establish a local dynamic-body
+   relation.** Reuse the proved length construction without widening the gzip
+   branch yet.
 3. **Connect the dynamic body through `Body_Encodes`.** Introduce the common
    body relation before adding the dynamic gzip branch, preserving the existing
    round-trip theorem.

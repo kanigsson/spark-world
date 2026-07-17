@@ -350,10 +350,11 @@ M6 work.  The fixed-Huffman compressor, now with boundary-based longest
 matches of length three through ten at distances one through four, is connected
 through `Inflate.GZip.Compress`, the raw decoder's proved success path, and
 `Inflate.Theorems.GZip_Round_Trip`.  The remaining work is to support more
-lengths and wider distances, then add dynamic trees without breaking that
-connection.  The broader fixed-code baseline and the bounded `Step`/`Trace`
-reassessment are now complete.  The reassessment retained the current proof,
-so the next work is the local dynamic tree builder.
+lengths and wider distances, then emit dynamic blocks without breaking that
+connection.  The broader fixed-code baseline, bounded `Step`/`Trace`
+reassessment, and local dynamic tree builder are now complete.  The next work
+is to shape the codebook boundary from the fixed codebook and the new dynamic
+length construction, then share payload serialization.
 
 Introducing abstractions before features can prevent duplication, but proof
 abstractions also introduce quantified relations, conversion theorems, and
@@ -390,8 +391,10 @@ wrapped a working specialized relation without removing it.
    specialized relations while leaving their proof logic and the data-free
    analyzer recursion in place, so the attempted refactor's entry criterion
    was not met.
-5. Implement and prove the dynamic tree builder locally, without immediately
-   adding another top-level gzip branch.
+5. **Complete.** `Inflate.Dynamic.Build_Lengths` now constructs a balanced
+   complete code locally for every DEFLATE-sized alphabet, with used-symbol
+   coverage, a proved length bound of nine, exact Kraft equality, and no
+   optimality claim or top-level gzip branch.
 6. Introduce the codebook boundary while sharing payload serialization between
    the fixed and dynamic implementations.  Introduce the append-only stream at
    this point only if actual framing duplication demonstrates its value.
