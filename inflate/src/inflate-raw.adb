@@ -18,6 +18,7 @@
 --  on (impossible) violation is still defined.
 
 with Inflate.LZ77;
+with Inflate.Fixed;
 
 package body Inflate.Raw with SPARK_Mode => On is
 
@@ -996,6 +997,48 @@ package body Inflate.Raw with SPARK_Mode => On is
             end if;
          end if;
       end Fold_Block;
+
+      --  Fold the established stored-image relation into the common body
+      --  boundary without exposing the ghost hypothesis in ordinary code.
+      procedure Relate_Body with Ghost;
+
+      procedure Relate_Body is
+      begin
+         if H then
+            pragma Assert (Input'First + (Consumed - 1) = SEnd);
+            pragma Assert
+              (Model.Encodes_Stored
+                 (Input, Input'First, Input'First + (Consumed - 1),
+                  Output, OFN,
+                  (if Produced > 0
+                   then OFN + (Produced - 1)
+                   else OFN - 1)));
+            declare
+               Decoded : constant Byte_Array :=
+                 Output (Output'First .. Output'First - 1 + Produced)
+               with Ghost;
+            begin
+               if Produced > 0 then
+                  Model.Lemma_Encodes_Frame
+                    (Input, Input,
+                     Input'First, Input'First + (Consumed - 1),
+                     Output, Decoded,
+                     OFN, OFN + (Produced - 1));
+               else
+                  pragma Assert (Decoded'Length = 0);
+                  Bodies.Lemma_Stored_Empty_Encoding
+                    (Input, Consumed,
+                     Output, OFN, OFN - 1, Decoded);
+               end if;
+               if Produced > 0 then
+                  Bodies.Lemma_Stored_Encoding
+                    (Input, Consumed, Decoded);
+               end if;
+               Bodies.Lemma_Encoding_Recognized
+                 (Input, Consumed, Decoded);
+            end;
+         end if;
+      end Relate_Body;
    begin
       if Input'Length <= Fixed.Max_Stream_Bytes then
          Fixed.Decompress
@@ -1007,6 +1050,12 @@ package body Inflate.Raw with SPARK_Mode => On is
               (Fixed.Is_Encoding
                  (Input, Consumed,
                   Output (Output'First .. Output'First - 1 + Produced)));
+            Bodies.Lemma_Fixed_Encoding
+              (Input, Consumed,
+               Output (Output'First .. Output'First - 1 + Produced));
+            Bodies.Lemma_Encoding_Recognized
+              (Input, Consumed,
+               Output (Output'First .. Output'First - 1 + Produced));
             pragma Assert
               (not (Input'Length >= 5
                     and then Model.Stored_Stream_End
@@ -1114,6 +1163,7 @@ package body Inflate.Raw with SPARK_Mode => On is
                       Output'First + (Produced - 1))));
       pragma Assert
         (if H then Model.Is_Decoding (Input, Output, Consumed, Produced));
+      Relate_Body;
 
       --  M5 functional-correctness boundary.  The executable model is an
       --  independent canonical decoder over the returned bytes; never let

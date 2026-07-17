@@ -39,33 +39,14 @@ package body Inflate.GZip with SPARK_Mode => On is
       Raw_Consumed, Raw_Produced : Natural;
       Stored_CRC, Stored_Size    : Word32;
 
-      --  Ghost bridge for the decode-half postcondition, inlined for
-      --  proof and called right after the DEFLATE body is decoded. On a
-      --  member in the compressor's image the header has no optional
-      --  fields, so the body was decoded from the slice starting 10 bytes
-      --  in; the stream-walk hypothesis transfers to that slice (same
-      --  bytes, same indices), the core's postcondition fires, and its
-      --  relation transfers back to Input.
+      --  Ghost bridge for the decode-half postcondition.  Member fixes the
+      --  body at offset ten, so the raw decoder's common-body contract can
+      --  be carried without another stored/fixed case split.
       procedure Relate_Member with Ghost;
 
       procedure Relate_Member is
       begin
-         if Stored_Member (Input, Output'Length) then
-            pragma Assert (P = 10);
-            Model.Lemma_Stream_Frame
-              (Input, Input (Input'First + P .. Input'Last),
-               Input'First + 10, Input'Last);
-            pragma Assert (Status = OK);
-            pragma Assert (Raw_Consumed = Input'Length - 18);
-            Model.Lemma_Encodes_Frame
-              (Input (Input'First + P .. Input'Last), Input,
-               Input'First + 10, Input'Last - 8,
-               Output, Output,
-               (if Output'Length > 0 then Output'First else 1),
-               (if Output'Length > 0
-                then Output'First + (Raw_Produced - 1)
-                else 0));
-         elsif Fixed_Member (Input, Output'Length) then
+         if Member (Input, Output'Length) then
             pragma Assert (P = 10);
             pragma Assert (Status = OK);
             pragma Assert (Raw_Consumed = Input'Length - 18);
@@ -218,28 +199,17 @@ package body Inflate.GZip with SPARK_Mode => On is
 
       procedure Relate_First is
       begin
-         if Stored_Member (Input, Output'Length)
+         if Member (Input, Output'Length)
            and then In_Pos = 0 and then Out_Pos = 0
          then
-            Model.Lemma_Stream_Frame
-              (Input, Input (Input'First + In_Pos .. Input'Last),
-               Input'First + 10, Input'Last);
             pragma Assert
-              (Stored_Member
+              (Member
                  (Input (Input'First + In_Pos .. Input'Last),
                   Output'Length - Out_Pos));
             pragma Assert (C = Input'Length);
             pragma Assert
-              (Pr = Model.Stored_Decoded_Length
-                      (Input, Input'First + 10, Input'Last));
-            Model.Lemma_Encodes_Frame
-              (Input (Input'First + In_Pos .. Input'Last), Input,
-               Input'First + 10, Input'Last - 8,
-               Output (Output'First + Out_Pos .. Output'Last), Output,
-               (if Output'Length > 0 then Output'First else 1),
-               (if Output'Length > 0
-                then Output'First + (Pr - 1)
-                else 0));
+              (Pr = Bodies.Decoded_Size
+                      (Input (Input'First + 10 .. Input'Last)));
          end if;
       end Relate_First;
    begin
@@ -252,7 +222,7 @@ package body Inflate.GZip with SPARK_Mode => On is
          pragma Loop_Invariant (In_Pos < Input'Length);
          pragma Loop_Invariant (Out_Pos <= Output'Length);
          pragma Loop_Invariant
-           (if Stored_Member (Input, Output'Length)
+           (if Member (Input, Output'Length)
             then In_Pos = 0 and then Out_Pos = 0);
          pragma Loop_Variant (Increases => In_Pos);
          Decompress
@@ -283,9 +253,6 @@ package body Inflate.GZip with SPARK_Mode => On is
       CRC       : constant Word32       := CRC32.Compute (Input);
       F         : constant Buffer_Index := Output'First;
       T         : constant Buffer_Index := F + 10 + Body_Size;
-
-      In_First : constant Positive := (if N > 0 then Input'First else 1);
-      In_Last  : constant Natural  := (if N > 0 then Input'Last else 0);
 
       Raw_Produced : Natural;
       pragma Warnings (Off, Raw_Produced,
@@ -325,9 +292,13 @@ package body Inflate.GZip with SPARK_Mode => On is
          Fixed.Compress
            (Input,
             Output (F + 10 .. T - 1), Raw_Produced);
+         Bodies.Lemma_Fixed_Encoding
+           (Output (F + 10 .. T - 1), Raw_Produced, Input);
       else
          Raw.Compress_Stored
            (Input, Output (F + 10 .. T - 1), Raw_Produced);
+         Bodies.Lemma_Stored_Encoding
+           (Output (F + 10 .. T - 1), Raw_Produced, Input);
       end if;
       --  Make the slice frame explicit before the larger body-relation proof
       --  context is introduced below.
@@ -341,19 +312,12 @@ package body Inflate.GZip with SPARK_Mode => On is
          else Body_Size = Raw.Stored_Size (N));
       pragma Assert (Raw_Produced = Body_Size);
 
-      --  The callee states the relation on the slice it was given;
-      --  restate it on Output itself (same bytes, same indices).
-      if not Use_Fixed then
-         Model.Lemma_Encodes_Frame
-           (Output (F + 10 .. T - 1), Output,
-            F + 10, T - 1,
-            Input, Input, In_First, In_Last);
-      else
-         Fixed.Lemma_Encoding_Frame
-           (Output (F + 10 .. T - 1),
-            Output (F + 10 .. F + 17 + Fixed.Max_Size (N)),
-            Raw_Produced, Input);
-      end if;
+      --  Extend the relation over the already-written trailer.  Only the
+      --  first Raw_Produced bytes belong to the DEFLATE body.
+      Bodies.Lemma_Encoding_Frame
+        (Output (F + 10 .. T - 1),
+         Output (F + 10 .. T + 7),
+         Raw_Produced, Input);
 
       Produced := Body_Size + 18;
       pragma Assert

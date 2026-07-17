@@ -9,7 +9,7 @@
 --  nothing.
 
 with Inflate.Model;
-with Inflate.Fixed;
+with Inflate.Bodies;
 
 package Inflate.Raw with SPARK_Mode => On is
 
@@ -30,14 +30,12 @@ package Inflate.Raw with SPARK_Mode => On is
    --  buffer that is data-flow-wise write-before-read; pass it uninitialized
    --  from full-Ada code, or zeroed from SPARK code.
    --
-   --  The second postcondition is the decode half of the round-trip
-   --  theorem, on the stored fragment the compressor emits: whenever a
-   --  well-formed stored-block stream starts at Input'First (trailing
-   --  bytes after it, such as a container's checksum, are fine) and its
-   --  decoded size fits the buffer, decoding succeeds, consumes exactly
-   --  the stream, and the produced bytes stand in the decode-model
-   --  relation to it. Since the relation is functional in the decoded
-   --  bytes, this pins the output completely.
+   --  The second postcondition is the decode half of the round-trip theorem
+   --  over the common compressor-image boundary.  Whenever a recognized
+   --  stored or fixed body starts at Input'First (trailing container bytes
+   --  are fine) and its decoded size fits, decoding succeeds and returns the
+   --  exact Body_Encodes relation.  Higher layers do not need to branch on
+   --  the selected DEFLATE representation.
    procedure Decompress
      (Input    : in     Byte_Array;
       Output   : in out Byte_Array;
@@ -52,36 +50,14 @@ package Inflate.Raw with SPARK_Mode => On is
                  then Model.Is_Decoding
                         (Input, Output, Consumed, Produced))
        and then
-       (if Input'Length <= Fixed.Max_Stream_Bytes
-           and then Fixed.Analyze (Input).Valid
-           and then Fixed.Analyze (Input).Decoded_Length <= Output'Length
-        then Status = OK
-             and then Consumed = (Fixed.Analyze (Input).End_Bit + 7) / 8
-             and then Produced = Fixed.Analyze (Input).Decoded_Length
-             and then Fixed.Is_Encoding
-                        (Input, Consumed,
-                         Output
-                           (Output'First .. Output'First - 1 + Produced)))
-       and then
-       (if Input'Length >= 5
-           and then Model.Stored_Stream_End
-                      (Input, Input'First, Input'Last) > 0
-           and then Model.Stored_Decoded_Length
-                      (Input, Input'First, Input'Last) <= Output'Length
+       (if Bodies.Recognized (Input, Output'Length)
         then
           Status = OK
-          and then Input'First + (Consumed - 1) =
-                     Model.Stored_Stream_End (Input, Input'First, Input'Last)
-          and then Produced =
-                     Model.Stored_Decoded_Length
-                       (Input, Input'First, Input'Last)
-          and then Model.Encodes_Stored
-                     (Input, Input'First, Input'First + (Consumed - 1),
-                      Output,
-                      (if Output'Length > 0 then Output'First else 1),
-                      (if Output'Length > 0
-                       then Output'First + (Produced - 1)
-                       else 0)));
+          and then Consumed = Bodies.Encoded_Size (Input)
+          and then Produced = Bodies.Decoded_Size (Input)
+          and then Bodies.Body_Encodes
+                     (Input, Consumed,
+                      Output (Output'First .. Output'First - 1 + Produced)));
 
    ---------------------------------------------------------------------
    --  Compression

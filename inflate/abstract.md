@@ -331,10 +331,10 @@ shipping decoder and independent model, then C zlib decodes the same bytes.
 
 ## 6. Express one compressor-image relation above block formats
 
-At the gzip level, stored and fixed streams currently have separate member
-predicates, decoder postconditions, framing lemmas, functionality lemmas, and
-branches in `GZip_Round_Trip`.  Adding dynamic blocks in the same style would
-introduce a third copy of that structure.
+At the gzip level, stored and fixed streams had separate member predicates,
+decoder postconditions, framing lemmas, functionality lemmas, and branches in
+`GZip_Round_Trip`.  Adding dynamic blocks in the same style would have
+introduced a third copy of that structure.
 
 Introduce one semantic relation:
 
@@ -349,10 +349,20 @@ with common consequences:
 - `Inflate.Raw.Decompress` accepts it when the output fits;
 - its decoded length is `Data'Length`.
 
-Stored, fixed, and dynamic encoders establish `Body_Encodes` locally.  Gzip
-then lifts that single relation through its header, CRC-32, and length trailer.
-The top-level round-trip theorem no longer needs to know which compression
-strategy was selected.
+This boundary is now implemented in `Inflate.Bodies` for the stored and fixed
+images selected by the top-level compressor.  Both encoders establish
+`Body_Encodes` locally; its recognition, framing, and functionality lemmas are
+the only relations seen by `Inflate.Raw`, `Inflate.GZip`, and
+`Inflate.Theorems`.  The separate gzip member predicates and both format
+branches in `GZip_Round_Trip` are gone.  Thus the abstraction met its deletion
+criterion rather than wrapping the existing top-level proof.
+
+The dynamic introduction remains local.  `Inflate.Dynamic.Is_Encoding`
+currently carries the literal/length and distance books as explicit witnesses,
+whereas `Body_Encodes (Body, Consumed, Data)` deliberately does not.  The next
+step is to recover those canonical books from the serialized header (or prove
+an equivalent witness-erasure lemma), then add the dynamic alternative without
+changing the gzip and theorem layers again.
 
 An especially valuable consequence would be a single decoder-completeness
 lemma for compressor images.  That would let the shipping raw decoder consume
@@ -368,9 +378,9 @@ through `Inflate.GZip.Compress`, the raw decoder's proved success path, and
 `Inflate.Theorems.GZip_Round_Trip`.  The remaining work is to support more
 lengths and wider distances, then emit dynamic blocks without breaking that
 connection.  The broader fixed-code baseline, bounded `Step`/`Trace`
-reassessment, and local dynamic tree builder are now complete.  The next work
-is to serialize the dynamic header around the completed codebook boundary and
-shared payload writer, then establish the local dynamic-body relation.
+reassessment, dynamic header/body serializer, and common stored/fixed body
+boundary are now complete.  The next work is to make the dynamic relation
+self-describing at that boundary, then select it from gzip.
 
 Introducing abstractions before features can prevent duplication, but proof
 abstractions also introduce quantified relations, conversion theorems, and
@@ -390,7 +400,7 @@ wrapped a working specialized relation without removing it.
 | `Trace_Cursor` and `Step`/`Trace` | Reassessed and deferred.  At the current boundary they rename `One_Token_Matches` and `Prefix_Matches` but cannot replace the data-free `Spec_Walk`; the associated framing, closing, and functionality proofs would remain.  Revisit only if a later shared payload decoder provides a concrete deletion target. |
 | Append-only logical bitstream | Deferred.  The shared concrete payload writer closed with one framing proof, so no duplicated header/payload framing logic currently justifies another stream representation.  Revisit if dynamic-header serialization changes that evidence. |
 | Codebook abstraction | Complete: `Inflate.Codebooks` supplies fixed and canonical instances, and `Inflate.Payload.Serialize` uses only their common ready/length/code interface. |
-| `Body_Encodes` | After the dynamic body has a local encoding relation, but before wiring it into gzip and the round-trip theorem.  At that point it can replace stored/fixed/dynamic branches instead of wrapping only the current two. |
+| `Body_Encodes` | Landed for stored/fixed at the intended just-in-time point: it deleted the member predicates and theorem branches.  Next recover the dynamic books from its header and add that local introduction case before gzip selects it. |
 
 ## Recommended M6 order
 
@@ -418,8 +428,10 @@ wrapped a working specialized relation without removing it.
 7. **Complete.** The dynamic header serializes complete canonical books without
    RLE, and the local dynamic-body relation composes it with the shared payload
    without widening the gzip branch.
-8. Introduce `Body_Encodes`, then use it to connect dynamic compression to gzip
-   and the existing round-trip theorem.
+8. **Complete for the integrated stored/fixed paths.** `Body_Encodes` now
+   replaces their raw/gzip/theorem branches.  Extend it with a self-describing
+   dynamic introduction, then select that body from gzip without reintroducing
+   a format branch above the boundary.
 
 This is feature-driven abstraction: establish a semantic seam before concrete
 proof logic is duplicated, but generalize it only when the next feature gives
@@ -436,5 +448,6 @@ Treat any future attempt as an A/B refactor with explicit acceptance criteria:
 - the existing build, round-trip tests, and compressor differential tests
   remain clean.
 
-Until those conditions can be met, the existing specialized proof is simpler
-and more trustworthy for the current compressor.
+`Body_Encodes` met these conditions for the integrated stored/fixed proof.  Use
+the same test for its dynamic extension and for any later abstraction; retain a
+specialized local relation when it cannot delete proof above its own layer.

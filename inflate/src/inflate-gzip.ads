@@ -12,9 +12,9 @@
 --  the common "whole file" case.
 
 with Inflate.Raw;
-with Inflate.Model;
 with Inflate.CRC32;
 with Inflate.Fixed;
+with Inflate.Bodies;
 
 package Inflate.GZip with SPARK_Mode => On is
 
@@ -31,14 +31,12 @@ package Inflate.GZip with SPARK_Mode => On is
       and then A (P + 3) = Byte (Interfaces.Shift_Right (V, 24)))
    with Pre => P >= A'First and then P <= A'Last and then A'Last - P >= 3;
 
-   --  The shape of the members Compress emits, characterized on the input
-   --  side alone: the fixed 10-byte header (deflate, no optional fields),
-   --  a stored-block DEFLATE body whose walk ends exactly 8 bytes before
-   --  the member's end (the trailer), and a decoded size that fits in
-   --  Out_Len bytes. The trailer's *contents* are deliberately not
-   --  constrained here: the decoder's contract reports their check
-   --  through Status, phrased against the produced output.
-   function Stored_Member
+   --  The shape of members Compress emits, characterized without exposing
+   --  whether the body used stored blocks or the bounded fixed-Huffman image.
+   --  The common body must end exactly eight bytes before the member's end
+   --  and its decoded size must fit Out_Len.  Trailer contents remain a
+   --  separate checksum/length condition below.
+   function Member
      (Input : Byte_Array; Out_Len : Natural) return Boolean
    is
      (Input'Length >= 20
@@ -46,28 +44,11 @@ package Inflate.GZip with SPARK_Mode => On is
       and then Input (Input'First + 1) = 16#8B#
       and then Input (Input'First + 2) = 8
       and then Input (Input'First + 3) = 0
-      and then Model.Stored_Stream_End
-                 (Input, Input'First + 10, Input'Last) = Input'Last - 8
-      and then Model.Stored_Decoded_Length
-                 (Input, Input'First + 10, Input'Last) <= Out_Len);
-
-   function Fixed_Member
-     (Input : Byte_Array; Out_Len : Natural) return Boolean
-   is
-     (Input'Length >= 20
-      and then Input'Length - 10 <= Fixed.Max_Stream_Bytes
-      and then Input (Input'First) = 16#1F#
-      and then Input (Input'First + 1) = 16#8B#
-      and then Input (Input'First + 2) = 8
-      and then Input (Input'First + 3) = 0
-      and then Fixed.Analyze
-                 (Input (Input'First + 10 .. Input'Last)).Valid
-      and then (Fixed.Analyze
-                  (Input (Input'First + 10 .. Input'Last)).End_Bit + 7) / 8 =
-                 Input'Length - 18
-      and then Fixed.Analyze
-                 (Input (Input'First + 10 .. Input'Last)).Decoded_Length <=
-                 Out_Len);
+      and then Bodies.Recognized
+                 (Input (Input'First + 10 .. Input'Last), Out_Len)
+      and then Bodies.Encoded_Size
+                 (Input (Input'First + 10 .. Input'Last)) =
+                   Input'Length - 18);
 
    --  Decompress the gzip member starting at Input'First. Status = OK
    --  means well-formed *and* CRC-32 and length matched. On error,
@@ -77,7 +58,7 @@ package Inflate.GZip with SPARK_Mode => On is
    --  The second postcondition is the decode half of the round-trip
    --  theorem lifted to the container: on a member in the compressor's
    --  image, the whole member is consumed, the body decodes against the
-   --  model into the output, and the member is accepted exactly when its
+   --  model into the output, and the member is accepted when its
    --  trailer holds the CRC-32 the decoder recomputes over that output
    --  plus the output's length. A compressor that provably stored those
    --  values (Compress does) therefore gets Status = OK.
@@ -94,19 +75,15 @@ package Inflate.GZip with SPARK_Mode => On is
         and then Produced <= Output'Length
         and then (if Status = OK then Consumed > 0))
        and then
-       (if Stored_Member (Input, Output'Length)
+       (if Member (Input, Output'Length)
         then
           Consumed = Input'Length
-          and then Produced =
-                     Model.Stored_Decoded_Length
-                       (Input, Input'First + 10, Input'Last)
-          and then Model.Encodes_Stored
-                     (Input, Input'First + 10, Input'Last - 8,
-                      Output,
-                      (if Output'Length > 0 then Output'First else 1),
-                      (if Output'Length > 0
-                       then Output'First + (Produced - 1)
-                       else 0))
+          and then Produced = Bodies.Decoded_Size
+                     (Input (Input'First + 10 .. Input'Last))
+          and then Bodies.Body_Encodes
+                     (Input (Input'First + 10 .. Input'Last),
+                      Input'Length - 18,
+                      Output (Output'First .. Output'First - 1 + Produced))
           and then (if Stores_LE32
                         (Input, Input'Last - 7,
                          CRC32.Compute
@@ -114,23 +91,7 @@ package Inflate.GZip with SPARK_Mode => On is
                                     Output'First - 1 + Produced)))
                        and then Stores_LE32
                                   (Input, Input'Last - 3, Word32 (Produced))
-                    then Status = OK))
-       and then
-       (if Fixed_Member (Input, Output'Length)
-        then Consumed = Input'Length
-             and then Produced = Fixed.Analyze
-               (Input (Input'First + 10 .. Input'Last)).Decoded_Length
-             and then Fixed.Is_Encoding
-               (Input (Input'First + 10 .. Input'Last), Input'Length - 18,
-                Output (Output'First .. Output'First - 1 + Produced))
-             and then
-               (if Stores_LE32
-                     (Input, Input'Last - 7,
-                      CRC32.Compute
-                        (Output (Output'First .. Output'First - 1 + Produced)))
-                    and then Stores_LE32
-                      (Input, Input'Last - 3, Word32 (Produced))
-                then Status = OK));
+                    then Status = OK));
 
    --  Decompress consecutive gzip members until the input is exhausted,
    --  concatenating their output — the semantics of `gzip -d` on the whole
@@ -149,17 +110,14 @@ package Inflate.GZip with SPARK_Mode => On is
      Post   =>
        Produced <= Output'Length
        and then
-       (if Stored_Member (Input, Output'Length)
+       (if Member (Input, Output'Length)
         then
-          Produced = Model.Stored_Decoded_Length
-                       (Input, Input'First + 10, Input'Last)
-          and then Model.Encodes_Stored
-                     (Input, Input'First + 10, Input'Last - 8,
-                      Output,
-                      (if Output'Length > 0 then Output'First else 1),
-                      (if Output'Length > 0
-                       then Output'First + (Produced - 1)
-                       else 0))
+          Produced = Bodies.Decoded_Size
+                       (Input (Input'First + 10 .. Input'Last))
+          and then Bodies.Body_Encodes
+                     (Input (Input'First + 10 .. Input'Last),
+                      Input'Length - 18,
+                      Output (Output'First .. Output'First - 1 + Produced))
           and then (if Stores_LE32
                         (Input, Input'Last - 7,
                          CRC32.Compute
@@ -210,18 +168,11 @@ package Inflate.GZip with SPARK_Mode => On is
        and then Output (Output'First + 1) = 16#8B#
        and then Output (Output'First + 2) = 8
        and then Output (Output'First + 3) = 0
-       and then (if Input'Length <= Fixed.Max_Input
-                 then Fixed.Is_Encoding
-                   (Output
-                      (Output'First + 10 ..
-                       Output'First + 17 + Fixed.Max_Size (Input'Length)),
-                    Produced - 18,
-                    Input)
-                 else Model.Encodes_Stored
-                  (Output, Output'First + 10, Output'First + (Produced - 9),
-                   Input,
-                   (if Input'Length > 0 then Input'First else 1),
-                   (if Input'Length > 0 then Input'Last else 0)))
+       and then Bodies.Body_Encodes
+                  (Output
+                     (Output'First + 10 ..
+                      Output'First + (Produced - 1)),
+                   Produced - 18, Input)
        and then Stores_LE32
                   (Output, Output'First + (Produced - 8),
                    CRC32.Compute (Input))

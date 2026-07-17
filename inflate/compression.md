@@ -225,8 +225,9 @@ M2–M5, it does not avoid them.
   minimum-redundancy. Proving length-limiting *optimal* (package-merge) is a
   research project of its own and buys round-trip nothing.
 
-**Current status: in progress, with a verified fixed-Huffman LZ77 slice and a
-proved local dynamic-Huffman body serializer.**
+**Current status: in progress, with a verified fixed-Huffman LZ77 slice, a
+proved local dynamic-Huffman body serializer, and a common stored/fixed body
+boundary.**
 `Inflate.Fixed` emits and recognizes one final fixed-code block containing
 literals, selected matches, and end-of-block. Its compression plan is now
 explicit: `Selected_Token`, `Next_Position`, and `Token_Bit_Cost` operate only
@@ -247,8 +248,10 @@ encoding relation, and decoded-prefix checker are iterative; proof-only
 recursive relations and framing lemmas are erased from checks-enabled builds.
 `Inflate.GZip.Compress` selects this fixed coding throughout that domain and
 uses the stored encoder above it. `Inflate.Raw.Decompress` retains a proved
-success path for the expanded image, and the unchanged
-`Inflate.Theorems.GZip_Round_Trip` theorem composes both branches. Match
+success path for the expanded image. `Inflate.Bodies.Body_Encodes` now hides
+the selected stored/fixed format from `Inflate.Raw`, `Inflate.GZip`, and
+`Inflate.Theorems`: its recognition, framing, and functionality lemmas replace
+the former member predicates and `GZip_Round_Trip` has no format branch. Match
 lengths requiring extra bits, wider distances, and top-level dynamic-block
 selection remain open M6 ratio work. `Inflate.Dynamic.Build_Lengths` is the
 completed local tree-building step: it includes every symbol with nonzero frequency,
@@ -273,8 +276,15 @@ payload. `Serialize_Body` establishes the relation without yet widening the
 gzip compressor branch. No append-only logical-stream layer was needed: the
 concrete header and payload writers retain explicit frame contracts.
 
+The common body boundary currently contains exactly the two images selected by
+the top-level compressor. The remaining local connection is dynamic: its
+`Is_Encoding` predicate still carries the reconstructed literal/length and
+distance books explicitly, so those witnesses must be recovered or hidden
+before the three-argument `Body_Encodes (Body, Consumed, Data)` relation can
+admit it without weakening functionality.
+
 The focused dynamic proof closes all 576 checks at `--level=4`; the full library
-proves all 5,309 checks at `--level=4`, with no justifications or assumptions.
+proves all 5,340 checks at `--level=4`, with no justifications or assumptions.
 The dynamic runtime harness covers empty, singleton, sparse, and full DEFLATE
 alphabets, an exact shared-payload bit pattern, and a complete dynamic body that
 round trips through the shipping decoder and its independent model. C zlib
@@ -372,8 +382,9 @@ M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
 literal/match slice with the same full-domain gzip theorem, plus a proved
 local dynamic header and body serializer. The remaining ratio work is:
 
-1. **Connect stored, fixed, and dynamic bodies through `Body_Encodes`.** Replace
-   the format-specific compressor-image branches with the common body relation
-   before widening gzip.
+1. **Extend `Body_Encodes` from stored/fixed to dynamic.** The common relation
+   already replaced the format-specific branches in raw, gzip, and the theorem;
+   recover the dynamic books from its header so the local dynamic relation can
+   establish the same three-argument boundary.
 2. **Add the dynamic gzip branch.** Select the proved dynamic body locally and
    lift it through the existing framing, decoder-success, and round-trip proof.

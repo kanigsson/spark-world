@@ -37,6 +37,7 @@ handled by raising an exception.
 | `Inflate.Codebooks` | shared fixed/canonical encoder codebook boundary with proved construction and validity |
 | `Inflate.Payload` | shared literal, match, and end-of-block serializer over a ready codebook |
 | `Inflate.Dynamic` | bounded dynamic-Huffman codebook, header, and local body serializer |
+| `Inflate.Bodies`  | common stored/fixed compressor-image relation, recognition, framing, and functionality lemmas |
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
 | `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
 | `Inflate.Model`   | executable canonical model for stored, fixed-Huffman, and dynamic-Huffman DEFLATE, plus the stored compressor relation |
@@ -85,38 +86,40 @@ code-length alphabet; this is intentionally larger than an RLE-optimized header
 but keeps reconstruction local and proved. The focused harness round trips that
 body through the shipping decoder and independent model, and C zlib decodes the
 same bytes. The top-level gzip compressor does not select the dynamic body yet,
-so gzip integration, lengths requiring extra bits, and wider distances remain
-M6 ratio work. Any gzip decoder consumes the current fixed or stored output.
-The contract is preserved across both branches:
+so connecting its codebook-carrying local relation to the format-independent
+body boundary, gzip integration, lengths requiring extra bits, and wider
+distances remain M6 ratio work. Any gzip decoder consumes the current fixed or
+stored output. The contract is preserved across both encodings:
 
 - **Totality and size.** Under the stated preconditions there is no failure
   path. `GZip.Compressed_Size` is the allocation bound; the produced size is
   exact for the selected fixed or stored branch.
 - **Round-trip, compress half.** The DEFLATE body stands in
-  `Inflate.Fixed.Is_Encoding` or `Inflate.Model.Encodes_Stored` to exactly the
-  input bytes. The gzip trailer provably holds `CRC32.Compute (Input)` — the
-  same function the decoder recomputes.
+  `Inflate.Bodies.Body_Encodes` to exactly the input bytes. Stored and fixed
+  encoders establish that common relation locally. The gzip trailer provably
+  holds `CRC32.Compute (Input)` — the same function the decoder recomputes.
 - **Round-trip, decode half.** `Raw.Decompress` and `GZip.Decompress` carry
-  postconditions stating that either compressor image, characterized on the
-  input side alone, decodes successfully and produces bytes in the matching
-  relation. `GZip.Decompress_All` retains the stored whole-file lifting
-  contract. A trailer holding the CRC-32/length recomputed over the output is
-  sufficient for the member to be accepted.
+  postconditions stating that any recognized common-body image, characterized
+  on the input side alone, decodes successfully and produces bytes in that
+  relation. `GZip.Decompress_All` carries the same whole-file lifting contract.
+  A trailer holding the CRC-32/length recomputed over the output is sufficient
+  for the member to be accepted.
 - **The theorem.** `Inflate.Theorems.GZip_Round_Trip` composes the two
   halves: for *every* input (within the size cap, given large enough
   buffers), `Decompress (Compress (Input))` returns `Status = OK` and
   exactly `Input`. The proof is spec-free — it trusts no external DEFLATE
   specification, only the agreement of the library's own compressor and
-  decompressor through the executable model, plus the functionality of
-  that relation and the content-invariance of the CRC.
+  decompressor through `Body_Encodes`, plus the functionality of that relation
+  and the content-invariance of the CRC. Its proof body has no stored/fixed
+  format branch.
 
-The fixed and stored relations are deliberately executable (not ghost): the
+The common stored/fixed relation is deliberately executable (not ghost): the
 test suite runs the relation selected by the compressor, and C zlib
 independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **5,309 checks,
+The most recent recorded `gnatprove --level=4` run reported **5,340 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -163,6 +166,11 @@ Some proof-relevant structure:
   for every reached token boundary, the end-of-block code, and preservation of
   every bit outside the returned half-open interval. Fixed and dynamic adapters
   therefore share the concrete writer and its framing proof.
+- `Inflate.Bodies.Body_Encodes` hides the stored/fixed choice from the raw,
+  gzip, and theorem layers. Its proved introduction, framing, recognition, and
+  functionality lemmas replace the former member predicates and the duplicated
+  format branches in `GZip_Round_Trip`. The local dynamic relation is not yet a
+  case of this boundary.
 - The full model deliberately does not reuse the shipping Huffman table or
   fast map. Its canonical table builder and parser prove 685 checks in the
   focused model unit; the shipping decoder calls the model only after an
@@ -232,7 +240,7 @@ so the suite is a differential test, not a self-test:
   ZIP64 markers, bzip2 method, encryption flag, corrupted CRCs.
 - Compression: each corpus file is gzip-compressed by the crate, round
   tripped through the crate's own decoder, checked against the executable
-  decode-model relation, and independently decompressed by C zlib —
+  common-body relation, and independently decompressed by C zlib —
   byte-for-byte in both directions.
 
 The recorded test run had zero failures and no escaping exception.

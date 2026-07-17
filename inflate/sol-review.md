@@ -128,22 +128,24 @@ polynomial step:
 
 Thus a table-generation or table-lookup mistake cannot satisfy the proof merely
 because the model repeats the same table walk. The remaining issue is the
-compressor-image wire format: the fixed-Huffman and stored branches are
-still composed through the library's own executable relations rather than an
-independently formalized RFC semantics. A shared format mistake could satisfy the formal
-round-trip theorem while failing an independent gzip implementation. The tests
+compressor-image wire format: `Inflate.Bodies.Body_Encodes` now removes the
+stored/fixed split from the container and theorem layers, but that common
+boundary is still built from the library's own executable relations rather
+than an independently formalized RFC semantics. A shared format mistake could
+satisfy the formal round-trip theorem while failing an independent gzip
+implementation. The tests
 against C zlib provide useful evidence against such a mistake, but they are not
 a proof that every conforming gzip decoder accepts every output.
 
 ### 5. Low (partially resolved): some prose was stronger than the contracts
 
-The gzip decoder contract proves that a correct stored-member trailer is
+The gzip decoder contract proves that a correct compressor-image member trailer is
 sufficient for `Status = OK`; it does not state the converse. The README now
 uses that one-way wording instead of describing acceptance as "exactly when"
 the trailer matches:
 
 - `src/inflate-gzip.ads:58-64`
-- `src/inflate-gzip.ads:78-98`
+- `src/inflate-gzip.ads:78-94`
 
 Likewise, termination proofs do not establish the project prose's
 linear-complexity claim. The code structure makes linear behavior plausible
@@ -161,7 +163,7 @@ A current run of:
 gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
 ```
 
-completed successfully with 5,309 checks, all proved. The generated summary
+completed successfully with 5,340 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -179,6 +181,9 @@ Subject to public preconditions, the proof establishes:
   length three through ten at distances one through four and their local M4
   window witness, or the stored-block relation between compressor input and
   emitted body;
+- one common `Body_Encodes` boundary for those stored/fixed images, with proved
+  introduction, recognition, framing, and functionality lemmas used by raw,
+  gzip, and the branch-free round-trip theorem;
 - bounded dynamic-Huffman length construction: every nonzero-frequency symbol
   is assigned a code of length at most nine and the resulting code is complete
   by exact scaled Kraft equality, without an optimality claim;
@@ -201,7 +206,7 @@ Subject to public preconditions, the proof establishes:
 
 The theorem's public postcondition exposes compressed size, restored size, and
 byte equality (`src/inflate-theorems.ads:35-51`). `Status = OK` is a local
-assertion proved in the theorem body (`src/inflate-theorems.adb:63-82`), rather
+assertion proved in the theorem body (`src/inflate-theorems.adb:35-61`), rather
 than an output of the theorem procedure.
 
 The isolated Kraft spike also reproduced successfully:

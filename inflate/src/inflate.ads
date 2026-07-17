@@ -9,6 +9,7 @@
 --    Inflate.Codebooks — fixed/canonical encoder codebook boundary
 --    Inflate.Payload — shared Huffman token-payload serialization
 --    Inflate.Dynamic — proved local dynamic-Huffman body construction
+--    Inflate.Bodies  — common compressor-image DEFLATE relation
 --    Inflate.ZLib    — the zlib container (RFC 1950), Adler-32 checked
 --    Inflate.GZip    — the gzip container (RFC 1952), CRC-32 checked
 --    Inflate.CRC32   — CRC-32 (the gzip/zip polynomial)
