@@ -41,6 +41,17 @@ with tempfile.TemporaryDirectory(prefix="inflate-cli-") as directory:
         run("decompress", compressed, restored)
         assert restored.read_bytes() == data
 
+    # Load and Save used to put a file-sized Stream_Element_Array on the
+    # process stack, so an 8 MiB input failed with the usual 8 MiB stack
+    # limit before the compressor ran. Exercise both I/O directions.
+    large = work / "large-zero-run"
+    large.write_bytes(bytes(8 * 1024 * 1024))
+    large_compressed = work / "large-zero-run.gz"
+    large_restored = work / "large-zero-run.out"
+    run("compress", large, large_compressed)
+    run("decompress", large_compressed, large_restored)
+    assert large_restored.read_bytes() == large.read_bytes()
+
     foreign = work / "foreign.gz"
     foreign.write_bytes(gzip.compress(samples[-1], compresslevel=9))
     restored = work / "foreign.out"

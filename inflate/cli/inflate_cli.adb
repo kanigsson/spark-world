@@ -19,6 +19,11 @@ procedure Inflate_CLI is
    procedure Free is
      new Ada.Unchecked_Deallocation (Byte_Array, Byte_Array_Access);
 
+   type Stream_Array_Access is access Stream_Element_Array;
+   procedure Free_Stream is
+     new Ada.Unchecked_Deallocation
+       (Stream_Element_Array, Stream_Array_Access);
+
    procedure Error (Message : String) is
    begin
       Put_Line (Standard_Error, "inflate: " & Message);
@@ -54,24 +59,32 @@ procedure Inflate_CLI is
             Length : constant Natural := Natural (File_Length);
             Data   : Byte_Array_Access :=
               new Byte_Array (1 .. Length);
-            Buffer : Stream_Element_Array
-              (1 .. Stream_Element_Offset (Length));
+            --  File-sized automatic arrays overflow the default process
+            --  stack at about 8 MiB. Keep the I/O staging buffer on the heap,
+            --  alongside the library input buffer.
+            Buffer : Stream_Array_Access :=
+              new Stream_Element_Array
+                (1 .. Stream_Element_Offset (Length));
             Last   : Stream_Element_Offset;
          begin
             if Length > 0 then
-               Read (F, Buffer, Last);
-               if Last /= Buffer'Last then
-                  Close (F);
-                  Free (Data);
+               Read (F, Buffer.all, Last);
+               if Last /= Buffer.all'Last then
                   raise Ada.Streams.Stream_IO.End_Error
                     with "short read from input file";
                end if;
-               for I in Buffer'Range loop
+               for I in Buffer.all'Range loop
                   Data (Natural (I)) := Byte (Buffer (I));
                end loop;
             end if;
             Close (F);
+            Free_Stream (Buffer);
             return Data;
+         exception
+            when others =>
+               Free_Stream (Buffer);
+               Free (Data);
+               raise;
          end;
       end;
    exception
@@ -87,23 +100,25 @@ procedure Inflate_CLI is
    is
       use Ada.Streams.Stream_IO;
       F      : Ada.Streams.Stream_IO.File_Type;
-      Buffer : Stream_Element_Array
-        (1 .. Stream_Element_Offset (Length));
+      Buffer : Stream_Array_Access :=
+        new Stream_Element_Array (1 .. Stream_Element_Offset (Length));
    begin
-      for I in Buffer'Range loop
+      for I in Buffer.all'Range loop
          Buffer (I) := Stream_Element
            (Data (Data'First - 1 + Natural (I)));
       end loop;
       Create (F, Out_File, Name);
       if Length > 0 then
-         Write (F, Buffer);
+         Write (F, Buffer.all);
       end if;
       Close (F);
+      Free_Stream (Buffer);
    exception
       when others =>
          if Is_Open (F) then
             Close (F);
          end if;
+         Free_Stream (Buffer);
          raise;
    end Save;
 
