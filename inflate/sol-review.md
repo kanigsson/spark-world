@@ -160,10 +160,10 @@ The earlier M6a productization gap is resolved: `inflate_cli.gpr` builds the
 A current run of:
 
 ```sh
-gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
+gnatprove -P inflate.gpr --level=4 --report=fail
 ```
 
-completed successfully with 5,340 checks, all proved. The generated summary
+completed successfully with 5,857 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -193,7 +193,9 @@ Subject to public preconditions, the proof establishes:
 - the local dynamic-header writer emits a complete four-bit code-length
   alphabet and all 286 literal/length plus 30 distance lengths, while the local
   dynamic-body relation composes those reconstructed books with the shared
-  payload relation;
+  payload relation; the exact books are recoverable from the header and the
+  explicit-book relation lifts to a witness-free three-argument dynamic
+  relation;
 - compressor-image decode success, exact consumption and production, and
   agreement with the selected relation when the decoded data fits the output;
 - gzip framing values used by the compressor, including the input length and a

@@ -269,6 +269,284 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       Literal_Lengths : Codebooks.Codebook;
       Distances       : Codebooks.Codebook) is null;
 
+   ------------------------------
+   -- Books recovered from header --
+   ------------------------------
+
+   function Literal_Lengths_From_Header
+     (Input : Byte_Array) return Codebooks.Code_Length_Array
+   with
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Input'Length >= Header_Byte_Count,
+     Post =>
+       (for all I in 0 .. Literal_Length_Count - 1 =>
+          Literal_Lengths_From_Header'Result (I) =
+            Fixed.Prefix_Value
+              (Input, Header_Prefix_Bits + 4 * I, 4))
+       and then
+       (for all I in Literal_Length_Count ..
+          Codebooks.Symbol_Index'Last =>
+            Literal_Lengths_From_Header'Result (I) = 0);
+
+   function Literal_Lengths_From_Header
+     (Input : Byte_Array) return Codebooks.Code_Length_Array
+   is
+      Result : Codebooks.Code_Length_Array := (others => 0);
+   begin
+      for I in 0 .. Literal_Length_Count - 1 loop
+         Result (I) :=
+           Fixed.Prefix_Value
+             (Input, Header_Prefix_Bits + 4 * I, 4);
+         pragma Loop_Invariant
+           (for all J in 0 .. I =>
+              Result (J) =
+                Fixed.Prefix_Value
+                  (Input, Header_Prefix_Bits + 4 * J, 4));
+         pragma Loop_Invariant
+           (for all J in I + 1 .. Codebooks.Symbol_Index'Last =>
+              Result (J) = 0);
+      end loop;
+      return Result;
+   end Literal_Lengths_From_Header;
+
+   function Distance_Lengths_From_Header
+     (Input : Byte_Array) return Codebooks.Code_Length_Array
+   with
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Input'Length >= Header_Byte_Count,
+     Post =>
+       (for all I in 0 .. Distance_Count - 1 =>
+          Distance_Lengths_From_Header'Result (I) =
+            Fixed.Prefix_Value
+              (Input,
+               Header_Prefix_Bits + 4 * (Literal_Length_Count + I),
+               4))
+       and then
+       (for all I in Distance_Count .. Codebooks.Symbol_Index'Last =>
+          Distance_Lengths_From_Header'Result (I) = 0);
+
+   function Distance_Lengths_From_Header
+     (Input : Byte_Array) return Codebooks.Code_Length_Array
+   is
+      Result : Codebooks.Code_Length_Array := (others => 0);
+   begin
+      for I in 0 .. Distance_Count - 1 loop
+         Result (I) :=
+           Fixed.Prefix_Value
+             (Input,
+              Header_Prefix_Bits + 4 * (Literal_Length_Count + I),
+              4);
+         pragma Loop_Invariant
+           (for all J in 0 .. I =>
+              Result (J) =
+                Fixed.Prefix_Value
+                  (Input,
+                   Header_Prefix_Bits
+                     + 4 * (Literal_Length_Count + J),
+                   4));
+         pragma Loop_Invariant
+           (for all J in I + 1 .. Codebooks.Symbol_Index'Last =>
+              Result (J) = 0);
+      end loop;
+      return Result;
+   end Distance_Lengths_From_Header;
+
+   function Literal_Book_From_Header
+     (Input : Byte_Array) return Codebooks.Codebook
+   is
+      Lengths : constant Codebooks.Code_Length_Array :=
+        Literal_Lengths_From_Header (Input);
+      Result : Codebooks.Codebook (Codebooks.Canonical) :=
+        (Kind    => Codebooks.Canonical,
+         Lengths => (others => 0),
+         Counts  => (others => 0));
+      Success : Boolean;
+   begin
+      Codebooks.Build (Lengths, Result, Success);
+      pragma Assert (Success = Codebooks.Ready (Result));
+      return Result;
+   end Literal_Book_From_Header;
+
+   function Distance_Book_From_Header
+     (Input : Byte_Array) return Codebooks.Codebook
+   is
+      Lengths : constant Codebooks.Code_Length_Array :=
+        Distance_Lengths_From_Header (Input);
+      Result : Codebooks.Codebook (Codebooks.Canonical) :=
+        (Kind    => Codebooks.Canonical,
+         Lengths => (others => 0),
+         Counts  => (others => 0));
+      Success : Boolean;
+   begin
+      Codebooks.Build (Lengths, Result, Success);
+      pragma Assert (Success = Codebooks.Ready (Result));
+      return Result;
+   end Distance_Book_From_Header;
+
+   procedure Lemma_Length_Code_Value
+     (Input : Byte_Array;
+      Start : Natural;
+      Value : Code_Length)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Start <= 8 * Input'Length
+               and then 4 <= 8 * Input'Length - Start
+               and then Length_Code_At (Input, Start, Value),
+     Post => Fixed.Prefix_Value (Input, Start, 4) = Value;
+
+   procedure Lemma_Length_Code_Value
+     (Input : Byte_Array;
+      Start : Natural;
+      Value : Code_Length)
+   is
+   begin
+      pragma Assert
+        (Fixed.Prefix_Value (Input, Start, 1) =
+           Fixed.Bit_Value (Input, Start));
+      pragma Assert
+        (Fixed.Prefix_Value (Input, Start, 2) =
+           2 * Fixed.Bit_Value (Input, Start)
+             + Fixed.Bit_Value (Input, Start + 1));
+      pragma Assert
+        (Fixed.Prefix_Value (Input, Start, 3) =
+           4 * Fixed.Bit_Value (Input, Start)
+             + 2 * Fixed.Bit_Value (Input, Start + 1)
+             + Fixed.Bit_Value (Input, Start + 2));
+   end Lemma_Length_Code_Value;
+
+   procedure Lemma_Header_From_Book_Fields
+     (Input : Byte_Array;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Input'Length >= Header_Byte_Count
+               and then Books_Encodable
+                 (Before_Literals, Before_Distances)
+               and then Books_Encodable
+                 (After_Literals, After_Distances)
+               and then Before_Literals.Lengths = After_Literals.Lengths
+               and then Before_Distances.Lengths = After_Distances.Lengths
+               and then Header_Encodes
+                 (Input, Before_Literals, Before_Distances),
+     Post => Header_Encodes
+               (Input, After_Literals, After_Distances);
+
+   procedure Lemma_Header_From_Book_Fields
+     (Input : Byte_Array;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook)
+   is
+   begin
+      Codebooks.Lemma_Length_Of_From_Fields
+        (Before_Literals, After_Literals);
+      Codebooks.Lemma_Length_Of_From_Fields
+        (Before_Distances, After_Distances);
+      for I in 0 .. Literal_Length_Count - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              Length_Code_At
+                (Input, Header_Prefix_Bits + 4 * J,
+                 Codebooks.Length_Of (After_Literals, J)));
+         pragma Assert
+           (Length_Code_At
+              (Input, Header_Prefix_Bits + 4 * I,
+               Codebooks.Length_Of (Before_Literals, I)));
+         pragma Assert
+           (Codebooks.Length_Of (Before_Literals, I) =
+              Codebooks.Length_Of (After_Literals, I));
+      end loop;
+      for I in 0 .. Distance_Count - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              Length_Code_At
+                (Input,
+                 Header_Prefix_Bits + 4 * (Literal_Length_Count + J),
+                 Codebooks.Length_Of (After_Distances, J)));
+         pragma Assert
+           (Length_Code_At
+              (Input,
+               Header_Prefix_Bits + 4 * (Literal_Length_Count + I),
+               Codebooks.Length_Of (Before_Distances, I)));
+         pragma Assert
+           (Codebooks.Length_Of (Before_Distances, I) =
+              Codebooks.Length_Of (After_Distances, I));
+      end loop;
+   end Lemma_Header_From_Book_Fields;
+
+   --  The remaining assertions and loop annotations are proof-only and may
+   --  mention ghost snapshots.  Keep them erased in checks-enabled focused
+   --  builds just as they are in the shipping debug configuration.
+   pragma Assertion_Policy
+     (Ghost          => Ignore,
+      Assert         => Ignore,
+      Loop_Invariant => Ignore,
+      Loop_Variant   => Ignore);
+   procedure Lemma_Header_Books_Recovered
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook)
+   is
+      Recovered_Literals : constant Codebooks.Codebook :=
+        Literal_Book_From_Header (Input);
+      Recovered_Distances : constant Codebooks.Codebook :=
+        Distance_Book_From_Header (Input);
+   begin
+      for I in Codebooks.Symbol_Index loop
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              Codebooks.Length_Of (Recovered_Literals, J) =
+                Codebooks.Length_Of (Literal_Lengths, J));
+         if I < Literal_Length_Count then
+            pragma Assert
+              (Length_Code_At
+                 (Input, Header_Prefix_Bits + 4 * I,
+                  Codebooks.Length_Of (Literal_Lengths, I)));
+            Lemma_Length_Code_Value
+              (Input, Header_Prefix_Bits + 4 * I,
+               Codebooks.Length_Of (Literal_Lengths, I));
+         else
+            pragma Assert
+              (Codebooks.Length_Of (Recovered_Literals, I) = 0);
+            pragma Assert
+              (Codebooks.Length_Of (Literal_Lengths, I) = 0);
+         end if;
+      end loop;
+      Codebooks.Lemma_Canonical_Lengths_Equal
+        (Recovered_Literals, Literal_Lengths);
+      Codebooks.Lemma_Exact_Books_Equal
+        (Recovered_Literals, Literal_Lengths);
+
+      for I in Codebooks.Symbol_Index loop
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              Codebooks.Length_Of (Recovered_Distances, J) =
+                Codebooks.Length_Of (Distances, J));
+         if I < Distance_Count then
+            pragma Assert
+              (Length_Code_At
+                 (Input,
+                  Header_Prefix_Bits + 4 * (Literal_Length_Count + I),
+                  Codebooks.Length_Of (Distances, I)));
+            Lemma_Length_Code_Value
+              (Input,
+               Header_Prefix_Bits + 4 * (Literal_Length_Count + I),
+               Codebooks.Length_Of (Distances, I));
+         else
+            pragma Assert
+              (Codebooks.Length_Of (Recovered_Distances, I) = 0);
+            pragma Assert
+              (Codebooks.Length_Of (Distances, I) = 0);
+         end if;
+      end loop;
+      Codebooks.Lemma_Canonical_Lengths_Equal
+        (Recovered_Distances, Distances);
+      Codebooks.Lemma_Exact_Books_Equal
+        (Recovered_Distances, Distances);
+   end Lemma_Header_Books_Recovered;
+
    procedure Build_Lengths
      (Frequencies : in     Frequency_Array;
       Lengths     :    out Code_Length_Array)
@@ -611,5 +889,151 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       Produced := (Body_End + 7) / 8;
       pragma Assert (Produced <= Max_Size (Data'Length));
    end Serialize_Body;
+
+   pragma Assertion_Policy (Ghost => Ignore);
+   procedure Lemma_Encoding_Uses_Header_Books
+     (Input           : Byte_Array;
+      Produced        : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array)
+   is
+      procedure Lemma_Substitute_Encodable
+        (Before_Literals, Before_Distances : Codebooks.Codebook;
+         After_Literals, After_Distances   : Codebooks.Codebook)
+      with
+        Ghost,
+        Pre  => Before_Literals.Kind = Codebooks.Canonical
+                  and then After_Literals.Kind = Codebooks.Canonical
+                  and then Before_Distances.Kind = Codebooks.Canonical
+                  and then After_Distances.Kind = Codebooks.Canonical
+                  and then Before_Literals.Lengths = After_Literals.Lengths
+                  and then Before_Literals.Counts = After_Literals.Counts
+                  and then Before_Distances.Lengths = After_Distances.Lengths
+                  and then Before_Distances.Counts = After_Distances.Counts
+                  and then Books_Encodable
+                    (Before_Literals, Before_Distances),
+        Post => Books_Encodable (After_Literals, After_Distances);
+
+      procedure Lemma_Substitute_Encodable
+        (Before_Literals, Before_Distances : Codebooks.Codebook;
+         After_Literals, After_Distances   : Codebooks.Codebook)
+      is
+      begin
+         Codebooks.Lemma_Ready_From_Fields
+           (Before_Literals, After_Literals);
+         Codebooks.Lemma_Ready_From_Fields
+           (Before_Distances, After_Distances);
+         Codebooks.Lemma_Lengths_At_Most_From_Fields
+           (Before_Literals, After_Literals, 9);
+         Codebooks.Lemma_Lengths_At_Most_From_Fields
+           (Before_Distances, After_Distances, 9);
+      end Lemma_Substitute_Encodable;
+
+      procedure Lemma_Substitute_Covers
+        (Before_Literals, Before_Distances : Codebooks.Codebook;
+         After_Literals, After_Distances   : Codebooks.Codebook)
+      with
+        Ghost,
+        Pre  => Data'Length <= Fixed.Max_Input
+                  and then Before_Literals.Kind = Codebooks.Canonical
+                  and then After_Literals.Kind = Codebooks.Canonical
+                  and then Before_Distances.Kind = Codebooks.Canonical
+                  and then After_Distances.Kind = Codebooks.Canonical
+                  and then Before_Literals.Lengths = After_Literals.Lengths
+                  and then Before_Literals.Counts = After_Literals.Counts
+                  and then Before_Distances.Lengths = After_Distances.Lengths
+                  and then Before_Distances.Counts = After_Distances.Counts
+                  and then Payload.Covers
+                    (Before_Literals, Before_Distances, Data),
+        Post => Payload.Covers
+                  (After_Literals, After_Distances, Data);
+
+      procedure Lemma_Substitute_Covers
+        (Before_Literals, Before_Distances : Codebooks.Codebook;
+         After_Literals, After_Distances   : Codebooks.Codebook)
+      is
+      begin
+         Codebooks.Lemma_Length_Of_From_Fields
+           (Before_Literals, After_Literals);
+         Codebooks.Lemma_Length_Of_From_Fields
+           (Before_Distances, After_Distances);
+         Payload.Lemma_Covers_From_Lengths
+           (Before_Literals, Before_Distances,
+            After_Literals, After_Distances, Data);
+      end Lemma_Substitute_Covers;
+
+      procedure Lemma_Substitute_Encoding
+        (Before_Literals, Before_Distances : Codebooks.Codebook;
+         After_Literals, After_Distances   : Codebooks.Codebook)
+      with
+        Ghost,
+        Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+                  and then Input'Length >= Header_Byte_Count
+                  and then Data'Length <= Max_Input
+                  and then Before_Literals.Kind = Codebooks.Canonical
+                  and then After_Literals.Kind = Codebooks.Canonical
+                  and then Before_Distances.Kind = Codebooks.Canonical
+                  and then After_Distances.Kind = Codebooks.Canonical
+                  and then Before_Literals.Lengths = After_Literals.Lengths
+                  and then Before_Literals.Counts = After_Literals.Counts
+                  and then Before_Distances.Lengths = After_Distances.Lengths
+                  and then Before_Distances.Counts = After_Distances.Counts
+                  and then Books_Encodable
+                    (Before_Literals, Before_Distances)
+                  and then Books_Encodable
+                    (After_Literals, After_Distances)
+                  and then Payload.Covers
+                    (Before_Literals, Before_Distances, Data)
+                  and then Payload.Covers
+                    (After_Literals, After_Distances, Data)
+                  and then Is_Encoding
+                    (Input, Produced,
+                     Before_Literals, Before_Distances, Data),
+        Post => Is_Encoding
+                  (Input, Produced,
+                   After_Literals, After_Distances, Data);
+
+      procedure Lemma_Substitute_Encoding
+        (Before_Literals, Before_Distances : Codebooks.Codebook;
+         After_Literals, After_Distances   : Codebooks.Codebook)
+      is
+      begin
+         Lemma_Header_From_Book_Fields
+           (Input,
+            Before_Literals, Before_Distances,
+            After_Literals, After_Distances);
+         Payload.Lemma_Encoding_From_Book_Fields
+           (Input, Header_Bit_Count,
+            Before_Literals, Before_Distances,
+            After_Literals, After_Distances, Data);
+         Payload.Lemma_Data_Bits_Equal_From_Book_Fields
+           (Before_Literals, Before_Distances,
+            After_Literals, After_Distances, Data, Data'Length);
+         Codebooks.Lemma_Length_Of_From_Fields
+           (Before_Literals, After_Literals);
+      end Lemma_Substitute_Encoding;
+   begin
+      pragma Assert (Produced in 1 .. Input'Length);
+      pragma Assert (Data'Length <= Max_Input);
+      Lemma_Header_Books_Recovered
+        (Input, Literal_Lengths, Distances);
+      pragma Assert
+        (Literal_Book_From_Header (Input) = Literal_Lengths);
+      pragma Assert
+        (Distance_Book_From_Header (Input) = Distances);
+      Lemma_Substitute_Encodable
+        (Literal_Lengths, Distances,
+         Literal_Book_From_Header (Input),
+         Distance_Book_From_Header (Input));
+      Lemma_Substitute_Covers
+        (Literal_Lengths, Distances,
+         Literal_Book_From_Header (Input),
+         Distance_Book_From_Header (Input));
+      Lemma_Substitute_Encoding
+        (Literal_Lengths, Distances,
+         Literal_Book_From_Header (Input),
+         Distance_Book_From_Header (Input));
+   end Lemma_Encoding_Uses_Header_Books;
 
 end Inflate.Dynamic;

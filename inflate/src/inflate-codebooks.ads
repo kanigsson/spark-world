@@ -162,4 +162,86 @@ package Inflate.Codebooks with Pure, SPARK_Mode => On is
                  and then Exact_Counts (Book)
                  and then Success = Ready (Book);
 
+   --  A canonical representation is determined by its length array: exact
+   --  histograms cannot differ once the per-symbol lengths agree.
+   procedure Lemma_Exact_Books_Equal (Left, Right : Codebook)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Left.Kind = Canonical
+                 and then Right.Kind = Canonical
+                 and then Exact_Counts (Left)
+                 and then Exact_Counts (Right)
+                 and then Left.Lengths = Right.Lengths,
+     Post   => Left = Right;
+
+   procedure Lemma_Length_Arrays_Equal
+     (Left, Right : Code_Length_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre    => (for all I in Symbol_Index => Left (I) = Right (I)),
+     Post   => Left = Right;
+
+   procedure Lemma_Canonical_Lengths_Equal (Left, Right : Codebook)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Left.Kind = Canonical
+                 and then Right.Kind = Canonical
+                 and then
+               (for all I in Symbol_Index =>
+                  Length_Of (Left, I) = Length_Of (Right, I)),
+     Post   => Left.Lengths = Right.Lengths;
+
+   procedure Lemma_Ready_From_Fields (Left, Right : Codebook)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Left.Kind = Canonical
+                 and then Right.Kind = Canonical
+                 and then Left.Lengths = Right.Lengths
+                 and then Left.Counts = Right.Counts
+                 and then Ready (Left),
+     Post   => Ready (Right);
+
+   procedure Lemma_Lengths_At_Most_From_Fields
+     (Left, Right : Codebook;
+      Maximum     : Code_Length)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Left.Kind = Canonical
+                 and then Right.Kind = Canonical
+                 and then Left.Lengths = Right.Lengths
+                 and then Lengths_At_Most (Left, Maximum),
+     Post   => Lengths_At_Most (Right, Maximum);
+
+   procedure Lemma_Length_Of_From_Fields (Left, Right : Codebook)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Left.Kind = Canonical
+                 and then Right.Kind = Canonical
+                 and then Left.Lengths = Right.Lengths,
+     Post   =>
+       (for all Symbol in Symbol_Index =>
+          Length_Of (Left, Symbol) = Length_Of (Right, Symbol));
+
+   procedure Lemma_Code_Of_From_Fields
+     (Left, Right : Codebook;
+      Symbol      : Symbol_Index)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Left.Kind = Canonical
+                 and then Right.Kind = Canonical
+                 and then Left.Lengths = Right.Lengths
+                 and then Left.Counts = Right.Counts
+                 and then Ready (Left)
+                 and then Ready (Right)
+                 and then Length_Of (Left, Symbol) /= 0,
+     Post   => Length_Of (Left, Symbol) = Length_Of (Right, Symbol)
+                 and then Code_Of (Left, Symbol) = Code_Of (Right, Symbol);
+
 end Inflate.Codebooks;

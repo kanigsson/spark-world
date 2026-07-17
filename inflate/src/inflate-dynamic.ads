@@ -17,6 +17,9 @@ with Inflate.Payload;
 package Inflate.Dynamic with Pure, SPARK_Mode => On is
 
    use type Codebooks.Codebook_Kind;
+   use type Codebooks.Codebook;
+   use type Codebooks.Code_Length_Array;
+   use type Codebooks.Length_Count_Array;
 
    pragma Assertion_Policy (Ghost => Ignore);
 
@@ -246,6 +249,78 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
               and then Input'Length >= Header_Byte_Count
               and then Books_Encodable (Literal_Lengths, Distances);
 
+   --  Recover the canonical books carried by the local header.  These
+   --  functions make the dynamic image input-determined: callers above this
+   --  package no longer need existential codebook witnesses merely to name
+   --  the body relation.  Slots not transmitted by the header are zero, as
+   --  required by Books_Encodable.
+   function Literal_Book_From_Header
+     (Input : Byte_Array) return Codebooks.Codebook
+   with
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Input'Length >= Header_Byte_Count,
+     Post => Literal_Book_From_Header'Result.Kind = Codebooks.Canonical
+               and then Codebooks.Exact_Counts
+                 (Literal_Book_From_Header'Result)
+               and then
+             (for all I in 0 .. Literal_Length_Count - 1 =>
+                Codebooks.Length_Of
+                  (Literal_Book_From_Header'Result, I) =
+                    Fixed.Prefix_Value
+                      (Input, Header_Prefix_Bits + 4 * I, 4))
+               and then
+             (for all I in Literal_Length_Count ..
+                Codebooks.Symbol_Index'Last =>
+                  Codebooks.Length_Of
+                    (Literal_Book_From_Header'Result, I) = 0);
+
+   function Distance_Book_From_Header
+     (Input : Byte_Array) return Codebooks.Codebook
+   with
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Input'Length >= Header_Byte_Count,
+     Post => Distance_Book_From_Header'Result.Kind = Codebooks.Canonical
+               and then Codebooks.Exact_Counts
+                 (Distance_Book_From_Header'Result)
+               and then
+             (for all I in 0 .. Distance_Count - 1 =>
+                Codebooks.Length_Of
+                  (Distance_Book_From_Header'Result, I) =
+                    Fixed.Prefix_Value
+                      (Input,
+                       Header_Prefix_Bits
+                         + 4 * (Literal_Length_Count + I),
+                       4))
+               and then
+             (for all I in Distance_Count ..
+                Codebooks.Symbol_Index'Last =>
+                  Codebooks.Length_Of
+                    (Distance_Book_From_Header'Result, I) = 0);
+
+   procedure Lemma_Header_Books_Recovered
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Input'Length <= Fixed.Max_Stream_Bytes
+                 and then Input'Length >= Header_Byte_Count
+                 and then Books_Encodable
+                   (Literal_Lengths, Distances)
+                 and then Header_Encodes
+                   (Input, Literal_Lengths, Distances),
+     Post   => Literal_Book_From_Header (Input) = Literal_Lengths
+                 and then Distance_Book_From_Header (Input) = Distances
+                 and then Literal_Book_From_Header (Input).Lengths =
+                   Literal_Lengths.Lengths
+                 and then Literal_Book_From_Header (Input).Counts =
+                   Literal_Lengths.Counts
+                 and then Distance_Book_From_Header (Input).Lengths =
+                   Distances.Lengths
+                 and then Distance_Book_From_Header (Input).Counts =
+                   Distances.Counts;
+
    --  Serialize only the dynamic block header.  Bits outside its half-open
    --  interval are preserved, so the shared payload writer can follow it.
    procedure Serialize_Header
@@ -332,6 +407,52 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
               and then Books_Encodable (Literal_Lengths, Distances)
               and then Payload.Covers
                 (Literal_Lengths, Distances, Data);
+
+   --  Witness-free form of the local dynamic relation.  The codebooks are
+   --  recovered from Input, so the body has the same three-argument shape as
+   --  the common stored/fixed boundary.  This remains proof-only until the
+   --  common dynamic recognizer/functionality bridge is added.
+   function Is_Encoding
+     (Input    : Byte_Array;
+      Produced : Natural;
+      Data     : Byte_Array) return Boolean
+   is
+     (Input'Length <= Fixed.Max_Stream_Bytes
+      and then Input'Length >= Header_Byte_Count
+      and then Data'Length <= Max_Input
+      and then Books_Encodable
+        (Literal_Book_From_Header (Input),
+         Distance_Book_From_Header (Input))
+      and then Payload.Covers
+        (Literal_Book_From_Header (Input),
+         Distance_Book_From_Header (Input), Data)
+      and then Is_Encoding
+        (Input, Produced,
+         Literal_Book_From_Header (Input),
+         Distance_Book_From_Header (Input), Data))
+   with Ghost;
+
+   procedure Lemma_Encoding_Uses_Header_Books
+     (Input           : Byte_Array;
+      Produced        : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Input'Length <= Fixed.Max_Stream_Bytes
+                 and then Input'Length >= Header_Byte_Count
+                 and then Data'Length <= Max_Input
+                 and then Data'Length <= Fixed.Max_Input
+                 and then Books_Encodable
+                   (Literal_Lengths, Distances)
+                 and then Payload.Covers
+                   (Literal_Lengths, Distances, Data)
+                 and then Is_Encoding
+                   (Input, Produced,
+                    Literal_Lengths, Distances, Data),
+     Post   => Is_Encoding (Input, Produced, Data);
 
    pragma Assertion_Policy (Pre => Ignore, Post => Ignore);
    procedure Serialize_Body

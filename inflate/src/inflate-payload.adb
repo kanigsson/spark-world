@@ -521,4 +521,281 @@ package body Inflate.Payload with SPARK_Mode => On is
                    Fixed.Bit_Value (Initial, Position)));
    end Serialize;
 
+   procedure Lemma_Token_Cost_From_Book_Fields
+     (Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array;
+      Position                          : Natural)
+   with
+     Ghost,
+     Pre  => Data'Length <= Fixed.Max_Input
+               and then Position < Data'Length
+               and then Fixed.Token_Boundary (Data, Position)
+               and then Before_Literals.Kind = Codebooks.Canonical
+               and then After_Literals.Kind = Codebooks.Canonical
+               and then Before_Distances.Kind = Codebooks.Canonical
+               and then After_Distances.Kind = Codebooks.Canonical
+               and then Before_Literals.Lengths = After_Literals.Lengths
+               and then Before_Distances.Lengths = After_Distances.Lengths
+               and then Covers
+                 (Before_Literals, Before_Distances, Data)
+               and then Covers
+                 (After_Literals, After_Distances, Data)
+               and then Codebooks.Lengths_At_Most (Before_Literals, 9)
+               and then Codebooks.Lengths_At_Most (After_Literals, 9)
+               and then Codebooks.Lengths_At_Most (Before_Distances, 9)
+               and then Codebooks.Lengths_At_Most (After_Distances, 9),
+     Post => Token_Bit_Cost
+               (Before_Literals, Before_Distances, Data, Position) =
+               Token_Bit_Cost
+                 (After_Literals, After_Distances, Data, Position);
+
+   procedure Lemma_Token_Cost_From_Book_Fields
+     (Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array;
+      Position                          : Natural)
+   is
+   begin
+      Codebooks.Lemma_Length_Of_From_Fields
+        (Before_Literals, After_Literals);
+      Codebooks.Lemma_Length_Of_From_Fields
+        (Before_Distances, After_Distances);
+      pragma Assert
+        (Token_Bit_Cost
+           (Before_Literals, Before_Distances, Data, Position) =
+         Token_Bit_Cost
+           (After_Literals, After_Distances, Data, Position));
+   end Lemma_Token_Cost_From_Book_Fields;
+
+   procedure Lemma_Data_Bits_From_Book_Fields
+     (Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array;
+      Count                             : Natural)
+   with
+     Ghost,
+     Pre  => Data'Length <= Fixed.Max_Input
+               and then Count <= Data'Length
+               and then Before_Literals.Kind = Codebooks.Canonical
+               and then After_Literals.Kind = Codebooks.Canonical
+               and then Before_Distances.Kind = Codebooks.Canonical
+               and then After_Distances.Kind = Codebooks.Canonical
+               and then Before_Literals.Lengths = After_Literals.Lengths
+               and then Before_Distances.Lengths = After_Distances.Lengths
+               and then Covers
+                 (Before_Literals, Before_Distances, Data)
+               and then Covers
+                 (After_Literals, After_Distances, Data)
+               and then Codebooks.Lengths_At_Most (Before_Literals, 9)
+               and then Codebooks.Lengths_At_Most (After_Literals, 9)
+               and then Codebooks.Lengths_At_Most (Before_Distances, 9)
+               and then Codebooks.Lengths_At_Most (After_Distances, 9),
+     Post => Data_Bits
+               (Before_Literals, Before_Distances, Data, Count) =
+               Data_Bits (After_Literals, After_Distances, Data, Count),
+     Subprogram_Variant => (Decreases => Count);
+
+   procedure Lemma_Data_Bits_From_Book_Fields
+     (Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array;
+      Count                             : Natural)
+   is
+   begin
+      if Count > 0 then
+         if Fixed.Token_Boundary (Data, Count) then
+            Lemma_Data_Bits_From_Book_Fields
+              (Before_Literals, Before_Distances,
+               After_Literals, After_Distances,
+               Data, Fixed.Plan_Start (Data, Count));
+            Lemma_Token_Cost_From_Book_Fields
+              (Before_Literals, Before_Distances,
+               After_Literals, After_Distances,
+               Data, Fixed.Plan_Start (Data, Count));
+         else
+            Lemma_Data_Bits_From_Book_Fields
+              (Before_Literals, Before_Distances,
+               After_Literals, After_Distances, Data, Count - 1);
+         end if;
+      end if;
+   end Lemma_Data_Bits_From_Book_Fields;
+
+   procedure Lemma_Token_Encoded_From_Book_Fields
+     (Output                            : Byte_Array;
+      Start                             : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array;
+      Position                          : Natural)
+   with
+     Ghost,
+     Pre  => Output'Length <= Fixed.Max_Stream_Bytes
+               and then Data'Length <= Fixed.Max_Input
+               and then Position < Data'Length
+               and then Fixed.Token_Boundary (Data, Position)
+               and then Before_Literals.Kind = Codebooks.Canonical
+               and then After_Literals.Kind = Codebooks.Canonical
+               and then Before_Distances.Kind = Codebooks.Canonical
+               and then After_Distances.Kind = Codebooks.Canonical
+               and then Before_Literals.Lengths = After_Literals.Lengths
+               and then Before_Literals.Counts = After_Literals.Counts
+               and then Before_Distances.Lengths = After_Distances.Lengths
+               and then Before_Distances.Counts = After_Distances.Counts
+               and then Codebooks.Ready (Before_Literals)
+               and then Codebooks.Ready (After_Literals)
+               and then Codebooks.Ready (Before_Distances)
+               and then Codebooks.Ready (After_Distances)
+               and then Codebooks.Lengths_At_Most (Before_Literals, 9)
+               and then Codebooks.Lengths_At_Most (After_Literals, 9)
+               and then Codebooks.Lengths_At_Most (Before_Distances, 9)
+               and then Codebooks.Lengths_At_Most (After_Distances, 9)
+               and then Covers
+                 (Before_Literals, Before_Distances, Data)
+               and then Covers
+                 (After_Literals, After_Distances, Data)
+               and then Token_Encoded
+                 (Output, Start,
+                  Before_Literals, Before_Distances, Data, Position),
+     Post => Token_Encoded
+               (Output, Start,
+                After_Literals, After_Distances, Data, Position);
+
+   procedure Lemma_Token_Encoded_From_Book_Fields
+     (Output                            : Byte_Array;
+      Start                             : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array;
+      Position                          : Natural)
+   is
+      Token : constant Fixed.Symbol_Result :=
+        Fixed.Selected_Token (Data, Position);
+   begin
+      Codebooks.Lemma_Length_Of_From_Fields
+        (Before_Literals, After_Literals);
+      Codebooks.Lemma_Length_Of_From_Fields
+        (Before_Distances, After_Distances);
+      Lemma_Data_Bits_From_Book_Fields
+        (Before_Literals, Before_Distances,
+         After_Literals, After_Distances, Data, Position);
+      if Token.Kind = Fixed.Match then
+         Codebooks.Lemma_Code_Of_From_Fields
+           (Before_Literals, After_Literals,
+            Length_Symbol (Token.Length));
+         Codebooks.Lemma_Code_Of_From_Fields
+           (Before_Distances, After_Distances,
+            Distance_Symbol (Token.Distance));
+      else
+         Codebooks.Lemma_Code_Of_From_Fields
+           (Before_Literals, After_Literals,
+            Natural (Token.Value));
+      end if;
+      pragma Assert
+        (Token_Encoded
+           (Output, Start,
+            After_Literals, After_Distances, Data, Position));
+   end Lemma_Token_Encoded_From_Book_Fields;
+
+   pragma Assertion_Policy (Ghost => Ignore);
+   procedure Lemma_Covers_From_Lengths
+     (Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array)
+   is
+   begin
+      pragma Assert
+        (Codebooks.Length_Of (After_Literals, 256) > 0);
+      for I in 0 .. Data'Length - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              (if Fixed.Token_Boundary (Data, J)
+               then
+                 (if Fixed.Selected_Token (Data, J).Kind = Fixed.Match
+                  then Codebooks.Length_Of
+                         (After_Literals,
+                          Length_Symbol
+                            (Fixed.Selected_Token (Data, J).Length)) > 0
+                       and then Codebooks.Length_Of
+                         (After_Distances,
+                          Distance_Symbol
+                            (Fixed.Selected_Token (Data, J).Distance)) > 0
+                  else Codebooks.Length_Of
+                         (After_Literals,
+                          Natural (Data (Data'First + J))) > 0)));
+         if Fixed.Token_Boundary (Data, I) then
+            if Fixed.Selected_Token (Data, I).Kind = Fixed.Match then
+               pragma Assert
+                 (Codebooks.Length_Of
+                    (Before_Literals,
+                     Length_Symbol
+                       (Fixed.Selected_Token (Data, I).Length)) > 0);
+               pragma Assert
+                 (Codebooks.Length_Of
+                    (Before_Distances,
+                     Distance_Symbol
+                       (Fixed.Selected_Token (Data, I).Distance)) > 0);
+            else
+               pragma Assert
+                 (Codebooks.Length_Of
+                    (Before_Literals,
+                     Natural (Data (Data'First + I))) > 0);
+            end if;
+         end if;
+      end loop;
+   end Lemma_Covers_From_Lengths;
+
+   procedure Lemma_Encoding_From_Book_Fields
+     (Output                            : Byte_Array;
+      Start                             : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array)
+   is
+   begin
+      Codebooks.Lemma_Length_Of_From_Fields
+        (Before_Literals, After_Literals);
+      Codebooks.Lemma_Length_Of_From_Fields
+        (Before_Distances, After_Distances);
+      Lemma_Data_Bits_From_Book_Fields
+        (Before_Literals, Before_Distances,
+         After_Literals, After_Distances, Data, Data'Length);
+      for I in 0 .. Data'Length - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              (if Fixed.Token_Boundary (Data, J)
+               then Token_Encoded
+                 (Output, Start,
+                  After_Literals, After_Distances, Data, J)));
+         if Fixed.Token_Boundary (Data, I) then
+            pragma Assert
+              (Token_Encoded
+                 (Output, Start,
+                  Before_Literals, Before_Distances, Data, I));
+            Lemma_Token_Encoded_From_Book_Fields
+              (Output, Start,
+               Before_Literals, Before_Distances,
+               After_Literals, After_Distances, Data, I);
+         end if;
+      end loop;
+      pragma Assert
+        (Encodes_Prefix
+           (Output, Start,
+            After_Literals, After_Distances, Data, Data'Length));
+      Codebooks.Lemma_Code_Of_From_Fields
+        (Before_Literals, After_Literals, 256);
+   end Lemma_Encoding_From_Book_Fields;
+
+   procedure Lemma_Data_Bits_Equal_From_Book_Fields
+     (Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array;
+      Count                             : Natural)
+   is
+   begin
+      Lemma_Data_Bits_From_Book_Fields
+        (Before_Literals, Before_Distances,
+         After_Literals, After_Distances, Data, Count);
+   end Lemma_Data_Bits_Equal_From_Book_Fields;
+
 end Inflate.Payload;

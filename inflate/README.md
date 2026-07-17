@@ -85,9 +85,12 @@ dynamic header transmits all lengths directly through a complete four-bit
 code-length alphabet; this is intentionally larger than an RLE-optimized header
 but keeps reconstruction local and proved. The focused harness round trips that
 body through the shipping decoder and independent model, and C zlib decodes the
-same bytes. The top-level gzip compressor does not select the dynamic body yet,
-so connecting its codebook-carrying local relation to the format-independent
-body boundary, gzip integration, lengths requiring extra bits, and wider
+same bytes. The serialized header now deterministically recovers the exact
+canonical books, and a proved witness-erasure lemma lifts the serializer's
+book-carrying relation to a three-argument dynamic relation over body, produced
+size, and data. The top-level gzip compressor does not select the dynamic body
+yet, so connecting that local relation to `Body_Encodes` recognition and
+functionality, gzip integration, lengths requiring extra bits, and wider
 distances remain M6 ratio work. Any gzip decoder consumes the current fixed or
 stored output. The contract is preserved across both encodings:
 
@@ -119,7 +122,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **5,340 checks,
+The most recent recorded `gnatprove --level=4` run reported **5,857 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -161,7 +164,10 @@ Some proof-relevant structure:
   emits exact `HLIT`, `HDIST`, and `HCLEN` fields, a complete code-length
   alphabet, and all reconstructed literal/length and distance lengths. Its
   body relation composes that header with the shared payload without making an
-  optimality claim or adding a top-level gzip branch.
+  optimality claim or adding a top-level gzip branch. Header-recovery functions
+  rebuild both exact canonical records from the transmitted lengths, and the
+  local relation is proved equivalent when those recovered books replace the
+  serializer's explicit witnesses.
 - The shared payload contract states exact bit consumption, the code selected
   for every reached token boundary, the end-of-block code, and preservation of
   every bit outside the returned half-open interval. Fixed and dynamic adapters
@@ -169,8 +175,10 @@ Some proof-relevant structure:
 - `Inflate.Bodies.Body_Encodes` hides the stored/fixed choice from the raw,
   gzip, and theorem layers. Its proved introduction, framing, recognition, and
   functionality lemmas replace the former member predicates and the duplicated
-  format branches in `GZip_Round_Trip`. The local dynamic relation is not yet a
-  case of this boundary.
+  format branches in `GZip_Round_Trip`. The local dynamic relation now has the
+  required witness-free three-argument shape, but is not yet a case of this
+  boundary; input-side recognition and cross-format functionality remain to be
+  connected.
 - The full model deliberately does not reuse the shipping Huffman table or
   fast map. Its canonical table builder and parser prove 685 checks in the
   focused model unit; the shipping decoder calls the model only after an

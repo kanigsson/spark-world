@@ -277,14 +277,20 @@ gzip compressor branch. No append-only logical-stream layer was needed: the
 concrete header and payload writers retain explicit frame contracts.
 
 The common body boundary currently contains exactly the two images selected by
-the top-level compressor. The remaining local connection is dynamic: its
-`Is_Encoding` predicate still carries the reconstructed literal/length and
-distance books explicitly, so those witnesses must be recovered or hidden
-before the three-argument `Body_Encodes (Body, Consumed, Data)` relation can
-admit it without weakening functionality.
+the top-level compressor. The dynamic witness-erasure prerequisite is now
+complete: `Literal_Book_From_Header` and `Distance_Book_From_Header` rebuild
+exact canonical records from the 316 transmitted lengths, and
+`Lemma_Encoding_Uses_Header_Books` proves that the serializer's explicit-book
+relation implies the three-argument `Inflate.Dynamic.Is_Encoding (Body,
+Consumed, Data)` relation. Codebook and payload congruence lemmas establish
+that ready/coverage facts, canonical codes, token bit counts, payload bits, and
+the produced size are unchanged by recovery. The remaining common-boundary
+work is to give that proof-only local relation the input-side recognition,
+framing, and functionality consequences required by `Body_Encodes`.
 
-The focused dynamic proof closes all 576 checks at `--level=4`; the full library
-proves all 5,340 checks at `--level=4`, with no justifications or assumptions.
+The focused dynamic project proves all 5,049 checks at `--level=4`; the full
+library proves all 5,857 checks at `--level=4`, with no justifications or
+assumptions.
 The dynamic runtime harness covers empty, singleton, sparse, and full DEFLATE
 alphabets, an exact shared-payload bit pattern, and a complete dynamic body that
 round trips through the shipping decoder and its independent model. C zlib
@@ -383,8 +389,9 @@ literal/match slice with the same full-domain gzip theorem, plus a proved
 local dynamic header and body serializer. The remaining ratio work is:
 
 1. **Extend `Body_Encodes` from stored/fixed to dynamic.** The common relation
-   already replaced the format-specific branches in raw, gzip, and the theorem;
-   recover the dynamic books from its header so the local dynamic relation can
-   establish the same three-argument boundary.
+   already replaced the format-specific branches in raw, gzip, and the theorem.
+   Dynamic header recovery and the witness-free three-argument local relation
+   are complete; add its recognition, framing, and functionality bridge without
+   weakening the common relation.
 2. **Add the dynamic gzip branch.** Select the proved dynamic body locally and
    lift it through the existing framing, decoder-success, and round-trip proof.

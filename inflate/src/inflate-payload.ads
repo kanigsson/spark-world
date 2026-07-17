@@ -12,6 +12,9 @@ with Inflate.Fixed;
 package Inflate.Payload with Pure, SPARK_Mode => On is
 
    use type Fixed.Symbol_Kind;
+   use type Codebooks.Codebook_Kind;
+   use type Codebooks.Code_Length_Array;
+   use type Codebooks.Length_Count_Array;
 
    pragma Assertion_Policy (Ghost => Ignore);
 
@@ -249,6 +252,94 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
               and then Codebooks.Ready (Distances)
               and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
               and then Codebooks.Lengths_At_Most (Distances, 9);
+
+   procedure Lemma_Covers_From_Lengths
+     (Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Data'Length <= Fixed.Max_Input
+                 and then
+               (for all Symbol in Codebooks.Symbol_Index =>
+                  Codebooks.Length_Of (Before_Literals, Symbol) =
+                    Codebooks.Length_Of (After_Literals, Symbol))
+                 and then
+               (for all Symbol in Codebooks.Symbol_Index =>
+                  Codebooks.Length_Of (Before_Distances, Symbol) =
+                    Codebooks.Length_Of (After_Distances, Symbol))
+                 and then Covers
+                   (Before_Literals, Before_Distances, Data),
+     Post   => Covers (After_Literals, After_Distances, Data);
+
+   procedure Lemma_Encoding_From_Book_Fields
+     (Output                            : Byte_Array;
+      Start                             : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Output'Length <= Fixed.Max_Stream_Bytes
+                 and then Data'Length <= Fixed.Max_Input
+                 and then Start <= 8 * Output'Length
+                 and then Before_Literals.Kind = Codebooks.Canonical
+                 and then After_Literals.Kind = Codebooks.Canonical
+                 and then Before_Distances.Kind = Codebooks.Canonical
+                 and then After_Distances.Kind = Codebooks.Canonical
+                 and then Before_Literals.Lengths = After_Literals.Lengths
+                 and then Before_Literals.Counts = After_Literals.Counts
+                 and then Before_Distances.Lengths = After_Distances.Lengths
+                 and then Before_Distances.Counts = After_Distances.Counts
+                 and then Codebooks.Ready (Before_Literals)
+                 and then Codebooks.Ready (After_Literals)
+                 and then Codebooks.Ready (Before_Distances)
+                 and then Codebooks.Ready (After_Distances)
+                 and then Codebooks.Lengths_At_Most (Before_Literals, 9)
+                 and then Codebooks.Lengths_At_Most (After_Literals, 9)
+                 and then Codebooks.Lengths_At_Most (Before_Distances, 9)
+                 and then Codebooks.Lengths_At_Most (After_Distances, 9)
+                 and then Covers
+                   (Before_Literals, Before_Distances, Data)
+                 and then Covers
+                   (After_Literals, After_Distances, Data)
+                 and then Is_Encoding
+                   (Output, Start,
+                    Before_Literals, Before_Distances, Data),
+     Post   => Is_Encoding
+                 (Output, Start,
+                  After_Literals, After_Distances, Data);
+
+   procedure Lemma_Data_Bits_Equal_From_Book_Fields
+     (Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook;
+      Data                              : Byte_Array;
+      Count                             : Natural)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Data'Length <= Fixed.Max_Input
+                 and then Count <= Data'Length
+                 and then Before_Literals.Kind = Codebooks.Canonical
+                 and then After_Literals.Kind = Codebooks.Canonical
+                 and then Before_Distances.Kind = Codebooks.Canonical
+                 and then After_Distances.Kind = Codebooks.Canonical
+                 and then Before_Literals.Lengths = After_Literals.Lengths
+                 and then Before_Distances.Lengths = After_Distances.Lengths
+                 and then Covers
+                   (Before_Literals, Before_Distances, Data)
+                 and then Covers
+                   (After_Literals, After_Distances, Data)
+                 and then Codebooks.Lengths_At_Most (Before_Literals, 9)
+                 and then Codebooks.Lengths_At_Most (After_Literals, 9)
+                 and then Codebooks.Lengths_At_Most (Before_Distances, 9)
+                 and then Codebooks.Lengths_At_Most (After_Distances, 9),
+     Post   => Data_Bits
+                 (Before_Literals, Before_Distances, Data, Count) =
+                 Data_Bits
+                   (After_Literals, After_Distances, Data, Count);
 
    --  Append the token payload and end-of-block code at Start.  Bits outside
    --  the returned half-open interval are preserved.

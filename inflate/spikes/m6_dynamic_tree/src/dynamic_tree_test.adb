@@ -7,6 +7,8 @@ with Inflate.Raw;
 
 procedure Dynamic_Tree_Test is
 
+   use type Inflate.Codebooks.Codebook;
+
    procedure Check
      (Name        : String;
       Frequencies : Frequency_Array;
@@ -120,6 +122,10 @@ begin
    pragma Assert (Body_Produced <= Body_Output'Length);
    pragma Assert
      (Header_Encodes (Body_Output, Literal_Book, Distance_Book));
+   pragma Assert
+     (Literal_Book_From_Header (Body_Output) = Literal_Book);
+   pragma Assert
+     (Distance_Book_From_Header (Body_Output) = Distance_Book);
 
    Inflate.Raw.Decompress
      (Body_Output, Decoded, Body_Consumed, Decoded_Length, Body_Status);
