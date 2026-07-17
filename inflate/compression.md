@@ -255,6 +255,17 @@ or assumptions. The complete debug suite passes 6,445 cases and 18 compressor
 differential cases, including exact bit-level checks for length-ten matches at
 distances one, three, and four.
 
+The planned token-trace reassessment against this broader baseline is also
+complete. A `Step` relation would restate `One_Token_Matches`, while `Trace`
+would restate `Prefix_Matches`; the current framing, extension, closing, and
+functionality lemmas would still need the same recursive token cases.
+`Spec_Walk` cannot be replaced by that data-semantic trace because the analyzer
+computes validity and decoded length before an output array exists. Sharing
+that recursion would require a second structural trace and a bridge, adding a
+layer without deleting proof logic. The acceptance criterion in `abstract.md`
+is therefore not met, no source refactor is retained, and the current boundary
+proof remains the baseline for dynamic-Huffman work.
+
 ### M7 — Checksums as math
 CRC32 = polynomial division mod the generator; Adler32 = the mod-65521 running
 sums. Self-contained and very tractable. No longer a bonus at the end: M6a needs
@@ -334,8 +345,13 @@ M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
 literal/match slice with the same full-domain gzip theorem. The remaining ratio
 work is:
 
-1. **Reassess the token trace abstraction.** Attempt `Step`/`Trace` only if it
-   deletes the existing specialized relations and a meaningful part of
-   `Spec_Walk`; otherwise retain the current boundary proof.
-2. **Add dynamic trees.** Preserve the same theorem without making an
-   optimality claim.
+1. **Add dynamic trees locally.** Build and prove a complete prefix code with
+   lengths at most 15, without making an optimality claim or adding another
+   top-level gzip branch yet.
+2. **Share payload serialization at the codebook boundary.** Shape the
+   abstraction from the fixed and dynamic implementations once both concrete
+   cases exist; add an append-only bitstream only if framing proof duplication
+   actually appears.
+3. **Connect the dynamic body through `Body_Encodes`.** Introduce the common
+   body relation before adding the dynamic gzip branch, preserving the existing
+   round-trip theorem.

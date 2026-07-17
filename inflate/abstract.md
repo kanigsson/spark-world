@@ -132,6 +132,36 @@ differential cases; exact bit-level regressions exercise length-ten matches at
 distances one, three, and four, and C zlib independently decodes every emitted
 member.
 
+## Bounded reassessment: retain the current trace proof
+
+The planned `Step`/`Trace` reassessment is complete.  The broader fixed-code
+baseline makes the proposed correspondence precise, but it does not expose a
+profitable replacement boundary:
+
+| Proposed concept | Existing proof it would replace | Reassessment |
+|------------------|---------------------------------|--------------|
+| `Step` | `One_Token_Matches` | The literal and match cases, cursor equations, and `Match_Applies` obligation are identical.  This is a rename, not a deletion of proof logic. |
+| `Trace` | `Prefix_Matches` | The recursive cases and termination measure are identical.  The current data-frame, append, and extension lemmas would need trace-named equivalents. |
+| A complete trace ending at end-of-block | `Spec_Matches` | It still needs the end-of-block and consumed-byte conditions, plus a closing lemma from the mutable decoder prefix.  The compressor, framing, and functionality proofs retain the same recursive cases. |
+
+`Spec_Walk` also cannot be meaningfully absorbed by this trace.  The analyzer
+uses it to validate token shape, distance bounds, termination, and decoded
+length before an output slice exists.  In contrast, the proposed `Step`
+requires a `Data` value to check literal values and `Match_Applies`.  Sharing
+the recursion would therefore require either a ghost output value that the
+analyzer does not have, or a second data-free structural trace plus a bridge
+to the semantic trace.  Both add a layer without removing the analyzer's
+existing proof.
+
+The concrete deletion inventory consequently does not meet the acceptance
+criterion.  The names `Spec_Matches`, `Prefix_Matches`, and
+`One_Token_Matches` could disappear, but their definitions and the substance
+of `Lemma_Compressor_Spec`, `Lemma_Spec_Frame`, `Lemma_Spec_Functional`,
+`Lemma_Prefix_Data_Frame`, `Lemma_Prefix_Snoc`, `Lemma_Prefix_Extend`, and
+`Lemma_Prefix_Close` would remain.  `Spec_Walk` and its iterative refinement
+would remain as well.  No source refactor is justified at this boundary; the
+current boundary proof is the stable baseline for dynamic-Huffman work.
+
 ## 1. Give tokens explicit semantics
 
 `Symbol_Result` is already the working token abstraction: its `Match` case
@@ -179,11 +209,10 @@ Selected match at Position
 
 That theorem is independent of how aggressively the match finder searches.
 
-## 2. Describe decoding with a token trace
+## 2. Deferred proposal: describe decoding with a token trace
 
-Several existing relations express variants of the same fact: a segment of
-compressed bits produces a segment of output bytes.  Make that concept
-explicit with a paired cursor:
+If a later shared fixed/dynamic payload decoder creates a real deletion target,
+the candidate abstraction remains a paired cursor:
 
 ```ada
 type Trace_Cursor is record
@@ -199,25 +228,18 @@ Step  (Stream, Data, From, To)
 Trace (Stream, Data, From, To)
 ```
 
-`Step` parses one token, checks its semantic effect on `Data`, and advances
-both cursor components.  `Trace` composes zero or more steps.
-
-This one concept can subsume most of:
-
-- `Spec_Matches`;
-- `Prefix_Matches`;
-- `One_Token_Matches`;
-- the data-producing part of `Spec_Walk`;
-- their separate extension, closing, framing, and functional lemmas.
-
-In particular, the main decoder invariant becomes simply that the trace from
-the initial cursor to the current cursor describes the output prefix produced
-so far.  Functionality follows from the determinism of `Step`, rather than
-from a separate recursive proof that repeats literal and match semantics.
+`Step` would parse one token, check its semantic effect on `Data`, and advance
+both cursor components.  `Trace` would compose zero or more steps.  A useful
+future version must share that semantics across concrete fixed and dynamic
+payload paths and thereby delete their separate case analysis.  At the current
+boundary, however, the main decoder's trace invariant would only be a new
+spelling of `Prefix_Matches`, and functionality would still need the recursive
+literal and overlapping-match argument recorded in the reassessment above.
 
 The token sequence need not be materialized as a ghost array.  A cursor-based
 inductive relation avoids adding a large bounded ghost buffer and works for an
-arbitrary number of tokens within the existing input bound.
+arbitrary number of tokens within the existing input bound, if this proposal
+later acquires a concrete deletion target.
 
 ## 3. Make the compression plan explicit
 
@@ -329,8 +351,9 @@ matches of length three through ten at distances one through four, is connected
 through `Inflate.GZip.Compress`, the raw decoder's proved success path, and
 `Inflate.Theorems.GZip_Round_Trip`.  The remaining work is to support more
 lengths and wider distances, then add dynamic trees without breaking that
-connection.  The broader fixed-code baseline is now complete, so the next
-decision is the deliberately bounded `Step`/`Trace` reassessment below.
+connection.  The broader fixed-code baseline and the bounded `Step`/`Trace`
+reassessment are now complete.  The reassessment retained the current proof,
+so the next work is the local dynamic tree builder.
 
 Introducing abstractions before features can prevent duplication, but proof
 abstractions also introduce quantified relations, conversion theorems, and
@@ -347,7 +370,7 @@ wrapped a working specialized relation without removing it.
 |-------------|-------------------------|
 | Explicit token semantics | Started successfully: `Symbol_Result` now carries length and distance, and `Match_Applies` replaced the `(3, 1)` equations.  Extend this representation in place; add another token type only if it can replace it. |
 | Explicit compression plan | Complete: `Selected_Token`, `Next_Position`, `Token_Bit_Cost`, and the forward boundary state replaced the modulo-three plan before the first variable-length token landed. |
-| `Trace_Cursor` and `Step`/`Trace` | After the fixed-Huffman matcher covers a materially broader range of lengths and distances.  Proceed only if the trace can delete `Spec_Matches`, `Prefix_Matches`, and `One_Token_Matches`, plus a meaningful part of `Spec_Walk`. |
+| `Trace_Cursor` and `Step`/`Trace` | Reassessed and deferred.  At the current boundary they rename `One_Token_Matches` and `Prefix_Matches` but cannot replace the data-free `Spec_Walk`; the associated framing, closing, and functionality proofs would remain.  Revisit only if a later shared payload decoder provides a concrete deletion target. |
 | Append-only logical bitstream | During dynamic-Huffman work, if the concrete header and payload proofs multiply framing lemmas.  The working fixed writer alone does not justify this refactor. |
 | Codebook abstraction | Just before integrating the dynamic payload, once the fixed and dynamic implementations provide two concrete instances from which to shape the interface. |
 | `Body_Encodes` | After the dynamic body has a local encoding relation, but before wiring it into gzip and the round-trip theorem.  At that point it can replace stored/fixed/dynamic branches instead of wrapping only the current two. |
@@ -363,9 +386,10 @@ wrapped a working specialized relation without removing it.
 3. **Complete.** The fixed selector now chooses the longest length-three
    through length-ten match over distances one through four; the complete
    proof and runtime suites pass.
-4. Reassess `Step`/`Trace` against that baseline.  Attempt it only with an
-   explicit list of existing relations and lemmas that the new model will
-   delete.
+4. **Complete: retain the current proof.** `Step`/`Trace` would rename the
+   specialized relations while leaving their proof logic and the data-free
+   analyzer recursion in place, so the attempted refactor's entry criterion
+   was not met.
 5. Implement and prove the dynamic tree builder locally, without immediately
    adding another top-level gzip branch.
 6. Introduce the codebook boundary while sharing payload serialization between
@@ -379,7 +403,7 @@ This is feature-driven abstraction: establish a semantic seam before concrete
 proof logic is duplicated, but generalize it only when the next feature gives
 the abstraction at least two real cases.
 
-Treat the next attempt as an A/B refactor with explicit acceptance criteria:
+Treat any future attempt as an A/B refactor with explicit acceptance criteria:
 
 - one semantic relation replaces the existing specialized relations instead
   of being bridged to them;
