@@ -181,6 +181,29 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
      Post => Data_Bits'Result <= 9 * Count,
      Subprogram_Variant => (Decreases => Count);
 
+   --  Advance one selected token in the deterministic compression plan.  This
+   --  is exposed for the shared fixed/dynamic payload serializer; it contains
+   --  no codebook-specific facts.
+   procedure Lemma_Encoding_Next
+     (Data : Byte_Array; Index : Natural)
+   with
+     Ghost,
+     Pre  => Data'Length <= Max_Input
+               and then Index < Data'Length
+               and then Token_Boundary (Data, Index),
+     Post => Token_Boundary (Data, Next_Position (Data, Index))
+               and then Plan_Start
+                 (Data, Next_Position (Data, Index)) = Index
+               and then Data_Bits (Data, Next_Position (Data, Index)) =
+                          Data_Bits (Data, Index)
+                            + Token_Bit_Cost (Data, Index)
+               and then
+             (for all Count in Index + 1 ..
+                Next_Position (Data, Index) - 1 =>
+                  not Token_Boundary (Data, Count)
+                    and then Data_Bits (Data, Count) =
+                      Data_Bits (Data, Index));
+
    pragma Assertion_Policy (Post => Ignore);
    function Encoded_Bit_Count (Data : Byte_Array) return Natural
    with

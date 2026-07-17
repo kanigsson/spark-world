@@ -1,3 +1,6 @@
+with Inflate.Codebooks;
+with Inflate.Payload;
+
 package body Inflate.Fixed with SPARK_Mode => On is
 
    pragma Assertion_Policy
@@ -15,24 +18,6 @@ package body Inflate.Fixed with SPARK_Mode => On is
    is (Value <= 2 ** 11 - 1)
    with Ghost,
         Pre => Exponent <= 11 and then Value < 2 ** Exponent;
-
-   procedure Lemma_Encoding_Next
-     (Data : Byte_Array; Index : Natural)
-   with
-     Ghost,
-     Pre  => Data'Length <= Max_Input
-               and then Index < Data'Length
-               and then Token_Boundary (Data, Index),
-     Post => Token_Boundary (Data, Next_Position (Data, Index))
-               and then Data_Bits (Data, Next_Position (Data, Index)) =
-                          Data_Bits (Data, Index)
-                            + Token_Bit_Cost (Data, Index)
-               and then
-             (for all Count in Index + 1 ..
-                Next_Position (Data, Index) - 1 =>
-                  not Token_Boundary (Data, Count)
-                    and then Data_Bits (Data, Count) =
-                      Data_Bits (Data, Index));
 
    ---------------------
    -- Matching_Length --
@@ -548,37 +533,6 @@ package body Inflate.Fixed with SPARK_Mode => On is
    procedure Lemma_Prefix_Step
      (Input : Byte_Array; Start : Natural; Length : Positive) is null;
 
-   procedure Lemma_Prefix_Frame
-     (Before, After : Byte_Array;
-      Start         : Natural;
-      Length        : Natural)
-   with
-     Ghost,
-     Pre  => Before'Length <= Max_Stream_Bytes
-               and then After'Length <= Max_Stream_Bytes
-               and then Length <= 9
-               and then Start <= 8 * Before'Length
-               and then Length <= 8 * Before'Length - Start
-               and then Start <= 8 * After'Length
-               and then Length <= 8 * After'Length - Start
-               and then
-             (for all P in Start .. Start + Length - 1 =>
-                Bit_Value (After, P) = Bit_Value (Before, P)),
-     Post => Prefix_Value (After, Start, Length) =
-               Prefix_Value (Before, Start, Length),
-     Subprogram_Variant => (Decreases => Length);
-
-   procedure Lemma_Prefix_Frame
-     (Before, After : Byte_Array;
-      Start         : Natural;
-      Length        : Natural)
-   is
-   begin
-      if Length > 0 then
-         Lemma_Prefix_Frame (Before, After, Start, Length - 1);
-      end if;
-   end Lemma_Prefix_Frame;
-
    procedure Lemma_Byte_Frame
      (Before, After : Byte_Array; Consumed, Position : Natural)
    with
@@ -980,29 +934,6 @@ package body Inflate.Fixed with SPARK_Mode => On is
       pragma Assert (Encoding_Matches (After, Consumed, Data));
    end Lemma_Encoding_Frame;
 
-   procedure Lemma_Zero_Prefix
-     (Input : Byte_Array; Start : Natural; Length : Natural)
-   with
-     Ghost,
-     Pre  => Input'Length <= Max_Stream_Bytes
-               and then Length <= 9
-               and then Start <= 8 * Input'Length
-               and then Length <= 8 * Input'Length - Start
-               and then
-             (for all P in Start .. Start + Length - 1 =>
-                Bit_Value (Input, P) = 0),
-     Post => Prefix_Value (Input, Start, Length) = 0,
-     Subprogram_Variant => (Decreases => Length);
-
-   procedure Lemma_Zero_Prefix
-     (Input : Byte_Array; Start : Natural; Length : Natural)
-   is
-   begin
-      if Length > 0 then
-         Lemma_Zero_Prefix (Input, Start, Length - 1);
-      end if;
-   end Lemma_Zero_Prefix;
-
    procedure Lemma_Data_Bits_Segment
      (Data : Byte_Array; Position, Count : Natural)
    is
@@ -1189,138 +1120,161 @@ package body Inflate.Fixed with SPARK_Mode => On is
         (Input, Consumed, Left, Right, 3, 0);
    end Lemma_Encoding_Functional;
 
-   ----------------
-   -- Write_Code --
-   ----------------
-
-   procedure Write_Code
-     (Output : in out Byte_Array;
-      Start  : Natural;
-      Length : Positive;
-      Value  : Natural)
-   with
-     Pre  => Output'Length <= Max_Stream_Bytes
-               and then Length <= 9
-               and then Start <= 8 * Output'Length
-               and then Length <= 8 * Output'Length - Start
-               and then Value < 2 ** Length,
-     Post => Prefix_Value (Output, Start, Length) = Value
-               and then
-             (for all P in 0 .. 8 * Output'Length - 1 =>
-                (if P < Start or else P >= Start + Length
-                 then Bit_Value (Output, P) = Bit_Value (Output'Old, P))),
-     Subprogram_Variant => (Decreases => Length)
-   is
-   begin
-      if Length = 1 then
-         Set_Stream_Bit (Output, Start, Value);
-      else
-         Write_Code (Output, Start, Length - 1, Value / 2);
-         declare
-            Before : constant Byte_Array := Output with Ghost;
-         begin
-            Set_Stream_Bit (Output, Start + Length - 1, Value mod 2);
-            pragma Assert
-              (for all P in Start .. Start + Length - 2 =>
-                 Bit_Value (Output, P) = Bit_Value (Before, P));
-            Lemma_Prefix_Frame (Before, Output, Start, Length - 1);
-            Lemma_Prefix_Step (Output, Start, Length);
-            pragma Assert (2 * (Value / 2) + Value mod 2 = Value);
-         end;
-      end if;
-   end Write_Code;
-
-   procedure Lemma_Encodes_Frame
-     (Before, After : Byte_Array;
-      Data : Byte_Array;
-      Count : Natural)
+   procedure Lemma_Shared_Data_Bits
+     (Data : Byte_Array; Count : Natural)
    with
      Ghost,
-     Pre  => Before'Length = After'Length
-               and then Before'Length <= Max_Stream_Bytes
-               and then Data'Length <= Max_Input
-               and then Count <= Data'Length
-               and then Token_Boundary (Data, Count)
-               and then Encodes_Prefix (Before, Data, Count)
-               and then
-             (for all P in 0 .. 3 + Data_Bits (Data, Count) - 1 =>
-                Bit_Value (After, P) = Bit_Value (Before, P)),
-     Post => Encodes_Prefix (After, Data, Count);
+     Pre  => Data'Length <= Max_Input and then Count <= Data'Length,
+     Post => Inflate.Payload.Data_Bits
+               (Inflate.Codebooks.Fixed_Literal_Length_Book,
+                Inflate.Codebooks.Fixed_Distance_Book,
+                Data, Count) = Data_Bits (Data, Count),
+     Subprogram_Variant => (Decreases => Count);
 
-   procedure Lemma_Encodes_Frame
-     (Before, After : Byte_Array;
-      Data : Byte_Array;
-      Count : Natural)
+   procedure Lemma_Shared_Data_Bits
+     (Data : Byte_Array; Count : Natural)
    is
    begin
-      for J in 0 .. Count - 1 loop
-         pragma Loop_Invariant (Encodes_Prefix (After, Data, J));
-         if Token_Boundary (Data, J)
-           and then Selected_Token (Data, J).Kind = Match
-         then
-            Lemma_Data_Bits_Segment (Data, J, Count);
-            pragma Assert (Next_Position (Data, J) <= Count);
-            Lemma_Prefix_Frame
-              (Before, After, 3 + Data_Bits (Data, J), 7);
-            Lemma_Prefix_Frame
-              (Before, After, 3 + Data_Bits (Data, J) + 7, 5);
-         elsif Token_Boundary (Data, J) then
-            Lemma_Data_Bits_Segment (Data, J, Count);
-            Lemma_Prefix_Frame
-              (Before, After, 3 + Data_Bits (Data, J),
-               Code_Length (Data (Data'First + J)));
+      if Count > 0 then
+         if Token_Boundary (Data, Count) then
+            Lemma_Shared_Data_Bits (Data, Plan_Start (Data, Count));
+            declare
+               Start : constant Natural := Plan_Start (Data, Count);
+               Token : constant Symbol_Result := Selected_Token (Data, Start);
+            begin
+               if Token.Kind = Match then
+                  pragma Assert
+                    (Inflate.Payload.Token_Bit_Cost
+                       (Inflate.Codebooks.Fixed_Literal_Length_Book,
+                        Inflate.Codebooks.Fixed_Distance_Book,
+                        Data, Start) = 12);
+               else
+                  pragma Assert
+                    (Inflate.Payload.Token_Bit_Cost
+                       (Inflate.Codebooks.Fixed_Literal_Length_Book,
+                        Inflate.Codebooks.Fixed_Distance_Book,
+                        Data, Start) = Code_Length (Token.Value));
+               end if;
+            end;
+         else
+            Lemma_Shared_Data_Bits (Data, Count - 1);
+         end if;
+      end if;
+   end Lemma_Shared_Data_Bits;
+
+   procedure Lemma_Shared_Encoding
+     (Output : Byte_Array; Data : Byte_Array)
+   with
+     Ghost,
+     Pre  => Output'Length <= Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Inflate.Payload.Is_Encoding
+                 (Output, 3,
+                  Inflate.Codebooks.Fixed_Literal_Length_Book,
+                  Inflate.Codebooks.Fixed_Distance_Book,
+                  Data),
+     Post => Encodes_Prefix (Output, Data, Data'Length)
+               and then Prefix_Value
+                 (Output, 3 + Data_Bits (Data, Data'Length), 7) = 0;
+
+   procedure Lemma_Shared_Encoding
+     (Output : Byte_Array; Data : Byte_Array)
+   is
+   begin
+      for I in 0 .. Data'Length - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              (if Token_Boundary (Data, J)
+                    and then Selected_Token (Data, J).Kind = Match
+               then 3 + Data_Bits (Data, J) + 12 <= 8 * Output'Length
+                    and then Prefix_Value
+                      (Output, 3 + Data_Bits (Data, J), 7) =
+                        Selected_Token (Data, J).Length - 2
+                    and then Prefix_Value
+                      (Output, 3 + Data_Bits (Data, J) + 7, 5) =
+                        Selected_Token (Data, J).Distance - 1
+               elsif Token_Boundary (Data, J)
+               then 3 + Data_Bits (Data, J)
+                      + Code_Length (Data (Data'First + J)) <=
+                        8 * Output'Length
+                    and then Prefix_Value
+                      (Output, 3 + Data_Bits (Data, J),
+                       Code_Length (Data (Data'First + J))) =
+                         Code (Data (Data'First + J))));
+         Lemma_Shared_Data_Bits (Data, I);
+         if Token_Boundary (Data, I) then
+            pragma Assert
+              (Inflate.Payload.Token_Encoded
+                 (Output, 3,
+                  Inflate.Codebooks.Fixed_Literal_Length_Book,
+                  Inflate.Codebooks.Fixed_Distance_Book, Data, I));
+            declare
+               Token : constant Symbol_Result := Selected_Token (Data, I);
+            begin
+               if Token.Kind = Match then
+                  pragma Assert
+                    (Inflate.Codebooks.Length_Of
+                       (Inflate.Codebooks.Fixed_Literal_Length_Book,
+                        Inflate.Payload.Length_Symbol (Token.Length)) = 7);
+                  pragma Assert
+                    (Inflate.Codebooks.Code_Of
+                       (Inflate.Codebooks.Fixed_Literal_Length_Book,
+                        Inflate.Payload.Length_Symbol (Token.Length)) =
+                           Token.Length - 2);
+                  pragma Assert
+                    (Inflate.Codebooks.Length_Of
+                       (Inflate.Codebooks.Fixed_Distance_Book,
+                        Inflate.Payload.Distance_Symbol
+                          (Token.Distance)) = 5);
+                  pragma Assert
+                    (Inflate.Codebooks.Code_Of
+                       (Inflate.Codebooks.Fixed_Distance_Book,
+                        Inflate.Payload.Distance_Symbol (Token.Distance)) =
+                           Token.Distance - 1);
+                  pragma Assert
+                    (3 + Data_Bits (Data, I) + 12 <=
+                       8 * Output'Length);
+                  pragma Assert
+                    (Prefix_Value
+                       (Output, 3 + Data_Bits (Data, I), 7) =
+                         Token.Length - 2);
+                  pragma Assert
+                    (Prefix_Value
+                       (Output, 3 + Data_Bits (Data, I) + 7, 5) =
+                         Token.Distance - 1);
+               else
+                  pragma Assert
+                    (Token.Value = Data (Data'First + I));
+                  pragma Assert
+                    (Inflate.Codebooks.Length_Of
+                       (Inflate.Codebooks.Fixed_Literal_Length_Book,
+                        Natural (Token.Value)) = Code_Length (Token.Value));
+                  pragma Assert
+                    (Inflate.Codebooks.Code_Of
+                       (Inflate.Codebooks.Fixed_Literal_Length_Book,
+                        Natural (Token.Value)) = Code (Token.Value));
+                  pragma Assert
+                    (3 + Data_Bits (Data, I) + Code_Length (Token.Value) <=
+                       8 * Output'Length);
+                  pragma Assert
+                    (Prefix_Value
+                       (Output, 3 + Data_Bits (Data, I),
+                        Code_Length (Token.Value)) = Code (Token.Value));
+               end if;
+            end;
          end if;
       end loop;
-   end Lemma_Encodes_Frame;
-
-   procedure Lemma_Encodes_Add
-     (Output : Byte_Array;
-      Data : Byte_Array;
-      Index, New_Index : Natural)
-   with
-     Ghost,
-     Pre  => Output'Length <= Max_Stream_Bytes
-               and then Data'Length <= Max_Input
-               and then Index < Data'Length
-               and then Token_Boundary (Data, Index)
-               and then New_Index = Next_Position (Data, Index)
-               and then New_Index <= Data'Length
-               and then Encodes_Prefix (Output, Data, Index)
-               and then
-             (if Selected_Token (Data, Index).Kind = Match
-              then 3 + Data_Bits (Data, Index) + 12 <= 8 * Output'Length
-                   and then Prefix_Value
-                     (Output, 3 + Data_Bits (Data, Index), 7) =
-                       Selected_Token (Data, Index).Length - 2
-                   and then Prefix_Value
-                     (Output, 3 + Data_Bits (Data, Index) + 7, 5) =
-                       Selected_Token (Data, Index).Distance - 1
-              else 3 + Data_Bits (Data, Index)
-                     + Code_Length (Data (Data'First + Index)) <=
-                       8 * Output'Length
-                   and then Prefix_Value
-                     (Output, 3 + Data_Bits (Data, Index),
-                      Code_Length (Data (Data'First + Index))) =
-                        Code (Data (Data'First + Index))),
-     Post => Encodes_Prefix (Output, Data, New_Index);
-
-   procedure Lemma_Encodes_Add
-     (Output : Byte_Array;
-      Data : Byte_Array;
-      Index, New_Index : Natural)
-   is
-   begin
-      Lemma_Encoding_Next (Data, Index);
+      Lemma_Shared_Data_Bits (Data, Data'Length);
       pragma Assert
-        (Data_Bits (Data, New_Index) =
-           Data_Bits (Data, Index) + Token_Bit_Cost (Data, Index));
+        (3 + Data_Bits (Data, Data'Length) <= 8 * Output'Length);
+      pragma Assert (Encodes_Prefix (Output, Data, Data'Length));
       pragma Assert
-        (3 + Data_Bits (Data, New_Index) <= 8 * Output'Length);
-      for J in Index .. New_Index - 1 loop
-         pragma Loop_Invariant (Encodes_Prefix (Output, Data, J));
-         null;
-      end loop;
-   end Lemma_Encodes_Add;
+        (Inflate.Codebooks.Length_Of
+           (Inflate.Codebooks.Fixed_Literal_Length_Book, 256) = 7);
+      pragma Assert
+        (Inflate.Codebooks.Code_Of
+           (Inflate.Codebooks.Fixed_Literal_Length_Book, 256) = 0);
+   end Lemma_Shared_Encoding;
 
    --------------
    -- Compress --
@@ -1332,108 +1286,26 @@ package body Inflate.Fixed with SPARK_Mode => On is
       Produced :    out Natural)
    is
       Size : constant Positive := Encoded_Size (Input);
-      Bits : Natural := 3;
-      Index : Natural := 0;
+      Bits : Natural;
    begin
       Output (Output'First .. Output'First + Size - 1) := (others => 0);
       Set_Stream_Bit (Output, 0, 1);
       Set_Stream_Bit (Output, 1, 1);
       pragma Assert (Bit_Value (Output, 2) = 0);
       pragma Assert (Fixed_Header (Output));
-
-      while Index < Input'Length loop
-         pragma Loop_Invariant (Index <= Input'Length);
-         pragma Loop_Invariant (Bits = 3 + Data_Bits (Input, Index));
-         pragma Loop_Invariant (Token_Boundary (Input, Index));
-         pragma Loop_Invariant
-           (3 + Data_Bits (Input, Input'Length) + 7 <=
-            8 * Output'Length);
-         pragma Loop_Invariant (Encodes_Prefix (Output, Input, Index));
-         pragma Loop_Invariant (Fixed_Header (Output));
-         pragma Loop_Invariant
-           (for all P in Bits .. 3 + Data_Bits (Input, Input'Length) + 6 =>
-              Bit_Value (Output, P) = 0);
-         declare
-            B         : constant Byte := Input (Input'First + Index);
-            S         : constant Symbol_Result := Selected_Token (Input, Index);
-            Before    : constant Byte_Array := Output with Ghost;
-            Old_Index : constant Natural := Index;
-            Old_Bits  : constant Natural := Bits;
-         begin
-            Lemma_Encoding_Next (Input, Index);
-            Lemma_Data_Bits_Segment (Input, Index, Input'Length);
-            if S.Kind = Match then
-               Write_Code (Output, Bits, 7, S.Length - 2);
-               declare
-                  Before_Distance : constant Byte_Array := Output with Ghost;
-               begin
-                  Write_Code
-                    (Output, Bits + 7, 5,
-                     S.Distance - 1);
-                  Lemma_Prefix_Frame
-                    (Before_Distance, Output, Bits, 7);
-               end;
-               pragma Assert
-                 (for all P in 0 .. Old_Bits - 1 =>
-                    Bit_Value (Output, P) = Bit_Value (Before, P));
-               Lemma_Encodes_Frame (Before, Output, Input, Old_Index);
-               pragma Assert
-                 (Prefix_Value (Output, Old_Bits, 7) = S.Length - 2);
-               pragma Assert
-                 (Prefix_Value (Output, Old_Bits + 7, 5) =
-                    S.Distance - 1);
-               Lemma_Encodes_Add
-                 (Output, Input, Old_Index, S.Position);
-               pragma Assert
-                 (for all P in Old_Bits + 12 ..
-                    3 + Data_Bits (Input, Input'Length) + 6 =>
-                    Bit_Value (Output, P) = 0);
-               pragma Assert
-                 (Data_Bits (Input, S.Position) =
-                    Data_Bits (Input, Old_Index)
-                      + Token_Bit_Cost (Input, Old_Index));
-               pragma Assert
-                 (Token_Boundary (Input, S.Position));
-               Bits := Bits + 12;
-               Index := S.Position;
-               pragma Assert (Bits = 3 + Data_Bits (Input, Index));
-               pragma Assert (Encodes_Prefix (Output, Input, Index));
-            else
-               Write_Code (Output, Bits, Code_Length (B), Code (B));
-               pragma Assert
-                 (for all P in 0 .. Old_Bits - 1 =>
-                    Bit_Value (Output, P) = Bit_Value (Before, P));
-               Lemma_Encodes_Frame (Before, Output, Input, Old_Index);
-               Lemma_Encodes_Add
-                 (Output, Input, Old_Index, Old_Index + 1);
-               pragma Assert
-                 (for all P in Old_Bits + Code_Length (B) ..
-                    3 + Data_Bits (Input, Input'Length) + 6 =>
-                    Bit_Value (Output, P) = 0);
-               pragma Assert
-                 (Data_Bits (Input, Old_Index + 1) =
-                    Data_Bits (Input, Old_Index) + Code_Length (B));
-               pragma Assert
-                 (Token_Boundary (Input, Old_Index + 1));
-               Bits := Bits + Code_Length (B);
-               Index := Index + 1;
-               pragma Assert (Bits = 3 + Data_Bits (Input, Index));
-               pragma Assert (Encodes_Prefix (Output, Input, Index));
-            end if;
-            pragma Assert (Bit_Value (Output, 0) = Bit_Value (Before, 0));
-            pragma Assert (Bit_Value (Output, 1) = Bit_Value (Before, 1));
-            pragma Assert (Bit_Value (Output, 2) = Bit_Value (Before, 2));
-         end;
-      end loop;
-      pragma Assert (Index = Input'Length);
-      pragma Assert (Encodes_Prefix (Output, Input, Index));
-
-      --  The fixed end-of-block code is seven zero bits; the output was
-      --  zero-initialized and no literal write reaches this interval.
-      pragma Assert (Bits = 3 + Data_Bits (Input, Input'Length));
+      Lemma_Shared_Data_Bits (Input, Input'Length);
       pragma Assert
-        (for all P in Bits .. Bits + 6 => Bit_Value (Output, P) = 0);
-      Lemma_Zero_Prefix (Output, Bits, 7);
+        (Inflate.Payload.Covers
+           (Inflate.Codebooks.Fixed_Literal_Length_Book,
+            Inflate.Codebooks.Fixed_Distance_Book, Input));
+      Inflate.Payload.Serialize
+        (Input,
+         Inflate.Codebooks.Fixed_Literal_Length_Book,
+         Inflate.Codebooks.Fixed_Distance_Book,
+         Output, 3, Bits);
+      pragma Assert
+        (Bits = 3 + Data_Bits (Input, Input'Length) + 7);
+      Lemma_Shared_Encoding (Output, Input);
       Produced := Size;
       pragma Assert (Fixed_Header (Output));
       pragma Assert

@@ -364,4 +364,46 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       pragma Assert (for all I in Lengths'Range => Lengths (I) <= 9);
    end Build_Lengths;
 
+   --------------------
+   -- Build_Codebook --
+   --------------------
+
+   procedure Build_Codebook
+     (Frequencies : in     Frequency_Array;
+      Book        :    out Codebooks.Codebook;
+      Success     :    out Boolean)
+   is
+      Lengths : Code_Length_Array (Frequencies'Range);
+      Full    : Codebooks.Code_Length_Array := (others => 0);
+   begin
+      Build_Lengths (Frequencies, Lengths);
+      for I in Lengths'Range loop
+         pragma Loop_Invariant
+           (for all J in Lengths'First .. I - 1 =>
+              Full (J) = Lengths (J));
+         pragma Loop_Invariant
+           (for all J in I .. Codebooks.Symbol_Index'Last =>
+              Full (J) = 0);
+         Full (I) := Lengths (I);
+      end loop;
+      Codebooks.Build (Full, Book, Success);
+   end Build_Codebook;
+
+   -----------------------
+   -- Serialize_Payload --
+   -----------------------
+
+   procedure Serialize_Payload
+     (Data            : in     Byte_Array;
+      Literal_Lengths : in     Codebooks.Codebook;
+      Distances       : in     Codebooks.Codebook;
+      Output          : in out Byte_Array;
+      Start           : in     Natural;
+      Next_Bit        :    out Natural)
+   is
+   begin
+      Payload.Serialize
+        (Data, Literal_Lengths, Distances, Output, Start, Next_Bit);
+   end Serialize_Payload;
+
 end Inflate.Dynamic;

@@ -1,5 +1,8 @@
-with Ada.Text_IO;    use Ada.Text_IO;
-with Inflate.Dynamic; use Inflate.Dynamic;
+with Ada.Text_IO;      use Ada.Text_IO;
+with Inflate;          use Inflate;
+with Inflate.Codebooks;
+with Inflate.Dynamic;  use Inflate.Dynamic;
+with Inflate.Fixed;
 
 procedure Dynamic_Tree_Test is
 
@@ -40,6 +43,20 @@ procedure Dynamic_Tree_Test is
    All_Literals : constant Frequency_Array (0 .. 285) := (others => 1);
 
    Distance_Alphabet : Frequency_Array (0 .. 29) := (others => 0);
+
+   Payload_Literals  : Frequency_Array (0 .. 285) := (others => 0);
+   Payload_Distances : Frequency_Array (0 .. 29) := (others => 0);
+   Literal_Book      : Inflate.Codebooks.Codebook
+     (Inflate.Codebooks.Canonical);
+   Distance_Book     : Inflate.Codebooks.Codebook
+     (Inflate.Codebooks.Canonical);
+   Literal_Ready, Distance_Ready : Boolean;
+   Payload_Data : constant Byte_Array (1 .. 9) :=
+     (Character'Pos ('a'), Character'Pos ('b'), Character'Pos ('c'),
+      Character'Pos ('a'), Character'Pos ('b'), Character'Pos ('c'),
+      Character'Pos ('a'), Character'Pos ('b'), Character'Pos ('c'));
+   Payload_Bits : Byte_Array (1 .. 8) := (others => 0);
+   Payload_End  : Natural;
 begin
    Check ("empty code-length alphabet", Empty_Code_Lengths, 2);
 
@@ -60,6 +77,31 @@ begin
    Distance_Alphabet (3) := 4;
    Distance_Alphabet (29) := 1;
    Check ("distance alphabet", Distance_Alphabet, 3);
+
+   --  The shared plan chooses three literals followed by a length-six,
+   --  distance-three match.  The balanced dynamic books assign
+   --    a=00, b=01, c=10, EOB=110, length-6=111, distance-3=1,
+   --  so the common writer emits 00 01 10 111 1 110 (thirteen bits).
+   Payload_Literals (Character'Pos ('a')) := 1;
+   Payload_Literals (Character'Pos ('b')) := 1;
+   Payload_Literals (Character'Pos ('c')) := 1;
+   Payload_Literals (256) := 1;
+   Payload_Literals (260) := 1;
+   Payload_Distances (2) := 1;
+   Build_Codebook (Payload_Literals, Literal_Book, Literal_Ready);
+   Build_Codebook (Payload_Distances, Distance_Book, Distance_Ready);
+   pragma Assert (Literal_Ready and then Distance_Ready);
+   Serialize_Payload
+     (Payload_Data, Literal_Book, Distance_Book,
+      Payload_Bits, 0, Payload_End);
+   pragma Assert (Payload_End = 13);
+   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 0, 2) = 0);
+   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 2, 2) = 1);
+   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 4, 2) = 2);
+   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 6, 3) = 7);
+   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 9, 1) = 1);
+   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 10, 3) = 6);
+   Put_Line ("shared dynamic payload serialization passed");
 
    Put_Line ("all dynamic-tree runtime checks passed");
 end Dynamic_Tree_Test;

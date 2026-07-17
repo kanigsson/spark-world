@@ -161,7 +161,7 @@ A current run of:
 gnatprove -P inflate.gpr --mode=all -j0 --timeout=30
 ```
 
-completed successfully with 4,669 checks, all proved. The generated summary
+completed successfully with 5,100 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -182,6 +182,9 @@ Subject to public preconditions, the proof establishes:
 - bounded dynamic-Huffman length construction: every nonzero-frequency symbol
   is assigned a code of length at most nine and the resulting code is complete
   by exact scaled Kraft equality, without an optimality claim;
+- fixed and canonical encoder codebooks satisfy one ready/length/code boundary,
+  and the shared token-payload writer emits the selected literal or match codes
+  plus end-of-block at exact offsets while preserving bits outside its result;
 - compressor-image decode success, exact consumption and production, and
   agreement with the selected relation when the decoded data fits the output;
 - gzip framing values used by the compressor, including the input length and a
@@ -233,7 +236,8 @@ The formal result does not establish:
 - general or optimal LZ77 selection in the compressor: fixed-Huffman matching
   remains limited to lengths three through ten and distances one through four,
   without extra-bit length or distance codes;
-- dynamic-Huffman output from the compressor;
+- a serialized dynamic-Huffman block header or dynamic-Huffman output from the
+  top-level compressor (only the local canonical-codebook payload path exists);
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;
 - stored-DEFLATE, zlib, gzip, or ZIP wire semantics against an independently

@@ -34,7 +34,9 @@ handled by raising an exception.
 | `Inflate.Raw`     | DEFLATE (RFC 1951): stored/fixed/dynamic blocks, canonical Huffman decoding; `Compress_Stored` |
 | `Inflate.LZ77`    | proved DEFLATE back-reference copying, including overlapping matches |
 | `Inflate.Fixed`   | fixed-Huffman literal/match encoder, iterative analyzer, and executable relation |
-| `Inflate.Dynamic` | bounded dynamic-Huffman code-length builder with proved coverage, length bound, and Kraft equality |
+| `Inflate.Codebooks` | shared fixed/canonical encoder codebook boundary with proved construction and validity |
+| `Inflate.Payload` | shared literal, match, and end-of-block serializer over a ready codebook |
+| `Inflate.Dynamic` | bounded dynamic-Huffman code-length/codebook builder and shared-payload adapter |
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
 | `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
 | `Inflate.Model`   | executable canonical model for stored, fixed-Huffman, and dynamic-Huffman DEFLATE, plus the stored compressor relation |
@@ -73,11 +75,14 @@ variable-length token selection, and makes no optimality claim.
 `Max_Input` is derived from the largest stream whose bit offsets plus the gzip
 trailer fit in `Natural` (238,609,285 input bytes on the current target). Still
 larger inputs retain the stored-block encoder, so the public compressor and
-theorem keep their original domain. `Inflate.Dynamic` now constructs a proved
-balanced complete code for any DEFLATE-sized alphabet, but no dynamic header or
-payload is emitted yet. Dynamic-block integration, lengths requiring extra
-bits, and wider distances remain M6 ratio work. Any gzip decoder consumes
-either current output.
+theorem keep their original domain. `Inflate.Codebooks` now separates fixed
+and canonical assignments from `Inflate.Payload`, which serializes the common
+literal, length/distance, and end-of-block token payload. The fixed compressor
+uses that shared writer, and `Inflate.Dynamic` constructs a proved balanced
+complete codebook and exposes the same payload path. No dynamic block header is
+emitted yet, so dynamic-block integration, lengths requiring extra bits, and
+wider distances remain M6 ratio work. Any gzip decoder consumes either current
+fixed or stored output.
 The contract is preserved across both branches:
 
 - **Totality and size.** Under the stated preconditions there is no failure
@@ -107,7 +112,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **4,669 checks,
+The most recent recorded `gnatprove --level=4` run reported **5,100 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -143,8 +148,14 @@ Some proof-relevant structure:
   adds dummy leaves only for zero/one-symbol alphabets, and constructs a
   balanced complete tree. Its contract proves every selected symbol receives
   a code, all lengths are at most nine (stronger than DEFLATE's limit of
-  fifteen), and the scaled Kraft sum is exactly complete. It deliberately
-  makes no optimality claim and is not yet connected to a dynamic block.
+  fifteen), and the scaled Kraft sum is exactly complete. The resulting
+  canonical book feeds the same proved payload serializer as the fixed book;
+  the focused runtime harness exercises that path. It deliberately makes no
+  optimality claim and is not yet connected to a dynamic block header.
+- The shared payload contract states exact bit consumption, the code selected
+  for every reached token boundary, the end-of-block code, and preservation of
+  every bit outside the returned half-open interval. Fixed and dynamic adapters
+  therefore share the concrete writer and its framing proof.
 - The full model deliberately does not reuse the shipping Huffman table or
   fast map. Its canonical table builder and parser prove 685 checks in the
   focused model unit; the shipping decoder calls the model only after an

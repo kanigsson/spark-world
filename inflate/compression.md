@@ -225,8 +225,8 @@ M2–M5, it does not avoid them.
   minimum-redundancy. Proving length-limiting *optimal* (package-merge) is a
   research project of its own and buys round-trip nothing.
 
-**Current status: in progress, with a verified fixed-Huffman LZ77 slice and
-local dynamic-tree builder.**
+**Current status: in progress, with a verified fixed-Huffman LZ77 slice,
+dynamic codebook builder, and shared payload serializer.**
 `Inflate.Fixed` emits and recognizes one final fixed-code block containing
 literals, selected matches, and end-of-block. Its compression plan is now
 explicit: `Selected_Token`, `Next_Position`, and `Token_Bit_Cost` operate only
@@ -256,14 +256,24 @@ adds dummy leaves only for the degenerate zero/one-symbol cases, and produces a
 balanced complete code. For alphabets of 2 through 286 symbols its contract
 proves that all used symbols receive a code, all lengths are at most nine, and
 the Kraft sum is exactly one. The construction is intentionally not optimal
-and is not yet connected to header or payload serialization. Its focused
-runtime harness covers empty, singleton, sparse, and full DEFLATE alphabets,
-and its focused proof closes all 328 checks. A focused fixed-code run proves
-all 1,919 checks at `--level=2`; the full library proves all 4,669 checks at
-`--level=4`, with no justifications or assumptions. The complete debug suite
-passes 6,445 cases and 18 compressor differential cases, including exact
-bit-level checks for length-ten matches at
-distances one, three, and four.
+and is not yet connected to a dynamic header. `Inflate.Codebooks` now provides
+constant fixed books and checked canonical books through one `Ready`,
+`Length_Of`, and `Code_Of` interface. `Inflate.Payload.Serialize` consumes that
+interface and owns the shared literal, length/distance, and end-of-block writer,
+including exact bit-count, semantic-encoding, and frame contracts. The fixed
+compressor delegates to it, while `Inflate.Dynamic.Build_Codebook` and
+`Serialize_Payload` exercise the canonical path. No append-only logical-stream
+layer was needed: moving the existing concrete writer behind this boundary
+removed the duplicated payload implementation while retaining one framing
+proof.
+
+The focused dynamic proof closes all 367 checks, the codebook proof all 82,
+and the shared payload proof all 459 at `--level=2`. The full library proves all
+5,100 checks at `--level=4`, with no justifications or assumptions. The dynamic
+runtime harness covers empty, singleton, sparse, and full DEFLATE alphabets and
+an exact shared-payload bit pattern. The complete debug suite passes 6,445
+cases and 18 compressor differential cases, including exact bit-level checks
+for length-ten matches at distances one, three, and four.
 
 The planned token-trace reassessment against this broader baseline is also
 complete. A `Step` relation would restate `One_Token_Matches`, while `Trace`
@@ -352,16 +362,13 @@ Why3-adjacent grind. Still SPARK-tractable — budget for it.
 ## Current next moves
 
 M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
-literal/match slice with the same full-domain gzip theorem, plus a proved local
-dynamic-tree builder. The remaining ratio work is:
+literal/match slice with the same full-domain gzip theorem, plus a proved
+dynamic codebook and shared fixed/dynamic payload serializer. The remaining
+ratio work is:
 
-1. **Share payload serialization at the codebook boundary.** Shape the
-   abstraction from the fixed and dynamic implementations once both concrete
-   cases exist; add an append-only bitstream only if framing proof duplication
-   actually appears.
-2. **Serialize the dynamic header and establish a local dynamic-body
+1. **Serialize the dynamic header and establish a local dynamic-body
    relation.** Reuse the proved length construction without widening the gzip
    branch yet.
-3. **Connect the dynamic body through `Body_Encodes`.** Introduce the common
+2. **Connect the dynamic body through `Body_Encodes`.** Introduce the common
    body relation before adding the dynamic gzip branch, preserving the existing
    round-trip theorem.

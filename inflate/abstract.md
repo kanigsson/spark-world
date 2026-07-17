@@ -313,6 +313,17 @@ that the code-length header reconstructs a ready codebook.  The token payload
 proof is then identical for both.  This keeps dynamic-header correctness
 separate from literal/length and distance token semantics.
 
+The encoder side of this boundary is now implemented.  `Inflate.Codebooks`
+represents the two fixed assignments and canonical assignments behind `Ready`,
+`Length_Of`, and `Code_Of`; `Inflate.Dynamic.Build_Codebook` turns the proved
+bounded lengths into the canonical instance.  `Inflate.Payload.Serialize` owns
+the single literal, length/distance, and end-of-block writer, with exact
+bit-count, encoding, and frame contracts.  `Inflate.Fixed.Compress` delegates
+to it and bridges the common relation to the existing fixed-image theorem,
+while the dynamic runtime harness serializes the same token plan through
+canonical books.  Header-to-decoder reconstruction remains separate and is the
+next local body step.
+
 ## 6. Express one compressor-image relation above block formats
 
 At the gzip level, stored and fixed streams currently have separate member
@@ -353,8 +364,8 @@ through `Inflate.GZip.Compress`, the raw decoder's proved success path, and
 lengths and wider distances, then emit dynamic blocks without breaking that
 connection.  The broader fixed-code baseline, bounded `Step`/`Trace`
 reassessment, and local dynamic tree builder are now complete.  The next work
-is to shape the codebook boundary from the fixed codebook and the new dynamic
-length construction, then share payload serialization.
+is to serialize the dynamic header around the completed codebook boundary and
+shared payload writer, then establish the local dynamic-body relation.
 
 Introducing abstractions before features can prevent duplication, but proof
 abstractions also introduce quantified relations, conversion theorems, and
@@ -372,8 +383,8 @@ wrapped a working specialized relation without removing it.
 | Explicit token semantics | Started successfully: `Symbol_Result` now carries length and distance, and `Match_Applies` replaced the `(3, 1)` equations.  Extend this representation in place; add another token type only if it can replace it. |
 | Explicit compression plan | Complete: `Selected_Token`, `Next_Position`, `Token_Bit_Cost`, and the forward boundary state replaced the modulo-three plan before the first variable-length token landed. |
 | `Trace_Cursor` and `Step`/`Trace` | Reassessed and deferred.  At the current boundary they rename `One_Token_Matches` and `Prefix_Matches` but cannot replace the data-free `Spec_Walk`; the associated framing, closing, and functionality proofs would remain.  Revisit only if a later shared payload decoder provides a concrete deletion target. |
-| Append-only logical bitstream | During dynamic-Huffman work, if the concrete header and payload proofs multiply framing lemmas.  The working fixed writer alone does not justify this refactor. |
-| Codebook abstraction | Just before integrating the dynamic payload, once the fixed and dynamic implementations provide two concrete instances from which to shape the interface. |
+| Append-only logical bitstream | Deferred.  The shared concrete payload writer closed with one framing proof, so no duplicated header/payload framing logic currently justifies another stream representation.  Revisit if dynamic-header serialization changes that evidence. |
+| Codebook abstraction | Complete: `Inflate.Codebooks` supplies fixed and canonical instances, and `Inflate.Payload.Serialize` uses only their common ready/length/code interface. |
 | `Body_Encodes` | After the dynamic body has a local encoding relation, but before wiring it into gzip and the round-trip theorem.  At that point it can replace stored/fixed/dynamic branches instead of wrapping only the current two. |
 
 ## Recommended M6 order
@@ -395,10 +406,13 @@ wrapped a working specialized relation without removing it.
    complete code locally for every DEFLATE-sized alphabet, with used-symbol
    coverage, a proved length bound of nine, exact Kraft equality, and no
    optimality claim or top-level gzip branch.
-6. Introduce the codebook boundary while sharing payload serialization between
-   the fixed and dynamic implementations.  Introduce the append-only stream at
-   this point only if actual framing duplication demonstrates its value.
-7. Once the dynamic body relation is established, introduce `Body_Encodes` and
+6. **Complete.** `Inflate.Codebooks` separates fixed and canonical code
+   assignments, and `Inflate.Payload.Serialize` replaces the fixed writer while
+   also serving the dynamic codebook adapter.  Actual framing duplication did
+   not justify an append-only logical-stream layer.
+7. Serialize the dynamic header and establish its local body relation without
+   widening the gzip branch.
+8. Once the dynamic body relation is established, introduce `Body_Encodes` and
    use it to connect dynamic compression to gzip and the existing round-trip
    theorem.
 
