@@ -247,8 +247,8 @@ package body Inflate.Payload with SPARK_Mode => On is
       Count          : Natural)
    with
      Ghost,
-     Pre  => Before'Length = After'Length
-               and then Before'Length <= Fixed.Max_Stream_Bytes
+     Pre  => Before'Length <= Fixed.Max_Stream_Bytes
+               and then After'Length <= Fixed.Max_Stream_Bytes
                and then Data'Length <= Fixed.Max_Input
                and then Count <= Data'Length
                and then Fixed.Token_Boundary (Data, Count)
@@ -259,6 +259,9 @@ package body Inflate.Payload with SPARK_Mode => On is
                and then Codebooks.Lengths_At_Most (Distances, 9)
                and then Encodes_Prefix
                  (Before, Start, Literal_Lengths, Distances, Data, Count)
+               and then Start + Data_Bits
+                 (Literal_Lengths, Distances, Data, Count) <=
+                   8 * After'Length
                and then
              (for all Position in 0 ..
                 Start + Data_Bits
@@ -326,6 +329,26 @@ package body Inflate.Payload with SPARK_Mode => On is
             then Token_Encoded
               (After, Start, Literal_Lengths, Distances, Data, I)));
    end Lemma_Encodes_Frame;
+
+   procedure Lemma_Payload_Frame
+     (Before, After  : Byte_Array;
+      Start          : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances      : Codebooks.Codebook;
+      Data           : Byte_Array)
+   is
+      Payload_End : constant Natural :=
+        Start + Data_Bits
+          (Literal_Lengths, Distances, Data, Data'Length);
+   begin
+      Lemma_Last_Boundary (Data);
+      Lemma_Encodes_Frame
+        (Before, After, Start, Literal_Lengths, Distances,
+         Data, Data'Length);
+      Lemma_Prefix_Frame
+        (Before, After, Payload_End,
+         Codebooks.Length_Of (Literal_Lengths, 256));
+   end Lemma_Payload_Frame;
 
    procedure Lemma_Encodes_Add
      (Output          : Byte_Array;

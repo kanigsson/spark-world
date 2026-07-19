@@ -362,9 +362,13 @@ is complete.  `Literal_Book_From_Header` and `Distance_Book_From_Header`
 deterministically rebuild the exact canonical records carried by the header,
 and `Lemma_Encoding_Uses_Header_Books` lifts the explicit-book serializer
 relation to `Inflate.Dynamic.Is_Encoding (Body, Consumed, Data)`.  The next step
-is to give that proof-only relation the recognition, framing, and functionality
-consequences required by `Body_Encodes`, then add the dynamic alternative
-without changing the gzip and theorem layers again.
+has now closed its framing consequence: `Inflate.Payload.Lemma_Payload_Frame`
+preserves the shared payload bits across arrays of different lengths, and
+`Inflate.Dynamic.Lemma_Encoding_Frame` combines that with header recovery to
+preserve the witness-free relation when a container adds trailing bytes.
+Input-side recognition and functionality still need to be established before
+adding the dynamic alternative without changing the gzip and theorem layers
+again.
 
 An especially valuable consequence would be a single decoder-completeness
 lemma for compressor images.  That would let the shipping raw decoder consume
@@ -382,8 +386,9 @@ lengths and wider distances, then emit dynamic blocks without breaking that
 connection.  The broader fixed-code baseline, bounded `Step`/`Trace`
 reassessment, dynamic header/body serializer, and common stored/fixed body
 boundary and the dynamic witness-erasure proof are now complete.  The next work
-is to connect the self-describing dynamic relation to the common boundary, then
-select it from gzip.
+is to add input-side recognition and functionality for the now frame-stable
+self-describing dynamic relation, connect it to the common boundary, then select
+it from gzip.
 
 Introducing abstractions before features can prevent duplication, but proof
 abstractions also introduce quantified relations, conversion theorems, and
@@ -403,7 +408,7 @@ wrapped a working specialized relation without removing it.
 | `Trace_Cursor` and `Step`/`Trace` | Reassessed and deferred.  At the current boundary they rename `One_Token_Matches` and `Prefix_Matches` but cannot replace the data-free `Spec_Walk`; the associated framing, closing, and functionality proofs would remain.  Revisit only if a later shared payload decoder provides a concrete deletion target. |
 | Append-only logical bitstream | Deferred.  The shared concrete payload writer closed with one framing proof, so no duplicated header/payload framing logic currently justifies another stream representation.  Revisit if dynamic-header serialization changes that evidence. |
 | Codebook abstraction | Complete: `Inflate.Codebooks` supplies fixed and canonical instances, and `Inflate.Payload.Serialize` uses only their common ready/length/code interface. |
-| `Body_Encodes` | Landed for stored/fixed at the intended just-in-time point: it deleted the member predicates and theorem branches.  Dynamic header recovery and witness erasure are complete; next add recognition/framing/functionality for the local dynamic relation before gzip selects it. |
+| `Body_Encodes` | Landed for stored/fixed at the intended just-in-time point: it deleted the member predicates and theorem branches. Dynamic header recovery, witness erasure, and container-style framing are complete; next add input-side recognition and functionality for the local dynamic relation before gzip selects it. |
 
 ## Recommended M6 order
 
@@ -432,10 +437,11 @@ wrapped a working specialized relation without removing it.
    RLE, and the local dynamic-body relation composes it with the shared payload
    without widening the gzip branch.
 8. **Complete for the integrated stored/fixed paths; dynamic witness erasure
-   complete.** `Body_Encodes` now replaces their raw/gzip/theorem branches, and
-   the dynamic header yields a three-argument local relation.  Add the dynamic
-   recognition/framing/functionality bridge, then select that body from gzip
-   without reintroducing a format branch above the boundary.
+   and framing complete.** `Body_Encodes` now replaces their raw/gzip/theorem
+   branches, and the dynamic header yields a three-argument local relation that
+   survives container-style reframing. Add dynamic input-side recognition and
+   functionality, then select that body from gzip without reintroducing a
+   format branch above the boundary.
 
 This is feature-driven abstraction: establish a semantic seam before concrete
 proof logic is duplicated, but generalize it only when the next feature gives

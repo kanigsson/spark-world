@@ -63,6 +63,8 @@ procedure Dynamic_Tree_Test is
 
    Body_Output : Byte_Array (1 .. Max_Size (Payload_Data'Length)) :=
      (others => 16#A5#);
+   Framed_Body : Byte_Array
+     (7 .. 7 + Max_Size (Payload_Data'Length) + 7) := (others => 16#5A#);
    Body_Produced : Natural;
    Decoded       : Byte_Array (Payload_Data'Range) := (others => 0);
    Body_Consumed, Decoded_Length : Natural;
@@ -134,6 +136,20 @@ begin
    pragma Assert (Decoded_Length = Payload_Data'Length);
    pragma Assert (Decoded = Payload_Data);
    Put_Line ("dynamic header/body round trip passed");
+
+   --  Reframe the exact body at a different lower bound and leave unrelated
+   --  bytes after it, as gzip will do with its trailer.
+   Framed_Body
+     (Framed_Body'First .. Framed_Body'First + Body_Produced - 1) :=
+       Body_Output (Body_Output'First .. Body_Output'First + Body_Produced - 1);
+   Decoded := (others => 0);
+   Inflate.Raw.Decompress
+     (Framed_Body, Decoded, Body_Consumed, Decoded_Length, Body_Status);
+   pragma Assert (Body_Status = OK);
+   pragma Assert (Body_Consumed = Body_Produced);
+   pragma Assert (Decoded_Length = Payload_Data'Length);
+   pragma Assert (Decoded = Payload_Data);
+   Put_Line ("reframed dynamic body round trip passed");
 
    Put ("dynamic body hex: ");
    for I in 0 .. Body_Produced - 1 loop

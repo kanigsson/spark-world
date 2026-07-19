@@ -16,6 +16,7 @@ with Inflate.Payload;
 
 package Inflate.Dynamic with Pure, SPARK_Mode => On is
 
+   use type Byte;
    use type Codebooks.Codebook_Kind;
    use type Codebooks.Codebook;
    use type Codebooks.Code_Length_Array;
@@ -453,6 +454,28 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
                    (Input, Produced,
                     Literal_Lengths, Distances, Data),
      Post   => Is_Encoding (Input, Produced, Data);
+
+   --  Only the first Produced bytes participate in the self-describing
+   --  dynamic relation.  In particular, appending a gzip trailer does not
+   --  change the recovered codebooks or the encoded payload.
+   procedure Lemma_Encoding_Frame
+     (Before, After : Byte_Array;
+      Produced      : Natural;
+      Data          : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Before'Length <= Fixed.Max_Stream_Bytes
+                 and then After'Length <= Fixed.Max_Stream_Bytes
+                 and then Before'Length >= Header_Byte_Count
+                 and then After'Length >= Header_Byte_Count
+                 and then Produced in 1 .. Before'Length
+                 and then Produced <= After'Length
+                 and then Is_Encoding (Before, Produced, Data)
+                 and then
+               (for all I in 0 .. Produced - 1 =>
+                  After (After'First + I) = Before (Before'First + I)),
+     Post   => Is_Encoding (After, Produced, Data);
 
    pragma Assertion_Policy (Pre => Ignore, Post => Ignore);
    procedure Serialize_Body

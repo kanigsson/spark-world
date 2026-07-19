@@ -341,6 +341,43 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
                  Data_Bits
                    (After_Literals, After_Distances, Data, Count);
 
+   --  Only the bits through the end-of-block code participate in the payload
+   --  relation.  This is the codebook-independent framing consequence used
+   --  when a DEFLATE body is copied into a larger container buffer.
+   procedure Lemma_Payload_Frame
+     (Before, After  : Byte_Array;
+      Start          : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances      : Codebooks.Codebook;
+      Data           : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Before'Length <= Fixed.Max_Stream_Bytes
+                 and then After'Length <= Fixed.Max_Stream_Bytes
+                 and then Data'Length <= Fixed.Max_Input
+                 and then Covers (Literal_Lengths, Distances, Data)
+                 and then Codebooks.Ready (Literal_Lengths)
+                 and then Codebooks.Ready (Distances)
+                 and then Codebooks.Lengths_At_Most
+                   (Literal_Lengths, 9)
+                 and then Codebooks.Lengths_At_Most (Distances, 9)
+                 and then Is_Encoding
+                   (Before, Start, Literal_Lengths, Distances, Data)
+                 and then Start + Data_Bits
+                   (Literal_Lengths, Distances, Data, Data'Length)
+                   + Codebooks.Length_Of (Literal_Lengths, 256) <=
+                     8 * After'Length
+                 and then
+               (for all Position in 0 ..
+                  Start + Data_Bits
+                    (Literal_Lengths, Distances, Data, Data'Length)
+                    + Codebooks.Length_Of (Literal_Lengths, 256) - 1 =>
+                      Fixed.Bit_Value (After, Position) =
+                        Fixed.Bit_Value (Before, Position)),
+     Post   => Is_Encoding
+                 (After, Start, Literal_Lengths, Distances, Data);
+
    --  Append the token payload and end-of-block code at Start.  Bits outside
    --  the returned half-open interval are preserved.
    pragma Assertion_Policy (Pre => Ignore, Post => Ignore);

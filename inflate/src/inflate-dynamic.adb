@@ -1036,4 +1036,60 @@ package body Inflate.Dynamic with SPARK_Mode => On is
          Distance_Book_From_Header (Input));
    end Lemma_Encoding_Uses_Header_Books;
 
+   procedure Lemma_Byte_Frame
+     (Before, After : Byte_Array; Consumed, Position : Natural)
+   with
+     Ghost,
+     Pre  => Before'Length <= Fixed.Max_Stream_Bytes
+               and then After'Length <= Fixed.Max_Stream_Bytes
+               and then Consumed <= Before'Length
+               and then Consumed <= After'Length
+               and then Position < 8 * Consumed
+               and then
+             (for all I in 0 .. Consumed - 1 =>
+                After (After'First + I) = Before (Before'First + I)),
+     Post => Fixed.Bit_Value (After, Position) =
+               Fixed.Bit_Value (Before, Position);
+
+   procedure Lemma_Byte_Frame
+     (Before, After : Byte_Array; Consumed, Position : Natural) is null;
+
+   procedure Lemma_Encoding_Frame
+     (Before, After : Byte_Array;
+      Produced      : Natural;
+      Data          : Byte_Array)
+   is
+      Literal_Lengths : constant Codebooks.Codebook :=
+        Literal_Book_From_Header (Before);
+      Distances : constant Codebooks.Codebook :=
+        Distance_Book_From_Header (Before);
+      Encoding_End : constant Natural :=
+        Header_Bit_Count
+          + Payload.Data_Bits
+              (Literal_Lengths, Distances, Data, Data'Length)
+          + Codebooks.Length_Of (Literal_Lengths, 256);
+   begin
+      for Position in 0 .. Encoding_End - 1 loop
+         pragma Loop_Invariant
+           (for all P in 0 .. Position - 1 =>
+              Fixed.Bit_Value (After, P) =
+                Fixed.Bit_Value (Before, P));
+         Lemma_Byte_Frame (Before, After, Produced, Position);
+      end loop;
+
+      Lemma_Header_Frame
+        (Before, After, Literal_Lengths, Distances);
+      Lemma_Header_Books_Recovered
+        (After, Literal_Lengths, Distances);
+      Payload.Lemma_Payload_Frame
+        (Before, After, Header_Bit_Count,
+         Literal_Lengths, Distances, Data);
+
+      pragma Assert
+        (Is_Encoding
+           (After, Produced, Literal_Lengths, Distances, Data));
+      Lemma_Encoding_Uses_Header_Books
+        (After, Produced, Literal_Lengths, Distances, Data);
+   end Lemma_Encoding_Frame;
+
 end Inflate.Dynamic;

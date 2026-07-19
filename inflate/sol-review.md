@@ -163,7 +163,7 @@ A current run of:
 gnatprove -P inflate.gpr --level=4 --report=fail
 ```
 
-completed successfully with 5,857 checks, all proved. The generated summary
+completed successfully with 5,930 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -195,7 +195,9 @@ Subject to public preconditions, the proof establishes:
   dynamic-body relation composes those reconstructed books with the shared
   payload relation; the exact books are recoverable from the header and the
   explicit-book relation lifts to a witness-free three-argument dynamic
-  relation;
+  relation; shared-payload and dynamic-body framing lemmas preserve that
+  relation when the exact body prefix is copied into a larger container array
+  with trailing bytes;
 - compressor-image decode success, exact consumption and production, and
   agreement with the selected relation when the decoded data fits the output;
 - gzip framing values used by the compressor, including the input length and a
