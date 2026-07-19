@@ -3,6 +3,12 @@ with Interfaces;
 package body Inflate.Dynamic with SPARK_Mode => On is
 
    use Interfaces;
+   use type Fixed.Symbol_Kind;
+
+   --  Proof helpers are erased in the assertion-enabled focused executable,
+   --  just as they are in the library's debug configuration.  Ordinary
+   --  assertions in the harness remain enabled.
+   pragma Assertion_Policy (Ghost => Ignore);
 
    function Is_Dummy
      (Frequencies : Frequency_Array;
@@ -401,6 +407,7 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       Value : Code_Length)
    is
    begin
+      pragma Unreferenced (Value);
       pragma Assert
         (Fixed.Prefix_Value (Input, Start, 1) =
            Fixed.Bit_Value (Input, Start));
@@ -1091,5 +1098,644 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       Lemma_Encoding_Uses_Header_Books
         (After, Produced, Literal_Lengths, Distances, Data);
    end Lemma_Encoding_Frame;
+
+   procedure Lemma_Pow2_Step (N : Codebooks.Code_Length_Pos)
+   with
+     Ghost,
+     Pre  => N > 1,
+     Post => Codebooks.Pow2 (N) = 2 * Codebooks.Pow2 (N - 1);
+
+   procedure Lemma_Pow2_Step (N : Codebooks.Code_Length_Pos) is
+   begin
+      case N is
+         when 1 .. 15 => null;
+      end case;
+   end Lemma_Pow2_Step;
+
+   procedure Lemma_Div_Monotone (A, B : Natural; D : Positive)
+   with
+     Ghost,
+     Pre  => A >= B,
+     Post => A / D >= B / D;
+
+   procedure Lemma_Div_Monotone
+     (A, B : Natural; D : Positive) is null;
+
+   procedure Lemma_Scaled_Div
+     (A, B : Natural; D, Q : Positive)
+   with
+     Ghost,
+     Pre  => A <= Codebooks.Pow2 (15)
+               and then B <= Codebooks.Pow2 (15)
+               and then D <= Codebooks.Pow2 (15)
+               and then Q <= Codebooks.Pow2 (15)
+               and then A >= 2 * B
+               and then D = 2 * Q,
+     Post => A / D >= B / Q;
+
+   procedure Lemma_Scaled_Div
+     (A, B : Natural; D, Q : Positive) is null;
+
+   --  Canonical ranges at a longer length lie strictly after every code at
+   --  a shorter length once both are viewed at that shorter width.
+   procedure Lemma_First_Separated
+     (Book        : Codebooks.Codebook;
+      Short, Long : Codebooks.Code_Length_Pos)
+   with
+     Ghost,
+     Pre  => Book.Kind = Codebooks.Canonical
+               and then Codebooks.Ready (Book)
+               and then Short < Long,
+     Post => Codebooks.First_Code (Book.Counts, Long)
+                 / Codebooks.Pow2 (Long - Short) >=
+               Codebooks.First_Code (Book.Counts, Short)
+                 + Book.Counts (Short),
+     Subprogram_Variant => (Decreases => Long - Short);
+
+   procedure Lemma_First_Separated
+     (Book        : Codebooks.Codebook;
+      Short, Long : Codebooks.Code_Length_Pos)
+   is
+   begin
+      if Long > Short + 1 then
+         Lemma_First_Separated (Book, Short, Long - 1);
+         Lemma_Pow2_Step (Long - Short);
+         pragma Assert
+           (Codebooks.First_Code (Book.Counts, Long) >=
+              2 * Codebooks.First_Code (Book.Counts, Long - 1));
+         declare
+            P : constant Natural :=
+              Codebooks.First_Code (Book.Counts, Long - 1);
+            Q : constant Positive := Codebooks.Pow2 (Long - Short - 1);
+            A : constant Natural :=
+              Codebooks.First_Code (Book.Counts, Long);
+            D : constant Positive := Codebooks.Pow2 (Long - Short);
+         begin
+            pragma Assert (P <= Codebooks.Pow2 (Long - 1));
+            pragma Assert (A <= Codebooks.Pow2 (Long));
+            pragma Assert (D = 2 * Q);
+            Lemma_Scaled_Div (A, P, D, Q);
+         end;
+      else
+         pragma Assert (Long = Short + 1);
+         pragma Assert
+           (Codebooks.First_Code (Book.Counts, Long) =
+              2 * (Codebooks.First_Code (Book.Counts, Short)
+                     + Book.Counts (Short)));
+      end if;
+   end Lemma_First_Separated;
+
+   procedure Lemma_Double_Div
+     (P, B : Natural; Q : Positive)
+   with
+     Ghost,
+     Pre  => P < Codebooks.Pow2 (15)
+               and then B <= 1
+               and then Q <= Codebooks.Pow2 (15),
+     Post => (2 * P + B) / (2 * Q) = P / Q;
+
+   procedure Lemma_Double_Div
+     (P, B : Natural; Q : Positive) is null;
+
+   procedure Lemma_Prefix_Shortens
+     (Input       : Byte_Array;
+      Start       : Natural;
+      Short, Long : Codebooks.Code_Length_Pos)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Short < Long
+               and then Long <= 9
+               and then Start <= 8 * Input'Length
+               and then Long <= 8 * Input'Length - Start,
+     Post => Fixed.Prefix_Value (Input, Start, Short) =
+               Fixed.Prefix_Value (Input, Start, Long)
+                 / Codebooks.Pow2 (Long - Short),
+     Subprogram_Variant => (Decreases => Long - Short);
+
+   procedure Lemma_Prefix_Shortens
+     (Input       : Byte_Array;
+      Start       : Natural;
+      Short, Long : Codebooks.Code_Length_Pos)
+   is
+   begin
+      if Long > Short + 1 then
+         Lemma_Prefix_Shortens (Input, Start, Short, Long - 1);
+         Lemma_Pow2_Step (Long - Short);
+         declare
+            P : constant Natural :=
+              Fixed.Prefix_Value (Input, Start, Long - 1);
+            B : constant Natural :=
+              Fixed.Bit_Value (Input, Start + Long - 1);
+            Q : constant Positive := Codebooks.Pow2 (Long - Short - 1);
+         begin
+            pragma Assert (P < Codebooks.Pow2 (Long - 1));
+            pragma Assert
+              (Fixed.Prefix_Value (Input, Start, Long) = 2 * P + B);
+            Lemma_Double_Div (P, B, Q);
+         end;
+      else
+         pragma Assert (Long = Short + 1);
+         pragma Assert
+           (Fixed.Prefix_Value (Input, Start, Long) / 2 =
+              Fixed.Prefix_Value (Input, Start, Short));
+      end if;
+   end Lemma_Prefix_Shortens;
+
+   procedure Lemma_No_Shorter_Code
+     (Input    : Byte_Array;
+      Start    : Natural;
+      Book     : Codebooks.Codebook;
+      Expected : Codebooks.Symbol_Index;
+      Short    : Codebooks.Code_Length_Pos)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Book.Kind = Codebooks.Canonical
+               and then Codebooks.Ready (Book)
+               and then Codebooks.Lengths_At_Most (Book, 9)
+               and then Codebooks.Length_Of (Book, Expected) > 0
+               and then Short < Codebooks.Length_Of (Book, Expected)
+               and then Start <= 8 * Input'Length
+               and then Codebooks.Length_Of (Book, Expected) <=
+                          8 * Input'Length - Start
+               and then Fixed.Prefix_Value
+                 (Input, Start, Codebooks.Length_Of (Book, Expected)) =
+                   Codebooks.Code_Of (Book, Expected),
+     Post => Fixed.Prefix_Value (Input, Start, Short) <
+               Codebooks.First_Code (Book.Counts, Short)
+             or else Fixed.Prefix_Value (Input, Start, Short) >=
+               Codebooks.First_Code (Book.Counts, Short)
+                 + Book.Counts (Short);
+
+   procedure Lemma_No_Shorter_Code
+     (Input    : Byte_Array;
+      Start    : Natural;
+      Book     : Codebooks.Codebook;
+      Expected : Codebooks.Symbol_Index;
+      Short    : Codebooks.Code_Length_Pos)
+   is
+      Long : constant Codebooks.Code_Length_Pos :=
+        Codebooks.Length_Of (Book, Expected);
+   begin
+      Lemma_Prefix_Shortens (Input, Start, Short, Long);
+      Lemma_First_Separated (Book, Short, Long);
+      pragma Assert
+        (Codebooks.Code_Of (Book, Expected) >=
+           Codebooks.First_Code (Book.Counts, Long));
+      Lemma_Div_Monotone
+        (Codebooks.Code_Of (Book, Expected),
+         Codebooks.First_Code (Book.Counts, Long),
+         Codebooks.Pow2 (Long - Short));
+   end Lemma_No_Shorter_Code;
+
+   procedure Lemma_Count_Step
+     (Lengths : Codebooks.Code_Length_Array;
+      Length  : Codebooks.Code_Length_Pos;
+      Pos, Hi : Natural)
+   with
+     Ghost,
+     Pre  => Pos < Hi
+               and then Hi <= Codebooks.Symbol_Index'Last + 1
+               and then Lengths (Pos) = Length,
+     Post => Codebooks.Count_Length (Lengths, Length, Hi) >
+               Codebooks.Count_Length (Lengths, Length, Pos),
+     Subprogram_Variant => (Decreases => Hi - Pos);
+
+   procedure Lemma_Count_Step
+     (Lengths : Codebooks.Code_Length_Array;
+      Length  : Codebooks.Code_Length_Pos;
+      Pos, Hi : Natural)
+   is
+   begin
+      if Hi > Pos + 1 then
+         Lemma_Count_Step (Lengths, Length, Pos, Hi - 1);
+      end if;
+   end Lemma_Count_Step;
+
+   procedure Lemma_Rank_Unique
+     (Book : Codebooks.Codebook;
+      A, B : Codebooks.Symbol_Index)
+   with
+     Ghost,
+     Pre  => Book.Kind = Codebooks.Canonical
+               and then Codebooks.Exact_Counts (Book)
+               and then Codebooks.Length_Of (Book, A) > 0
+               and then Codebooks.Length_Of (Book, B) =
+                          Codebooks.Length_Of (Book, A)
+               and then Codebooks.Rank_Of (Book, A) =
+                          Codebooks.Rank_Of (Book, B),
+     Post => A = B;
+
+   procedure Lemma_Rank_Unique
+     (Book : Codebooks.Codebook;
+      A, B : Codebooks.Symbol_Index)
+   is
+      Length : constant Codebooks.Code_Length_Pos :=
+        Codebooks.Length_Of (Book, A);
+   begin
+      if A < B then
+         Lemma_Count_Step (Book.Lengths, Length, A, B);
+      elsif B < A then
+         Lemma_Count_Step (Book.Lengths, Length, B, A);
+      end if;
+   end Lemma_Rank_Unique;
+
+   --  Prefix-freeness plus rank uniqueness: two canonical codewords starting
+   --  at the same stream bit identify the same symbol.
+   procedure Lemma_Codewords_Unique
+     (Input : Byte_Array;
+      Start : Natural;
+      Book  : Codebooks.Codebook;
+      A, B  : Codebooks.Symbol_Index)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Book.Kind = Codebooks.Canonical
+               and then Codebooks.Ready (Book)
+               and then Codebooks.Lengths_At_Most (Book, 9)
+               and then Codebooks.Length_Of (Book, A) > 0
+               and then Codebooks.Length_Of (Book, B) > 0
+               and then Start <= 8 * Input'Length
+               and then Codebooks.Length_Of (Book, A) <=
+                          8 * Input'Length - Start
+               and then Codebooks.Length_Of (Book, B) <=
+                          8 * Input'Length - Start
+               and then Fixed.Prefix_Value
+                 (Input, Start, Codebooks.Length_Of (Book, A)) =
+                   Codebooks.Code_Of (Book, A)
+               and then Fixed.Prefix_Value
+                 (Input, Start, Codebooks.Length_Of (Book, B)) =
+                   Codebooks.Code_Of (Book, B),
+     Post => A = B;
+
+   procedure Lemma_Codewords_Unique
+     (Input : Byte_Array;
+      Start : Natural;
+      Book  : Codebooks.Codebook;
+      A, B  : Codebooks.Symbol_Index)
+   is
+      LA : constant Codebooks.Code_Length_Pos :=
+        Codebooks.Length_Of (Book, A);
+      LB : constant Codebooks.Code_Length_Pos :=
+        Codebooks.Length_Of (Book, B);
+   begin
+      if LA < LB then
+         Lemma_No_Shorter_Code (Input, Start, Book, B, LA);
+         pragma Assert
+           (Codebooks.Code_Of (Book, A) >=
+              Codebooks.First_Code (Book.Counts, LA));
+         pragma Assert
+           (Codebooks.Code_Of (Book, A) <
+              Codebooks.First_Code (Book.Counts, LA) + Book.Counts (LA));
+         pragma Assert (False);
+      elsif LB < LA then
+         Lemma_No_Shorter_Code (Input, Start, Book, A, LB);
+         pragma Assert
+           (Codebooks.Code_Of (Book, B) >=
+              Codebooks.First_Code (Book.Counts, LB));
+         pragma Assert
+           (Codebooks.Code_Of (Book, B) <
+              Codebooks.First_Code (Book.Counts, LB) + Book.Counts (LB));
+         pragma Assert (False);
+      else
+         pragma Assert
+           (Codebooks.Code_Of (Book, A) = Codebooks.Code_Of (Book, B));
+         pragma Assert
+           (Codebooks.Rank_Of (Book, A) = Codebooks.Rank_Of (Book, B));
+         Lemma_Rank_Unique (Book, A, B);
+      end if;
+   end Lemma_Codewords_Unique;
+
+   procedure Lemma_Prefix_Element_Equal
+     (Left, Right : Byte_Array; Count, Index : Natural)
+   with
+     Ghost,
+     Pre  => Count <= Left'Length
+               and then Count <= Right'Length
+               and then Index < Count
+               and then
+             (for all I in 0 .. Count - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Post => Left (Left'First + Index) = Right (Right'First + Index);
+
+   procedure Lemma_Prefix_Element_Equal
+     (Left, Right : Byte_Array; Count, Index : Natural) is null;
+
+   procedure Lemma_Match_Functional
+     (Left, Right : Byte_Array; Index, Length, Distance : Natural)
+   with
+     Ghost,
+     Pre  => Left'Length <= Fixed.Max_Input
+               and then Right'Length <= Fixed.Max_Input
+               and then Length in 3 .. 10
+               and then Distance in 1 .. 4
+               and then Distance <= Index
+               and then Length <= Left'Length - Index
+               and then Length <= Right'Length - Index
+               and then Fixed.Match_Applies
+                 (Left, Index, Length, Distance)
+               and then Fixed.Match_Applies
+                 (Right, Index, Length, Distance)
+               and then
+             (for all I in 0 .. Index - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Post =>
+       (for all K in 0 .. Length - 1 =>
+          Left (Left'First + Index + K) =
+            Right (Right'First + Index + K));
+
+   procedure Lemma_Match_Functional
+     (Left, Right : Byte_Array; Index, Length, Distance : Natural)
+   is
+   begin
+      for K in 0 .. Length - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. K - 1 =>
+              Left (Left'First + Index + J) =
+                Right (Right'First + Index + J));
+         if K < Distance then
+            Lemma_Prefix_Element_Equal
+              (Left, Right, Index, Index + K - Distance);
+         else
+            pragma Assert (K - Distance < K);
+         end if;
+         pragma Assert
+           (Left (Left'First + Index + K) =
+              Right (Right'First + Index + K));
+      end loop;
+   end Lemma_Match_Functional;
+
+   procedure Lemma_Prefix_Extend_Match
+     (Left, Right : Byte_Array; Index, Length : Natural)
+   with
+     Ghost,
+     Pre  => Index <= Left'Length
+               and then Index <= Right'Length
+               and then Length in 3 .. 10
+               and then Length <= Left'Length - Index
+               and then Length <= Right'Length - Index
+               and then
+             (for all I in 0 .. Index - 1 =>
+                Left (Left'First + I) = Right (Right'First + I))
+               and then
+             (for all K in 0 .. Length - 1 =>
+                Left (Left'First + Index + K) =
+                  Right (Right'First + Index + K)),
+     Post =>
+       (for all I in 0 .. Index + Length - 1 =>
+          Left (Left'First + I) = Right (Right'First + I));
+
+   procedure Lemma_Prefix_Extend_Match
+     (Left, Right : Byte_Array; Index, Length : Natural)
+   is
+   begin
+      for I in 0 .. Index + Length - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              Left (Left'First + J) = Right (Right'First + J));
+         if I < Index then
+            pragma Assert
+              (Left (Left'First + I) = Right (Right'First + I));
+         else
+            pragma Assert (I - Index < Length);
+            pragma Assert
+              (Left (Left'First + Index + (I - Index)) =
+                 Right (Right'First + Index + (I - Index)));
+         end if;
+      end loop;
+   end Lemma_Prefix_Extend_Match;
+
+   procedure Lemma_Prefix_Extend
+     (Left, Right : Byte_Array; Old_Count, New_Count : Natural)
+   with
+     Ghost,
+     Pre  => Old_Count <= New_Count
+               and then New_Count <= Left'Length
+               and then New_Count <= Right'Length
+               and then
+             (for all I in 0 .. Old_Count - 1 =>
+                Left (Left'First + I) = Right (Right'First + I))
+               and then
+             (for all I in Old_Count .. New_Count - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Post =>
+       (for all I in 0 .. New_Count - 1 =>
+          Left (Left'First + I) = Right (Right'First + I));
+
+   procedure Lemma_Prefix_Extend
+     (Left, Right : Byte_Array; Old_Count, New_Count : Natural)
+   is
+   begin
+      for I in 0 .. New_Count - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              Left (Left'First + J) = Right (Right'First + J));
+         if I < Old_Count then
+            pragma Assert
+              (Left (Left'First + I) = Right (Right'First + I));
+         else
+            pragma Assert (I in Old_Count .. New_Count - 1);
+         end if;
+      end loop;
+   end Lemma_Prefix_Extend;
+
+   procedure Lemma_Payload_Functional
+     (Input           : Byte_Array;
+      Start           : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Left, Right     : Byte_Array;
+      Index           : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Literal_Lengths.Kind = Codebooks.Canonical
+               and then Distances.Kind = Codebooks.Canonical
+               and then Codebooks.Ready (Literal_Lengths)
+               and then Codebooks.Ready (Distances)
+               and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+               and then Codebooks.Lengths_At_Most (Distances, 9)
+               and then Left'Length <= Fixed.Max_Input
+               and then Right'Length <= Fixed.Max_Input
+               and then Payload.Covers
+                 (Literal_Lengths, Distances, Left)
+               and then Payload.Covers
+                 (Literal_Lengths, Distances, Right)
+               and then Payload.Is_Encoding
+                 (Input, Start, Literal_Lengths, Distances, Left)
+               and then Payload.Is_Encoding
+                 (Input, Start, Literal_Lengths, Distances, Right)
+               and then Index <= Left'Length
+               and then Index <= Right'Length
+               and then Fixed.Token_Boundary (Left, Index)
+               and then Fixed.Token_Boundary (Right, Index)
+               and then Payload.Data_Bits
+                 (Literal_Lengths, Distances, Left, Index) =
+                   Payload.Data_Bits
+                     (Literal_Lengths, Distances, Right, Index)
+               and then
+             (for all I in 0 .. Index - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Post => Left'Length = Right'Length
+               and then
+             (for all I in 0 .. Left'Length - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Subprogram_Variant =>
+       (Decreases => Left'Length - Index + Right'Length - Index);
+
+   procedure Lemma_Payload_Functional
+     (Input           : Byte_Array;
+      Start           : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Left, Right     : Byte_Array;
+      Index           : Natural)
+   is
+      Bit_Position : constant Natural :=
+        Start + Payload.Data_Bits
+          (Literal_Lengths, Distances, Left, Index);
+   begin
+      if Index = Left'Length then
+         if Index = Right'Length then
+            null;
+         else
+            declare
+               Token : constant Fixed.Symbol_Result :=
+                 Fixed.Selected_Token (Right, Index);
+               Symbol : constant Codebooks.Symbol_Index :=
+                 (if Token.Kind = Fixed.Match
+                  then Payload.Length_Symbol (Token.Length)
+                  else Natural (Right (Right'First + Index)));
+            begin
+               pragma Assert
+                 (Payload.Token_Encoded
+                    (Input, Start, Literal_Lengths, Distances,
+                     Right, Index));
+               Lemma_Codewords_Unique
+                 (Input, Bit_Position, Literal_Lengths, 256, Symbol);
+               pragma Assert (Symbol /= 256);
+               pragma Assert (False);
+            end;
+         end if;
+      elsif Index = Right'Length then
+         declare
+            Token : constant Fixed.Symbol_Result :=
+              Fixed.Selected_Token (Left, Index);
+            Symbol : constant Codebooks.Symbol_Index :=
+              (if Token.Kind = Fixed.Match
+               then Payload.Length_Symbol (Token.Length)
+               else Natural (Left (Left'First + Index)));
+         begin
+            pragma Assert
+              (Payload.Token_Encoded
+                 (Input, Start, Literal_Lengths, Distances, Left, Index));
+            Lemma_Codewords_Unique
+              (Input, Bit_Position, Literal_Lengths, Symbol, 256);
+            pragma Assert (Symbol /= 256);
+            pragma Assert (False);
+         end;
+      else
+         declare
+            Left_Token : constant Fixed.Symbol_Result :=
+              Fixed.Selected_Token (Left, Index);
+            Right_Token : constant Fixed.Symbol_Result :=
+              Fixed.Selected_Token (Right, Index);
+            Left_Symbol : constant Codebooks.Symbol_Index :=
+              (if Left_Token.Kind = Fixed.Match
+               then Payload.Length_Symbol (Left_Token.Length)
+               else Natural (Left (Left'First + Index)));
+            Right_Symbol : constant Codebooks.Symbol_Index :=
+              (if Right_Token.Kind = Fixed.Match
+               then Payload.Length_Symbol (Right_Token.Length)
+               else Natural (Right (Right'First + Index)));
+         begin
+            pragma Assert
+              (Payload.Token_Encoded
+                 (Input, Start, Literal_Lengths, Distances, Left, Index));
+            pragma Assert
+              (Payload.Token_Encoded
+                 (Input, Start, Literal_Lengths, Distances, Right, Index));
+            Lemma_Codewords_Unique
+              (Input, Bit_Position, Literal_Lengths,
+               Left_Symbol, Right_Symbol);
+
+            if Left_Token.Kind = Fixed.Match then
+               pragma Assert (Left_Symbol in 257 .. 264);
+               pragma Assert (Right_Token.Kind = Fixed.Match);
+               pragma Assert (Left_Token.Length = Right_Token.Length);
+               declare
+                  Literal_Length : constant Positive :=
+                    Codebooks.Length_Of
+                      (Literal_Lengths, Left_Symbol);
+                  Left_Distance : constant Codebooks.Symbol_Index :=
+                    Payload.Distance_Symbol (Left_Token.Distance);
+                  Right_Distance : constant Codebooks.Symbol_Index :=
+                    Payload.Distance_Symbol (Right_Token.Distance);
+               begin
+                  Lemma_Codewords_Unique
+                    (Input, Bit_Position + Literal_Length, Distances,
+                     Left_Distance, Right_Distance);
+                  pragma Assert
+                    (Left_Token.Distance = Right_Token.Distance);
+                  Lemma_Match_Functional
+                    (Left, Right, Index, Left_Token.Length,
+                     Left_Token.Distance);
+                  Lemma_Prefix_Extend_Match
+                    (Left, Right, Index, Left_Token.Length);
+               end;
+            else
+               pragma Assert (Left_Symbol <= 255);
+               pragma Assert (Right_Token.Kind = Fixed.Literal);
+               pragma Assert
+                 (Left (Left'First + Index) =
+                    Right (Right'First + Index));
+               Lemma_Prefix_Extend (Left, Right, Index, Index + 1);
+            end if;
+
+            Payload.Lemma_Data_Bits_Advance
+              (Literal_Lengths, Distances, Left, Index);
+            Payload.Lemma_Data_Bits_Advance
+              (Literal_Lengths, Distances, Right, Index);
+            pragma Assert
+              (Payload.Token_Bit_Cost
+                 (Literal_Lengths, Distances, Left, Index) =
+               Payload.Token_Bit_Cost
+                 (Literal_Lengths, Distances, Right, Index));
+            pragma Assert
+              (Fixed.Next_Position (Left, Index) =
+                 Fixed.Next_Position (Right, Index));
+            Lemma_Payload_Functional
+              (Input, Start, Literal_Lengths, Distances, Left, Right,
+               Fixed.Next_Position (Left, Index));
+         end;
+      end if;
+   end Lemma_Payload_Functional;
+
+   procedure Lemma_Encoding_Functional
+     (Input       : Byte_Array;
+      Produced    : Natural;
+      Left, Right : Byte_Array)
+   is
+      Literal_Lengths : constant Codebooks.Codebook :=
+        Literal_Book_From_Header (Input);
+      Distances : constant Codebooks.Codebook :=
+        Distance_Book_From_Header (Input);
+   begin
+      pragma Assert (Produced in 1 .. Input'Length);
+      pragma Assert (Left'Length <= Max_Input);
+      pragma Assert (Right'Length <= Max_Input);
+      pragma Assert (Left'Length <= Fixed.Max_Input);
+      pragma Assert (Right'Length <= Fixed.Max_Input);
+      pragma Assert
+        (Payload.Data_Bits
+           (Literal_Lengths, Distances, Left, 0) = 0);
+      pragma Assert
+        (Payload.Data_Bits
+           (Literal_Lengths, Distances, Right, 0) = 0);
+      Lemma_Payload_Functional
+        (Input, Header_Bit_Count, Literal_Lengths, Distances,
+         Left, Right, 0);
+   end Lemma_Encoding_Functional;
 
 end Inflate.Dynamic;

@@ -107,6 +107,35 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
      Post => Data_Bits'Result <= 9 * Count,
      Subprogram_Variant => (Decreases => Count);
 
+   --  Advancing one token in the shared plan advances the codebook-specific
+   --  payload offset by exactly that token's encoded cost.  This consequence
+   --  is used by clients that reason about the serializer without reopening
+   --  its boundary/plan induction.
+   procedure Lemma_Data_Bits_Advance
+     (Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position        : Natural)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Data'Length <= Fixed.Max_Input
+                 and then Position < Data'Length
+                 and then Fixed.Token_Boundary (Data, Position)
+                 and then Covers (Literal_Lengths, Distances, Data)
+                 and then Codebooks.Lengths_At_Most
+                   (Literal_Lengths, 9)
+                 and then Codebooks.Lengths_At_Most (Distances, 9),
+     Post   => Fixed.Token_Boundary
+                 (Data, Fixed.Next_Position (Data, Position))
+                 and then Data_Bits
+                   (Literal_Lengths, Distances, Data,
+                    Fixed.Next_Position (Data, Position)) =
+                      Data_Bits
+                        (Literal_Lengths, Distances, Data, Position)
+                        + Token_Bit_Cost
+                            (Literal_Lengths, Distances, Data, Position);
+
    --  An interval at Start + Offset lies within Output.  Keeping the
    --  arithmetic in subtraction form gives callers the facts needed to form
    --  bit positions without overflowing Natural.

@@ -284,17 +284,22 @@ exact canonical records from the 316 transmitted lengths, and
 relation implies the three-argument `Inflate.Dynamic.Is_Encoding (Body,
 Consumed, Data)` relation. Codebook and payload congruence lemmas establish
 that ready/coverage facts, canonical codes, token bit counts, payload bits, and
-the produced size are unchanged by recovery. The remaining common-boundary
-work is now one step smaller: `Inflate.Payload.Lemma_Payload_Frame` preserves
+the produced size are unchanged by recovery. Two more common-boundary
+prerequisites are now complete. `Inflate.Payload.Lemma_Payload_Frame` preserves
 the shared payload relation across differently sized arrays, and
 `Inflate.Dynamic.Lemma_Encoding_Frame` combines it with header recovery to
 preserve the witness-free dynamic relation when a container adds trailing
-bytes. Input-side recognition and functionality remain before the dynamic
-alternative can join `Body_Encodes`.
+bytes. `Inflate.Dynamic.Lemma_Encoding_Functional` proves that one such body
+cannot denote two different byte sequences: canonical prefix separation and
+rank uniqueness identify each literal/length and distance symbol, while the M4
+window equation makes matching back-references functional. Input-side
+recognition is now the remaining prerequisite before the dynamic alternative
+can join `Body_Encodes`; the common wrapper will then route its functionality
+case to this local theorem.
 
-The focused dynamic project proves all 5,122 checks at `--level=4`; the full
-library proves all 5,930 checks at `--level=4`, with no justifications or
-assumptions.
+The focused dynamic project proves all 5,542 checks at `--level=4` (1,258 in
+the dynamic unit itself); the full library proves all 6,350 checks at
+`--level=4`, with no justifications or assumptions.
 The dynamic runtime harness covers empty, singleton, sparse, and full DEFLATE
 alphabets, an exact shared-payload bit pattern, and a complete dynamic body that
 round trips through the shipping decoder and its independent model. It also
@@ -397,8 +402,9 @@ local dynamic header and body serializer. The remaining ratio work is:
 1. **Extend `Body_Encodes` from stored/fixed to dynamic.** The common relation
    already replaced the format-specific branches in raw, gzip, and the theorem.
    Dynamic header recovery and the witness-free three-argument local relation
-   are complete, as is preservation under container-style framing; add its
-   input-side recognition and functionality bridges without weakening the
-   common relation.
+   are complete, as are container-style framing and local functionality. Add
+   input-side recognition, then route the proved dynamic framing and
+   functionality consequences through the common relation without weakening
+   it.
 2. **Add the dynamic gzip branch.** Select the proved dynamic body locally and
    lift it through the existing framing, decoder-success, and round-trip proof.

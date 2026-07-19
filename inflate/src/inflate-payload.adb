@@ -178,6 +178,17 @@ package body Inflate.Payload with SPARK_Mode => On is
       pragma Assert (Fixed.Plan_Start (Data, Next) = Position);
    end Lemma_Data_Bits_Next;
 
+   procedure Lemma_Data_Bits_Advance
+     (Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position        : Natural)
+   is
+   begin
+      Lemma_Data_Bits_Next
+        (Literal_Lengths, Distances, Data, Position);
+   end Lemma_Data_Bits_Advance;
+
    procedure Lemma_Data_Bits_Segment
      (Literal_Lengths : Codebooks.Codebook;
       Distances       : Codebooks.Codebook;

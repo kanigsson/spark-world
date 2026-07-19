@@ -411,8 +411,9 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
 
    --  Witness-free form of the local dynamic relation.  The codebooks are
    --  recovered from Input, so the body has the same three-argument shape as
-   --  the common stored/fixed boundary.  This remains proof-only until the
-   --  common dynamic recognizer/functionality bridge is added.
+   --  the common stored/fixed boundary.  Framing and functionality are proved
+   --  below; input-side recognition remains before the common boundary can
+   --  admit this alternative.
    function Is_Encoding
      (Input    : Byte_Array;
       Produced : Natural;
@@ -476,6 +477,23 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
                (for all I in 0 .. Produced - 1 =>
                   After (After'First + I) = Before (Before'First + I)),
      Post   => Is_Encoding (After, Produced, Data);
+
+   --  A self-describing dynamic body determines one decoded byte sequence.
+   --  The proof compares canonical codewords at each shared bit position and
+   --  then uses the LZ77 window equation for matching back-references.
+   procedure Lemma_Encoding_Functional
+     (Input       : Byte_Array;
+      Produced    : Natural;
+      Left, Right : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Is_Encoding (Input, Produced, Left)
+                 and then Is_Encoding (Input, Produced, Right),
+     Post   => Left'Length = Right'Length
+                 and then
+               (for all I in 0 .. Left'Length - 1 =>
+                  Left (Left'First + I) = Right (Right'First + I));
 
    pragma Assertion_Policy (Pre => Ignore, Post => Ignore);
    procedure Serialize_Body
