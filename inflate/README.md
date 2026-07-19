@@ -94,11 +94,14 @@ preserves both the header-recovered books and the shared payload relation. It
 is also proved functional: canonical prefix separation identifies the same
 literal/length and distance symbols in any two witnesses, and the LZ77 window
 equation then fixes every matched byte. The focused harness exercises the
-framing shape with unrelated trailing bytes. The top-level gzip compressor
-does not select the dynamic body yet, so input-side recognition and common
-`Body_Encodes` integration, gzip selection, lengths requiring extra bits, and
-wider distances remain M6 ratio work. Any gzip decoder consumes the current
-fixed or stored output. The contract is preserved across both encodings:
+framing shape with unrelated trailing bytes. A bounded input-side analyzer now
+recovers those same books, walks canonical literal/match codes without an
+output witness, and is proved to recover the semantic body's exact byte count
+and decoded length. The top-level gzip compressor does not select the dynamic
+body yet, so common `Body_Encodes` integration, gzip selection, lengths
+requiring extra bits, and wider distances remain M6 ratio work. Any gzip
+decoder consumes the current fixed or stored output. The contract is preserved
+across both encodings:
 
 - **Totality and size.** Under the stated preconditions there is no failure
   path. `GZip.Compressed_Size` is the allocation bound; the produced size is
@@ -128,7 +131,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **6,350 checks,
+The most recent recorded `gnatprove --level=4` run reported **6,618 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -178,7 +181,9 @@ Some proof-relevant structure:
   payload relation survive reframing into a larger array with trailing bytes.
   `Inflate.Dynamic.Lemma_Encoding_Functional` additionally proves that the
   self-describing body determines one decoded byte sequence, including
-  overlapping matches.
+  overlapping matches. `Inflate.Dynamic.Analyze` performs the corresponding
+  input-only canonical walk, and `Lemma_Encoding_Analyzes` proves exact body
+  consumption and decoded length for every self-describing encoding.
 - The shared payload contract states exact bit consumption, the code selected
   for every reached token boundary, the end-of-block code, and preservation of
   every bit outside the returned half-open interval. Fixed and dynamic adapters
@@ -188,8 +193,8 @@ Some proof-relevant structure:
   functionality lemmas replace the former member predicates and the duplicated
   format branches in `GZip_Round_Trip`. The local dynamic relation now has the
   required witness-free three-argument shape, but is not yet a case of this
-  boundary; framing and local functionality are complete, while input-side
-  recognition and the thin cross-format routing remain to be connected.
+  boundary; framing, input-side recognition, and local functionality are
+  complete, while the thin cross-format routing remains to be connected.
 - The full model deliberately does not reuse the shipping Huffman table or
   fast map. Its canonical table builder and parser prove 685 checks in the
   focused model unit; the shipping decoder calls the model only after an

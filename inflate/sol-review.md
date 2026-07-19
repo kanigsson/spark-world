@@ -163,7 +163,7 @@ A current run of:
 gnatprove -P inflate.gpr --level=4 --report=fail
 ```
 
-completed successfully with 6,350 checks, all proved. The generated summary
+completed successfully with 6,618 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -199,7 +199,9 @@ Subject to public preconditions, the proof establishes:
   relation when the exact body prefix is copied into a larger container array
   with trailing bytes; canonical prefix separation, rank uniqueness, and the
   LZ77 window equation additionally prove that this self-describing dynamic
-  relation is functional in its decoded byte sequence;
+  relation is functional in its decoded byte sequence; a bounded canonical
+  analyzer recognizes the same relation from the input alone and its bridge
+  lemma proves the exact encoded byte count and decoded length;
 - compressor-image decode success, exact consumption and production, and
   agreement with the selected relation when the decoded data fits the output;
 - gzip framing values used by the compressor, including the input length and a

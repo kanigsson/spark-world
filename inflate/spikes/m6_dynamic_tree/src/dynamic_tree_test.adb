@@ -63,12 +63,14 @@ procedure Dynamic_Tree_Test is
 
    Body_Output : Byte_Array (1 .. Max_Size (Payload_Data'Length)) :=
      (others => 16#A5#);
+   Malformed_Body : Byte_Array (Body_Output'Range) := (others => 0);
    Framed_Body : Byte_Array
      (7 .. 7 + Max_Size (Payload_Data'Length) + 7) := (others => 16#5A#);
    Body_Produced : Natural;
    Decoded       : Byte_Array (Payload_Data'Range) := (others => 0);
    Body_Consumed, Decoded_Length : Natural;
    Body_Status : Status_Type;
+   Body_Info : Stream_Info;
 
    Hex_Digits : constant String := "0123456789abcdef";
 begin
@@ -128,6 +130,17 @@ begin
      (Literal_Book_From_Header (Body_Output) = Literal_Book);
    pragma Assert
      (Distance_Book_From_Header (Body_Output) = Distance_Book);
+   Body_Info := Analyze (Body_Output);
+   pragma Assert (Body_Info.Valid);
+   pragma Assert ((Body_Info.End_Bit + 7) / 8 = Body_Produced);
+   pragma Assert (Body_Info.Decoded_Length = Payload_Data'Length);
+   Put_Line ("dynamic input-side recognition passed");
+
+   Malformed_Body := Body_Output;
+   Malformed_Body (Malformed_Body'First) := 0;
+   Body_Info := Analyze (Malformed_Body);
+   pragma Assert (not Body_Info.Valid);
+   Put_Line ("malformed dynamic header rejected");
 
    Inflate.Raw.Decompress
      (Body_Output, Decoded, Body_Consumed, Decoded_Length, Body_Status);
@@ -142,6 +155,10 @@ begin
    Framed_Body
      (Framed_Body'First .. Framed_Body'First + Body_Produced - 1) :=
        Body_Output (Body_Output'First .. Body_Output'First + Body_Produced - 1);
+   Body_Info := Analyze (Framed_Body);
+   pragma Assert (Body_Info.Valid);
+   pragma Assert ((Body_Info.End_Bit + 7) / 8 = Body_Produced);
+   pragma Assert (Body_Info.Decoded_Length = Payload_Data'Length);
    Decoded := (others => 0);
    Inflate.Raw.Decompress
      (Framed_Body, Decoded, Body_Consumed, Decoded_Length, Body_Status);

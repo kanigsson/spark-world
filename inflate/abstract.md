@@ -368,10 +368,14 @@ preserves the shared payload bits across arrays of different lengths, and
 preserve the witness-free relation when a container adds trailing bytes.
 `Inflate.Dynamic.Lemma_Encoding_Functional` now proves the other local
 consequence by combining canonical prefix separation and rank uniqueness with
-the existing LZ77 window equation. Input-side recognition remains before the
-dynamic alternative can be added without changing the gzip and theorem layers
-again; its common functionality case can then delegate to the completed local
-theorem.
+the existing LZ77 window equation. `Inflate.Dynamic.Analyze` now supplies the
+input-side consequence: it recovers the serialized canonical books, walks the
+bounded literal/match payload without an output witness, and
+`Lemma_Encoding_Analyzes` proves that every self-describing encoding is
+recognized with its exact byte count and decoded length. The local
+prerequisites are therefore complete; the dynamic alternative can next be
+routed through the common relation without changing the gzip and theorem
+layers again.
 
 An especially valuable consequence would be a single decoder-completeness
 lemma for compressor images.  That would let the shipping raw decoder consume
@@ -389,9 +393,9 @@ lengths and wider distances, then emit dynamic blocks without breaking that
 connection.  The broader fixed-code baseline, bounded `Step`/`Trace`
 reassessment, dynamic header/body serializer, and common stored/fixed body
 boundary and the dynamic witness-erasure, framing, and functionality proofs are
-now complete.  The next work is to add input-side recognition for the
-self-describing dynamic relation, connect its already-proved consequences to
-the common boundary, then select it from gzip.
+now complete.  The input-side analyzer and its exact recognition bridge are
+also complete.  The next work is to connect these proved consequences to the
+common boundary, then select the dynamic body from gzip.
 
 Introducing abstractions before features can prevent duplication, but proof
 abstractions also introduce quantified relations, conversion theorems, and
@@ -411,7 +415,7 @@ wrapped a working specialized relation without removing it.
 | `Trace_Cursor` and `Step`/`Trace` | Reassessed and deferred.  At the current boundary they rename `One_Token_Matches` and `Prefix_Matches` but cannot replace the data-free `Spec_Walk`; the associated framing, closing, and functionality proofs would remain.  Revisit only if a later shared payload decoder provides a concrete deletion target. |
 | Append-only logical bitstream | Deferred.  The shared concrete payload writer closed with one framing proof, so no duplicated header/payload framing logic currently justifies another stream representation.  Revisit if dynamic-header serialization changes that evidence. |
 | Codebook abstraction | Complete: `Inflate.Codebooks` supplies fixed and canonical instances, and `Inflate.Payload.Serialize` uses only their common ready/length/code interface. |
-| `Body_Encodes` | Landed for stored/fixed at the intended just-in-time point: it deleted the member predicates and theorem branches. Dynamic header recovery, witness erasure, container-style framing, and local functionality are complete; next add input-side recognition and route those consequences through the common relation before gzip selects it. |
+| `Body_Encodes` | Landed for stored/fixed at the intended just-in-time point: it deleted the member predicates and theorem branches. Dynamic header recovery, witness erasure, container-style framing, input-side recognition, and local functionality are complete; next route those consequences through the common relation before gzip selects it. |
 
 ## Recommended M6 order
 
@@ -439,12 +443,12 @@ wrapped a working specialized relation without removing it.
 7. **Complete.** The dynamic header serializes complete canonical books without
    RLE, and the local dynamic-body relation composes it with the shared payload
    without widening the gzip branch.
-8. **Complete for the integrated stored/fixed paths; dynamic witness erasure,
-   framing, and local functionality complete.** `Body_Encodes` now replaces
-   their raw/gzip/theorem branches, and the dynamic header yields a
-   three-argument local relation that survives container-style reframing and
-   uniquely determines its decoded bytes. Add dynamic input-side recognition,
-   route these consequences through the common relation, then select that body
+8. **Complete for the integrated stored/fixed paths; dynamic local
+   prerequisites complete.** `Body_Encodes` now replaces their
+   raw/gzip/theorem branches, and the dynamic header yields a three-argument
+   local relation that survives container-style reframing, uniquely determines
+   its decoded bytes, and is recognized from the input alone with exact sizes.
+   Route these consequences through the common relation, then select that body
    from gzip without reintroducing a format branch above the boundary.
 
 This is feature-driven abstraction: establish a semantic seam before concrete

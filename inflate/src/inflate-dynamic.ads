@@ -411,9 +411,9 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
 
    --  Witness-free form of the local dynamic relation.  The codebooks are
    --  recovered from Input, so the body has the same three-argument shape as
-   --  the common stored/fixed boundary.  Framing and functionality are proved
-   --  below; input-side recognition remains before the common boundary can
-   --  admit this alternative.
+   --  the common stored/fixed boundary.  Framing, input-side recognition, and
+   --  functionality are proved below; only the common-boundary routing
+   --  remains before that boundary can admit this alternative.
    function Is_Encoding
      (Input    : Byte_Array;
       Produced : Natural;
@@ -433,6 +433,256 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
          Literal_Book_From_Header (Input),
          Distance_Book_From_Header (Input), Data))
    with Ghost;
+
+   type Stream_Info is record
+      Valid          : Boolean;
+      End_Bit        : Natural;
+      Decoded_Length : Natural;
+   end record;
+
+   type Decoded_Symbol is record
+      Valid    : Boolean;
+      Symbol   : Codebooks.Symbol_Index;
+      Position : Natural;
+   end record;
+
+   function Code_Matches
+     (Input    : Byte_Array;
+      Start    : Natural;
+      Book     : Codebooks.Codebook;
+      Symbol   : Codebooks.Symbol_Index) return Boolean
+   is
+     (Codebooks.Length_Of (Book, Symbol) > 0
+      and then Codebooks.Length_Of (Book, Symbol) <=
+        8 * Input'Length - Start
+      and then Fixed.Prefix_Value
+        (Input, Start, Codebooks.Length_Of (Book, Symbol)) =
+          Codebooks.Code_Of (Book, Symbol))
+   with
+     Pre => Input'Length <= Fixed.Max_Stream_Bytes
+              and then Start <= 8 * Input'Length
+              and then Book.Kind = Codebooks.Canonical
+              and then Codebooks.Ready (Book)
+              and then Codebooks.Lengths_At_Most (Book, 9);
+
+   --  Decode one canonical codeword, returning the original bit position on
+   --  failure.  The exhaustive bounded scan is intentionally simple: the
+   --  local books contain at most 288 symbols with lengths at most nine.
+   pragma Assertion_Policy (Post => Ignore);
+   function Decode_Symbol
+     (Input : Byte_Array;
+      Start : Natural;
+      Book  : Codebooks.Codebook) return Decoded_Symbol
+   with
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Start <= 8 * Input'Length
+               and then Book.Kind = Codebooks.Canonical
+               and then Codebooks.Ready (Book)
+               and then Codebooks.Lengths_At_Most (Book, 9),
+     Post => Decode_Symbol'Result.Position in Start .. 8 * Input'Length
+               and then
+             (if Decode_Symbol'Result.Valid
+              then Code_Matches
+                (Input, Start, Book, Decode_Symbol'Result.Symbol)
+                   and then Decode_Symbol'Result.Position =
+                     Start + Codebooks.Length_Of
+                       (Book, Decode_Symbol'Result.Symbol)
+              else Decode_Symbol'Result.Position = Start
+                   and then
+                 (for all Symbol in Codebooks.Symbol_Index =>
+                    not Code_Matches (Input, Start, Book, Symbol)));
+   pragma Assertion_Policy (Post => Check);
+
+   --  Mathematical walk specified by the executable Walk below.  Decoded is
+   --  the output cursor before Position; the result length counts only bytes
+   --  produced by the remaining payload.
+   function Spec_Walk
+     (Input           : Byte_Array;
+      Position        : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Decoded         : Natural) return Stream_Info
+   with
+     Ghost,
+     Pre => Input'Length <= Fixed.Max_Stream_Bytes
+              and then Position <= 8 * Input'Length
+              and then Literal_Lengths.Kind = Codebooks.Canonical
+              and then Distances.Kind = Codebooks.Canonical
+              and then Codebooks.Ready (Literal_Lengths)
+              and then Codebooks.Ready (Distances)
+              and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+              and then Codebooks.Lengths_At_Most (Distances, 9)
+              and then Decoded <= Max_Input,
+     Post => (if Spec_Walk'Result.Valid then
+                Spec_Walk'Result.End_Bit in
+                  Position + 1 .. 8 * Input'Length
+                and then Spec_Walk'Result.Decoded_Length <=
+                  Max_Input - Decoded
+              else Spec_Walk'Result = (False, 0, 0)),
+     Contract_Cases =>
+       (not Decode_Symbol (Input, Position, Literal_Lengths).Valid =>
+          not Spec_Walk'Result.Valid,
+        Decode_Symbol (Input, Position, Literal_Lengths).Valid
+          and then Decode_Symbol
+            (Input, Position, Literal_Lengths).Symbol <= 255
+          and then Decoded < Max_Input =>
+          (if Spec_Walk
+             (Input,
+              Decode_Symbol (Input, Position, Literal_Lengths).Position,
+              Literal_Lengths, Distances, Decoded + 1).Valid
+           then Spec_Walk'Result =
+             (True,
+              Spec_Walk
+                (Input,
+                 Decode_Symbol (Input, Position, Literal_Lengths).Position,
+                 Literal_Lengths, Distances, Decoded + 1).End_Bit,
+              Spec_Walk
+                (Input,
+                 Decode_Symbol (Input, Position, Literal_Lengths).Position,
+                 Literal_Lengths, Distances, Decoded + 1).Decoded_Length + 1)
+           else Spec_Walk'Result = (False, 0, 0)),
+        Decode_Symbol (Input, Position, Literal_Lengths).Valid
+          and then Decode_Symbol
+            (Input, Position, Literal_Lengths).Symbol = 256 =>
+          Spec_Walk'Result =
+            (True,
+             Decode_Symbol
+               (Input, Position, Literal_Lengths).Position,
+             0),
+        Decode_Symbol (Input, Position, Literal_Lengths).Valid
+          and then
+            (Decode_Symbol
+               (Input, Position, Literal_Lengths).Symbol in 257 .. 264)
+          and then Decode_Symbol
+            (Input,
+             Decode_Symbol
+               (Input, Position, Literal_Lengths).Position,
+             Distances).Valid
+          and then Decode_Symbol
+            (Input,
+             Decode_Symbol
+               (Input, Position, Literal_Lengths).Position,
+             Distances).Symbol <= 3
+          and then Decode_Symbol
+            (Input,
+             Decode_Symbol
+               (Input, Position, Literal_Lengths).Position,
+             Distances).Symbol + 1 <= Decoded
+          and then Decode_Symbol
+            (Input, Position, Literal_Lengths).Symbol - 254 <=
+              Max_Input - Decoded =>
+          (if Spec_Walk
+             (Input,
+              Decode_Symbol
+                (Input,
+                 Decode_Symbol
+                   (Input, Position, Literal_Lengths).Position,
+                 Distances).Position,
+              Literal_Lengths, Distances,
+              Decoded + Decode_Symbol
+                (Input, Position, Literal_Lengths).Symbol - 254).Valid
+           then Spec_Walk'Result =
+             (True,
+              Spec_Walk
+                (Input,
+                 Decode_Symbol
+                   (Input,
+                    Decode_Symbol
+                      (Input, Position, Literal_Lengths).Position,
+                    Distances).Position,
+                 Literal_Lengths, Distances,
+                 Decoded + Decode_Symbol
+                   (Input, Position, Literal_Lengths).Symbol - 254).End_Bit,
+              Spec_Walk
+                (Input,
+                 Decode_Symbol
+                   (Input,
+                    Decode_Symbol
+                      (Input, Position, Literal_Lengths).Position,
+                    Distances).Position,
+                 Literal_Lengths, Distances,
+                 Decoded + Decode_Symbol
+                   (Input, Position, Literal_Lengths).Symbol - 254)
+                    .Decoded_Length
+                + Decode_Symbol
+                    (Input, Position, Literal_Lengths).Symbol - 254)
+           else Spec_Walk'Result = (False, 0, 0)),
+        others => not Spec_Walk'Result.Valid),
+     Subprogram_Variant => (Decreases => 8 * Input'Length - Position);
+
+   pragma Assertion_Policy (Post => Ignore);
+   function Walk
+     (Input           : Byte_Array;
+      Position        : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Decoded         : Natural) return Stream_Info
+   with
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Position <= 8 * Input'Length
+               and then Literal_Lengths.Kind = Codebooks.Canonical
+               and then Distances.Kind = Codebooks.Canonical
+               and then Codebooks.Ready (Literal_Lengths)
+               and then Codebooks.Ready (Distances)
+               and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+               and then Codebooks.Lengths_At_Most (Distances, 9)
+               and then Decoded <= Max_Input,
+     Post => Walk'Result =
+               Spec_Walk
+                 (Input, Position, Literal_Lengths, Distances, Decoded);
+   pragma Assertion_Policy (Post => Check);
+
+   --  Recognize the bounded dynamic image from Input alone.  End_Bit is
+   --  immediately after the end-of-block code and Decoded_Length is the
+   --  number of bytes produced by the literal/match payload.  The analyzer
+   --  recovers its canonical books from the serialized header; no codebook
+   --  witness or output buffer is required.
+   pragma Assertion_Policy (Post => Ignore);
+   function Analyze (Input : Byte_Array) return Stream_Info
+   with
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes,
+     Post => (if Input'Length >= Header_Byte_Count
+                   and then Books_Encodable
+                     (Literal_Book_From_Header (Input),
+                      Distance_Book_From_Header (Input))
+                   and then Header_Encodes
+                     (Input,
+                      Literal_Book_From_Header (Input),
+                      Distance_Book_From_Header (Input))
+              then Analyze'Result =
+                Walk
+                  (Input, Header_Bit_Count,
+                   Literal_Book_From_Header (Input),
+                   Distance_Book_From_Header (Input), 0))
+               and then
+             (if Analyze'Result.Valid then
+                Input'Length >= Header_Byte_Count
+                and then Books_Encodable
+                  (Literal_Book_From_Header (Input),
+                   Distance_Book_From_Header (Input))
+                and then Header_Encodes
+                  (Input,
+                   Literal_Book_From_Header (Input),
+                   Distance_Book_From_Header (Input))
+                and then Analyze'Result.End_Bit in
+                  Header_Bit_Count + 1 .. 8 * Input'Length
+                and then Analyze'Result.Decoded_Length <= Max_Input);
+   pragma Assertion_Policy (Post => Check);
+
+   --  A semantic dynamic body is accepted by the input-side analyzer with
+   --  the same exact byte count and decoded length.  This is the remaining
+   --  recognition consequence needed before Dynamic can join Body_Encodes.
+   procedure Lemma_Encoding_Analyzes
+     (Input    : Byte_Array;
+      Produced : Natural;
+      Data     : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre  => Is_Encoding (Input, Produced, Data),
+     Post => Analyze (Input).Valid
+               and then (Analyze (Input).End_Bit + 7) / 8 = Produced
+               and then Analyze (Input).Decoded_Length = Data'Length;
 
    procedure Lemma_Encoding_Uses_Header_Books
      (Input           : Byte_Array;

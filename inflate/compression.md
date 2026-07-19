@@ -292,22 +292,26 @@ preserve the witness-free dynamic relation when a container adds trailing
 bytes. `Inflate.Dynamic.Lemma_Encoding_Functional` proves that one such body
 cannot denote two different byte sequences: canonical prefix separation and
 rank uniqueness identify each literal/length and distance symbol, while the M4
-window equation makes matching back-references functional. Input-side
-recognition is now the remaining prerequisite before the dynamic alternative
-can join `Body_Encodes`; the common wrapper will then route its functionality
-case to this local theorem.
+window equation makes matching back-references functional. The final local
+prerequisite is now complete as well: `Inflate.Dynamic.Analyze` recovers the
+canonical books and walks the bounded payload from the input alone, while
+`Lemma_Encoding_Analyzes` proves that every self-describing dynamic relation is
+recognized with its exact encoded byte count and decoded length. The dynamic
+alternative can therefore join `Body_Encodes`; the common wrapper only needs
+to route recognition, framing, and functionality to these local results.
 
-The focused dynamic project proves all 5,542 checks at `--level=4` (1,258 in
-the dynamic unit itself); the full library proves all 6,350 checks at
-`--level=4`, with no justifications or assumptions.
+The focused dynamic project proves all 5,810 checks at `--level=4`; the full
+library proves all 6,618 checks at `--level=4`, with no justifications or
+assumptions.
 The dynamic runtime harness covers empty, singleton, sparse, and full DEFLATE
 alphabets, an exact shared-payload bit pattern, and a complete dynamic body that
-round trips through the shipping decoder and its independent model. It also
-copies the exact body into a differently bounded larger buffer with unrelated
-trailing bytes and round trips that framing. C zlib independently decodes the
-body. The complete debug suite passes 6,445 cases and 18 compressor differential
-cases, including exact bit-level checks for length-ten matches at distances one,
-three, and four.
+round trips through the shipping decoder and its independent model. The
+input-side analyzer reports its exact encoded and decoded sizes before and
+after the body is copied into a differently bounded larger buffer with
+unrelated trailing bytes; the shipping decoder also round trips that framing.
+C zlib independently decodes the body. The complete debug suite passes 6,445
+cases and 18 compressor differential cases, including exact bit-level checks
+for length-ten matches at distances one, three, and four.
 
 The planned token-trace reassessment against this broader baseline is also
 complete. A `Step` relation would restate `One_Token_Matches`, while `Trace`
@@ -402,9 +406,8 @@ local dynamic header and body serializer. The remaining ratio work is:
 1. **Extend `Body_Encodes` from stored/fixed to dynamic.** The common relation
    already replaced the format-specific branches in raw, gzip, and the theorem.
    Dynamic header recovery and the witness-free three-argument local relation
-   are complete, as are container-style framing and local functionality. Add
-   input-side recognition, then route the proved dynamic framing and
-   functionality consequences through the common relation without weakening
-   it.
+   are complete, as are container-style framing, input-side recognition, and
+   local functionality. Route those proved consequences through the common
+   relation without weakening it.
 2. **Add the dynamic gzip branch.** Select the proved dynamic body locally and
    lift it through the existing framing, decoder-success, and round-trip proof.
