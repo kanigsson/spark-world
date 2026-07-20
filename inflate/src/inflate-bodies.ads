@@ -1,13 +1,12 @@
---  Inflate.Bodies -- common semantic boundary for compressor-image bodies.
+--  Inflate.Bodies -- common semantic boundary for supported DEFLATE bodies.
 --
 --  The gzip layer should not need to know whether its DEFLATE payload was
---  emitted as stored blocks, as the bounded fixed-Huffman image, or as the
---  bounded dynamic-Huffman image.  This
---  package collects those local relations behind one predicate and exposes
---  shared framing and functionality consequences plus the currently
---  integrated recognition path used by the container proof.  The top-level
---  compressor can therefore select the dynamic image later without widening
---  the semantic relation again.
+--  emitted as stored blocks, as the bounded fixed-Huffman image, or as a
+--  bounded dynamic-Huffman body.  This package collects those local relations
+--  behind one predicate and exposes shared framing and functionality
+--  consequences plus the recognition path used by the container proof.  The
+--  top-level compressor can therefore select the dynamic image later without
+--  widening the semantic relation again.
 
 with Inflate.Model;
 with Inflate.Fixed;
@@ -19,12 +18,13 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
 
    pragma Assertion_Policy (Ghost => Ignore);
 
-   --  The first Consumed bytes of Input are a compressor-image DEFLATE body
-   --  decoding to exactly Data.  Bytes after Consumed may contain a container
-   --  trailer.  The alternatives are deliberately local: each encoder proves
-   --  its own relation, while users above this package see only Body_Encodes.
-   --  The common relation is proof-only because the self-describing dynamic
-   --  relation is proof-only; the input-side queries below remain executable.
+   --  The first Consumed bytes of Input are a supported DEFLATE body decoding
+   --  to exactly Data.  Bytes after Consumed may contain a container trailer.
+   --  The alternatives are deliberately local: producers and specialized
+   --  decoders prove their own relations, while users above this package see
+   --  only Body_Encodes.
+   --  The common relation remains proof-only because the stored alternative
+   --  is recursive; the input-side queries below remain executable.
    function Body_Encodes
      (Input    : Byte_Array;
       Consumed : Natural;
@@ -43,15 +43,13 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
           and then Data'Length <= Fixed.Max_Input
           and then Fixed.Is_Encoding (Input, Consumed, Data))
          or else
-         Dynamic.Is_Encoding (Input, Consumed, Data)))
+         Dynamic.Decodes (Input, Consumed, Data)))
    with Ghost;
 
-   --  Input begins with one of the compressor images for which the shipping
-   --  decoder currently exposes a completeness proof, and its decoded length
-   --  fits in Out_Len.  Trailing bytes are ignored, which is what a container
-   --  needs when its trailer follows the body.  Dynamic input-side analysis
-   --  is available locally, but joins this executable boundary only with its
-   --  decoder-completeness bridge.
+   --  Input begins with one of the semantic bodies for which the shipping
+   --  decoder exposes a completeness proof, and its decoded length fits in
+   --  Out_Len.  Trailing bytes are ignored, which is what a container needs
+   --  when its trailer follows the body.
    function Recognized
      (Input : Byte_Array; Out_Len : Natural) return Boolean
    is
@@ -63,10 +61,15 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
       or else
       (Input'Length <= Fixed.Max_Stream_Bytes
        and then Fixed.Analyze (Input).Valid
-       and then Fixed.Analyze (Input).Decoded_Length <= Out_Len));
+       and then Fixed.Analyze (Input).Decoded_Length <= Out_Len)
+      or else
+      (Input'Length <= Fixed.Max_Stream_Bytes
+       and then Dynamic.Analyze (Input).Valid
+       and then Dynamic.Analyze (Input).Decoded_Length <= Out_Len));
 
-   --  Exact byte count and decoded length selected by Recognized.  Stored and
-   --  fixed headers are disjoint, so the stored-first choice is unambiguous.
+   --  Exact byte count and decoded length selected by Recognized.  The stored,
+   --  fixed, and dynamic block-type headers are pairwise disjoint, so the
+   --  ordered choice is unambiguous.
    function Encoded_Size (Input : Byte_Array) return Natural is
      (if Input'Length >= 5
           and then Model.Stored_Stream_End
@@ -76,6 +79,9 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
       elsif Input'Length <= Fixed.Max_Stream_Bytes
         and then Fixed.Analyze (Input).Valid
       then (Fixed.Analyze (Input).End_Bit + 7) / 8
+      elsif Input'Length <= Fixed.Max_Stream_Bytes
+        and then Dynamic.Analyze (Input).Valid
+      then (Dynamic.Analyze (Input).End_Bit + 7) / 8
       else 0);
 
    function Decoded_Size (Input : Byte_Array) return Natural is
@@ -87,6 +93,9 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
       elsif Input'Length <= Fixed.Max_Stream_Bytes
         and then Fixed.Analyze (Input).Valid
       then Fixed.Analyze (Input).Decoded_Length
+      elsif Input'Length <= Fixed.Max_Stream_Bytes
+        and then Dynamic.Analyze (Input).Valid
+      then Dynamic.Analyze (Input).Decoded_Length
       else 0);
 
    --  Introduction lemmas keep callers from unfolding the disjunction in a
@@ -149,8 +158,18 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
      Pre  => Dynamic.Is_Encoding (Input, Consumed, Data),
      Post => Body_Encodes (Input, Consumed, Data);
 
-   --  A currently integrated stored/fixed semantic body determines the
-   --  input-side recognition facts needed by Inflate.Raw.Decompress.
+   procedure Lemma_Dynamic_Decoding
+     (Input    : Byte_Array;
+      Consumed : Natural;
+      Data     : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre  => Dynamic.Decodes (Input, Consumed, Data),
+     Post => Body_Encodes (Input, Consumed, Data);
+
+   --  A semantic body determines the input-side recognition facts needed by
+   --  Inflate.Raw.Decompress.
    procedure Lemma_Encoding_Recognized
      (Input    : Byte_Array;
       Consumed : Natural;
@@ -158,8 +177,7 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
    with
      Ghost,
      Global => null,
-     Pre  => Body_Encodes (Input, Consumed, Data)
-               and then not Dynamic.Is_Encoding (Input, Consumed, Data),
+     Pre  => Body_Encodes (Input, Consumed, Data),
      Post => Recognized (Input, Data'Length)
                and then Encoded_Size (Input) = Consumed
                and then Decoded_Size (Input) = Data'Length;
@@ -182,15 +200,12 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
                    and then Fixed.Is_Encoding (Before, Consumed, Data)
               then After'Length <= Fixed.Max_Stream_Bytes)
                and then
-             (if Dynamic.Is_Encoding (Before, Consumed, Data)
+             (if Dynamic.Decodes (Before, Consumed, Data)
               then After'Length <= Fixed.Max_Stream_Bytes)
                and then
              (for all I in 0 .. Consumed - 1 =>
                 After (After'First + I) = Before (Before'First + I)),
-     Post => Body_Encodes (After, Consumed, Data)
-               and then
-             (if not Dynamic.Is_Encoding (Before, Consumed, Data)
-              then not Dynamic.Is_Encoding (After, Consumed, Data));
+     Post => Body_Encodes (After, Consumed, Data);
 
    --  One supported body has only one decoded byte sequence.
    procedure Lemma_Encoding_Functional

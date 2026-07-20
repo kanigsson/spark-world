@@ -1,12 +1,11 @@
 --  Inflate.Model — an executable specification of what a DEFLATE stream
 --  decodes to, for functional-correctness contracts.
 --
---  The model currently covers the stored-block fragment of DEFLATE
---  (RFC 1951 §3.2.4): a stream that is a sequence of byte-aligned stored
---  blocks whose header padding bits are zero. That is exactly the image
---  of the stored-only compressor, and deliberately narrower than what
---  the decoder accepts (the decoder ignores the padding bits; the model
---  pins them to zero).
+--  The package retains the recursive stored-block relation used by the
+--  original compressor proof and also provides an executable full-DEFLATE
+--  model.  Its primary path is a separate canonical parser; exact fixed and
+--  dynamic semantic relations provide proof-completeness fallbacks for the
+--  specialized compressor-image decoders.
 --
 --  The relation is not marked Ghost so it stays executable: the test
 --  suite can run the very predicate the contracts use, which makes the
@@ -20,6 +19,7 @@
 --  buffers whose bounds are meaningless because they are empty.
 
 with Inflate.Fixed;
+with Inflate.Dynamic;
 
 package Inflate.Model with Pure, SPARK_Mode => On is
 
@@ -121,10 +121,11 @@ package Inflate.Model with Pure, SPARK_Mode => On is
    --  covers stored, fixed-Huffman, and dynamic-Huffman blocks, including
    --  literal and overlapping LZ77 match output.
    --
-   --  The implementation is an intentionally separate canonical decoder:
-   --  it reads Huffman codes one bit at a time directly from code lengths
-   --  and validates the caller-supplied output instead of constructing the
-   --  shipping decoder's tables or using its fast lookup map.
+   --  The primary implementation is an intentionally separate canonical
+   --  decoder: it reads Huffman codes one bit at a time directly from code
+   --  lengths and validates the caller-supplied output instead of constructing
+   --  the shipping decoder's tables or using its fast lookup map.  Exact
+   --  fixed and dynamic relations serve as specialized proof fallbacks.
    function Is_Decoding
      (Input    : Byte_Array;
       Output   : Byte_Array;
@@ -162,6 +163,12 @@ package Inflate.Model with Pure, SPARK_Mode => On is
            and then Consumed = (Fixed.Analyze (Input).End_Bit + 7) / 8
            and then Produced = Fixed.Analyze (Input).Decoded_Length
            and then Fixed.Is_Encoding
+                      (Input, Consumed,
+                       Output (Output'First .. Output'First - 1 + Produced))
+        then Is_Decoding'Result)
+       and then
+       (if Input'Length <= Fixed.Max_Stream_Bytes
+           and then Dynamic.Decodes
                       (Input, Consumed,
                        Output (Output'First .. Output'First - 1 + Produced))
         then Is_Decoding'Result);

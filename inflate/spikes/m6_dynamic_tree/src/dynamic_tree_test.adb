@@ -1,4 +1,5 @@
 with Ada.Text_IO;      use Ada.Text_IO;
+with Interfaces;
 with Inflate;          use Inflate;
 with Inflate.Codebooks;
 with Inflate.Dynamic;  use Inflate.Dynamic;
@@ -8,6 +9,44 @@ with Inflate.Raw;
 procedure Dynamic_Tree_Test is
 
    use type Inflate.Codebooks.Codebook;
+   use type Byte;
+
+   procedure Require (Condition : Boolean) is
+   begin
+      if not Condition then
+         raise Program_Error with "dynamic-tree runtime check failed";
+      end if;
+   end Require;
+
+   procedure Set_Stream_Bit
+     (Output   : in out Byte_Array;
+      Position : Natural;
+      Value    : Natural)
+   is
+      P : constant Buffer_Index := Output'First + Position / 8;
+      Mask : constant Byte :=
+        Interfaces.Shift_Left (Byte (1), Position mod 8);
+   begin
+      if Value = 0 then
+         Output (P) := Output (P) and not Mask;
+      else
+         Output (P) := Output (P) or Mask;
+      end if;
+   end Set_Stream_Bit;
+
+   procedure Write_Code
+     (Output : in out Byte_Array;
+      Start  : Natural;
+      Length : Positive;
+      Value  : Natural)
+   is
+   begin
+      for I in 0 .. Length - 1 loop
+         Set_Stream_Bit
+           (Output, Start + I,
+            (Value / Inflate.Codebooks.Pow2 (Length - 1 - I)) mod 2);
+      end loop;
+   end Write_Code;
 
    procedure Check
      (Name        : String;
@@ -21,16 +60,16 @@ procedure Dynamic_Tree_Test is
       Build_Lengths (Frequencies, Lengths);
       for I in Lengths'Range loop
          if Frequencies (I) > 0 then
-            pragma Assert (Lengths (I) > 0);
+            Require (Lengths (I) > 0);
          end if;
-         pragma Assert (Lengths (I) <= 9);
+         Require (Lengths (I) <= 9);
          if Lengths (I) > 0 then
             Assigned := Assigned + 1;
             Space := Space + Pow2 (15 - Lengths (I));
          end if;
       end loop;
-      pragma Assert (Assigned = Expected);
-      pragma Assert (Space = Pow2 (15));
+      Require (Assigned = Expected);
+      Require (Space = Pow2 (15));
       Put_Line
         (Name & ":" & Assigned'Image & " leaves, complete code");
    end Check;
@@ -63,12 +102,17 @@ procedure Dynamic_Tree_Test is
 
    Body_Output : Byte_Array (1 .. Max_Size (Payload_Data'Length)) :=
      (others => 16#A5#);
+   Alternative_Body : Byte_Array (Body_Output'Range) := (others => 0);
    Malformed_Body : Byte_Array (Body_Output'Range) := (others => 0);
    Framed_Body : Byte_Array
      (7 .. 7 + Max_Size (Payload_Data'Length) + 7) := (others => 16#5A#);
    Body_Produced : Natural;
+   Alternative_End, Alternative_Produced : Natural;
    Decoded       : Byte_Array (Payload_Data'Range) := (others => 0);
+   Direct_Decoded : Byte_Array (Payload_Data'Range) := (others => 0);
    Body_Consumed, Decoded_Length : Natural;
+   Direct_Consumed, Direct_Length : Natural;
+   Direct_Success : Boolean;
    Body_Status : Status_Type;
    Body_Info : Stream_Info;
 
@@ -106,49 +150,105 @@ begin
    Payload_Distances (2) := 1;
    Build_Codebook (Payload_Literals, Literal_Book, Literal_Ready);
    Build_Codebook (Payload_Distances, Distance_Book, Distance_Ready);
-   pragma Assert (Literal_Ready and then Distance_Ready);
+   Require (Literal_Ready and then Distance_Ready);
    Serialize_Payload
      (Payload_Data, Literal_Book, Distance_Book,
       Payload_Bits, 0, Payload_End);
-   pragma Assert (Payload_End = 13);
-   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 0, 2) = 0);
-   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 2, 2) = 1);
-   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 4, 2) = 2);
-   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 6, 3) = 7);
-   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 9, 1) = 1);
-   pragma Assert (Inflate.Fixed.Prefix_Value (Payload_Bits, 10, 3) = 6);
+   Require (Payload_End = 13);
+   Require (Inflate.Fixed.Prefix_Value (Payload_Bits, 0, 2) = 0);
+   Require (Inflate.Fixed.Prefix_Value (Payload_Bits, 2, 2) = 1);
+   Require (Inflate.Fixed.Prefix_Value (Payload_Bits, 4, 2) = 2);
+   Require (Inflate.Fixed.Prefix_Value (Payload_Bits, 6, 3) = 7);
+   Require (Inflate.Fixed.Prefix_Value (Payload_Bits, 9, 1) = 1);
+   Require (Inflate.Fixed.Prefix_Value (Payload_Bits, 10, 3) = 6);
    Put_Line ("shared dynamic payload serialization passed");
 
-   pragma Assert (Books_Encodable (Literal_Book, Distance_Book));
+   Require (Books_Encodable (Literal_Book, Distance_Book));
    Serialize_Body
      (Payload_Data, Literal_Book, Distance_Book,
       Body_Output, Body_Produced);
-   pragma Assert (Body_Produced <= Body_Output'Length);
-   pragma Assert
+   Require (Body_Produced <= Body_Output'Length);
+   Require
      (Header_Encodes (Body_Output, Literal_Book, Distance_Book));
-   pragma Assert
+   Require
      (Literal_Book_From_Header (Body_Output) = Literal_Book);
-   pragma Assert
+   Require
      (Distance_Book_From_Header (Body_Output) = Distance_Book);
    Body_Info := Analyze (Body_Output);
-   pragma Assert (Body_Info.Valid);
-   pragma Assert ((Body_Info.End_Bit + 7) / 8 = Body_Produced);
-   pragma Assert (Body_Info.Decoded_Length = Payload_Data'Length);
+   Require (Body_Info.Valid);
+   Require ((Body_Info.End_Bit + 7) / 8 = Body_Produced);
+   Require (Body_Info.Decoded_Length = Payload_Data'Length);
    Put_Line ("dynamic input-side recognition passed");
 
    Malformed_Body := Body_Output;
    Malformed_Body (Malformed_Body'First) := 0;
    Body_Info := Analyze (Malformed_Body);
-   pragma Assert (not Body_Info.Valid);
+   Require (not Body_Info.Valid);
    Put_Line ("malformed dynamic header rejected");
 
    Inflate.Raw.Decompress
      (Body_Output, Decoded, Body_Consumed, Decoded_Length, Body_Status);
-   pragma Assert (Body_Status = OK);
-   pragma Assert (Body_Consumed = Body_Produced);
-   pragma Assert (Decoded_Length = Payload_Data'Length);
-   pragma Assert (Decoded = Payload_Data);
+   Require (Body_Status = OK);
+   Require (Body_Consumed = Body_Produced);
+   Require (Decoded_Length = Payload_Data'Length);
+   Require (Decoded = Payload_Data);
    Put_Line ("dynamic header/body round trip passed");
+
+   --  Keep the same self-describing header but encode all nine bytes as
+   --  literals.  This is a valid supported tokenization, but it is not the
+   --  serializer image above (which uses a length-six match).
+   Alternative_Body := Body_Output;
+   for Position in Header_Bit_Count .. 8 * Alternative_Body'Length - 1 loop
+      Set_Stream_Bit (Alternative_Body, Position, 0);
+   end loop;
+   Alternative_End := Header_Bit_Count;
+   for I in Payload_Data'Range loop
+      declare
+         Symbol : constant Inflate.Codebooks.Symbol_Index :=
+           Natural (Payload_Data (I));
+         Length : constant Positive :=
+           Inflate.Codebooks.Length_Of (Literal_Book, Symbol);
+      begin
+         Write_Code
+           (Alternative_Body, Alternative_End, Length,
+            Inflate.Codebooks.Code_Of (Literal_Book, Symbol));
+         Alternative_End := Alternative_End + Length;
+      end;
+   end loop;
+   Write_Code
+     (Alternative_Body, Alternative_End,
+      Inflate.Codebooks.Length_Of (Literal_Book, 256),
+      Inflate.Codebooks.Code_Of (Literal_Book, 256));
+   Alternative_End :=
+     Alternative_End + Inflate.Codebooks.Length_Of (Literal_Book, 256);
+   Alternative_Produced := (Alternative_End + 7) / 8;
+   Require (Alternative_Produced > Body_Produced);
+   Body_Info := Analyze (Alternative_Body);
+   Require (Body_Info.Valid);
+   Require (Body_Info.End_Bit = Alternative_End);
+   Require (Body_Info.Decoded_Length = Payload_Data'Length);
+   Require
+     (Encoding_Matches
+        (Alternative_Body, Alternative_End,
+         Literal_Book, Distance_Book, Payload_Data));
+
+   Inflate.Dynamic.Decompress
+     (Alternative_Body, Direct_Decoded,
+      Direct_Consumed, Direct_Length, Direct_Success);
+   Require (Direct_Success);
+   Require (Direct_Consumed = Alternative_Produced);
+   Require (Direct_Length = Payload_Data'Length);
+   Require (Direct_Decoded = Payload_Data);
+
+   Decoded := (others => 0);
+   Inflate.Raw.Decompress
+     (Alternative_Body, Decoded,
+      Body_Consumed, Decoded_Length, Body_Status);
+   Require (Body_Status = OK);
+   Require (Body_Consumed = Alternative_Produced);
+   Require (Decoded_Length = Payload_Data'Length);
+   Require (Decoded = Payload_Data);
+   Put_Line ("non-serializer dynamic tokenization passed");
 
    --  Reframe the exact body at a different lower bound and leave unrelated
    --  bytes after it, as gzip will do with its trailer.
@@ -156,16 +256,16 @@ begin
      (Framed_Body'First .. Framed_Body'First + Body_Produced - 1) :=
        Body_Output (Body_Output'First .. Body_Output'First + Body_Produced - 1);
    Body_Info := Analyze (Framed_Body);
-   pragma Assert (Body_Info.Valid);
-   pragma Assert ((Body_Info.End_Bit + 7) / 8 = Body_Produced);
-   pragma Assert (Body_Info.Decoded_Length = Payload_Data'Length);
+   Require (Body_Info.Valid);
+   Require ((Body_Info.End_Bit + 7) / 8 = Body_Produced);
+   Require (Body_Info.Decoded_Length = Payload_Data'Length);
    Decoded := (others => 0);
    Inflate.Raw.Decompress
      (Framed_Body, Decoded, Body_Consumed, Decoded_Length, Body_Status);
-   pragma Assert (Body_Status = OK);
-   pragma Assert (Body_Consumed = Body_Produced);
-   pragma Assert (Decoded_Length = Payload_Data'Length);
-   pragma Assert (Decoded = Payload_Data);
+   Require (Body_Status = OK);
+   Require (Body_Consumed = Body_Produced);
+   Require (Decoded_Length = Payload_Data'Length);
+   Require (Decoded = Payload_Data);
    Put_Line ("reframed dynamic body round trip passed");
 
    Put ("dynamic body hex: ");
@@ -173,6 +273,18 @@ begin
       declare
          Value : constant Natural :=
            Natural (Body_Output (Body_Output'First + I));
+      begin
+         Put (Hex_Digits (Value / 16 + 1));
+         Put (Hex_Digits (Value mod 16 + 1));
+      end;
+   end loop;
+   New_Line;
+
+   Put ("alternative dynamic body hex: ");
+   for I in 0 .. Alternative_Produced - 1 loop
+      declare
+         Value : constant Natural :=
+           Natural (Alternative_Body (Alternative_Body'First + I));
       begin
          Put (Hex_Digits (Value / 16 + 1));
          Put (Hex_Digits (Value mod 16 + 1));

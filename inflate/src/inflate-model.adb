@@ -780,6 +780,12 @@ package body Inflate.Model with SPARK_Mode => On is
                return True;
             end if;
          end;
+         if Dynamic.Decodes
+           (Input, Consumed,
+            Output (Output'First .. Output'First - 1 + Produced))
+         then
+            return True;
+         end if;
       end if;
 
       if Input'Length >= 5 then

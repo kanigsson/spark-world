@@ -93,6 +93,15 @@ package body Inflate.Bodies with SPARK_Mode => On is
    procedure Lemma_Dynamic_Encoding
      (Input    : Byte_Array;
       Consumed : Natural;
+      Data     : Byte_Array)
+   is
+   begin
+      Dynamic.Lemma_Encoding_Decodes (Input, Consumed, Data);
+   end Lemma_Dynamic_Encoding;
+
+   procedure Lemma_Dynamic_Decoding
+     (Input    : Byte_Array;
+      Consumed : Natural;
       Data     : Byte_Array) is null;
 
    procedure Lemma_Encoding_Recognized
@@ -113,7 +122,7 @@ package body Inflate.Bodies with SPARK_Mode => On is
          Model.Lemma_Encodes_End
            (Input, Input'First, Input'First + (Consumed - 1),
             Data, DF, DL, Input'Last);
-      else
+      elsif Fixed.Is_Encoding (Input, Consumed, Data) then
          pragma Assert (Fixed.Is_Encoding (Input, Consumed, Data));
          Fixed.Lemma_Encoding_Analyzes (Input, Consumed, Data);
          --  A fixed block cannot also be a stored image: fixed BTYPE has its
@@ -123,6 +132,13 @@ package body Inflate.Bodies with SPARK_Mode => On is
            (not (Input'Length >= 5
                  and then Model.Stored_Stream_End
                    (Input, Input'First, Input'Last) > 0));
+      else
+         pragma Assert (Dynamic.Decodes (Input, Consumed, Data));
+         pragma Assert
+           (not (Input'Length >= 5
+                 and then Model.Stored_Stream_End
+                   (Input, Input'First, Input'Last) > 0));
+         pragma Assert (not Fixed.Analyze (Input).Valid);
       end if;
    end Lemma_Encoding_Recognized;
 
@@ -149,17 +165,13 @@ package body Inflate.Bodies with SPARK_Mode => On is
          if After'Length <= Fixed.Max_Stream_Bytes then
             pragma Assert (Fixed.Bit_Value (After, 2) = 0);
          end if;
-         pragma Assert
-           (not Dynamic.Is_Encoding (After, Consumed, Data));
       elsif Fixed.Is_Encoding (Before, Consumed, Data) then
          pragma Assert (Fixed.Is_Encoding (Before, Consumed, Data));
          Fixed.Lemma_Encoding_Frame (Before, After, Consumed, Data);
          pragma Assert (Fixed.Bit_Value (After, 1) = 1);
-         pragma Assert
-           (not Dynamic.Is_Encoding (After, Consumed, Data));
       else
-         pragma Assert (Dynamic.Is_Encoding (Before, Consumed, Data));
-         Dynamic.Lemma_Encoding_Frame (Before, After, Consumed, Data);
+         pragma Assert (Dynamic.Decodes (Before, Consumed, Data));
+         Dynamic.Lemma_Decoding_Frame (Before, After, Consumed, Data);
       end if;
    end Lemma_Encoding_Frame;
 
@@ -197,8 +209,7 @@ package body Inflate.Bodies with SPARK_Mode => On is
          Model.Lemma_Encodes_Functional
            (Input, Input'First, Input'First + (Consumed - 1),
             Left, LF, LL, Right, RF, RL);
-         pragma Assert
-           (not Dynamic.Is_Encoding (Input, Consumed, Right));
+         pragma Assert (not Dynamic.Decodes (Input, Consumed, Right));
       elsif Fixed.Is_Encoding (Input, Consumed, Left) then
          pragma Assert (Fixed.Is_Encoding (Input, Consumed, Left));
          pragma Assert
@@ -207,13 +218,12 @@ package body Inflate.Bodies with SPARK_Mode => On is
                    (Input, Input'First, Input'First + (Consumed - 1),
                     Right, RF, RL)));
          pragma Assert (Fixed.Bit_Value (Input, 1) = 1);
-         pragma Assert
-           (not Dynamic.Is_Encoding (Input, Consumed, Right));
+         pragma Assert (not Dynamic.Decodes (Input, Consumed, Right));
          pragma Assert (Fixed.Is_Encoding (Input, Consumed, Right));
          Fixed.Lemma_Encoding_Functional
            (Input, Consumed, Left, Right);
       else
-         pragma Assert (Dynamic.Is_Encoding (Input, Consumed, Left));
+         pragma Assert (Dynamic.Decodes (Input, Consumed, Left));
          pragma Assert (Fixed.Bit_Value (Input, 2) = 1);
          pragma Assert
            (not (Input'Length >= 5
@@ -222,8 +232,8 @@ package body Inflate.Bodies with SPARK_Mode => On is
                     Right, RF, RL)));
          pragma Assert (Fixed.Bit_Value (Input, 1) = 0);
          pragma Assert (not Fixed.Is_Encoding (Input, Consumed, Right));
-         pragma Assert (Dynamic.Is_Encoding (Input, Consumed, Right));
-         Dynamic.Lemma_Encoding_Functional
+         pragma Assert (Dynamic.Decodes (Input, Consumed, Right));
+         Dynamic.Lemma_Decoding_Functional
            (Input, Consumed, Left, Right);
       end if;
    end Lemma_Encoding_Functional;

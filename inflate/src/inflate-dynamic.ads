@@ -21,6 +21,8 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
    use type Codebooks.Codebook;
    use type Codebooks.Code_Length_Array;
    use type Codebooks.Length_Count_Array;
+   use type Fixed.Symbol_Kind;
+   use type Fixed.Symbol_Result;
 
    pragma Assertion_Policy (Ghost => Ignore);
 
@@ -486,7 +488,7 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
                    and then Decode_Symbol'Result.Position =
                      Start + Codebooks.Length_Of
                        (Book, Decode_Symbol'Result.Symbol)
-              else Decode_Symbol'Result.Position = Start
+              else Decode_Symbol'Result = (False, 0, Start)
                    and then
                  (for all Symbol in Codebooks.Symbol_Index =>
                     not Code_Matches (Input, Start, Book, Symbol)));
@@ -668,6 +670,237 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
                 and then Analyze'Result.Decoded_Length <= Max_Input);
    pragma Assertion_Policy (Post => Check);
 
+   --  Decode the next payload token through the recovered canonical books.
+   --  The supported local image needs no extra bits: literal/length symbols
+   --  257 .. 264 denote lengths 3 .. 10 and distance symbols 0 .. 3 denote
+   --  distances 1 .. 4.
+   function Next_Symbol
+     (Input           : Byte_Array;
+      Position        : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook) return Fixed.Symbol_Result
+   with
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Position <= 8 * Input'Length
+               and then Literal_Lengths.Kind = Codebooks.Canonical
+               and then Distances.Kind = Codebooks.Canonical
+               and then Codebooks.Ready (Literal_Lengths)
+               and then Codebooks.Ready (Distances)
+               and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+               and then Codebooks.Lengths_At_Most (Distances, 9),
+     Post => Next_Symbol'Result.Position in
+               Position .. 8 * Input'Length
+               and then
+             (if not Decode_Symbol
+                       (Input, Position, Literal_Lengths).Valid
+              then Next_Symbol'Result.Kind = Fixed.Truncated
+                   and then Next_Symbol'Result.Value = 0
+                   and then Next_Symbol'Result.Length = 0
+                   and then Next_Symbol'Result.Distance = 0
+                   and then Next_Symbol'Result.Position = Position
+              elsif Decode_Symbol
+                      (Input, Position, Literal_Lengths).Symbol <= 255
+              then Next_Symbol'Result.Kind = Fixed.Literal
+                   and then Next_Symbol'Result.Value =
+                     Byte (Decode_Symbol
+                       (Input, Position, Literal_Lengths).Symbol)
+                   and then Next_Symbol'Result.Length = 1
+                   and then Next_Symbol'Result.Distance = 0
+                   and then Next_Symbol'Result.Position =
+                     Decode_Symbol
+                       (Input, Position, Literal_Lengths).Position
+              elsif Decode_Symbol
+                      (Input, Position, Literal_Lengths).Symbol = 256
+              then Next_Symbol'Result.Kind = Fixed.End_Of_Block
+                   and then Next_Symbol'Result.Value = 0
+                   and then Next_Symbol'Result.Length = 0
+                   and then Next_Symbol'Result.Distance = 0
+                   and then Next_Symbol'Result.Position =
+                     Decode_Symbol
+                       (Input, Position, Literal_Lengths).Position
+              elsif Decode_Symbol
+                      (Input, Position, Literal_Lengths).Symbol in 257 .. 264
+              then
+                (if not Decode_Symbol
+                    (Input,
+                     Decode_Symbol
+                       (Input, Position, Literal_Lengths).Position,
+                     Distances).Valid
+                 then Next_Symbol'Result.Kind = Fixed.Truncated
+                      and then Next_Symbol'Result.Value = 0
+                      and then Next_Symbol'Result.Length = 0
+                      and then Next_Symbol'Result.Distance = 0
+                      and then Next_Symbol'Result.Position =
+                        Decode_Symbol
+                          (Input, Position, Literal_Lengths).Position
+                 elsif Decode_Symbol
+                    (Input,
+                     Decode_Symbol
+                       (Input, Position, Literal_Lengths).Position,
+                     Distances).Symbol <= 3
+                 then Next_Symbol'Result.Kind = Fixed.Match
+                      and then Next_Symbol'Result.Value = 0
+                      and then Next_Symbol'Result.Length =
+                        Decode_Symbol
+                          (Input, Position, Literal_Lengths).Symbol - 254
+                      and then Next_Symbol'Result.Distance =
+                        Decode_Symbol
+                          (Input,
+                           Decode_Symbol
+                             (Input, Position, Literal_Lengths).Position,
+                           Distances).Symbol + 1
+                      and then Next_Symbol'Result.Position =
+                        Decode_Symbol
+                          (Input,
+                           Decode_Symbol
+                             (Input, Position, Literal_Lengths).Position,
+                           Distances).Position
+                 else Next_Symbol'Result.Kind = Fixed.Other
+                      and then Next_Symbol'Result.Value = 0
+                      and then Next_Symbol'Result.Length = 0
+                      and then Next_Symbol'Result.Distance = 0
+                      and then Next_Symbol'Result.Position =
+                        Decode_Symbol
+                          (Input,
+                           Decode_Symbol
+                             (Input, Position, Literal_Lengths).Position,
+                           Distances).Position)
+              else Next_Symbol'Result.Kind = Fixed.Other
+                   and then Next_Symbol'Result.Value = 0
+                   and then Next_Symbol'Result.Length = 0
+                   and then Next_Symbol'Result.Distance = 0
+                   and then Next_Symbol'Result.Position =
+                     Decode_Symbol
+                       (Input, Position, Literal_Lengths).Position);
+
+   --  The payload bits through End_Bit decode to Data from Index onward.
+   --  This relation admits any supported tokenization; unlike
+   --  Payload.Is_Encoding, it does not require the compressor's deterministic
+   --  token plan.
+   function Spec_Matches
+     (Input           : Byte_Array;
+      End_Bit         : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position        : Natural;
+      Index           : Natural) return Boolean
+   with
+     Ghost,
+     Pre => Input'Length <= Fixed.Max_Stream_Bytes
+              and then Data'Length <= Max_Input
+              and then Position <= End_Bit
+              and then End_Bit <= 8 * Input'Length
+              and then Index <= Data'Length
+              and then Literal_Lengths.Kind = Codebooks.Canonical
+              and then Distances.Kind = Codebooks.Canonical
+              and then Codebooks.Ready (Literal_Lengths)
+              and then Codebooks.Ready (Distances)
+              and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+              and then Codebooks.Lengths_At_Most (Distances, 9),
+     Contract_Cases =>
+       (Next_Symbol
+          (Input, Position, Literal_Lengths, Distances).Position > End_Bit =>
+          not Spec_Matches'Result,
+        Next_Symbol
+          (Input, Position, Literal_Lengths, Distances).Position <= End_Bit
+          and then Index = Data'Length =>
+          Spec_Matches'Result =
+            (Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Kind =
+                 Fixed.End_Of_Block
+             and then Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Position =
+                 End_Bit),
+        Next_Symbol
+          (Input, Position, Literal_Lengths, Distances).Position <= End_Bit
+          and then Index < Data'Length
+          and then Next_Symbol
+            (Input, Position, Literal_Lengths, Distances).Kind =
+              Fixed.Literal =>
+          Spec_Matches'Result =
+            (Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Value =
+                 Data (Data'First + Index)
+             and then Spec_Matches
+               (Input, End_Bit, Literal_Lengths, Distances, Data,
+                Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Position,
+                Index + 1)),
+        Next_Symbol
+          (Input, Position, Literal_Lengths, Distances).Position <= End_Bit
+          and then Index < Data'Length
+          and then Next_Symbol
+            (Input, Position, Literal_Lengths, Distances).Kind =
+              Fixed.Match =>
+          Spec_Matches'Result =
+            (Fixed.Match_Applies
+               (Data, Index,
+                Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Length,
+                Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Distance)
+             and then Spec_Matches
+               (Input, End_Bit, Literal_Lengths, Distances, Data,
+                Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Position,
+                Index + Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Length)),
+        others => not Spec_Matches'Result),
+     Subprogram_Variant =>
+       (Decreases => Data'Length - Index,
+        Decreases => End_Bit - Position);
+
+   --  Linear executable check for literals, length-3 .. 10 matches at
+   --  distance 1 .. 4, and an end-of-block ending exactly at End_Bit.
+   --  Its proof-only postcondition connects it to Spec_Matches.
+   pragma Assertion_Policy (Post => Ignore);
+   function Encoding_Matches
+     (Input           : Byte_Array;
+      End_Bit         : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array) return Boolean
+   with
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Header_Bit_Count <= End_Bit
+               and then End_Bit <= 8 * Input'Length
+               and then Books_Encodable
+                 (Literal_Lengths, Distances),
+     Post => Encoding_Matches'Result =
+               Spec_Matches
+                 (Input, End_Bit, Literal_Lengths, Distances, Data,
+                  Header_Bit_Count, 0);
+   pragma Assertion_Policy (Post => Check);
+
+   --  A supported self-describing dynamic body decodes to exactly Data.
+   --  This is broader than Is_Encoding by design: analyzer acceptance is
+   --  decode semantics, not a claim that the serializer chose those tokens.
+   function Decodes
+     (Input    : Byte_Array;
+      Produced : Natural;
+      Data     : Byte_Array) return Boolean
+   is
+     (Input'Length <= Fixed.Max_Stream_Bytes
+      and then Input'Length >= Header_Byte_Count
+      and then Data'Length <= Max_Input
+      and then Books_Encodable
+        (Literal_Book_From_Header (Input),
+         Distance_Book_From_Header (Input))
+      and then Header_Encodes
+        (Input,
+         Literal_Book_From_Header (Input),
+         Distance_Book_From_Header (Input))
+      and then Analyze (Input).Valid
+      and then Produced = (Analyze (Input).End_Bit + 7) / 8
+      and then Analyze (Input).Decoded_Length = Data'Length
+      and then Encoding_Matches
+        (Input, Analyze (Input).End_Bit,
+         Literal_Book_From_Header (Input),
+         Distance_Book_From_Header (Input),
+         Data));
+
    --  A semantic dynamic body is accepted by the input-side analyzer with
    --  the same exact byte count and decoded length.  This is the one-way
    --  input-side consequence used by the common-boundary work.
@@ -682,6 +915,47 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
      Post => Analyze (Input).Valid
                and then (Analyze (Input).End_Bit + 7) / 8 = Produced
                and then Analyze (Input).Decoded_Length = Data'Length;
+
+   --  Every deterministic serializer image is also a member of the broader
+   --  decoded-body relation used by executable recognition.
+   procedure Lemma_Encoding_Decodes
+     (Input    : Byte_Array;
+      Produced : Natural;
+      Data     : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre  => Is_Encoding (Input, Produced, Data),
+     Post => Decodes (Input, Produced, Data);
+
+   --  Decode the supported self-describing dynamic fragment.  Analyzer
+   --  acceptance is sufficient because Decodes records the actual token
+   --  semantics rather than claiming the stream used the serializer plan.
+   pragma Assertion_Policy (Post => Ignore);
+   procedure Decompress
+     (Input    : in     Byte_Array;
+      Output   : in out Byte_Array;
+      Consumed :    out Natural;
+      Produced :    out Natural;
+      Success  :    out Boolean)
+   with
+     Global => null,
+     Pre    => Input'Length <= Fixed.Max_Stream_Bytes,
+     Post   => Consumed <= Input'Length
+               and then Produced <= Output'Length
+               and then Success =
+                 (Analyze (Input).Valid
+                  and then Analyze (Input).Decoded_Length <= Output'Length)
+               and then
+             (if Success
+              then Consumed = (Analyze (Input).End_Bit + 7) / 8
+                   and then Produced = Analyze (Input).Decoded_Length
+                   and then Decodes
+                     (Input, Consumed,
+                      Output
+                        (Output'First ..
+                         Output'First - 1 + Produced)));
+   pragma Assertion_Policy (Post => Check);
 
    procedure Lemma_Encoding_Uses_Header_Books
      (Input           : Byte_Array;
@@ -727,6 +1001,26 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
                   After (After'First + I) = Before (Before'First + I)),
      Post   => Is_Encoding (After, Produced, Data);
 
+   --  The broader decoded-body relation has the same container framing
+   --  property: bytes after Produced do not participate in the block.
+   procedure Lemma_Decoding_Frame
+     (Before, After : Byte_Array;
+      Produced      : Natural;
+      Data          : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Before'First = After'First
+                 and then Before'Length <= Fixed.Max_Stream_Bytes
+                 and then After'Length <= Fixed.Max_Stream_Bytes
+                 and then Produced in 1 .. Before'Length
+                 and then Produced <= After'Length
+                 and then Decodes (Before, Produced, Data)
+                 and then
+               (for all I in 0 .. Produced - 1 =>
+                  After (After'First + I) = Before (Before'First + I)),
+     Post   => Decodes (After, Produced, Data);
+
    --  A self-describing dynamic body determines one decoded byte sequence.
    --  The proof compares canonical codewords at each shared bit position and
    --  then uses the LZ77 window equation for matching back-references.
@@ -739,6 +1033,22 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
      Global => null,
      Pre    => Is_Encoding (Input, Produced, Left)
                  and then Is_Encoding (Input, Produced, Right),
+     Post   => Left'Length = Right'Length
+                 and then
+               (for all I in 0 .. Left'Length - 1 =>
+                  Left (Left'First + I) = Right (Right'First + I));
+
+   --  A supported dynamic body has only one decoded byte sequence even when
+   --  its tokenization is not the deterministic serializer plan.
+   procedure Lemma_Decoding_Functional
+     (Input       : Byte_Array;
+      Produced    : Natural;
+      Left, Right : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Decodes (Input, Produced, Left)
+                 and then Decodes (Input, Produced, Right),
      Post   => Left'Length = Right'Length
                  and then
                (for all I in 0 .. Left'Length - 1 =>

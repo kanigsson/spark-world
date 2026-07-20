@@ -9,7 +9,8 @@ project M6_Dynamic_Tree is
 
    package Compiler is
       for Default_Switches ("Ada") use
-        ("-gnat2012", "-gnatwa", "-gnata", "-g", "-O0");
+        ("-gnat2012", "-gnatwa", "-g", "-O0");
+      for Local_Configuration_Pragmas use "../../debug.adc";
    end Compiler;
 
    package Prove is

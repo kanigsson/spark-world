@@ -3,7 +3,6 @@ with Interfaces;
 package body Inflate.Dynamic with SPARK_Mode => On is
 
    use Interfaces;
-   use type Fixed.Symbol_Kind;
 
    --  Proof helpers are erased in the assertion-enabled focused executable,
    --  just as they are in the library's debug configuration.  Ordinary
@@ -1665,6 +1664,145 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       end;
    end Analyze;
 
+   -----------------
+   -- Next_Symbol --
+   -----------------
+
+   function Next_Symbol
+     (Input           : Byte_Array;
+      Position        : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook) return Fixed.Symbol_Result
+   is
+      Literal_Code : constant Decoded_Symbol :=
+        Decode_Symbol (Input, Position, Literal_Lengths);
+   begin
+      if not Literal_Code.Valid then
+         return (Fixed.Truncated, 0, 0, 0, Position);
+      elsif Literal_Code.Symbol <= 255 then
+         return
+           (Fixed.Literal, Byte (Literal_Code.Symbol), 1, 0,
+            Literal_Code.Position);
+      elsif Literal_Code.Symbol = 256 then
+         return (Fixed.End_Of_Block, 0, 0, 0, Literal_Code.Position);
+      elsif Literal_Code.Symbol in 257 .. 264 then
+         declare
+            Distance_Code : constant Decoded_Symbol :=
+              Decode_Symbol (Input, Literal_Code.Position, Distances);
+         begin
+            if not Distance_Code.Valid then
+               return
+                 (Fixed.Truncated, 0, 0, 0, Literal_Code.Position);
+            elsif Distance_Code.Symbol <= 3 then
+               return
+                 (Fixed.Match, 0, Literal_Code.Symbol - 254,
+                  Distance_Code.Symbol + 1, Distance_Code.Position);
+            else
+               return (Fixed.Other, 0, 0, 0, Distance_Code.Position);
+            end if;
+         end;
+      else
+         return (Fixed.Other, 0, 0, 0, Literal_Code.Position);
+      end if;
+   end Next_Symbol;
+
+   ------------------
+   -- Spec_Matches --
+   ------------------
+
+   function Spec_Matches
+     (Input           : Byte_Array;
+      End_Bit         : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position        : Natural;
+      Index           : Natural) return Boolean
+   is
+      S : constant Fixed.Symbol_Result :=
+        Next_Symbol (Input, Position, Literal_Lengths, Distances);
+   begin
+      if S.Position > End_Bit then
+         return False;
+      elsif Index = Data'Length then
+         return S.Kind = Fixed.End_Of_Block
+           and then S.Position = End_Bit;
+      else
+         case S.Kind is
+            when Fixed.Literal =>
+               return S.Value = Data (Data'First + Index)
+                 and then Spec_Matches
+                   (Input, End_Bit, Literal_Lengths, Distances, Data,
+                    S.Position, Index + 1);
+            when Fixed.Match =>
+               return Fixed.Match_Applies
+                 (Data, Index, S.Length, S.Distance)
+                 and then Spec_Matches
+                   (Input, End_Bit, Literal_Lengths, Distances, Data,
+                    S.Position, Index + S.Length);
+            when Fixed.End_Of_Block | Fixed.Other | Fixed.Truncated =>
+               return False;
+         end case;
+      end if;
+   end Spec_Matches;
+
+   ----------------------
+   -- Encoding_Matches --
+   ----------------------
+
+   function Encoding_Matches
+     (Input           : Byte_Array;
+      End_Bit         : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array) return Boolean
+   is
+      Position : Natural := Header_Bit_Count;
+      Index    : Natural := 0;
+      S        : Fixed.Symbol_Result;
+   begin
+      while Index < Data'Length loop
+         pragma Loop_Invariant (Position <= End_Bit);
+         pragma Loop_Invariant (Index <= Data'Length);
+         pragma Loop_Invariant
+           (Spec_Matches
+              (Input, End_Bit, Literal_Lengths, Distances, Data,
+               Header_Bit_Count, 0) =
+            Spec_Matches
+              (Input, End_Bit, Literal_Lengths, Distances, Data,
+               Position, Index));
+         pragma Loop_Variant (Decreases => Data'Length - Index);
+
+         S := Next_Symbol
+           (Input, Position, Literal_Lengths, Distances);
+         if S.Position > End_Bit then
+            return False;
+         end if;
+         case S.Kind is
+            when Fixed.Literal =>
+               if S.Value /= Data (Data'First + Index) then
+                  return False;
+               end if;
+               Position := S.Position;
+               Index := Index + 1;
+            when Fixed.Match =>
+               if not Fixed.Match_Applies
+                 (Data, Index, S.Length, S.Distance)
+               then
+                  return False;
+               end if;
+               Position := S.Position;
+               Index := Index + S.Length;
+            when Fixed.End_Of_Block | Fixed.Other | Fixed.Truncated =>
+               return False;
+         end case;
+      end loop;
+
+      S := Next_Symbol
+        (Input, Position, Literal_Lengths, Distances);
+      return S.Kind = Fixed.End_Of_Block and then S.Position = End_Bit;
+   end Encoding_Matches;
+
    procedure Lemma_Codeword_Decodes
      (Input    : Byte_Array;
       Start    : Natural;
@@ -1740,7 +1878,16 @@ package body Inflate.Dynamic with SPARK_Mode => On is
                   Start + Payload.Data_Bits
                     (Literal_Lengths, Distances, Data, Index),
                   Literal_Lengths, Distances, Index).Decoded_Length =
-                    Data'Length - Index,
+                    Data'Length - Index
+               and then Spec_Matches
+                 (Input,
+                  Start + Payload.Data_Bits
+                    (Literal_Lengths, Distances, Data, Data'Length)
+                    + Codebooks.Length_Of (Literal_Lengths, 256),
+                  Literal_Lengths, Distances, Data,
+                  Start + Payload.Data_Bits
+                    (Literal_Lengths, Distances, Data, Index),
+                  Index),
      Subprogram_Variant => (Decreases => Data'Length - Index);
 
    procedure Lemma_Payload_Analyzes
@@ -1761,6 +1908,15 @@ package body Inflate.Dynamic with SPARK_Mode => On is
               (Input, Bit_Position, Literal_Lengths, 256));
          Lemma_Codeword_Decodes
            (Input, Bit_Position, Literal_Lengths, 256);
+         pragma Assert
+           (Next_Symbol
+              (Input, Bit_Position, Literal_Lengths, Distances).Kind =
+                Fixed.End_Of_Block);
+         pragma Assert
+           (Spec_Matches
+              (Input,
+               Bit_Position + Codebooks.Length_Of (Literal_Lengths, 256),
+               Literal_Lengths, Distances, Data, Bit_Position, Index));
       else
          declare
             Token : constant Fixed.Symbol_Result :=
@@ -1795,9 +1951,31 @@ package body Inflate.Dynamic with SPARK_Mode => On is
                   Lemma_Codeword_Decodes
                     (Input, Literal_Code.Position,
                      Distances, Distance_Symbol);
+                  pragma Assert
+                    (Next_Symbol
+                       (Input, Bit_Position,
+                        Literal_Lengths, Distances).Kind = Fixed.Match);
+                  pragma Assert
+                    (Next_Symbol
+                       (Input, Bit_Position,
+                        Literal_Lengths, Distances).Length = Token.Length);
+                  pragma Assert
+                    (Next_Symbol
+                       (Input, Bit_Position,
+                        Literal_Lengths, Distances).Distance =
+                           Token.Distance);
                end;
             else
                pragma Assert (Literal_Code.Symbol <= 255);
+               pragma Assert
+                 (Next_Symbol
+                    (Input, Bit_Position,
+                     Literal_Lengths, Distances).Kind = Fixed.Literal);
+               pragma Assert
+                 (Next_Symbol
+                    (Input, Bit_Position,
+                     Literal_Lengths, Distances).Value =
+                       Data (Data'First + Index));
             end if;
 
             Payload.Lemma_Data_Bits_Advance
@@ -1805,6 +1983,14 @@ package body Inflate.Dynamic with SPARK_Mode => On is
             Lemma_Payload_Analyzes
               (Input, Start, Literal_Lengths, Distances, Data,
                Fixed.Next_Position (Data, Index));
+            pragma Assert
+              (Spec_Matches
+                 (Input,
+                  Start + Payload.Data_Bits
+                    (Literal_Lengths, Distances, Data, Data'Length)
+                    + Codebooks.Length_Of (Literal_Lengths, 256),
+                  Literal_Lengths, Distances, Data,
+                  Bit_Position, Index));
          end;
       end if;
    end Lemma_Payload_Analyzes;
@@ -1834,6 +2020,43 @@ package body Inflate.Dynamic with SPARK_Mode => On is
             Literal_Lengths, Distances, 0).Valid);
       pragma Assert (Analyze (Input).Valid);
    end Lemma_Encoding_Analyzes;
+
+   ------------------------------
+   -- Lemma_Encoding_Decodes --
+   ------------------------------
+
+   procedure Lemma_Encoding_Decodes
+     (Input    : Byte_Array;
+      Produced : Natural;
+      Data     : Byte_Array)
+   is
+      Literal_Lengths : constant Codebooks.Codebook :=
+        Literal_Book_From_Header (Input);
+      Distances : constant Codebooks.Codebook :=
+        Distance_Book_From_Header (Input);
+   begin
+      Lemma_Encoding_Analyzes (Input, Produced, Data);
+      pragma Assert (Fixed.Token_Boundary (Data, 0));
+      Lemma_Payload_Analyzes
+        (Input, Header_Bit_Count,
+         Literal_Lengths, Distances, Data, 0);
+      pragma Assert
+        (Analyze (Input).End_Bit =
+           Header_Bit_Count
+             + Payload.Data_Bits
+                 (Literal_Lengths, Distances, Data, Data'Length)
+             + Codebooks.Length_Of (Literal_Lengths, 256));
+      pragma Assert
+        (Spec_Matches
+           (Input, Analyze (Input).End_Bit,
+            Literal_Lengths, Distances, Data,
+            Header_Bit_Count, 0));
+      pragma Assert
+        (Encoding_Matches
+           (Input, Analyze (Input).End_Bit,
+            Literal_Lengths, Distances, Data));
+      pragma Assert (Decodes (Input, Produced, Data));
+   end Lemma_Encoding_Decodes;
 
    procedure Lemma_Prefix_Element_Equal
      (Left, Right : Byte_Array; Count, Index : Natural)
@@ -2158,5 +2381,1366 @@ package body Inflate.Dynamic with SPARK_Mode => On is
          Left, Right, 0);
       Lemma_Slice_To_Prefix (Left, Right, Left'Length);
    end Lemma_Encoding_Functional;
+
+   procedure Lemma_Decoded_Spec_Functional
+     (Input           : Byte_Array;
+      End_Bit         : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Left, Right     : Byte_Array;
+      Position, Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Left'Length = Right'Length
+               and then Left'Length <= Max_Input
+               and then Books_Encodable (Literal_Lengths, Distances)
+               and then Position <= End_Bit
+               and then End_Bit <= 8 * Input'Length
+               and then Index <= Left'Length
+               and then Spec_Matches
+                 (Input, End_Bit, Literal_Lengths, Distances,
+                  Left, Position, Index)
+               and then Spec_Matches
+                 (Input, End_Bit, Literal_Lengths, Distances,
+                  Right, Position, Index)
+               and then
+             Left (Left'First .. Left'First + Index - 1) =
+               Right (Right'First .. Right'First + Index - 1),
+     Post => Left (Left'Range) = Right (Right'Range),
+     Subprogram_Variant => (Decreases => Left'Length - Index);
+
+   procedure Lemma_Decoded_Spec_Functional
+     (Input           : Byte_Array;
+      End_Bit         : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Left, Right     : Byte_Array;
+      Position, Index : Natural)
+   is
+      S : constant Fixed.Symbol_Result :=
+        Next_Symbol (Input, Position, Literal_Lengths, Distances);
+   begin
+      if Index = Left'Length then
+         null;
+      elsif S.Kind = Fixed.Literal then
+         pragma Assert
+           (Left (Left'First + Index) = Right (Right'First + Index));
+         Lemma_Slice_Extend_One (Left, Right, 0, Index);
+         Lemma_Decoded_Spec_Functional
+           (Input, End_Bit, Literal_Lengths, Distances,
+            Left, Right, S.Position, Index + 1);
+      else
+         pragma Assert (S.Kind = Fixed.Match);
+         Lemma_Match_Functional
+           (Left, Right, Index, S.Length, S.Distance);
+         Lemma_Prefix_Extend_Match
+           (Left, Right, Index, S.Length);
+         Lemma_Decoded_Spec_Functional
+           (Input, End_Bit, Literal_Lengths, Distances,
+            Left, Right, S.Position, Index + S.Length);
+      end if;
+   end Lemma_Decoded_Spec_Functional;
+
+   procedure Lemma_Decoding_Functional
+     (Input       : Byte_Array;
+      Produced    : Natural;
+      Left, Right : Byte_Array)
+   is
+      Literal_Lengths : constant Codebooks.Codebook :=
+        Literal_Book_From_Header (Input);
+      Distances : constant Codebooks.Codebook :=
+        Distance_Book_From_Header (Input);
+      End_Bit : constant Natural := Analyze (Input).End_Bit;
+   begin
+      pragma Unreferenced (Produced);
+      pragma Assert (Left'Length = Right'Length);
+      Lemma_Decoded_Spec_Functional
+        (Input, End_Bit, Literal_Lengths, Distances,
+         Left, Right, Header_Bit_Count, 0);
+      Lemma_Slice_To_Prefix (Left, Right, Left'Length);
+   end Lemma_Decoding_Functional;
+
+   ----------------------------
+   -- Decoded_Prefix_Matches --
+   ----------------------------
+
+   function Decoded_Prefix_Matches
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural) return Boolean
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Books_Encodable (Literal_Lengths, Distances)
+               and then Position <= End_Position
+               and then End_Position <= 8 * Input'Length
+               and then Index <= End_Index
+               and then End_Index <= Data'Length,
+     Contract_Cases =>
+       (Position = End_Position or else Index = End_Index =>
+          Decoded_Prefix_Matches'Result =
+            (Position = End_Position and then Index = End_Index),
+        Position < End_Position
+          and then Index < End_Index
+          and then Next_Symbol
+            (Input, Position, Literal_Lengths, Distances).Kind =
+              Fixed.Literal =>
+          Decoded_Prefix_Matches'Result =
+            (Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Position <=
+                 End_Position
+             and then Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Value =
+                 Data (Data'First + Index)
+             and then Decoded_Prefix_Matches
+               (Input, Literal_Lengths, Distances, Data,
+                Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Position,
+                Index + 1, End_Position, End_Index)),
+        Position < End_Position
+          and then Index < End_Index
+          and then Next_Symbol
+            (Input, Position, Literal_Lengths, Distances).Kind =
+              Fixed.Match =>
+          Decoded_Prefix_Matches'Result =
+            (Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Position <=
+                 End_Position
+             and then Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Length <=
+                 End_Index - Index
+             and then Fixed.Match_Applies
+               (Data, Index,
+                Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Length,
+                Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Distance)
+             and then Decoded_Prefix_Matches
+               (Input, Literal_Lengths, Distances, Data,
+                Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Position,
+                Index + Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Length,
+                End_Position, End_Index)),
+        others => not Decoded_Prefix_Matches'Result),
+     Subprogram_Variant => (Decreases => End_Position - Position);
+
+   function Decoded_Prefix_Matches
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural) return Boolean
+   is
+      S : constant Fixed.Symbol_Result :=
+        Next_Symbol (Input, Position, Literal_Lengths, Distances);
+   begin
+      if Position = End_Position or else Index = End_Index then
+         return Position = End_Position and then Index = End_Index;
+      elsif S.Kind = Fixed.Literal then
+         return S.Position <= End_Position
+           and then S.Value = Data (Data'First + Index)
+           and then Decoded_Prefix_Matches
+             (Input, Literal_Lengths, Distances, Data,
+              S.Position, Index + 1, End_Position, End_Index);
+      elsif S.Kind = Fixed.Match then
+         return S.Position <= End_Position
+           and then S.Length <= End_Index - Index
+           and then Fixed.Match_Applies
+             (Data, Index, S.Length, S.Distance)
+           and then Decoded_Prefix_Matches
+             (Input, Literal_Lengths, Distances, Data,
+              S.Position, Index + S.Length, End_Position, End_Index);
+      else
+         return False;
+      end if;
+   end Decoded_Prefix_Matches;
+
+   function Decoded_One_Token
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural) return Boolean
+   with
+     Ghost,
+     Pre => Input'Length <= Fixed.Max_Stream_Bytes
+              and then Data'Length <= Max_Input
+              and then Books_Encodable (Literal_Lengths, Distances)
+              and then Position <= 8 * Input'Length
+              and then Index < End_Index
+              and then End_Index <= Data'Length
+              and then End_Position <= 8 * Input'Length,
+     Contract_Cases =>
+       (Next_Symbol
+          (Input, Position, Literal_Lengths, Distances).Kind =
+            Fixed.Literal =>
+          Decoded_One_Token'Result =
+            (End_Position = Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Position
+             and then End_Index = Index + 1
+             and then Data (Data'First + Index) = Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Value),
+        Next_Symbol
+          (Input, Position, Literal_Lengths, Distances).Kind = Fixed.Match =>
+          Decoded_One_Token'Result =
+            (End_Position = Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Position
+             and then End_Index = Index + Next_Symbol
+               (Input, Position, Literal_Lengths, Distances).Length
+             and then Fixed.Match_Applies
+               (Data, Index,
+                Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Length,
+                Next_Symbol
+                  (Input, Position, Literal_Lengths, Distances).Distance)),
+        others => not Decoded_One_Token'Result);
+
+   function Decoded_One_Token
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural) return Boolean
+   is
+      S : constant Fixed.Symbol_Result :=
+        Next_Symbol (Input, Position, Literal_Lengths, Distances);
+   begin
+      if S.Kind = Fixed.Literal then
+         return End_Position = S.Position
+           and then End_Index = Index + 1
+           and then Data (Data'First + Index) = S.Value;
+      elsif S.Kind = Fixed.Match then
+         return End_Position = S.Position
+           and then End_Index = Index + S.Length
+           and then Fixed.Match_Applies
+             (Data, Index, S.Length, S.Distance);
+      else
+         return False;
+      end if;
+   end Decoded_One_Token;
+
+   procedure Lemma_Decoded_Prefix_Element
+     (Left, Right : Byte_Array; Count, Index : Natural)
+   with
+     Ghost,
+     Pre  => Count <= Left'Length
+               and then Count <= Right'Length
+               and then Index < Count
+               and then
+             (for all I in 0 .. Count - 1 =>
+                Left (Left'First + I) = Right (Right'First + I)),
+     Post => Left (Left'First + Index) = Right (Right'First + Index);
+
+   procedure Lemma_Decoded_Prefix_Element
+     (Left, Right : Byte_Array; Count, Index : Natural) is null;
+
+   procedure Lemma_Decoded_Match_Frame
+     (Before, After : Byte_Array;
+      Count, Index, Length, Distance : Natural)
+   with
+     Ghost,
+     Pre  => Before'Length = After'Length
+               and then Count <= Before'Length
+               and then Length in 3 .. 10
+               and then Distance in 1 .. 4
+               and then Distance <= Index
+               and then Index <= Count
+               and then Length <= Count - Index
+               and then Fixed.Match_Applies
+                 (Before, Index, Length, Distance)
+               and then
+             (for all I in 0 .. Count - 1 =>
+                Before (Before'First + I) = After (After'First + I)),
+     Post => Fixed.Match_Applies (After, Index, Length, Distance);
+
+   procedure Lemma_Decoded_Match_Frame
+     (Before, After : Byte_Array;
+      Count, Index, Length, Distance : Natural)
+   is
+   begin
+      for K in 0 .. Length - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. K - 1 =>
+              After (After'First + Index + J) =
+                After (After'First + Index + J - Distance));
+         Lemma_Decoded_Prefix_Element
+           (Before, After, Count, Index + K - Distance);
+         Lemma_Decoded_Prefix_Element
+           (Before, After, Count, Index + K);
+         pragma Assert
+           (After (After'First + Index + K) =
+              After (After'First + Index + K - Distance));
+      end loop;
+   end Lemma_Decoded_Match_Frame;
+
+   procedure Lemma_Decoded_Prefix_Frame
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Before, After   : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Before'Length = After'Length
+               and then Before'Length <= Max_Input
+               and then Books_Encodable (Literal_Lengths, Distances)
+               and then Position <= End_Position
+               and then End_Position <= 8 * Input'Length
+               and then Index <= End_Index
+               and then End_Index <= Before'Length
+               and then Decoded_Prefix_Matches
+                 (Input, Literal_Lengths, Distances, Before,
+                  Position, Index, End_Position, End_Index)
+               and then
+             (for all I in 0 .. End_Index - 1 =>
+                Before (Before'First + I) = After (After'First + I)),
+     Post => Decoded_Prefix_Matches
+       (Input, Literal_Lengths, Distances, After,
+        Position, Index, End_Position, End_Index),
+     Subprogram_Variant => (Decreases => End_Position - Position);
+
+   procedure Lemma_Decoded_Prefix_Frame
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Before, After   : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural)
+   is
+      S : constant Fixed.Symbol_Result :=
+        Next_Symbol (Input, Position, Literal_Lengths, Distances);
+   begin
+      if Position = End_Position then
+         pragma Assert (Index = End_Index);
+      elsif S.Kind = Fixed.Literal then
+         Lemma_Decoded_Prefix_Element
+           (Before, After, End_Index, Index);
+         Lemma_Decoded_Prefix_Frame
+           (Input, Literal_Lengths, Distances, Before, After,
+            S.Position, Index + 1, End_Position, End_Index);
+      else
+         pragma Assert (S.Kind = Fixed.Match);
+         Lemma_Decoded_Match_Frame
+           (Before, After, End_Index, Index, S.Length, S.Distance);
+         Lemma_Decoded_Prefix_Frame
+           (Input, Literal_Lengths, Distances, Before, After,
+            S.Position, Index + S.Length, End_Position, End_Index);
+      end if;
+   end Lemma_Decoded_Prefix_Frame;
+
+   procedure Lemma_Decoded_Prefix_Snoc
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position, Index, Old_Position, Old_Index,
+      New_Position, New_Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Books_Encodable (Literal_Lengths, Distances)
+               and then Position <= Old_Position
+               and then Old_Position < New_Position
+               and then New_Position <= 8 * Input'Length
+               and then Index <= Old_Index
+               and then Old_Index < New_Index
+               and then New_Index <= Data'Length
+               and then Decoded_Prefix_Matches
+                 (Input, Literal_Lengths, Distances, Data,
+                  Position, Index, Old_Position, Old_Index)
+               and then Decoded_One_Token
+                 (Input, Literal_Lengths, Distances, Data,
+                  Old_Position, Old_Index, New_Position, New_Index),
+     Post => Decoded_Prefix_Matches
+       (Input, Literal_Lengths, Distances, Data,
+        Position, Index, New_Position, New_Index),
+     Subprogram_Variant => (Decreases => Old_Position - Position);
+
+   procedure Lemma_Decoded_Prefix_Snoc
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position, Index, Old_Position, Old_Index,
+      New_Position, New_Index : Natural)
+   is
+      S : constant Fixed.Symbol_Result :=
+        Next_Symbol (Input, Position, Literal_Lengths, Distances);
+   begin
+      if Position = Old_Position then
+         pragma Assert (Index = Old_Index);
+      elsif S.Kind = Fixed.Literal then
+         Lemma_Decoded_Prefix_Snoc
+           (Input, Literal_Lengths, Distances, Data,
+            S.Position, Index + 1, Old_Position, Old_Index,
+            New_Position, New_Index);
+      else
+         pragma Assert (S.Kind = Fixed.Match);
+         Lemma_Decoded_Prefix_Snoc
+           (Input, Literal_Lengths, Distances, Data,
+            S.Position, Index + S.Length, Old_Position, Old_Index,
+            New_Position, New_Index);
+      end if;
+   end Lemma_Decoded_Prefix_Snoc;
+
+   procedure Lemma_Decoded_Prefix_Extend
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Before, After   : Byte_Array;
+      Position, Index, Old_Position, Old_Index,
+      New_Position, New_Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Before'Length = After'Length
+               and then Before'Length <= Max_Input
+               and then Books_Encodable (Literal_Lengths, Distances)
+               and then Position <= Old_Position
+               and then Old_Position < New_Position
+               and then New_Position <= 8 * Input'Length
+               and then Index <= Old_Index
+               and then Old_Index < New_Index
+               and then New_Index <= Before'Length
+               and then Decoded_Prefix_Matches
+                 (Input, Literal_Lengths, Distances, Before,
+                  Position, Index, Old_Position, Old_Index)
+               and then Decoded_One_Token
+                 (Input, Literal_Lengths, Distances, After,
+                  Old_Position, Old_Index, New_Position, New_Index)
+               and then
+             (for all I in 0 .. Old_Index - 1 =>
+                Before (Before'First + I) = After (After'First + I)),
+     Post => Decoded_Prefix_Matches
+       (Input, Literal_Lengths, Distances, After,
+        Position, Index, New_Position, New_Index);
+
+   procedure Lemma_Decoded_Prefix_Extend
+     (Input           : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Before, After   : Byte_Array;
+      Position, Index, Old_Position, Old_Index,
+      New_Position, New_Index : Natural)
+   is
+   begin
+      Lemma_Decoded_Prefix_Frame
+        (Input, Literal_Lengths, Distances, Before, After,
+         Position, Index, Old_Position, Old_Index);
+      Lemma_Decoded_Prefix_Snoc
+        (Input, Literal_Lengths, Distances, After,
+         Position, Index, Old_Position, Old_Index,
+         New_Position, New_Index);
+   end Lemma_Decoded_Prefix_Extend;
+
+   procedure Lemma_Decoded_Prefix_Close
+     (Input           : Byte_Array;
+      End_Bit         : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Books_Encodable (Literal_Lengths, Distances)
+               and then Position <= End_Position
+               and then End_Position <= End_Bit
+               and then End_Bit <= 8 * Input'Length
+               and then Index <= End_Index
+               and then End_Index = Data'Length
+               and then Decoded_Prefix_Matches
+                 (Input, Literal_Lengths, Distances, Data,
+                  Position, Index, End_Position, End_Index)
+               and then Next_Symbol
+                 (Input, End_Position,
+                  Literal_Lengths, Distances).Kind = Fixed.End_Of_Block
+               and then Next_Symbol
+                 (Input, End_Position,
+                  Literal_Lengths, Distances).Position = End_Bit,
+     Post => Spec_Matches
+       (Input, End_Bit, Literal_Lengths, Distances, Data,
+        Position, Index),
+     Subprogram_Variant => (Decreases => End_Position - Position);
+
+   procedure Lemma_Decoded_Prefix_Close
+     (Input           : Byte_Array;
+      End_Bit         : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position, Index, End_Position, End_Index : Natural)
+   is
+      S : constant Fixed.Symbol_Result :=
+        Next_Symbol (Input, Position, Literal_Lengths, Distances);
+   begin
+      if Position = End_Position then
+         pragma Assert (Index = End_Index);
+      elsif S.Kind = Fixed.Literal then
+         Lemma_Decoded_Prefix_Close
+           (Input, End_Bit, Literal_Lengths, Distances, Data,
+            S.Position, Index + 1, End_Position, End_Index);
+      else
+         pragma Assert (S.Kind = Fixed.Match);
+         Lemma_Decoded_Prefix_Close
+           (Input, End_Bit, Literal_Lengths, Distances, Data,
+            S.Position, Index + S.Length, End_Position, End_Index);
+      end if;
+   end Lemma_Decoded_Prefix_Close;
+
+   procedure Copy_Decoded_Match
+     (Data     : in out Byte_Array;
+      Produced : in out Natural;
+      Length   : in     Natural;
+      Distance : in     Natural)
+   with
+     Pre  => Data'Length <= Max_Input
+               and then Produced <= Data'Length
+               and then Length in 3 .. 10
+               and then Distance in 1 .. 4
+               and then Distance <= Produced
+               and then Length <= Data'Length - Produced,
+     Post => Produced = Produced'Old + Length
+               and then
+             (for all I in 0 .. Produced'Old - 1 =>
+                Data (Data'First + I) = Data'Old (Data'First + I))
+               and then Fixed.Match_Applies
+                 (Data, Produced'Old, Length, Distance);
+
+   procedure Copy_Decoded_Match
+     (Data     : in out Byte_Array;
+      Produced : in out Natural;
+      Length   : in     Natural;
+      Distance : in     Natural)
+   is
+      First  : constant Buffer_Index := Data'First;
+      P      : constant Natural := Produced;
+      Before : constant Byte_Array := Data with Ghost;
+   begin
+      for K in 0 .. Length - 1 loop
+         pragma Loop_Invariant
+           (for all I in 0 .. P - 1 =>
+              Data (First + I) = Before (Before'First + I));
+         pragma Loop_Invariant
+           (for all J in 0 .. K - 1 =>
+              Data (First + P + J) =
+                Data (First + P + J - Distance));
+         Data (First + P + K) :=
+           Data (First + P + K - Distance);
+      end loop;
+      Produced := P + Length;
+   end Copy_Decoded_Match;
+
+   procedure Lemma_Decoded_Bit_Prefix_Frame
+     (Before, After : Byte_Array;
+      Consumed, Start, Length : Natural)
+   with
+     Ghost,
+     Pre  => Before'Length <= Fixed.Max_Stream_Bytes
+               and then After'Length <= Fixed.Max_Stream_Bytes
+               and then Consumed <= Before'Length
+               and then Consumed <= After'Length
+               and then Start <= 8 * Consumed
+               and then Length <= 8 * Consumed - Start
+               and then Length <= 9
+               and then
+             (for all I in 0 .. Consumed - 1 =>
+                After (After'First + I) = Before (Before'First + I)),
+     Post => Fixed.Prefix_Value (After, Start, Length) =
+               Fixed.Prefix_Value (Before, Start, Length),
+     Subprogram_Variant => (Decreases => Length);
+
+   procedure Lemma_Decoded_Bit_Prefix_Frame
+     (Before, After : Byte_Array;
+      Consumed, Start, Length : Natural)
+   is
+   begin
+      if Length > 0 then
+         Lemma_Decoded_Bit_Prefix_Frame
+           (Before, After, Consumed, Start, Length - 1);
+         Lemma_Byte_Frame
+           (Before, After, Consumed, Start + Length - 1);
+      end if;
+   end Lemma_Decoded_Bit_Prefix_Frame;
+
+   procedure Lemma_Decoded_Next_Frame
+     (Before, After  : Byte_Array;
+      Consumed       : Natural;
+      Position       : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances      : Codebooks.Codebook)
+   with
+     Ghost,
+     Pre  => Before'Length <= Fixed.Max_Stream_Bytes
+               and then After'Length <= Fixed.Max_Stream_Bytes
+               and then Consumed <= Before'Length
+               and then Consumed <= After'Length
+               and then Books_Encodable (Literal_Lengths, Distances)
+               and then Position <= 8 * Consumed
+               and then Next_Symbol
+                 (Before, Position,
+                  Literal_Lengths, Distances).Kind in
+                    Fixed.Literal | Fixed.Match | Fixed.End_Of_Block
+               and then Next_Symbol
+                 (Before, Position,
+                  Literal_Lengths, Distances).Position <= 8 * Consumed
+               and then
+             (for all I in 0 .. Consumed - 1 =>
+                After (After'First + I) = Before (Before'First + I)),
+     Post => Next_Symbol
+       (After, Position, Literal_Lengths, Distances) =
+         Next_Symbol (Before, Position, Literal_Lengths, Distances);
+
+   procedure Lemma_Decoded_Next_Frame
+     (Before, After  : Byte_Array;
+      Consumed       : Natural;
+      Position       : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances      : Codebooks.Codebook)
+   is
+      S : constant Fixed.Symbol_Result :=
+        Next_Symbol
+          (Before, Position, Literal_Lengths, Distances);
+      Symbol : constant Codebooks.Symbol_Index :=
+        (if S.Kind = Fixed.Literal then Natural (S.Value)
+         elsif S.Kind = Fixed.Match then S.Length + 254
+         else 256);
+      Literal_Length : constant Positive :=
+        Codebooks.Length_Of (Literal_Lengths, Symbol);
+   begin
+      Lemma_Decoded_Bit_Prefix_Frame
+        (Before, After, Consumed, Position, Literal_Length);
+      Lemma_Codeword_Decodes
+        (After, Position, Literal_Lengths, Symbol);
+      if S.Kind = Fixed.Match then
+         Lemma_Decoded_Bit_Prefix_Frame
+           (Before, After, Consumed,
+            Position + Literal_Length,
+            Codebooks.Length_Of (Distances, S.Distance - 1));
+         Lemma_Codeword_Decodes
+           (After, Position + Literal_Length,
+            Distances, S.Distance - 1);
+      end if;
+      pragma Assert
+        (Next_Symbol
+           (After, Position, Literal_Lengths, Distances) = S);
+   end Lemma_Decoded_Next_Frame;
+
+   procedure Lemma_Decoded_Spec_Frame
+     (Before, After  : Byte_Array;
+      Consumed       : Natural;
+      End_Bit        : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances      : Codebooks.Codebook;
+      Data           : Byte_Array;
+      Position, Index : Natural)
+   with
+     Ghost,
+     Pre  => Before'Length <= Fixed.Max_Stream_Bytes
+               and then After'Length <= Fixed.Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Consumed in 1 .. Before'Length
+               and then Consumed <= After'Length
+               and then End_Bit <= 8 * Consumed
+               and then Position <= End_Bit
+               and then Index <= Data'Length
+               and then Books_Encodable (Literal_Lengths, Distances)
+               and then Spec_Matches
+                 (Before, End_Bit, Literal_Lengths, Distances,
+                  Data, Position, Index)
+               and then
+             (for all I in 0 .. Consumed - 1 =>
+                After (After'First + I) = Before (Before'First + I)),
+     Post => Spec_Matches
+       (After, End_Bit, Literal_Lengths, Distances,
+        Data, Position, Index),
+     Subprogram_Variant =>
+       (Decreases => Data'Length - Index,
+        Decreases => End_Bit - Position);
+
+   procedure Lemma_Decoded_Spec_Frame
+     (Before, After  : Byte_Array;
+      Consumed       : Natural;
+      End_Bit        : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances      : Codebooks.Codebook;
+      Data           : Byte_Array;
+      Position, Index : Natural)
+   is
+      S : constant Fixed.Symbol_Result :=
+        Next_Symbol
+          (Before, Position, Literal_Lengths, Distances);
+   begin
+      Lemma_Decoded_Next_Frame
+        (Before, After, Consumed, Position,
+         Literal_Lengths, Distances);
+      if Index < Data'Length then
+         if S.Kind = Fixed.Literal then
+            Lemma_Decoded_Spec_Frame
+              (Before, After, Consumed, End_Bit,
+               Literal_Lengths, Distances, Data,
+               S.Position, Index + 1);
+         else
+            pragma Assert (S.Kind = Fixed.Match);
+            Lemma_Decoded_Spec_Frame
+              (Before, After, Consumed, End_Bit,
+               Literal_Lengths, Distances, Data,
+               S.Position, Index + S.Length);
+         end if;
+      end if;
+   end Lemma_Decoded_Spec_Frame;
+
+   procedure Lemma_Matches_Analyzes
+     (Input           : Byte_Array;
+      End_Bit         : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position, Index : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Books_Encodable (Literal_Lengths, Distances)
+               and then Position <= End_Bit
+               and then End_Bit <= 8 * Input'Length
+               and then Index <= Data'Length
+               and then Spec_Matches
+                 (Input, End_Bit, Literal_Lengths, Distances,
+                  Data, Position, Index),
+     Post => Spec_Walk
+               (Input, Position,
+                Literal_Lengths, Distances, Index).Valid
+               and then Spec_Walk
+                 (Input, Position,
+                  Literal_Lengths, Distances, Index).End_Bit = End_Bit
+               and then Spec_Walk
+                 (Input, Position,
+                  Literal_Lengths, Distances, Index).Decoded_Length =
+                    Data'Length - Index,
+     Subprogram_Variant =>
+       (Decreases => Data'Length - Index,
+        Decreases => End_Bit - Position);
+
+   procedure Lemma_Matches_Analyzes
+     (Input           : Byte_Array;
+      End_Bit         : Natural;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array;
+      Position, Index : Natural)
+   is
+      S : constant Fixed.Symbol_Result :=
+        Next_Symbol
+          (Input, Position, Literal_Lengths, Distances);
+   begin
+      if Index = Data'Length then
+         pragma Assert (S.Kind = Fixed.End_Of_Block);
+      elsif S.Kind = Fixed.Literal then
+         Lemma_Matches_Analyzes
+           (Input, End_Bit, Literal_Lengths, Distances,
+            Data, S.Position, Index + 1);
+      else
+         pragma Assert (S.Kind = Fixed.Match);
+         Lemma_Matches_Analyzes
+           (Input, End_Bit, Literal_Lengths, Distances,
+            Data, S.Position, Index + S.Length);
+      end if;
+   end Lemma_Matches_Analyzes;
+
+   procedure Lemma_Equal_Books_Encodable
+     (Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook)
+   with
+     Ghost,
+     Pre  => Before_Literals = After_Literals
+               and then Before_Distances = After_Distances
+               and then Books_Encodable
+                 (Before_Literals, Before_Distances),
+     Post => Books_Encodable (After_Literals, After_Distances);
+
+   procedure Lemma_Equal_Books_Encodable
+     (Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances   : Codebooks.Codebook)
+   is
+   begin
+      pragma Assert (Before_Literals.Kind = Codebooks.Canonical);
+      pragma Assert (After_Literals.Kind = Codebooks.Canonical);
+      pragma Assert (Before_Literals.Lengths = After_Literals.Lengths);
+      pragma Assert (Before_Literals.Counts = After_Literals.Counts);
+      Codebooks.Lemma_Ready_From_Fields
+        (Before_Literals, After_Literals);
+      Codebooks.Lemma_Lengths_At_Most_From_Fields
+        (Before_Literals, After_Literals, 9);
+      Codebooks.Lemma_Length_Of_From_Fields
+        (Before_Literals, After_Literals);
+
+      pragma Assert (Before_Distances.Kind = Codebooks.Canonical);
+      pragma Assert (After_Distances.Kind = Codebooks.Canonical);
+      pragma Assert (Before_Distances.Lengths = After_Distances.Lengths);
+      pragma Assert (Before_Distances.Counts = After_Distances.Counts);
+      Codebooks.Lemma_Ready_From_Fields
+        (Before_Distances, After_Distances);
+      Codebooks.Lemma_Lengths_At_Most_From_Fields
+        (Before_Distances, After_Distances, 9);
+      Codebooks.Lemma_Length_Of_From_Fields
+        (Before_Distances, After_Distances);
+   end Lemma_Equal_Books_Encodable;
+
+   procedure Lemma_Equal_Book_Decode
+     (Input         : Byte_Array;
+      Position      : Natural;
+      Before, After : Codebooks.Codebook)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Position <= 8 * Input'Length
+               and then Before.Kind = Codebooks.Canonical
+               and then After.Kind = Codebooks.Canonical
+               and then Before.Lengths = After.Lengths
+               and then Before.Counts = After.Counts
+               and then Codebooks.Ready (Before)
+               and then Codebooks.Ready (After)
+               and then Codebooks.Lengths_At_Most (Before, 9)
+               and then Codebooks.Lengths_At_Most (After, 9),
+     Post => Decode_Symbol (Input, Position, Before) =
+               Decode_Symbol (Input, Position, After);
+
+   procedure Lemma_Equal_Book_Decode
+     (Input         : Byte_Array;
+      Position      : Natural;
+      Before, After : Codebooks.Codebook)
+   is
+      Left  : constant Decoded_Symbol :=
+        Decode_Symbol (Input, Position, Before);
+      Right : constant Decoded_Symbol :=
+        Decode_Symbol (Input, Position, After);
+   begin
+      Codebooks.Lemma_Length_Of_From_Fields (Before, After);
+      if Left.Valid then
+         Codebooks.Lemma_Code_Of_From_Fields
+           (Before, After, Left.Symbol);
+         pragma Assert
+           (Code_Matches (Input, Position, After, Left.Symbol));
+         pragma Assert (Right.Valid);
+         Lemma_Codewords_Unique
+           (Input, Position, After, Left.Symbol, Right.Symbol);
+         pragma Assert (Left.Symbol = Right.Symbol);
+         pragma Assert
+           (Codebooks.Length_Of (Before, Left.Symbol) =
+              Codebooks.Length_Of (After, Right.Symbol));
+      elsif Right.Valid then
+         Codebooks.Lemma_Code_Of_From_Fields
+           (Before, After, Right.Symbol);
+         pragma Assert
+           (Code_Matches (Input, Position, Before, Right.Symbol));
+         pragma Assert (False);
+      end if;
+   end Lemma_Equal_Book_Decode;
+
+   procedure Lemma_Equal_Books_Next
+     (Input                            : Byte_Array;
+      Position                         : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances : Codebooks.Codebook)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Position <= 8 * Input'Length
+               and then Before_Literals = After_Literals
+               and then Before_Distances = After_Distances
+               and then Books_Encodable
+                 (Before_Literals, Before_Distances)
+               and then Books_Encodable
+                 (After_Literals, After_Distances),
+     Post => Next_Symbol
+               (Input, Position, Before_Literals, Before_Distances) =
+             Next_Symbol
+               (Input, Position, After_Literals, After_Distances);
+
+   procedure Lemma_Equal_Books_Next
+     (Input                            : Byte_Array;
+      Position                         : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances : Codebooks.Codebook)
+   is
+      Literal_Code : constant Decoded_Symbol :=
+        Decode_Symbol (Input, Position, Before_Literals);
+   begin
+      Lemma_Equal_Books_Encodable
+        (Before_Literals, Before_Distances,
+         After_Literals, After_Distances);
+      Lemma_Equal_Book_Decode
+        (Input, Position, Before_Literals, After_Literals);
+      if Literal_Code.Valid
+        and then Literal_Code.Symbol in 257 .. 264
+      then
+         Lemma_Equal_Book_Decode
+           (Input, Literal_Code.Position,
+            Before_Distances, After_Distances);
+      end if;
+   end Lemma_Equal_Books_Next;
+
+   procedure Lemma_Equal_Books_Spec
+     (Input                            : Byte_Array;
+      End_Bit                         : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances : Codebooks.Codebook;
+      Data                             : Byte_Array;
+      Position, Index                  : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Data'Length <= Max_Input
+               and then Position <= End_Bit
+               and then End_Bit <= 8 * Input'Length
+               and then Index <= Data'Length
+               and then Before_Literals = After_Literals
+               and then Before_Distances = After_Distances
+               and then Books_Encodable
+                 (Before_Literals, Before_Distances)
+               and then Books_Encodable
+                 (After_Literals, After_Distances)
+               and then Spec_Matches
+                 (Input, End_Bit,
+                  Before_Literals, Before_Distances,
+                  Data, Position, Index),
+     Post => Spec_Matches
+       (Input, End_Bit, After_Literals, After_Distances,
+        Data, Position, Index),
+     Subprogram_Variant =>
+       (Decreases => Data'Length - Index,
+        Decreases => End_Bit - Position);
+
+   procedure Lemma_Equal_Books_Spec
+     (Input                            : Byte_Array;
+      End_Bit                         : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances : Codebooks.Codebook;
+      Data                             : Byte_Array;
+      Position, Index                  : Natural)
+   is
+      Before_Symbol : constant Fixed.Symbol_Result :=
+        Next_Symbol
+          (Input, Position, Before_Literals, Before_Distances);
+      After_Symbol : constant Fixed.Symbol_Result :=
+        Next_Symbol
+          (Input, Position, After_Literals, After_Distances);
+   begin
+      Lemma_Equal_Books_Encodable
+        (Before_Literals, Before_Distances,
+         After_Literals, After_Distances);
+      Lemma_Equal_Books_Next
+        (Input, Position,
+         Before_Literals, Before_Distances,
+         After_Literals, After_Distances);
+      pragma Assert (Before_Symbol = After_Symbol);
+      pragma Assert (Before_Symbol.Position <= End_Bit);
+      if Index = Data'Length then
+         pragma Assert (Before_Symbol.Kind = Fixed.End_Of_Block);
+      elsif Before_Symbol.Kind = Fixed.Literal then
+         Lemma_Equal_Books_Spec
+           (Input, End_Bit,
+            Before_Literals, Before_Distances,
+            After_Literals, After_Distances,
+            Data, Before_Symbol.Position, Index + 1);
+      else
+         pragma Assert (Before_Symbol.Kind = Fixed.Match);
+         Lemma_Equal_Books_Spec
+           (Input, End_Bit,
+            Before_Literals, Before_Distances,
+            After_Literals, After_Distances,
+            Data, Before_Symbol.Position, Index + Before_Symbol.Length);
+      end if;
+   end Lemma_Equal_Books_Spec;
+
+   procedure Lemma_Equal_Books_Spec_Walk
+     (Input                            : Byte_Array;
+      Position                         : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances : Codebooks.Codebook;
+      Decoded                          : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Position <= 8 * Input'Length
+               and then Decoded <= Max_Input
+               and then Before_Literals = After_Literals
+               and then Before_Distances = After_Distances
+               and then Books_Encodable
+                 (Before_Literals, Before_Distances)
+               and then Books_Encodable
+                 (After_Literals, After_Distances),
+     Post => Spec_Walk
+       (Input, Position, Before_Literals, Before_Distances, Decoded) =
+       Spec_Walk
+         (Input, Position, After_Literals, After_Distances, Decoded),
+     Subprogram_Variant =>
+       (Decreases => 8 * Input'Length - Position);
+
+   procedure Lemma_Equal_Books_Spec_Walk
+     (Input                            : Byte_Array;
+      Position                         : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances : Codebooks.Codebook;
+      Decoded                          : Natural)
+   is
+      Literal_Code : constant Decoded_Symbol :=
+        Decode_Symbol (Input, Position, Before_Literals);
+      After_Literal_Code : constant Decoded_Symbol :=
+        Decode_Symbol (Input, Position, After_Literals);
+   begin
+      Lemma_Equal_Books_Encodable
+        (Before_Literals, Before_Distances,
+         After_Literals, After_Distances);
+      Lemma_Equal_Book_Decode
+        (Input, Position, Before_Literals, After_Literals);
+      pragma Assert (Literal_Code = After_Literal_Code);
+
+      if not Literal_Code.Valid then
+         pragma Assert
+           (Spec_Walk
+              (Input, Position,
+               Before_Literals, Before_Distances, Decoded) =
+            Spec_Walk
+              (Input, Position,
+               After_Literals, After_Distances, Decoded));
+      elsif Literal_Code.Symbol <= 255 then
+         if Decoded < Max_Input then
+            Lemma_Equal_Books_Spec_Walk
+              (Input, Literal_Code.Position,
+               Before_Literals, Before_Distances,
+               After_Literals, After_Distances,
+               Decoded + 1);
+         end if;
+         pragma Assert
+           (Spec_Walk
+              (Input, Position,
+               Before_Literals, Before_Distances, Decoded) =
+            Spec_Walk
+              (Input, Position,
+               After_Literals, After_Distances, Decoded));
+      elsif Literal_Code.Symbol = 256 then
+         pragma Assert
+           (Spec_Walk
+              (Input, Position,
+               Before_Literals, Before_Distances, Decoded) =
+            Spec_Walk
+              (Input, Position,
+               After_Literals, After_Distances, Decoded));
+      elsif Literal_Code.Symbol in 257 .. 264 then
+         declare
+            Length : constant Natural := Literal_Code.Symbol - 254;
+            Distance_Code : constant Decoded_Symbol :=
+              Decode_Symbol
+                (Input, Literal_Code.Position, Before_Distances);
+            After_Distance_Code : constant Decoded_Symbol :=
+              Decode_Symbol
+                (Input, Literal_Code.Position, After_Distances);
+         begin
+            Lemma_Equal_Book_Decode
+              (Input, Literal_Code.Position,
+               Before_Distances, After_Distances);
+            pragma Assert (Distance_Code = After_Distance_Code);
+            if Distance_Code.Valid
+              and then Distance_Code.Symbol <= 3
+              and then Distance_Code.Symbol + 1 <= Decoded
+              and then Length <= Max_Input - Decoded
+            then
+               Lemma_Equal_Books_Spec_Walk
+                 (Input, Distance_Code.Position,
+                  Before_Literals, Before_Distances,
+                  After_Literals, After_Distances,
+                  Decoded + Length);
+            end if;
+            pragma Assert
+              (Spec_Walk
+                 (Input, Position,
+                  Before_Literals, Before_Distances, Decoded) =
+               Spec_Walk
+                 (Input, Position,
+                  After_Literals, After_Distances, Decoded));
+         end;
+      else
+         pragma Assert
+           (Spec_Walk
+              (Input, Position,
+               Before_Literals, Before_Distances, Decoded) =
+            Spec_Walk
+              (Input, Position,
+               After_Literals, After_Distances, Decoded));
+      end if;
+   end Lemma_Equal_Books_Spec_Walk;
+
+   procedure Lemma_Equal_Books_Walk
+     (Input                            : Byte_Array;
+      Position                        : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances : Codebooks.Codebook;
+      Decoded                         : Natural)
+   with
+     Ghost,
+     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
+               and then Position <= 8 * Input'Length
+               and then Decoded <= Max_Input
+               and then Before_Literals = After_Literals
+               and then Before_Distances = After_Distances
+               and then Books_Encodable
+                 (Before_Literals, Before_Distances)
+               and then Books_Encodable
+                 (After_Literals, After_Distances),
+     Post => Walk
+       (Input, Position, Before_Literals, Before_Distances, Decoded) =
+       Walk
+         (Input, Position, After_Literals, After_Distances, Decoded);
+
+   procedure Lemma_Equal_Books_Walk
+     (Input                            : Byte_Array;
+      Position                        : Natural;
+      Before_Literals, Before_Distances : Codebooks.Codebook;
+      After_Literals, After_Distances : Codebooks.Codebook;
+      Decoded                         : Natural)
+   is
+   begin
+      Lemma_Equal_Books_Encodable
+        (Before_Literals, Before_Distances,
+         After_Literals, After_Distances);
+      Lemma_Equal_Books_Spec_Walk
+        (Input, Position,
+         Before_Literals, Before_Distances,
+         After_Literals, After_Distances, Decoded);
+   end Lemma_Equal_Books_Walk;
+
+   procedure Lemma_Decoding_Frame
+     (Before, After : Byte_Array;
+      Produced      : Natural;
+      Data          : Byte_Array)
+   is
+      Literal_Lengths : constant Codebooks.Codebook :=
+        Literal_Book_From_Header (Before);
+      Distances : constant Codebooks.Codebook :=
+        Distance_Book_From_Header (Before);
+      End_Bit : constant Natural := Analyze (Before).End_Bit;
+   begin
+      pragma Assert (End_Bit <= 8 * Produced);
+      pragma Assert (Books_Encodable (Literal_Lengths, Distances));
+      Lemma_Header_Frame
+        (Before, After, Literal_Lengths, Distances);
+      pragma Assert
+        (Header_Encodes (After, Literal_Lengths, Distances));
+      Lemma_Header_Books_Recovered
+        (After, Literal_Lengths, Distances);
+      pragma Assert
+        (Literal_Book_From_Header (After) = Literal_Lengths);
+      pragma Assert
+        (Distance_Book_From_Header (After) = Distances);
+      Lemma_Equal_Books_Encodable
+        (Literal_Lengths, Distances,
+         Literal_Book_From_Header (After),
+         Distance_Book_From_Header (After));
+      pragma Assert
+        (Books_Encodable
+           (Literal_Book_From_Header (After),
+            Distance_Book_From_Header (After)));
+      pragma Assert
+        (Header_Encodes
+           (After,
+            Literal_Book_From_Header (After),
+            Distance_Book_From_Header (After)));
+      Lemma_Decoded_Spec_Frame
+        (Before, After, Produced, End_Bit,
+         Literal_Lengths, Distances, Data,
+         Header_Bit_Count, 0);
+      pragma Assert
+        (Spec_Matches
+           (After, End_Bit, Literal_Lengths, Distances,
+            Data, Header_Bit_Count, 0));
+      Lemma_Matches_Analyzes
+         (After, End_Bit, Literal_Lengths, Distances,
+         Data, Header_Bit_Count, 0);
+      Lemma_Equal_Books_Spec
+        (After, End_Bit, Literal_Lengths, Distances,
+         Literal_Book_From_Header (After),
+         Distance_Book_From_Header (After),
+         Data, Header_Bit_Count, 0);
+      pragma Assert
+        (Spec_Matches
+           (After, End_Bit,
+            Literal_Book_From_Header (After),
+            Distance_Book_From_Header (After),
+            Data, Header_Bit_Count, 0));
+      pragma Assert
+        (Walk
+           (After, Header_Bit_Count,
+            Literal_Lengths, Distances, 0).Valid);
+      pragma Assert
+        (Walk
+           (After, Header_Bit_Count,
+            Literal_Lengths, Distances, 0).End_Bit = End_Bit);
+      pragma Assert
+        (Walk
+           (After, Header_Bit_Count,
+            Literal_Lengths, Distances, 0).Decoded_Length = Data'Length);
+      Lemma_Equal_Books_Walk
+        (After, Header_Bit_Count,
+         Literal_Lengths, Distances,
+         Literal_Book_From_Header (After),
+         Distance_Book_From_Header (After), 0);
+      pragma Assert
+        (Walk
+           (After, Header_Bit_Count,
+            Literal_Book_From_Header (After),
+            Distance_Book_From_Header (After), 0) =
+         Walk
+           (After, Header_Bit_Count,
+            Literal_Lengths, Distances, 0));
+      pragma Assert
+        (Analyze (After) =
+           Walk
+             (After, Header_Bit_Count,
+              Literal_Book_From_Header (After),
+              Distance_Book_From_Header (After), 0));
+      pragma Assert (Analyze (After).Valid);
+      pragma Assert (Analyze (After).End_Bit = End_Bit);
+      pragma Assert
+        (Analyze (After).Decoded_Length = Data'Length);
+      pragma Assert (Produced = (End_Bit + 7) / 8);
+      pragma Assert (Decodes (After, Produced, Data));
+   end Lemma_Decoding_Frame;
+
+   ----------------
+   -- Decompress --
+   ----------------
+
+   procedure Decompress
+     (Input    : in     Byte_Array;
+      Output   : in out Byte_Array;
+      Consumed :    out Natural;
+      Produced :    out Natural;
+      Success  :    out Boolean)
+   is
+      Info : constant Stream_Info := Analyze (Input);
+   begin
+      Consumed := 0;
+      Produced := 0;
+      Success := False;
+      if not Info.Valid or else Info.Decoded_Length > Output'Length then
+         return;
+      end if;
+      declare
+         Literal_Lengths : constant Codebooks.Codebook :=
+           Literal_Book_From_Header (Input);
+         Distances : constant Codebooks.Codebook :=
+           Distance_Book_From_Header (Input);
+         Data : Byte_Array renames
+           Output (Output'First .. Output'First - 1 + Info.Decoded_Length);
+         Position : Natural := Header_Bit_Count;
+         Count    : Natural := 0;
+         S        : Fixed.Symbol_Result;
+      begin
+         loop
+            pragma Loop_Invariant
+              (Position in Header_Bit_Count .. Info.End_Bit);
+            pragma Loop_Invariant (Count <= Info.Decoded_Length);
+            pragma Loop_Invariant
+              (Spec_Walk
+                 (Input, Position,
+                  Literal_Lengths, Distances, Count).Valid);
+            pragma Loop_Invariant
+              (Spec_Walk
+                 (Input, Position,
+                  Literal_Lengths, Distances, Count).End_Bit =
+                   Info.End_Bit);
+            pragma Loop_Invariant
+              (Count + Spec_Walk
+                 (Input, Position,
+                  Literal_Lengths, Distances, Count).Decoded_Length =
+                   Info.Decoded_Length);
+            pragma Loop_Invariant
+              (Decoded_Prefix_Matches
+                 (Input, Literal_Lengths, Distances, Data,
+                  Header_Bit_Count, 0, Position, Count));
+            pragma Loop_Variant (Increases => Position);
+
+            S := Next_Symbol
+              (Input, Position, Literal_Lengths, Distances);
+            case S.Kind is
+               when Fixed.Literal =>
+                  pragma Assert (Count < Info.Decoded_Length);
+                  declare
+                     Before       : constant Byte_Array := Data with Ghost;
+                     Old_Position : constant Natural := Position;
+                     Old_Count    : constant Natural := Count;
+                  begin
+                     Data (Data'First + Count) := S.Value;
+                     Position := S.Position;
+                     Count := Count + 1;
+                     pragma Assert
+                       (for all I in 0 .. Old_Count - 1 =>
+                          Data (Data'First + I) =
+                            Before (Before'First + I));
+                     pragma Assert
+                       (Decoded_One_Token
+                          (Input, Literal_Lengths, Distances, Data,
+                           Old_Position, Old_Count, Position, Count));
+                     Lemma_Decoded_Prefix_Extend
+                       (Input, Literal_Lengths, Distances, Before, Data,
+                        Header_Bit_Count, 0, Old_Position, Old_Count,
+                        Position, Count);
+                  end;
+
+               when Fixed.Match =>
+                  pragma Assert (S.Distance <= Count);
+                  pragma Assert
+                    (S.Length <= Info.Decoded_Length - Count);
+                  declare
+                     Before       : constant Byte_Array := Data with Ghost;
+                     Old_Position : constant Natural := Position;
+                     Old_Count    : constant Natural := Count;
+                  begin
+                     Copy_Decoded_Match
+                       (Data, Count, S.Length, S.Distance);
+                     Position := S.Position;
+                     pragma Assert
+                       (Decoded_One_Token
+                          (Input, Literal_Lengths, Distances, Data,
+                           Old_Position, Old_Count, Position, Count));
+                     Lemma_Decoded_Prefix_Extend
+                       (Input, Literal_Lengths, Distances, Before, Data,
+                        Header_Bit_Count, 0, Old_Position, Old_Count,
+                        Position, Count);
+                  end;
+
+               when Fixed.End_Of_Block =>
+                  pragma Assert (Count = Info.Decoded_Length);
+                  pragma Assert (S.Position = Info.End_Bit);
+                  Consumed := (S.Position + 7) / 8;
+                  Produced := Count;
+                  Lemma_Decoded_Prefix_Close
+                    (Input, Info.End_Bit,
+                     Literal_Lengths, Distances, Data,
+                     Header_Bit_Count, 0, Position, Count);
+                  pragma Assert
+                    (Spec_Matches
+                       (Input, Info.End_Bit,
+                        Literal_Lengths, Distances, Data,
+                        Header_Bit_Count, 0));
+                  pragma Assert (Decodes (Input, Consumed, Data));
+                  Success := True;
+                  return;
+
+               when Fixed.Other | Fixed.Truncated =>
+                  pragma Assert (False);
+            end case;
+         end loop;
+      end;
+   end Decompress;
 
 end Inflate.Dynamic;

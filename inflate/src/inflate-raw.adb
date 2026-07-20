@@ -19,6 +19,7 @@
 
 with Inflate.LZ77;
 with Inflate.Fixed;
+with Inflate.Dynamic;
 
 package body Inflate.Raw with SPARK_Mode => On is
 
@@ -899,7 +900,7 @@ package body Inflate.Raw with SPARK_Mode => On is
         (Consumed => 0, Bit_Buf => 0, Bit_Cnt => 0, Produced => 0);
       BFinal, BType : Natural;
       Good, Valid     : Boolean;
-      Fixed_Success   : Boolean;
+      Fixed_Success, Dynamic_Success : Boolean;
       Lit_Table, Dist_Table : Huffman_Table;
 
       --  Ghost state for the stored-fragment postcondition. H is that
@@ -1060,6 +1061,26 @@ package body Inflate.Raw with SPARK_Mode => On is
               (not (Input'Length >= 5
                     and then Model.Stored_Stream_End
                       (Input, Input'First, Input'Last) > 0));
+            pragma Assert
+              (Model.Is_Decoding (Input, Output, Consumed, Produced));
+            return;
+         end if;
+
+         Dynamic.Decompress
+           (Input, Output, Consumed, Produced, Dynamic_Success);
+         if Dynamic_Success then
+            Status := OK;
+            pragma Assert (Dynamic.Analyze (Input).Valid);
+            pragma Assert
+              (Dynamic.Decodes
+                 (Input, Consumed,
+                  Output (Output'First .. Output'First - 1 + Produced)));
+            Bodies.Lemma_Dynamic_Decoding
+              (Input, Consumed,
+               Output (Output'First .. Output'First - 1 + Produced));
+            Bodies.Lemma_Encoding_Recognized
+              (Input, Consumed,
+               Output (Output'First .. Output'First - 1 + Produced));
             pragma Assert
               (Model.Is_Decoding (Input, Output, Consumed, Produced));
             return;

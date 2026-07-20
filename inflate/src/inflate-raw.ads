@@ -31,11 +31,11 @@ package Inflate.Raw with SPARK_Mode => On is
    --  from full-Ada code, or zeroed from SPARK code.
    --
    --  The second postcondition is the decode half of the round-trip theorem
-   --  over the common compressor-image boundary.  Whenever a recognized
-   --  stored or fixed body starts at Input'First (trailing container bytes
-   --  are fine) and its decoded size fits, decoding succeeds and returns the
-   --  exact Body_Encodes relation.  Higher layers do not need to branch on
-   --  the selected DEFLATE representation.
+   --  over the common semantic-body boundary.  Whenever a recognized
+   --  stored, fixed, or dynamic body starts at Input'First (trailing
+   --  container bytes are fine) and its decoded size fits, decoding succeeds
+   --  and returns the exact Body_Encodes relation.  Higher layers do not need
+   --  to branch on the selected DEFLATE representation.
    procedure Decompress
      (Input    : in     Byte_Array;
       Output   : in out Byte_Array;

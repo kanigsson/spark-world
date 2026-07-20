@@ -108,13 +108,15 @@ foreign streams through `Is_Decoding`:
 
 - `src/inflate-model.ads:1-13`
 
-The full model independently parses block framing and dynamic headers, builds
-canonical tables from code lengths, decodes symbols bit by bit, and checks
-literal and LZ77 output. `Raw.Decompress` returns `OK` only when the optimized
-decoder's exact result passes this model, and the public postcondition states
-that fact. This resolves the earlier lack of a functional contract on general
-DEFLATE output, but by runtime checked refinement rather than a static proof of
-the fast decoder against the canonical parser.
+The model's primary path independently parses block framing and dynamic
+headers, builds canonical tables from code lengths, decodes symbols bit by bit,
+and checks literal and LZ77 output. Exact fixed and dynamic relations supplement
+it as proof-completeness fallbacks for the specialized decoders.
+`Raw.Decompress` returns `OK` only when the optimized decoder's exact result
+passes this model, and the public postcondition states that fact. This resolves
+the earlier lack of a functional contract on general DEFLATE output, but by
+runtime checked refinement rather than a static proof of the fast decoder
+against the canonical parser.
 
 The CRC-specific part of this finding is resolved. `Inflate.CRC32` now defines
 a table-independent reflected GF(2) specification: one bit of polynomial
@@ -129,10 +131,10 @@ polynomial step:
 Thus a table-generation or table-lookup mistake cannot satisfy the proof merely
 because the model repeats the same table walk. The remaining issue is the
 compressor-image wire format: `Inflate.Bodies.Body_Encodes` now removes the
-format split from the container and theorem layers and admits the dynamic
-serializer relation, but that common proof-only boundary is still built from
-the library's own relations rather than an independently formalized RFC
-semantics. A shared format mistake could
+format split from the container and theorem layers and admits the broader
+dynamic decoded-body relation, but that common proof-only boundary is still
+built from the library's own relations rather than an independently formalized
+RFC semantics. A shared format mistake could
 satisfy the formal round-trip theorem while failing an independent gzip
 implementation. The tests
 against C zlib provide useful evidence against such a mistake, but they are not
@@ -164,7 +166,7 @@ A current run of:
 gnatprove -P inflate.gpr --level=4 --report=fail
 ```
 
-completed successfully with 6,659 checks, all proved. The generated summary
+completed successfully with 7,595 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -184,8 +186,9 @@ Subject to public preconditions, the proof establishes:
   emitted body;
 - one proof-only `Body_Encodes` boundary for stored, fixed, and dynamic semantic
   images, with common introduction, framing, cross-format disjointness, and
-  functionality; executable recognition and decoder completeness remain on the
-  selected stored/fixed alternatives used by the branch-free round-trip theorem;
+  functionality; executable recognition, exact sizes, decoder completeness,
+  and model agreement now cover the dynamic alternative as well, while the
+  branch-free round-trip theorem still selects stored/fixed output;
 - bounded dynamic-Huffman length construction: every nonzero-frequency symbol
   is assigned a code of length at most nine and the resulting code is complete
   by exact scaled Kraft equality, without an optimality claim;
@@ -202,10 +205,12 @@ Subject to public preconditions, the proof establishes:
   with trailing bytes; canonical prefix separation, rank uniqueness, and the
   LZ77 window equation additionally prove that this self-describing dynamic
   relation is functional in its decoded byte sequence; a bounded canonical
-  analyzer accepts every such relation from the input alone and its one-way
-  bridge lemma proves the exact encoded byte count and decoded length;
-- compressor-image decode success, exact consumption and production, and
-  agreement with the selected relation when the decoded data fits the output;
+  analyzer plus executable semantic checker defines the broader accepted
+  `Dynamic.Decodes` relation without claiming deterministic serializer
+  tokenization; the specialized decoder proves exact bytes, consumption, and
+  production for every accepted stream whose decoded data fits the output;
+- semantic-body decode success and agreement with the common relation for
+  stored, fixed, and dynamic bodies when the decoded data fits the output;
 - gzip framing values used by the compressor, including the input length and a
   checksum proved equal to the reflected polynomial CRC model;
 - Adler-32 checksum computation as a byte-by-byte fold of the two direct
@@ -257,8 +262,6 @@ The formal result does not establish:
   without extra-bit length or distance codes;
 - dynamic-Huffman output from the top-level gzip compressor (the serialized
   header and body currently remain a proved local path);
-- dynamic serializer-image completeness in the shipping decoder and the
-  corresponding executable common recognition/size routing;
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;
 - stored-DEFLATE, zlib, gzip, or ZIP wire semantics against an independently

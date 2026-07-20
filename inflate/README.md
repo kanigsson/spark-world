@@ -95,17 +95,16 @@ is also proved functional: canonical prefix separation identifies the same
 literal/length and distance symbols in any two witnesses, and the LZ77 window
 equation then fixes every matched byte. The focused harness exercises the
 framing shape with unrelated trailing bytes. A bounded input-side analyzer now
-recovers those same books, walks canonical literal/match codes without an
-output witness, and is proved to recover the semantic body's exact byte count
-and decoded length. The proof-only `Body_Encodes` relation now admits this
-dynamic image and routes its introduction, framing, and functionality through
-the same boundary as stored and fixed bodies. Executable recognition and
-decoder completeness remain integrated only for stored/fixed bodies: the local
-dynamic analyzer proves that every serializer image is recognized, but not the
-converse needed by the raw decoder's completeness contract. The top-level gzip
-compressor therefore does not select the dynamic body yet. Closing that decoder
-bridge, gzip selection, lengths requiring extra bits, and wider distances remain
-M6 ratio work. Any gzip decoder consumes the current fixed or stored output. The
+recovers those same books and walks canonical literal/match codes without an
+output witness. An executable semantic checker and specialized decoder prove
+the exact output for every accepted bounded dynamic body; serializer images are
+a narrower subset of that relation. The proof-only `Body_Encodes` relation and
+executable recognition/size queries now route dynamic bodies through the same
+boundary as stored and fixed bodies, and the public raw decoder has the
+corresponding proved success path. The top-level gzip compressor still does not
+select the dynamic body. Gzip selection, lengths requiring extra bits, and
+wider distances remain M6 ratio work. Any gzip decoder consumes the current
+fixed or stored output. The
 contract is preserved across both selected encodings:
 
 - **Totality and size.** Under the stated preconditions there is no failure
@@ -132,14 +131,14 @@ contract is preserved across both selected encodings:
   and the content-invariance of the CRC. Its proof body has no stored/fixed
   format branch.
 
-The three-format semantic relation is proof-only because its dynamic
-alternative uses proof-only payload semantics. The test suite instead runs the
-independent executable full DEFLATE model over every compressor result, and C
-zlib independently decodes every produced member back to the original bytes.
+The three-format semantic relation remains proof-only, while the precise
+dynamic decoded-body alternative is executable. The test suite runs the
+executable full DEFLATE model over every compressor result, and C zlib
+independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **6,659 checks,
+The most recent recorded `gnatprove --level=4` run reported **7,595 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -147,10 +146,12 @@ functional contracts described above: the compressor's postcondition ties
 its output to the decode model, and `Raw.Decompress` proves that every
 `Status = OK` result satisfies the full model over the exact consumed input
 and produced output. The decoder enforces this as a checked-refinement
-boundary: after its optimized pass succeeds, an independent canonical model
-validates the returned bytes; disagreement is a defined rejection. This is
-functional correctness relative to the executable model, not a proof that
-the model is RFC 1951. The proof also covers the M4 LZ77 contract: every validated
+boundary: after its optimized pass succeeds, the model's independent canonical
+parser, or an exact specialized semantic fallback used by the proved fixed and
+dynamic paths, validates the returned bytes; disagreement is a defined
+rejection. This is functional correctness relative to the executable model,
+not a proof that the model is RFC 1951. The proof also covers the M4 LZ77
+contract: every validated
 match used by the shipping decoder preserves the already-produced prefix
 and appends bytes satisfying the back-reference window equation, including
 the forward-copy overlap case. All recursion in the model and its lemmas is
@@ -198,14 +199,13 @@ Some proof-relevant structure:
   therefore share the concrete writer and its framing proof.
 - `Inflate.Bodies.Body_Encodes` hides stored, fixed, and dynamic semantic
   alternatives from the raw, gzip, and theorem layers. Dynamic introduction,
-  framing, cross-format disjointness, and functionality now route through the
-  same proof-only relation. Executable `Recognized`, `Encoded_Size`, and
-  `Decoded_Size` remain stored/fixed until a dynamic decoder-completeness bridge
-  can show that analyzer acceptance produces bytes in the narrower serializer
-  relation; the current gzip theorem therefore remains on its unchanged
-  stored/fixed selection path.
+  framing, cross-format disjointness, functionality, executable recognition,
+  exact sizes, and raw decode success now route through the same boundary. The
+  dynamic relation records actual decoded token semantics and does not equate
+  analyzer acceptance with the narrower deterministic serializer image. The
+  current gzip theorem remains on its unchanged stored/fixed selection path.
 - The full model deliberately does not reuse the shipping Huffman table or
-  fast map. Its canonical table builder and parser prove 685 checks in the
+  fast map. Its canonical table builder and parser prove 711 checks in the
   focused model unit; the shipping decoder calls the model only after an
   otherwise successful decode.
 - Two table-internal bounds that would need ghost summation to prove

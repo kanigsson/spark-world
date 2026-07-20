@@ -28,3 +28,17 @@ if decoded != b"abcabcabc":
     raise AssertionError(f"C zlib decoded {decoded!r}")
 
 print("C zlib dynamic-body interoperability passed")
+
+match = re.search(
+    r"^alternative dynamic body hex: ([0-9a-f]+)$",
+    result.stdout,
+    re.MULTILINE,
+)
+if match is None:
+    raise AssertionError("alternative dynamic body hex output is missing")
+
+decoded = zlib.decompress(bytes.fromhex(match.group(1)), wbits=-15)
+if decoded != b"abcabcabc":
+    raise AssertionError(f"C zlib decoded alternative body as {decoded!r}")
+
+print("C zlib alternative-tokenization interoperability passed")

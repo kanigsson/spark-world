@@ -165,12 +165,14 @@ spec-faithfulness caveat — trustworthy only up to the ghost model, so make the
 ghost model executable and run it through the zlib differential suite (see the
 mechanization section). **Medium once the pieces exist.**
 
-**Current status: complete as checked refinement.** `Inflate.Model.Is_Decoding`
-is an independent executable canonical parser for stored, fixed-Huffman, and
-dynamic-Huffman blocks. It reads dynamic length RLE, builds its own canonical
-tables directly from the transmitted lengths, decodes symbols bit by bit, and
-validates literals and overlapping LZ77 matches against the returned output;
-it does not reuse the shipping fast table. `Inflate.Raw.Decompress` retains
+**Current status: complete as checked refinement.** The primary path of
+`Inflate.Model.Is_Decoding` is an independent executable canonical parser for
+stored, fixed-Huffman, and dynamic-Huffman blocks. It reads dynamic length RLE,
+builds its own canonical tables directly from the transmitted lengths, decodes
+symbols bit by bit, and validates literals and overlapping LZ77 matches against
+the returned output; it does not reuse the shipping fast table. Exact fixed and
+dynamic semantic relations now supplement that parser as proof-completeness
+fallbacks for the specialized decoders. `Inflate.Raw.Decompress` retains
 `Status = OK` only when that exact consumed/produced result satisfies the model,
 and its public postcondition exposes the relation. Thus the proof is
 unconditional for successful foreign DEFLATE streams but remains explicitly
@@ -226,8 +228,8 @@ M2–M5, it does not avoid them.
   research project of its own and buys round-trip nothing.
 
 **Current status: in progress, with a verified fixed-Huffman LZ77 slice, a
-proved local dynamic-Huffman body serializer, and a common semantic body
-boundary covering stored, fixed, and dynamic images.**
+proved local dynamic-Huffman body serializer and decoder, and a common
+semantic body boundary recognizing stored, fixed, and dynamic images.**
 `Inflate.Fixed` emits and recognizes one final fixed-code block containing
 literals, selected matches, and end-of-block. Its compression plan is now
 explicit: `Selected_Token`, `Next_Position`, and `Token_Bit_Cost` operate only
@@ -247,10 +249,11 @@ from the largest stream whose bit offsets plus gzip trailer fit in `Natural`
 encoding relation, and decoded-prefix checker are iterative; proof-only
 recursive relations and framing lemmas are erased from checks-enabled builds.
 `Inflate.GZip.Compress` selects this fixed coding throughout that domain and
-uses the stored encoder above it. `Inflate.Raw.Decompress` retains a proved
-success path for the expanded image. `Inflate.Bodies.Body_Encodes` now hides
-the body format from `Inflate.Raw`, `Inflate.GZip`, and `Inflate.Theorems`: its
-stored/fixed recognition plus common framing and functionality lemmas replace
+uses the stored encoder above it. `Inflate.Raw.Decompress` has proved
+specialized success paths for both bounded Huffman images.
+`Inflate.Bodies.Body_Encodes` now hides the body format from `Inflate.Raw`,
+`Inflate.GZip`, and `Inflate.Theorems`: its common recognition, framing, and
+functionality lemmas replace
 the former member predicates and `GZip_Round_Trip` has no format branch. Match
 lengths requiring extra bits, wider distances, and top-level dynamic-block
 selection remain open M6 ratio work. `Inflate.Dynamic.Build_Lengths` is the
@@ -293,27 +296,33 @@ preserve the witness-free dynamic relation when a container adds trailing
 bytes. `Inflate.Dynamic.Lemma_Encoding_Functional` proves that one such body
 cannot denote two different byte sequences: canonical prefix separation and
 rank uniqueness identify each literal/length and distance symbol, while the M4
-window equation makes matching back-references functional. The final local
-prerequisite is now complete as well: `Inflate.Dynamic.Analyze` recovers the
-canonical books and walks the bounded payload from the input alone, while
-`Lemma_Encoding_Analyzes` proves that every self-describing dynamic relation is
-recognized with its exact encoded byte count and decoded length. Dynamic
-introduction, framing, cross-format disjointness, and functionality now route
-through `Body_Encodes`. The executable `Recognized`, `Encoded_Size`, and
-`Decoded_Size` queries remain stored/fixed: analyzer acceptance is a broader
-input-side condition than the serializer relation, so the remaining bridge is
-a decoder-completeness result that returns bytes satisfying that relation.
+window equation makes matching back-references functional. The
+decoder-completeness bridge is now complete. `Inflate.Dynamic.Analyze` recovers
+the canonical books and walks the bounded payload from the input alone. The
+executable `Encoding_Matches` predicate checks actual literal/match semantics,
+and the broader `Dynamic.Decodes` relation combines that check with the
+recovered header, exact consumed size, and decoded length. It deliberately does
+not claim that an accepted input used the serializer's deterministic token
+plan. `Dynamic.Decompress` constructs the bytes for every accepted bounded
+stream whose output fits and proves `Decodes`; serializer images map into that
+relation through `Lemma_Encoding_Decodes`. Framing and functionality are proved
+for this broader relation. `Body_Encodes`, executable `Recognized`,
+`Encoded_Size`, and `Decoded_Size`, the raw decoder's success contract, and the
+executable full model now route dynamic bodies alongside stored and fixed
+bodies. The top-level gzip compressor still does not select the dynamic body.
 
-The focused dynamic project proves all 5,810 checks at `--level=4`; the full
-library proves all 6,659 checks at `--level=4`, with no justifications or
+The focused `Inflate.Dynamic` unit proves all 2,418 checks at `--level=4`; the
+full library proves all 7,595 checks at `--level=4`, with no justifications or
 assumptions.
 The dynamic runtime harness covers empty, singleton, sparse, and full DEFLATE
-alphabets, an exact shared-payload bit pattern, and a complete dynamic body that
-round trips through the shipping decoder and its independent model. The
+alphabets, an exact shared-payload bit pattern, and complete dynamic bodies that
+round trip through the specialized and public shipping decoders. One body uses
+the deterministic match plan; another uses nine literals for the same data,
+exercising accepted semantics outside the serializer image. The
 input-side analyzer reports its exact encoded and decoded sizes before and
 after the body is copied into a differently bounded larger buffer with
 unrelated trailing bytes; the shipping decoder also round trips that framing.
-C zlib independently decodes the body. The complete debug suite passes 6,445
+C zlib independently decodes both bodies. The complete debug suite passes 6,445
 cases and 18 compressor differential cases, including exact bit-level checks
 for length-ten matches at distances one, three, and four.
 
@@ -407,11 +416,8 @@ M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
 literal/match slice with the same full-domain gzip theorem, plus a proved
 local dynamic header and body serializer. The remaining ratio work is:
 
-1. **Complete dynamic decoder recognition.** `Body_Encodes` now has a dynamic
-   semantic alternative with common introduction, framing, and functionality.
-   Prove that the shipping decoder accepts the serializer image and returns
-   bytes satisfying that alternative, then extend the executable common
-   recognition and size queries without treating broader analyzer acceptance
-   as serializer membership.
-2. **Add the dynamic gzip branch.** Select the proved dynamic body locally and
+1. **Add the dynamic gzip branch.** Select the proved dynamic body locally and
    lift it through the completed decoder-success and round-trip path.
+2. **Extend the ratio domain.** Add length/distance codes requiring extra bits
+   and widen the current distance-four match window without weakening the
+   completed semantic boundary.
