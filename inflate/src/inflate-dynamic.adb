@@ -1843,12 +1843,34 @@ package body Inflate.Dynamic with SPARK_Mode => On is
                and then Count <= Right'Length
                and then Index < Count
                and then
-             (for all I in 0 .. Count - 1 =>
-                Left (Left'First + I) = Right (Right'First + I)),
+             Left (Left'First .. Left'First + Count - 1) =
+               Right (Right'First .. Right'First + Count - 1),
      Post => Left (Left'First + Index) = Right (Right'First + Index);
 
    procedure Lemma_Prefix_Element_Equal
      (Left, Right : Byte_Array; Count, Index : Natural) is null;
+
+   procedure Lemma_Slice_Extend_One
+     (Left, Right : Byte_Array; Index, Count : Natural)
+   with
+     Ghost,
+     Pre  => Index <= Left'Length
+               and then Index <= Right'Length
+               and then Count < Left'Length - Index
+               and then Count < Right'Length - Index
+               and then
+             Left (Left'First + Index .. Left'First + Index + Count - 1) =
+               Right
+                 (Right'First + Index .. Right'First + Index + Count - 1)
+               and then
+             Left (Left'First + Index + Count) =
+               Right (Right'First + Index + Count),
+     Post =>
+       Left (Left'First + Index .. Left'First + Index + Count) =
+         Right (Right'First + Index .. Right'First + Index + Count);
+
+   procedure Lemma_Slice_Extend_One
+     (Left, Right : Byte_Array; Index, Count : Natural) is null;
 
    procedure Lemma_Match_Functional
      (Left, Right : Byte_Array; Index, Length, Distance : Natural)
@@ -1866,12 +1888,12 @@ package body Inflate.Dynamic with SPARK_Mode => On is
                and then Fixed.Match_Applies
                  (Right, Index, Length, Distance)
                and then
-             (for all I in 0 .. Index - 1 =>
-                Left (Left'First + I) = Right (Right'First + I)),
+             Left (Left'First .. Left'First + Index - 1) =
+               Right (Right'First .. Right'First + Index - 1),
      Post =>
-       (for all K in 0 .. Length - 1 =>
-          Left (Left'First + Index + K) =
-            Right (Right'First + Index + K));
+       Left (Left'First + Index .. Left'First + Index + Length - 1) =
+         Right
+           (Right'First + Index .. Right'First + Index + Length - 1);
 
    procedure Lemma_Match_Functional
      (Left, Right : Byte_Array; Index, Length, Distance : Natural)
@@ -1882,6 +1904,10 @@ package body Inflate.Dynamic with SPARK_Mode => On is
            (for all J in 0 .. K - 1 =>
               Left (Left'First + Index + J) =
                 Right (Right'First + Index + J));
+         pragma Loop_Invariant
+           (Left (Left'First + Index .. Left'First + Index + K - 1) =
+              Right
+                (Right'First + Index .. Right'First + Index + K - 1));
          if K < Distance then
             Lemma_Prefix_Element_Equal
               (Left, Right, Index, Index + K - Distance);
@@ -1891,8 +1917,25 @@ package body Inflate.Dynamic with SPARK_Mode => On is
          pragma Assert
            (Left (Left'First + Index + K) =
               Right (Right'First + Index + K));
+         Lemma_Slice_Extend_One (Left, Right, Index, K);
       end loop;
    end Lemma_Match_Functional;
+
+   procedure Lemma_Slice_To_Prefix
+     (Left, Right : Byte_Array; Count : Natural)
+   with
+     Ghost,
+     Pre  => Count <= Left'Length
+               and then Count <= Right'Length
+               and then
+             Left (Left'First .. Left'First + Count - 1) =
+               Right (Right'First .. Right'First + Count - 1),
+     Post =>
+       (for all I in 0 .. Count - 1 =>
+          Left (Left'First + I) = Right (Right'First + I));
+
+   procedure Lemma_Slice_To_Prefix
+     (Left, Right : Byte_Array; Count : Natural) is null;
 
    procedure Lemma_Prefix_Extend_Match
      (Left, Right : Byte_Array; Index, Length : Natural)
@@ -1904,69 +1947,19 @@ package body Inflate.Dynamic with SPARK_Mode => On is
                and then Length <= Left'Length - Index
                and then Length <= Right'Length - Index
                and then
-             (for all I in 0 .. Index - 1 =>
-                Left (Left'First + I) = Right (Right'First + I))
+             Left (Left'First .. Left'First + Index - 1) =
+               Right (Right'First .. Right'First + Index - 1)
                and then
-             (for all K in 0 .. Length - 1 =>
-                Left (Left'First + Index + K) =
-                  Right (Right'First + Index + K)),
+             Left
+               (Left'First + Index .. Left'First + Index + Length - 1) =
+               Right
+                 (Right'First + Index .. Right'First + Index + Length - 1),
      Post =>
-       (for all I in 0 .. Index + Length - 1 =>
-          Left (Left'First + I) = Right (Right'First + I));
+       Left (Left'First .. Left'First + Index + Length - 1) =
+         Right (Right'First .. Right'First + Index + Length - 1);
 
    procedure Lemma_Prefix_Extend_Match
-     (Left, Right : Byte_Array; Index, Length : Natural)
-   is
-   begin
-      for I in 0 .. Index + Length - 1 loop
-         pragma Loop_Invariant
-           (for all J in 0 .. I - 1 =>
-              Left (Left'First + J) = Right (Right'First + J));
-         if I < Index then
-            pragma Assert
-              (Left (Left'First + I) = Right (Right'First + I));
-         else
-            pragma Assert (I - Index < Length);
-            pragma Assert
-              (Left (Left'First + Index + (I - Index)) =
-                 Right (Right'First + Index + (I - Index)));
-         end if;
-      end loop;
-   end Lemma_Prefix_Extend_Match;
-
-   procedure Lemma_Prefix_Extend
-     (Left, Right : Byte_Array; Old_Count, New_Count : Natural)
-   with
-     Ghost,
-     Pre  => Old_Count <= New_Count
-               and then New_Count <= Left'Length
-               and then New_Count <= Right'Length
-               and then
-             (for all I in 0 .. Old_Count - 1 =>
-                Left (Left'First + I) = Right (Right'First + I))
-               and then
-             (for all I in Old_Count .. New_Count - 1 =>
-                Left (Left'First + I) = Right (Right'First + I)),
-     Post =>
-       (for all I in 0 .. New_Count - 1 =>
-          Left (Left'First + I) = Right (Right'First + I));
-
-   procedure Lemma_Prefix_Extend
-     (Left, Right : Byte_Array; Old_Count, New_Count : Natural)
-   is
-   begin
-      for I in 0 .. New_Count - 1 loop
-         pragma Loop_Invariant
-           (for all J in 0 .. I - 1 =>
-              Left (Left'First + J) = Right (Right'First + J));
-         if I < Old_Count then
-            pragma Assert
-              (Left (Left'First + I) = Right (Right'First + I));
-         else
-            pragma Assert (I in Old_Count .. New_Count - 1);
-         end if;
-      end loop;
-   end Lemma_Prefix_Extend;
+     (Left, Right : Byte_Array; Index, Length : Natural) is null;
 
    procedure Lemma_Payload_Functional
      (Input           : Byte_Array;
@@ -2003,12 +1996,11 @@ package body Inflate.Dynamic with SPARK_Mode => On is
                    Payload.Data_Bits
                      (Literal_Lengths, Distances, Right, Index)
                and then
-             (for all I in 0 .. Index - 1 =>
-                Left (Left'First + I) = Right (Right'First + I)),
+             Left (Left'First .. Left'First + Index - 1) =
+               Right (Right'First .. Right'First + Index - 1),
      Post => Left'Length = Right'Length
                and then
-             (for all I in 0 .. Left'Length - 1 =>
-                Left (Left'First + I) = Right (Right'First + I)),
+             Left (Left'Range) = Right (Right'Range),
      Subprogram_Variant =>
        (Decreases => Left'Length - Index + Right'Length - Index);
 
@@ -2118,7 +2110,7 @@ package body Inflate.Dynamic with SPARK_Mode => On is
                pragma Assert
                  (Left (Left'First + Index) =
                     Right (Right'First + Index));
-               Lemma_Prefix_Extend (Left, Right, Index, Index + 1);
+               Lemma_Slice_Extend_One (Left, Right, 0, Index);
             end if;
 
             Payload.Lemma_Data_Bits_Advance
@@ -2164,6 +2156,7 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       Lemma_Payload_Functional
         (Input, Header_Bit_Count, Literal_Lengths, Distances,
          Left, Right, 0);
+      Lemma_Slice_To_Prefix (Left, Right, Left'Length);
    end Lemma_Encoding_Functional;
 
 end Inflate.Dynamic;
