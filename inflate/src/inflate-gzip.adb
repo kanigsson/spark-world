@@ -248,7 +248,7 @@ package body Inflate.GZip with SPARK_Mode => On is
    is
       N           : constant Natural      := Input'Length;
       Try_Dynamic : constant Boolean      :=
-        Dynamic.Selects_Zero_Run (Input);
+        Dynamic.Selects_Byte_Run (Input);
       Use_Fixed : Boolean :=
         not Try_Dynamic and then N <= Fixed.Max_Input;
       Body_Bound  : constant Positive     :=
@@ -268,17 +268,20 @@ package body Inflate.GZip with SPARK_Mode => On is
       --  around the returned prefix below.
       if Try_Dynamic then
          pragma Assert (N <= Dynamic.Max_Input);
-         Dynamic.Compress_Zero_Run
+         Dynamic.Compress_Byte_Run
            (Input,
             Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced,
             Dynamic_Success);
-         if Dynamic_Success then
+         if Dynamic_Success
+           and then Raw_Produced < Fixed.Encoded_Size (Input)
+         then
             Bodies.Lemma_Dynamic_Encoding
               (Output (F + 10 .. F + 9 + Body_Bound),
                Raw_Produced, Input);
          else
-            --  Retain totality if the checked canonical builder ever rejects
-            --  the statically selected sparse frequency set.
+            --  Retain totality if the checked canonical builder rejects, and
+            --  retain the exact fixed image unless dynamic coding is smaller.
+            Dynamic_Success := False;
             Use_Fixed := True;
             pragma Assert (Fixed.Max_Size (N) <= Dynamic.Max_Size (N));
             Fixed.Compress

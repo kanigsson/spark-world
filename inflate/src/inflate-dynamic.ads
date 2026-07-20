@@ -53,16 +53,16 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
      Pre  => N <= Max_Input,
      Post => Max_Size'Result <= Fixed.Max_Stream_Bytes - 8;
 
-   --  The first top-level dynamic selection is deliberately narrow.  Long
-   --  zero runs have a small, fixed set of literal/length and distance symbols,
-   --  so a sparse dynamic book repays this package's deliberately uncompressed
-   --  header.  Other inputs retain the fixed or stored gzip paths while later
-   --  M6 work generalizes frequency collection.
-   Dynamic_Zero_Min_Input : constant := 4_096;
+   --  The first data-dependent top-level dynamic selection is deliberately
+   --  narrow.  Long constant-byte runs have a small set of literal/length and
+   --  distance symbols, so a sparse dynamic book repays this package's
+   --  deliberately uncompressed header.  Other inputs retain the fixed or
+   --  stored gzip paths while later M6 work generalizes frequency collection.
+   Dynamic_Run_Min_Input : constant := 4_096;
 
-   function Selects_Zero_Run (Data : Byte_Array) return Boolean is
-     (Data'Length in Dynamic_Zero_Min_Input .. Max_Input
-      and then (for all B of Data => B = 0));
+   function Selects_Byte_Run (Data : Byte_Array) return Boolean is
+     (Data'Length in Dynamic_Run_Min_Input .. Max_Input
+      and then (for all B of Data => B = Data (Data'First)));
 
    subtype Symbol_Index is Natural range 0 .. Max_Symbols - 1;
    subtype Symbol_Count is Natural range 0 .. Max_Symbols;
@@ -1085,17 +1085,18 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
                    (Output, Produced, Literal_Lengths, Distances, Data);
    pragma Assertion_Policy (Pre => Check, Post => Check);
 
-   --  Serialize the sparse dynamic body selected by Selects_Zero_Run.  The
-   --  witness-free postcondition is the exact boundary consumed by gzip.
+   --  Serialize the sparse dynamic body selected by Selects_Byte_Run.  The
+   --  literal book is specialized to the repeated byte; the witness-free
+   --  postcondition is the exact boundary consumed by gzip.
    pragma Assertion_Policy (Post => Ignore);
-   procedure Compress_Zero_Run
+   procedure Compress_Byte_Run
      (Data     : in     Byte_Array;
       Output   : in out Byte_Array;
       Produced :    out Natural;
       Success  :    out Boolean)
    with
      Global => null,
-     Pre    => Selects_Zero_Run (Data)
+     Pre    => Selects_Byte_Run (Data)
                  and then Output'Length <= Fixed.Max_Stream_Bytes
                  and then Output'Length >= Max_Size (Data'Length),
      Post   => Produced <= Max_Size (Data'Length)

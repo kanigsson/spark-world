@@ -166,7 +166,7 @@ A current run of:
 gnatprove -P inflate.gpr --level=4 -j0 --timeout=60 --report=fail
 ```
 
-completed successfully with 7,687 checks, all proved. The generated summary
+completed successfully with 7,695 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -212,9 +212,10 @@ Subject to public preconditions, the proof establishes:
   production for every accepted stream whose decoded data fits the output;
 - semantic-body decode success and agreement with the common relation for
   stored, fixed, and dynamic bodies when the decoded data fits the output;
-- top-level dynamic-Huffman selection for zero runs of at least 4,096 bytes,
-  using sparse complete books for the current token domain and a defensive
-  fixed fallback if checked canonical construction rejects;
+- top-level dynamic-Huffman selection for constant-byte runs of at least 4,096
+  bytes, using a sparse complete literal book specialized to the repeated byte
+  and retaining the candidate only when its exact body beats fixed coding, with
+  a defensive fixed fallback if checked canonical construction rejects;
 - gzip framing values used by the compressor, including the input length and a
   checksum proved equal to the reflected polynomial CRC model;
 - Adler-32 checksum computation as a byte-by-byte fold of the two direct
@@ -264,8 +265,8 @@ The formal result does not establish:
 - general or optimal LZ77 selection in the compressor: fixed-Huffman matching
   remains limited to lengths three through ten and distances one through four,
   without extra-bit length or distance codes;
-- general frequency- and cost-driven dynamic-Huffman selection beyond the
-  bounded long-zero-run top-level class;
+- general frequency-driven dynamic-Huffman selection beyond the bounded
+  constant-byte-run top-level class;
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;
 - stored-DEFLATE, zlib, gzip, or ZIP wire semantics against an independently
@@ -281,9 +282,9 @@ With language checks enabled and proof contracts disabled, the full debug test
 suite completed successfully with:
 
 ```text
-generated 6447 cases
-cases: 6447  failures: 0
-compress differential: 20 cases, 0 failures
+generated 6449 cases
+cases: 6449  failures: 0
+compress differential: 22 cases, 0 failures
 ```
 
 This is substantial evidence for general DEFLATE/zlib/gzip behavior, malformed

@@ -383,11 +383,13 @@ executable common recognition and size queries, raw success contract, and model
 agreement now cover dynamic input as well as stored and fixed input.
 
 This completes the dynamic decoder-completeness consequence at the common
-boundary. `Inflate.GZip.Compress` now consumes it for the first bounded class:
-zero runs of at least 4,096 bytes use sparse complete books covering the current
-literal/length and distance domain, with a defensive fixed fallback if checked
-book construction rejects. The exact dynamic prefix is reframed with the gzip
-trailer through `Body_Encodes`, so the theorem layer remains format-independent.
+boundary. `Inflate.GZip.Compress` now consumes it for the first data-dependent
+bounded class: constant-byte runs of at least 4,096 bytes use sparse complete
+books specialized to the repeated literal and covering the current
+literal/length and distance domain. The exact candidate size is compared with
+the fixed body and retained only when smaller; checked book rejection also
+falls back to fixed. The exact dynamic prefix is reframed with the gzip trailer
+through `Body_Encodes`, so the theorem layer remains format-independent.
 Separate specialized fixed and dynamic decoders remain useful local proof paths
 beneath that shared contract.
 
@@ -398,9 +400,9 @@ M6 work.  The fixed-Huffman compressor, now with boundary-based longest
 matches of length three through ten at distances one through four, is connected
 through `Inflate.GZip.Compress`, the raw decoder's proved success path, and
 `Inflate.Theorems.GZip_Round_Trip`. The first dynamic gzip branch now preserves
-that same connection for long zero runs. The remaining work is to generalize
-frequency collection and cost-based dynamic selection, then support more
-lengths and wider distances. The broader fixed-code baseline, bounded `Step`/`Trace`
+that same connection for profitable long constant-byte runs. The remaining work
+is to collect coverage/frequencies from nonconstant token plans, then support
+more lengths and wider distances. The broader fixed-code baseline, bounded `Step`/`Trace`
 reassessment, dynamic header/body serializer, and common semantic body
 boundary and the dynamic witness-erasure, framing, functionality, decoder,
 executable-recognition, and first gzip-selection proofs are now complete.
@@ -455,10 +457,11 @@ wrapped a working specialized relation without removing it.
    routes common framing, functionality, executable recognition, exact sizes,
    and raw decode success. The dynamic decoded-body relation is broader than
    the deterministic serializer image but checks actual token semantics.
-9. **Complete for the first top-level class.** Long zero runs select sparse
-   dynamic books, retain a checked fixed fallback, and pass through gzip and
-   `GZip_Round_Trip` without reintroducing a format branch above
-   `Body_Encodes`. General frequency-driven selection remains ratio work.
+9. **Complete for the first data-dependent top-level class.** Long constant-byte
+   runs select books specialized to the repeated literal, retain the candidate
+   only when its exact body beats fixed coding, and pass through gzip and
+   `GZip_Round_Trip` without reintroducing a format branch above `Body_Encodes`.
+   General frequency collection for nonconstant plans remains ratio work.
 
 This is feature-driven abstraction: establish a semantic seam before concrete
 proof logic is duplicated, but generalize it only when the next feature gives

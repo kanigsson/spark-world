@@ -137,15 +137,16 @@ package Inflate.GZip with SPARK_Mode => On is
    --  threshold the bound reserves its deliberately large direct-length
    --  header even when the data ultimately stays on the fixed path.
    function Compressed_Size (N : Natural) return Positive is
-     ((if N < Dynamic.Dynamic_Zero_Min_Input
+     ((if N < Dynamic.Dynamic_Run_Min_Input
        then Fixed.Max_Size (N)
        elsif N <= Dynamic.Max_Input then Dynamic.Max_Size (N)
        elsif N <= Fixed.Max_Input then Fixed.Max_Size (N)
        else Raw.Stored_Size (N)) + 18)
    with Pre => N <= Raw.Max_Compress_Input;
 
-   --  Produce a complete gzip member holding Input. Long zero runs first try
-   --  the sparse dynamic-Huffman selection; other inputs within the fixed
+   --  Produce a complete gzip member holding Input. Long constant-byte runs
+   --  first try a sparse dynamic-Huffman body and retain it only when it is
+   --  smaller than the exact fixed alternative. Other inputs within the fixed
    --  arithmetic domain use fixed-Huffman literals and selected verified
    --  matches; larger inputs use stored blocks. All are consumable by any gzip
    --  decoder and total under the precondition; Compressed_Size is the caller's
@@ -166,8 +167,8 @@ package Inflate.GZip with SPARK_Mode => On is
      Pre    => Input'Length <= Raw.Max_Compress_Input
                and then Output'Length >= Compressed_Size (Input'Length),
      Post   =>
-       (if Dynamic.Selects_Zero_Run (Input)
-        then Produced <= Dynamic.Max_Size (Input'Length) + 18
+       (if Dynamic.Selects_Byte_Run (Input)
+        then Produced <= Fixed.Encoded_Size (Input) + 18
         elsif Input'Length <= Fixed.Max_Input
         then Produced = Fixed.Encoded_Size (Input) + 18
         else Produced = Raw.Stored_Size (Input'Length) + 18)

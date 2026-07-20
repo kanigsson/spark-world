@@ -55,6 +55,21 @@ with tempfile.TemporaryDirectory(prefix="inflate-cli-") as directory:
     run("decompress", large_compressed, large_restored)
     assert large_restored.read_bytes() == large.read_bytes()
 
+    # The first data-dependent dynamic selection also covers nonzero constant
+    # runs and retains the candidate only when it beats the fixed-code body.
+    nonzero_run = work / "nonzero-byte-run"
+    nonzero_data = bytes([0xA5]) * 64_000
+    nonzero_run.write_bytes(nonzero_data)
+    nonzero_compressed = work / "nonzero-byte-run.gz"
+    nonzero_restored = work / "nonzero-byte-run.out"
+    run("compress", nonzero_run, nonzero_compressed)
+    nonzero_member = nonzero_compressed.read_bytes()
+    assert nonzero_member[10] & 7 == 5  # final dynamic block
+    assert len(nonzero_member) < len(nonzero_data)
+    assert gzip.decompress(nonzero_member) == nonzero_data
+    run("decompress", nonzero_compressed, nonzero_restored)
+    assert nonzero_restored.read_bytes() == nonzero_data
+
     foreign = work / "foreign.gz"
     foreign.write_bytes(gzip.compress(samples[-1], compresslevel=9))
     restored = work / "foreign.out"
