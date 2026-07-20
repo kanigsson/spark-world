@@ -163,10 +163,10 @@ The earlier M6a productization gap is resolved: `inflate_cli.gpr` builds the
 A current run of:
 
 ```sh
-gnatprove -P inflate.gpr --level=4 --report=fail
+gnatprove -P inflate.gpr --level=4 -j0 --timeout=60 --report=fail
 ```
 
-completed successfully with 7,595 checks, all proved. The generated summary
+completed successfully with 7,687 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -178,8 +178,8 @@ Subject to public preconditions, the proof establishes:
 - input and output cursor bounds for all decoders;
 - every successful raw DEFLATE result satisfies the executable full model over
   its exact consumed input and produced output;
-- adaptive compressor totality and its exact selected-branch size within the
-  public allocation bound;
+- adaptive compressor totality, exact fixed/stored selected-branch sizes, and
+  an exact recognized dynamic prefix within the public allocation bound;
 - the fixed-Huffman relation, including boundary-based longest matches of
   length three through ten at distances one through four and their local M4
   window witness, or the stored-block relation between compressor input and
@@ -187,8 +187,9 @@ Subject to public preconditions, the proof establishes:
 - one proof-only `Body_Encodes` boundary for stored, fixed, and dynamic semantic
   images, with common introduction, framing, cross-format disjointness, and
   functionality; executable recognition, exact sizes, decoder completeness,
-  and model agreement now cover the dynamic alternative as well, while the
-  branch-free round-trip theorem still selects stored/fixed output;
+  and model agreement now cover the dynamic alternative as well; the
+  branch-free round-trip theorem covers selected stored, fixed, and bounded
+  dynamic output;
 - bounded dynamic-Huffman length construction: every nonzero-frequency symbol
   is assigned a code of length at most nine and the resulting code is complete
   by exact scaled Kraft equality, without an optimality claim;
@@ -211,6 +212,9 @@ Subject to public preconditions, the proof establishes:
   production for every accepted stream whose decoded data fits the output;
 - semantic-body decode success and agreement with the common relation for
   stored, fixed, and dynamic bodies when the decoded data fits the output;
+- top-level dynamic-Huffman selection for zero runs of at least 4,096 bytes,
+  using sparse complete books for the current token domain and a defensive
+  fixed fallback if checked canonical construction rejects;
 - gzip framing values used by the compressor, including the input length and a
   checksum proved equal to the reflected polynomial CRC model;
 - Adler-32 checksum computation as a byte-by-byte fold of the two direct
@@ -260,8 +264,8 @@ The formal result does not establish:
 - general or optimal LZ77 selection in the compressor: fixed-Huffman matching
   remains limited to lengths three through ten and distances one through four,
   without extra-bit length or distance codes;
-- dynamic-Huffman output from the top-level gzip compressor (the serialized
-  header and body currently remain a proved local path);
+- general frequency- and cost-driven dynamic-Huffman selection beyond the
+  bounded long-zero-run top-level class;
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;
 - stored-DEFLATE, zlib, gzip, or ZIP wire semantics against an independently
@@ -277,9 +281,9 @@ With language checks enabled and proof contracts disabled, the full debug test
 suite completed successfully with:
 
 ```text
-generated 6445 cases
-cases: 6445  failures: 0
-compress differential: 18 cases, 0 failures
+generated 6447 cases
+cases: 6447  failures: 0
+compress differential: 20 cases, 0 failures
 ```
 
 This is substantial evidence for general DEFLATE/zlib/gzip behavior, malformed

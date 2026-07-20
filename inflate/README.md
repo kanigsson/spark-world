@@ -7,9 +7,10 @@ is SPARK. Decoding is proved free of run-time errors, with termination and
 initialization/data-flow checks included in the proof run described below.
 Every successful raw DEFLATE decode is also proved to satisfy an executable
 canonical decode model; that model and the returned bytes are differentially
-tested against C zlib. The gzip compressor (fixed Huffman with verified
-longest matches of length 3 through 10 at distances 1 through 4 throughout
-the fixed encoder's arithmetic domain, stored blocks above it) and
+tested against C zlib. The gzip compressor (sparse dynamic Huffman for long
+zero runs, otherwise fixed Huffman with verified longest matches of length
+3 through 10 at distances 1 through 4 throughout the fixed encoder's
+arithmetic domain, and stored blocks above it) and
 decompressor additionally carry a **proved
 round-trip theorem**: `Inflate.Theorems.GZip_Round_Trip` states — and the
 proof establishes for every input — that decompressing the compressor's
@@ -36,7 +37,7 @@ handled by raising an exception.
 | `Inflate.Fixed`   | fixed-Huffman literal/match encoder, iterative analyzer, and executable relation |
 | `Inflate.Codebooks` | shared fixed/canonical encoder codebook boundary with proved construction and validity |
 | `Inflate.Payload` | shared literal, match, and end-of-block serializer over a ready codebook |
-| `Inflate.Dynamic` | bounded dynamic-Huffman codebook, header, and local body serializer |
+| `Inflate.Dynamic` | bounded dynamic-Huffman codebook, header, body serializer/decoder, and sparse zero-run compressor path |
 | `Inflate.Bodies`  | common stored/fixed/dynamic semantic relation; integrated recognition, framing, and functionality lemmas |
 | `Inflate.ZLib`    | zlib container: header validation, Adler-32 verification |
 | `Inflate.GZip`    | gzip container: all header features (EXTRA/NAME/COMMENT/HCRC), CRC-32 and length verification, multi-member `Decompress_All`; `Compress` |
@@ -65,10 +66,12 @@ ZIP extractor are ordinary clients of `Inflate.Raw`.
 
 ## Compression
 
-The library compresses to standard gzip. Inputs through
-`Inflate.Fixed.Max_Input` use one final fixed-Huffman block. A deliberately
-small match finder advances through explicit token boundaries. At every
-reached boundary it searches distances 1 through 4 and selects the longest
+The library compresses to standard gzip. Zero runs of at least 4,096 bytes
+within `Inflate.Dynamic.Max_Input` first try one final dynamic-Huffman block;
+the checked canonical builder retains a fixed-Huffman fallback. Other inputs
+through `Inflate.Fixed.Max_Input` use one final fixed-Huffman block. A
+deliberately small match finder advances through explicit token boundaries. At
+every reached boundary it searches distances 1 through 4 and selects the longest
 verified match of length 3 through 10, preferring the smaller distance on a
 tie; other bytes remain literals. This no-extra-bit fixed-code slice exercises
 overlapping and non-overlapping LZ77 window equations, permits unaligned and
@@ -101,20 +104,25 @@ the exact output for every accepted bounded dynamic body; serializer images are
 a narrower subset of that relation. The proof-only `Body_Encodes` relation and
 executable recognition/size queries now route dynamic bodies through the same
 boundary as stored and fixed bodies, and the public raw decoder has the
-corresponding proved success path. The top-level gzip compressor still does not
-select the dynamic body. Gzip selection, lengths requiring extra bits, and
-wider distances remain M6 ratio work. Any gzip decoder consumes the current
-fixed or stored output. The
-contract is preserved across both selected encodings:
+corresponding proved success path. `Inflate.GZip.Compress` now uses that path
+for long zero runs with sparse complete books covering literal zero,
+end-of-block, all current length symbols, and all current distance symbols.
+The exact dynamic body prefix is framed with the gzip trailer through the same
+common relation; if the checked book construction were ever to reject, the
+fixed encoder preserves totality. General dynamic selection, lengths requiring
+extra bits, and wider distances remain M6 ratio work. Any gzip decoder consumes
+the current dynamic, fixed, or stored output. The contract is preserved across
+all selected encodings:
 
 - **Totality and size.** Under the stated preconditions there is no failure
   path. `GZip.Compressed_Size` is the allocation bound; the produced size is
-  exact for the selected fixed or stored branch.
+  exact for the selected fixed or stored branch, while the dynamic branch
+  returns an exact recognized prefix within `Dynamic.Max_Size`.
 - **Round-trip, compress half.** The DEFLATE body stands in
   `Inflate.Bodies.Body_Encodes` to exactly the input bytes. Stored and fixed
-  encoders establish the currently selected alternatives locally; the dynamic
-  serializer can now establish its alternative through the same boundary. The
-  gzip trailer provably holds `CRC32.Compute (Input)` — the same function the
+  encoders establish their selected alternatives locally; the dynamic
+  compressor establishes its selected alternative through the same boundary.
+  The gzip trailer provably holds `CRC32.Compute (Input)` — the same function the
   decoder recomputes.
 - **Round-trip, decode half.** `Raw.Decompress` and `GZip.Decompress` carry
   postconditions stating that any recognized common-body image, characterized
@@ -128,8 +136,8 @@ contract is preserved across both selected encodings:
   exactly `Input`. The proof is spec-free — it trusts no external DEFLATE
   specification, only the agreement of the library's own compressor and
   decompressor through `Body_Encodes`, plus the functionality of that relation
-  and the content-invariance of the CRC. Its proof body has no stored/fixed
-  format branch.
+  and the content-invariance of the CRC. Its proof body has no body-format
+  branch.
 
 The three-format semantic relation remains proof-only, while the precise
 dynamic decoded-body alternative is executable. The test suite runs the
@@ -138,7 +146,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **7,595 checks,
+The most recent recorded `gnatprove --level=4` run reported **7,687 checks,
 all proved, no justifications, no assumptions**. This covers run-time
 checks such as overflow, index, range, and division checks, plus
 initialization, data dependencies, and termination checks — and the
@@ -182,7 +190,7 @@ Some proof-relevant structure:
   emits exact `HLIT`, `HDIST`, and `HCLEN` fields, a complete code-length
   alphabet, and all reconstructed literal/length and distance lengths. Its
   body relation composes that header with the shared payload without making an
-  optimality claim or adding a top-level gzip branch. Header-recovery functions
+  optimality claim. Header-recovery functions
   rebuild both exact canonical records from the transmitted lengths, and the
   local relation is proved equivalent when those recovered books replace the
   serializer's explicit witnesses. `Inflate.Payload.Lemma_Payload_Frame` and
@@ -203,7 +211,8 @@ Some proof-relevant structure:
   exact sizes, and raw decode success now route through the same boundary. The
   dynamic relation records actual decoded token semantics and does not equate
   analyzer acceptance with the narrower deterministic serializer image. The
-  current gzip theorem remains on its unchanged stored/fixed selection path.
+  gzip compressor now selects the dynamic alternative for bounded long zero
+  runs without adding a body-format branch to the theorem.
 - The full model deliberately does not reuse the shipping Huffman table or
   fast map. Its canonical table builder and parser prove 711 checks in the
   focused model unit; the shipping decoder calls the model only after an
@@ -249,7 +258,7 @@ checked at run time.
 
 ## Testing
 
-`tests/run_tests.py` generates **6445 cases** and runs them through the debug
+`tests/run_tests.py` generates **6447 cases** and runs them through the debug
 harness with language run-time checks enabled and proof contracts disabled;
 the expected verdict comes from C zlib (Python's binding) on the same bytes,
 so the suite is a differential test, not a self-test:
@@ -274,7 +283,9 @@ so the suite is a differential test, not a self-test:
 - Compression: each corpus file is gzip-compressed by the crate, round
   tripped through the crate's own decoder, checked against the executable
   common-body relation, and independently decompressed by C zlib —
-  byte-for-byte in both directions.
+  byte-for-byte in both directions. Threshold cases check that 4,095 zeros
+  remain fixed, 4,096 zeros select dynamic coding, and the dynamic member is
+  smaller than the exact prior fixed plan.
 
 The recorded test run had zero failures and no escaping exception.
 
@@ -309,7 +320,7 @@ registers and uses fused tables for length, distance, and extra bits.
 gprbuild -P inflate.gpr                  # release: -O2
 gprbuild -P inflate_cli.gpr              # builds bin/inflate
 gprbuild -P inflate.gpr -XMODE=debug     # language checks on; contracts off
-gnatprove -P inflate.gpr --mode=all -j0 --timeout=30  # reproduce the proof
+gnatprove -P inflate.gpr --level=4 -j0 --timeout=60   # reproduce the proof
 cd tests && gprbuild -P tests.gpr -XMODE=debug && python3 run_tests.py
 cd bench && gprbuild -P bench.gpr && python3 run_bench.py   # needs libz.a
 ```

@@ -228,8 +228,9 @@ M2–M5, it does not avoid them.
   research project of its own and buys round-trip nothing.
 
 **Current status: in progress, with a verified fixed-Huffman LZ77 slice, a
-proved local dynamic-Huffman body serializer and decoder, and a common
-semantic body boundary recognizing stored, fixed, and dynamic images.**
+proved dynamic-Huffman body serializer and decoder, a bounded top-level
+dynamic selection, and a common semantic body boundary recognizing stored,
+fixed, and dynamic images.**
 `Inflate.Fixed` emits and recognizes one final fixed-code block containing
 literals, selected matches, and end-of-block. Its compression plan is now
 explicit: `Selected_Token`, `Next_Position`, and `Token_Bit_Cost` operate only
@@ -248,16 +249,18 @@ from the largest stream whose bit offsets plus gzip trailer fit in `Natural`
 (238,609,285 input bytes on the current target). The analyzer, executable
 encoding relation, and decoded-prefix checker are iterative; proof-only
 recursive relations and framing lemmas are erased from checks-enabled builds.
-`Inflate.GZip.Compress` selects this fixed coding throughout that domain and
-uses the stored encoder above it. `Inflate.Raw.Decompress` has proved
+`Inflate.GZip.Compress` selects this fixed coding throughout that domain except
+for the bounded zero-run dynamic class described below, and uses the stored
+encoder above it. `Inflate.Raw.Decompress` has proved
 specialized success paths for both bounded Huffman images.
 `Inflate.Bodies.Body_Encodes` now hides the body format from `Inflate.Raw`,
 `Inflate.GZip`, and `Inflate.Theorems`: its common recognition, framing, and
 functionality lemmas replace
 the former member predicates and `GZip_Round_Trip` has no format branch. Match
-lengths requiring extra bits, wider distances, and top-level dynamic-block
-selection remain open M6 ratio work. `Inflate.Dynamic.Build_Lengths` is the
-completed local tree-building step: it includes every symbol with nonzero frequency,
+lengths requiring extra bits, wider distances, and general adaptive
+dynamic-block selection remain open M6 ratio work.
+`Inflate.Dynamic.Build_Lengths` is the completed local tree-building step: it
+includes every symbol with nonzero frequency,
 adds dummy leaves only for the degenerate zero/one-symbol cases, and produces a
 balanced complete code. For alphabets of 2 through 286 symbols its contract
 proves that all used symbols receive a code, all lengths are at most nine, and
@@ -275,13 +278,14 @@ four-bit code-length alphabet: the header is larger than an RLE-optimized one,
 but its reconstruction proof has no repeat-code cases. `Header_Encodes` states
 the exact header bits and reconstructed lengths, while the local
 `Inflate.Dynamic.Is_Encoding` relation composes that header with the shared
-payload. `Serialize_Body` establishes the relation without yet widening the
-gzip compressor branch. No append-only logical-stream layer was needed: the
-concrete header and payload writers retain explicit frame contracts.
+payload. `Serialize_Body` establishes the local relation, and
+`Compress_Zero_Run` supplies the first top-level producer. No append-only
+logical-stream layer was needed: the concrete header and payload writers retain
+explicit frame contracts.
 
 The proof-only common body boundary now contains stored, fixed, and dynamic
-semantic alternatives, although the top-level compressor still selects only
-the first two. The dynamic witness-erasure prerequisite is complete:
+semantic alternatives, and the top-level compressor can select all three. The
+dynamic witness-erasure prerequisite is complete:
 `Literal_Book_From_Header` and `Distance_Book_From_Header` rebuild
 exact canonical records from the 316 transmitted lengths, and
 `Lemma_Encoding_Uses_Header_Books` proves that the serializer's explicit-book
@@ -309,10 +313,17 @@ relation through `Lemma_Encoding_Decodes`. Framing and functionality are proved
 for this broader relation. `Body_Encodes`, executable `Recognized`,
 `Encoded_Size`, and `Decoded_Size`, the raw decoder's success contract, and the
 executable full model now route dynamic bodies alongside stored and fixed
-bodies. The top-level gzip compressor still does not select the dynamic body.
+bodies. The top-level gzip compressor tries a sparse dynamic body for zero runs
+of at least 4,096 bytes within `Dynamic.Max_Input`. Its complete books cover
+literal zero, end-of-block, all length-three-through-ten symbols, and all
+distance-one-through-four symbols, so the same deterministic match plan is
+serialized without a new semantic case. A defensive canonical-builder failure
+falls back to fixed coding, preserving totality. The returned dynamic prefix is
+framed with the gzip trailer and lifted through common recognition and the
+unchanged branch-free round-trip theorem.
 
-The focused `Inflate.Dynamic` unit proves all 2,418 checks at `--level=4`; the
-full library proves all 7,595 checks at `--level=4`, with no justifications or
+The focused `Inflate.Dynamic` unit proves all 2,475 checks at `--level=4`; the
+full library proves all 7,687 checks at `--level=4`, with no justifications or
 assumptions.
 The dynamic runtime harness covers empty, singleton, sparse, and full DEFLATE
 alphabets, an exact shared-payload bit pattern, and complete dynamic bodies that
@@ -322,9 +333,13 @@ exercising accepted semantics outside the serializer image. The
 input-side analyzer reports its exact encoded and decoded sizes before and
 after the body is copied into a differently bounded larger buffer with
 unrelated trailing bytes; the shipping decoder also round trips that framing.
-C zlib independently decodes both bodies. The complete debug suite passes 6,445
-cases and 18 compressor differential cases, including exact bit-level checks
-for length-ten matches at distances one, three, and four.
+C zlib independently decodes both focused bodies and every top-level compressor
+result. The complete debug suite passes 6,447 cases and 20 compressor
+differential cases. Threshold regressions keep 4,095 zeros fixed, select a
+dynamic block for 4,096 zeros, and require that output to beat the exact prior
+fixed-plan size; the 300,000-byte zero case is 22,686 bytes. Existing exact
+bit-level checks still cover length-ten matches at distances one, three, and
+four.
 
 The planned token-trace reassessment against this broader baseline is also
 complete. A `Step` relation would restate `One_Token_Matches`, while `Trace`
@@ -414,10 +429,12 @@ Why3-adjacent grind. Still SPARK-tractable — budget for it.
 
 M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
 literal/match slice with the same full-domain gzip theorem, plus a proved
-local dynamic header and body serializer. The remaining ratio work is:
+dynamic header/body path selected by gzip for long zero runs. The remaining
+ratio work is:
 
-1. **Add the dynamic gzip branch.** Select the proved dynamic body locally and
-   lift it through the completed decoder-success and round-trip path.
+1. **Generalize dynamic selection.** Collect symbol coverage/frequencies from
+   the deterministic token plan for nonzero inputs and choose dynamic coding
+   only when its body beats the fixed alternative.
 2. **Extend the ratio domain.** Add length/distance codes requiring extra bits
    and widen the current distance-four match window without weakening the
    completed semantic boundary.

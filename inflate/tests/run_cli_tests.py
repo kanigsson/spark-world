@@ -49,6 +49,9 @@ with tempfile.TemporaryDirectory(prefix="inflate-cli-") as directory:
     large_compressed = work / "large-zero-run.gz"
     large_restored = work / "large-zero-run.out"
     run("compress", large, large_compressed)
+    large_member = large_compressed.read_bytes()
+    assert large_member[10] & 7 == 5  # final dynamic block
+    assert len(large_member) < large.stat().st_size
     run("decompress", large_compressed, large_restored)
     assert large_restored.read_bytes() == large.read_bytes()
 

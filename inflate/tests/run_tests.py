@@ -60,6 +60,7 @@ def case(mode, comp, expect, consumed=-1, tag=None):
 
 
 compress_checks = []  # (input_path, original_bytes)
+DYNAMIC_ZERO_MIN = 4_096
 TRIPLE_RUN = b"ABC" * 1000
 QUAD_RUN = b"ABCD" * 1000
 
@@ -72,6 +73,8 @@ def gen_compress(files):
     from both sides."""
     global n_files
     inputs = dict(files)
+    inputs["zero-before-dynamic.bin"] = bytes(DYNAMIC_ZERO_MIN - 1)
+    inputs["zero-dynamic-min.bin"] = bytes(DYNAMIC_ZERO_MIN)
     inputs["triple-run.bin"] = TRIPLE_RUN
     inputs["quad-run.bin"] = QUAD_RUN
     for name, data in sorted(inputs.items()):
@@ -89,6 +92,16 @@ def check_compress_outputs():
                                      >> ((start + i) % 8)) & 1)
         return value
 
+    def fixed_zero_gzip_size(length):
+        """Exact size of the previous fixed-code plan for a zero run."""
+        if length == 0:
+            bits = 3 + 7
+        else:
+            matches, remainder = divmod(length - 1, 10)
+            tail = 12 if remainder >= 3 else 8 * remainder
+            bits = 3 + 8 + 12 * matches + tail + 7
+        return (bits + 7) // 8 + 18
+
     bad = 0
     for inp, data in compress_checks:
         gz = inp + ".gz"
@@ -103,21 +116,29 @@ def check_compress_outputs():
             print("FAIL compress %s: zlib decodes %d bytes, expected %d"
                   % (inp, len(out), len(data)))
             bad += 1
-        if (member[10] & 7) != 3:
-            print("FAIL compress %s: input did not use final fixed block"
-                  % inp)
+        use_dynamic = len(data) >= DYNAMIC_ZERO_MIN and not any(data)
+        expected_header = 5 if use_dynamic else 3
+        if (member[10] & 7) != expected_header:
+            print("FAIL compress %s: input did not use expected final %s block"
+                  % (inp, "dynamic" if use_dynamic else "fixed"))
             bad += 1
         if len(data) >= 6 and not any(data):
-            raw = member[10:-8]
-            # Header (3 bits), then one fixed-code zero literal (8 bits).
-            # Position 1 is an unaligned token boundary; the longest-match
-            # selector emits fixed length symbol 264 (length 10, code 8),
-            # then distance 1.
-            if (stream_prefix(raw, 11, 7) != 8
-                    or stream_prefix(raw, 18, 5) != 0):
-                print("FAIL compress %s: zero run did not emit the "
-                      "unaligned length-10/distance-1 match" % inp)
-                bad += 1
+            if use_dynamic:
+                if len(member) >= fixed_zero_gzip_size(len(data)):
+                    print("FAIL compress %s: dynamic zero-run branch did not "
+                          "improve on the fixed plan" % inp)
+                    bad += 1
+            else:
+                raw = member[10:-8]
+                # Header (3 bits), then one fixed-code zero literal (8 bits).
+                # Position 1 is an unaligned token boundary; the longest-match
+                # selector emits fixed length symbol 264 (length 10, code 8),
+                # then distance 1.
+                if (stream_prefix(raw, 11, 7) != 8
+                        or stream_prefix(raw, 18, 5) != 0):
+                    print("FAIL compress %s: zero run did not emit the "
+                          "unaligned length-10/distance-1 match" % inp)
+                    bad += 1
             if len(member) * 4 >= len(data) * 3:
                 print("FAIL compress %s: zero-run ratio did not improve"
                       % inp)

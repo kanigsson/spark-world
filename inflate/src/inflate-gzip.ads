@@ -14,6 +14,7 @@
 with Inflate.Raw;
 with Inflate.CRC32;
 with Inflate.Fixed;
+with Inflate.Dynamic;
 with Inflate.Bodies;
 
 package Inflate.GZip with SPARK_Mode => On is
@@ -131,18 +132,24 @@ package Inflate.GZip with SPARK_Mode => On is
    --  Compression
    ---------------------------------------------------------------------
 
-   --  Allocation bound for Compress's output: header, the selected fixed or
-   --  stored body, and trailer.
+   --  Allocation bound for Compress's output: header, the selected dynamic,
+   --  fixed, or stored body, and trailer. Above the first dynamic-selection
+   --  threshold the bound reserves its deliberately large direct-length
+   --  header even when the data ultimately stays on the fixed path.
    function Compressed_Size (N : Natural) return Positive is
-     ((if N <= Fixed.Max_Input then Fixed.Max_Size (N)
+     ((if N < Dynamic.Dynamic_Zero_Min_Input
+       then Fixed.Max_Size (N)
+       elsif N <= Dynamic.Max_Input then Dynamic.Max_Size (N)
+       elsif N <= Fixed.Max_Input then Fixed.Max_Size (N)
        else Raw.Stored_Size (N)) + 18)
    with Pre => N <= Raw.Max_Compress_Input;
 
-   --  Produce a complete gzip member holding Input. Inputs within the fixed
+   --  Produce a complete gzip member holding Input. Long zero runs first try
+   --  the sparse dynamic-Huffman selection; other inputs within the fixed
    --  arithmetic domain use fixed-Huffman literals and selected verified
-   --  matches; larger inputs use stored blocks.
-   --  Both are consumable by any gzip decoder and total under the
-   --  precondition; Compressed_Size is the caller's capacity bound.
+   --  matches; larger inputs use stored blocks. All are consumable by any gzip
+   --  decoder and total under the precondition; Compressed_Size is the caller's
+   --  capacity bound.
    --
    --  The postcondition pins down the whole member: the fixed header (no
    --  optional fields, so the DEFLATE body starts 10 bytes in), the body
@@ -159,10 +166,11 @@ package Inflate.GZip with SPARK_Mode => On is
      Pre    => Input'Length <= Raw.Max_Compress_Input
                and then Output'Length >= Compressed_Size (Input'Length),
      Post   =>
-       Produced =
-         (if Input'Length <= Fixed.Max_Input
-          then Fixed.Encoded_Size (Input) + 18
-          else Raw.Stored_Size (Input'Length) + 18)
+       (if Dynamic.Selects_Zero_Run (Input)
+        then Produced <= Dynamic.Max_Size (Input'Length) + 18
+        elsif Input'Length <= Fixed.Max_Input
+        then Produced = Fixed.Encoded_Size (Input) + 18
+        else Produced = Raw.Stored_Size (Input'Length) + 18)
        and then Produced <= Compressed_Size (Input'Length)
        and then Output (Output'First) = 16#1F#
        and then Output (Output'First + 1) = 16#8B#

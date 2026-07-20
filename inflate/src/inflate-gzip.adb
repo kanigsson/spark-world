@@ -246,88 +246,118 @@ package body Inflate.GZip with SPARK_Mode => On is
       Output   : in out Byte_Array;
       Produced :    out Natural)
    is
-      N         : constant Natural      := Input'Length;
-      Use_Fixed : constant Boolean      := N <= Fixed.Max_Input;
-      Body_Size : constant Positive     :=
-        (if Use_Fixed then Fixed.Encoded_Size (Input) else Raw.Stored_Size (N));
-      CRC       : constant Word32       := CRC32.Compute (Input);
-      F         : constant Buffer_Index := Output'First;
-      T         : constant Buffer_Index := F + 10 + Body_Size;
+      N           : constant Natural      := Input'Length;
+      Try_Dynamic : constant Boolean      :=
+        Dynamic.Selects_Zero_Run (Input);
+      Use_Fixed : Boolean :=
+        not Try_Dynamic and then N <= Fixed.Max_Input;
+      Body_Bound  : constant Positive     :=
+        (if Try_Dynamic then Dynamic.Max_Size (N)
+         elsif Use_Fixed then Fixed.Max_Size (N)
+         else Raw.Stored_Size (N));
+      CRC         : constant Word32       := CRC32.Compute (Input);
+      F           : constant Buffer_Index := Output'First;
 
-      Raw_Produced : Natural;
+      Raw_Produced   : Natural;
+      Dynamic_Success : Boolean := False;
       pragma Warnings (Off, Raw_Produced,
-                       Reason => "the size is known statically: the callee "
-                                 & "promises Raw_Produced = Stored_Size");
+                       Reason => "every selected body encoder initializes it");
    begin
-      --  Fixed header: deflate, no optional fields, MTIME unknown (0),
-      --  no XFL hints, OS unknown.
-      Output (F)     := 16#1F#;
-      Output (F + 1) := 16#8B#;
-      Output (F + 2) := 8;
-      Output (F + 3) := 0;
-      Output (F + 4) := 0;
-      Output (F + 5) := 0;
-      Output (F + 6) := 0;
-      Output (F + 7) := 0;
-      Output (F + 8) := 0;
-      Output (F + 9) := 16#FF#;
-
-      --  Trailer: CRC-32 of the data, then its length, little-endian.
-      --  Written before the body so that nothing is written after the
-      --  region the decode-model relation is stated on.
-      Output (T)     := Byte (CRC and 16#FF#);
-      Output (T + 1) := Byte (Shift_Right (CRC, 8) and 16#FF#);
-      Output (T + 2) := Byte (Shift_Right (CRC, 16) and 16#FF#);
-      Output (T + 3) := Byte (Shift_Right (CRC, 24));
-      Output (T + 4) := Byte (Word32 (N) and 16#FF#);
-      Output (T + 5) := Byte (Shift_Right (Word32 (N), 8) and 16#FF#);
-      Output (T + 6) := Byte (Shift_Right (Word32 (N), 16) and 16#FF#);
-      Output (T + 7) := Byte (Shift_Right (Word32 (N), 24));
-
-      --  The body goes exactly between header and trailer.
-      if Use_Fixed then
+      --  Produce the selected body into its allocation bound. Dynamic bodies
+      --  discover their exact size while serializing, so the trailer is framed
+      --  around the returned prefix below.
+      if Try_Dynamic then
+         pragma Assert (N <= Dynamic.Max_Input);
+         Dynamic.Compress_Zero_Run
+           (Input,
+            Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced,
+            Dynamic_Success);
+         if Dynamic_Success then
+            Bodies.Lemma_Dynamic_Encoding
+              (Output (F + 10 .. F + 9 + Body_Bound),
+               Raw_Produced, Input);
+         else
+            --  Retain totality if the checked canonical builder ever rejects
+            --  the statically selected sparse frequency set.
+            Use_Fixed := True;
+            pragma Assert (Fixed.Max_Size (N) <= Dynamic.Max_Size (N));
+            Fixed.Compress
+              (Input,
+               Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced);
+            Bodies.Lemma_Fixed_Encoding
+              (Output (F + 10 .. F + 9 + Body_Bound),
+               Raw_Produced, Input);
+         end if;
+      elsif Use_Fixed then
          pragma Assert
-           (Output (F + 10 .. F + 17 + Fixed.Max_Size (N))'Length <=
+           (Output (F + 10 .. F + 9 + Body_Bound)'Length <=
               Fixed.Max_Stream_Bytes);
          Fixed.Compress
            (Input,
-            Output (F + 10 .. T - 1), Raw_Produced);
+            Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced);
          Bodies.Lemma_Fixed_Encoding
-           (Output (F + 10 .. T - 1), Raw_Produced, Input);
+           (Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced, Input);
       else
          Raw.Compress_Stored
-           (Input, Output (F + 10 .. T - 1), Raw_Produced);
+           (Input, Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced);
          Bodies.Lemma_Stored_Encoding
-           (Output (F + 10 .. T - 1), Raw_Produced, Input);
+           (Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced, Input);
       end if;
-      --  Make the slice frame explicit before the larger body-relation proof
-      --  context is introduced below.
-      pragma Assert (Output (F) = 16#1F#);
-      pragma Assert (Output (F + 1) = 16#8B#);
-      pragma Assert (Output (F + 2) = 8);
-      pragma Assert (Output (F + 3) = 0);
-      pragma Assert
-        (if Use_Fixed
-         then Body_Size <= Fixed.Max_Size (N)
-         else Body_Size = Raw.Stored_Size (N));
-      pragma Assert (Raw_Produced = Body_Size);
 
-      --  Extend the relation over the already-written trailer.  Only the
-      --  first Raw_Produced bytes belong to the DEFLATE body.
-      Bodies.Lemma_Encoding_Frame
-        (Output (F + 10 .. T - 1),
-         Output (F + 10 .. T + 7),
-         Raw_Produced, Input);
-      Bodies.Lemma_Encoding_Recognized
-        (Output (F + 10 .. T + 7), Raw_Produced, Input);
+      declare
+         Body_Before_Trailer : constant Byte_Array :=
+           Output (F + 10 .. F + 9 + Body_Bound) with Ghost;
+         T : constant Buffer_Index := F + 10 + Raw_Produced;
+      begin
+         pragma Assert (Raw_Produced in 1 .. Body_Bound);
 
-      Produced := Body_Size + 18;
-      pragma Assert
-        (Produced =
-           (if N <= Fixed.Max_Input
-            then Fixed.Encoded_Size (Input) + 18
-            else Raw.Stored_Size (N) + 18));
-      pragma Assert (Produced <= Compressed_Size (N));
+         --  Trailer: CRC-32 of the data, then its length, little-endian.
+         Output (T)     := Byte (CRC and 16#FF#);
+         Output (T + 1) := Byte (Shift_Right (CRC, 8) and 16#FF#);
+         Output (T + 2) := Byte (Shift_Right (CRC, 16) and 16#FF#);
+         Output (T + 3) := Byte (Shift_Right (CRC, 24));
+         Output (T + 4) := Byte (Word32 (N) and 16#FF#);
+         Output (T + 5) := Byte (Shift_Right (Word32 (N), 8) and 16#FF#);
+         Output (T + 6) := Byte (Shift_Right (Word32 (N), 16) and 16#FF#);
+         Output (T + 7) := Byte (Shift_Right (Word32 (N), 24));
+
+         --  Fixed header: deflate, no optional fields, MTIME unknown (0),
+         --  no XFL hints, OS unknown. Writing it after the disjoint body and
+         --  trailer regions keeps these public framing facts local.
+         Output (F)     := 16#1F#;
+         Output (F + 1) := 16#8B#;
+         Output (F + 2) := 8;
+         Output (F + 3) := 0;
+         Output (F + 4) := 0;
+         Output (F + 5) := 0;
+         Output (F + 6) := 0;
+         Output (F + 7) := 0;
+         Output (F + 8) := 0;
+         Output (F + 9) := 16#FF#;
+
+         --  Trailer writes preserve the body prefix. Reframe the common
+         --  relation over the exact member suffix before exposing recognition
+         --  and size facts to the theorem layer.
+         Bodies.Lemma_Encoding_Frame
+           (Body_Before_Trailer,
+            Output (F + 10 .. T + 7),
+            Raw_Produced, Input);
+         Bodies.Lemma_Encoding_Recognized
+           (Output (F + 10 .. T + 7), Raw_Produced, Input);
+
+         Produced := Raw_Produced + 18;
+         pragma Assert (Output (F) = 16#1F#);
+         pragma Assert (Output (F + 1) = 16#8B#);
+         pragma Assert (Output (F + 2) = 8);
+         pragma Assert (Output (F + 3) = 0);
+         pragma Assert
+           (if Dynamic_Success
+            then Raw_Produced <= Dynamic.Max_Size (N)
+            elsif Use_Fixed
+            then Raw_Produced = Fixed.Encoded_Size (Input)
+            else Raw_Produced = Raw.Stored_Size (N));
+         pragma Assert (Produced <= Compressed_Size (N));
+      end;
    end Compress;
 
 end Inflate.GZip;

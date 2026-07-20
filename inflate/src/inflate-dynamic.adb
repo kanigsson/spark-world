@@ -2,6 +2,90 @@ with Interfaces;
 
 package body Inflate.Dynamic with SPARK_Mode => On is
 
+   --  A zero run can use literal zero, end-of-block, any no-extra-bit length
+   --  3 .. 10, and any distance in the current 1 .. 4 finder window. Covering
+   --  the whole bounded match domain keeps selection independent of its exact
+   --  tiling. Build_Codebook turns these sparse frequency sets into complete
+   --  canonical books and retains its defensive executable validity check.
+   Zero_Literal_Frequencies : constant Frequency_Array (0 .. 285) :=
+     (0 | 256 .. 264 => 1, others => 0);
+
+   Zero_Distance_Frequencies : constant Frequency_Array (0 .. 29) :=
+     (0 .. 3 => 1, others => 0);
+
+   procedure Lemma_Zero_Books_Cover
+     (Data            : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Selects_Zero_Run (Data)
+                 and then Codebooks.Length_Of (Literal_Lengths, 0) > 0
+                 and then Codebooks.Length_Of (Literal_Lengths, 256) > 0
+                 and then
+               (for all Symbol in 257 .. 264 =>
+                  Codebooks.Length_Of (Literal_Lengths, Symbol) > 0)
+                 and then
+               (for all Symbol in 0 .. 3 =>
+                  Codebooks.Length_Of (Distances, Symbol) > 0),
+     Post   => Payload.Covers (Literal_Lengths, Distances, Data);
+
+   procedure Lemma_Zero_Books_Cover
+     (Data            : Byte_Array;
+      Literal_Lengths : Codebooks.Codebook;
+      Distances       : Codebooks.Codebook)
+   is
+   begin
+      for I in 0 .. Data'Length - 1 loop
+         pragma Loop_Invariant
+           (for all J in 0 .. I - 1 =>
+              (if Fixed.Token_Boundary (Data, J)
+               then
+                 (if Fixed.Selected_Token (Data, J).Kind = Fixed.Match
+                  then Codebooks.Length_Of
+                         (Literal_Lengths,
+                          Payload.Length_Symbol
+                            (Fixed.Selected_Token (Data, J).Length)) > 0
+                       and then Codebooks.Length_Of
+                         (Distances,
+                          Payload.Distance_Symbol
+                            (Fixed.Selected_Token (Data, J).Distance)) > 0
+                  else Codebooks.Length_Of
+                         (Literal_Lengths,
+                          Natural (Data (Data'First + J))) > 0)));
+         pragma Assert (Data (Data'First + I) = 0);
+         if Fixed.Token_Boundary (Data, I) then
+            declare
+               Token : constant Fixed.Symbol_Result :=
+                 Fixed.Selected_Token (Data, I);
+            begin
+               if Token.Kind = Fixed.Match then
+                  pragma Assert (Token.Length in 3 .. 10);
+                  pragma Assert
+                    (Payload.Length_Symbol (Token.Length) in 257 .. 264);
+                  pragma Assert
+                    (Codebooks.Length_Of
+                       (Literal_Lengths,
+                        Payload.Length_Symbol (Token.Length)) > 0);
+                  pragma Assert (Token.Distance in 1 .. 4);
+                  pragma Assert
+                    (Payload.Distance_Symbol (Token.Distance) in 0 .. 3);
+                  pragma Assert
+                    (Codebooks.Length_Of
+                       (Distances,
+                        Payload.Distance_Symbol (Token.Distance)) > 0);
+               else
+                  pragma Assert (Token.Kind = Fixed.Literal);
+                  pragma Assert (Natural (Token.Value) = 0);
+                  pragma Assert
+                    (Codebooks.Length_Of (Literal_Lengths, 0) > 0);
+               end if;
+            end;
+         end if;
+      end loop;
+   end Lemma_Zero_Books_Cover;
+
    use Interfaces;
 
    --  Proof helpers are erased in the assertion-enabled focused executable,
@@ -895,6 +979,41 @@ package body Inflate.Dynamic with SPARK_Mode => On is
       Produced := (Body_End + 7) / 8;
       pragma Assert (Produced <= Max_Size (Data'Length));
    end Serialize_Body;
+
+   -----------------------
+   -- Compress_Zero_Run --
+   -----------------------
+
+   procedure Compress_Zero_Run
+     (Data     : in     Byte_Array;
+      Output   : in out Byte_Array;
+      Produced :    out Natural;
+      Success  :    out Boolean)
+   is
+      Literal_Lengths : Codebooks.Codebook (Codebooks.Canonical);
+      Distances       : Codebooks.Codebook (Codebooks.Canonical);
+      Literals_Ready  : Boolean;
+      Distances_Ready : Boolean;
+   begin
+      pragma Assert (Data'Length <= Fixed.Max_Input);
+      Build_Codebook
+        (Zero_Literal_Frequencies, Literal_Lengths, Literals_Ready);
+      Build_Codebook
+        (Zero_Distance_Frequencies, Distances, Distances_Ready);
+
+      if Literals_Ready and then Distances_Ready then
+         pragma Assert (Books_Encodable (Literal_Lengths, Distances));
+         Lemma_Zero_Books_Cover (Data, Literal_Lengths, Distances);
+         Serialize_Body
+           (Data, Literal_Lengths, Distances, Output, Produced);
+         Lemma_Encoding_Uses_Header_Books
+           (Output, Produced, Literal_Lengths, Distances, Data);
+         Success := True;
+      else
+         Produced := 0;
+         Success := False;
+      end if;
+   end Compress_Zero_Run;
 
    pragma Assertion_Policy (Ghost => Ignore);
    procedure Lemma_Encoding_Uses_Header_Books

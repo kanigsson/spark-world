@@ -1,10 +1,9 @@
 --  Inflate.Dynamic -- bounded code-length construction for dynamic Huffman.
 --
---  This package owns the local dynamic-block construction, but deliberately
---  does not connect it to the gzip compressor yet.  Build_Lengths selects every
---  symbol with nonzero frequency, adds dummy leaves only when fewer than two
---  symbols are used, and gives the selected leaves a balanced complete
---  prefix-code shape.  The construction is not claimed to be optimal.
+--  This package owns the local dynamic-block construction. Build_Lengths
+--  selects every symbol with nonzero frequency, adds dummy leaves only when
+--  fewer than two symbols are used, and gives the selected leaves a balanced
+--  complete prefix-code shape. The construction is not claimed to be optimal.
 --  Build_Codebook turns those lengths into the common canonical
 --  representation; Serialize_Header transmits those books through a simple
 --  complete code-length alphabet; and Serialize_Payload uses the same token
@@ -43,15 +42,27 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
    Header_Byte_Count  : constant := (Header_Bit_Count + 7) / 8;
 
    --  Leave room for the dynamic header, a worst-case nine-bit code per input
-   --  byte, a nine-bit end-of-block code, and byte rounding.
+   --  byte, a nine-bit end-of-block code, byte rounding, and the eight-byte
+   --  gzip trailer carried in common recognition slices.
    Max_Input : constant Natural :=
-     (8 * Fixed.Max_Stream_Bytes - Header_Bit_Count - 16) / 9;
+     (8 * (Fixed.Max_Stream_Bytes - 8) - Header_Bit_Count - 16) / 9;
 
    function Max_Size (N : Natural) return Positive is
      ((Header_Bit_Count + 9 * N + 16) / 8)
    with
      Pre  => N <= Max_Input,
-     Post => Max_Size'Result <= Fixed.Max_Stream_Bytes;
+     Post => Max_Size'Result <= Fixed.Max_Stream_Bytes - 8;
+
+   --  The first top-level dynamic selection is deliberately narrow.  Long
+   --  zero runs have a small, fixed set of literal/length and distance symbols,
+   --  so a sparse dynamic book repays this package's deliberately uncompressed
+   --  header.  Other inputs retain the fixed or stored gzip paths while later
+   --  M6 work generalizes frequency collection.
+   Dynamic_Zero_Min_Input : constant := 4_096;
+
+   function Selects_Zero_Run (Data : Byte_Array) return Boolean is
+     (Data'Length in Dynamic_Zero_Min_Input .. Max_Input
+      and then (for all B of Data => B = 0));
 
    subtype Symbol_Index is Natural range 0 .. Max_Symbols - 1;
    subtype Symbol_Count is Natural range 0 .. Max_Symbols;
@@ -1073,5 +1084,25 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
                  and then Is_Encoding
                    (Output, Produced, Literal_Lengths, Distances, Data);
    pragma Assertion_Policy (Pre => Check, Post => Check);
+
+   --  Serialize the sparse dynamic body selected by Selects_Zero_Run.  The
+   --  witness-free postcondition is the exact boundary consumed by gzip.
+   pragma Assertion_Policy (Post => Ignore);
+   procedure Compress_Zero_Run
+     (Data     : in     Byte_Array;
+      Output   : in out Byte_Array;
+      Produced :    out Natural;
+      Success  :    out Boolean)
+   with
+     Global => null,
+     Pre    => Selects_Zero_Run (Data)
+                 and then Output'Length <= Fixed.Max_Stream_Bytes
+                 and then Output'Length >= Max_Size (Data'Length),
+     Post   => Produced <= Max_Size (Data'Length)
+                 and then
+               (if Success
+                then Is_Encoding (Output, Produced, Data)
+                else Produced = 0);
+   pragma Assertion_Policy (Post => Check);
 
 end Inflate.Dynamic;

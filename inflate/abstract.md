@@ -351,8 +351,8 @@ for each new alternative:
 - its decoded length is `Data'Length`.
 
 This boundary is now implemented in `Inflate.Bodies` for stored, fixed, and
-dynamic semantic alternatives.  The selected stored/fixed encoders and the local
-dynamic serializer each establish `Body_Encodes`; common framing and
+dynamic semantic alternatives. The selected stored, fixed, and bounded dynamic
+encoders each establish `Body_Encodes`; common framing and
 functionality route all three alternatives without exposing a format branch to
 `Inflate.Raw`, `Inflate.GZip`, or `Inflate.Theorems`.  The common relation
 remains proof-only, while the precise dynamic decoded-body alternative is
@@ -360,8 +360,8 @@ executable.  Runtime compressor validation also invokes the executable full
 DEFLATE model.  The separate gzip member predicates and both selected-format
 branches in `GZip_Round_Trip` remain gone.
 
-The dynamic introduction remains local, but its witness-erasure prerequisite
-is complete.  `Literal_Book_From_Header` and `Distance_Book_From_Header`
+The dynamic witness-erasure prerequisite is complete.
+`Literal_Book_From_Header` and `Distance_Book_From_Header`
 deterministically rebuild the exact canonical records carried by the header,
 and `Lemma_Encoding_Uses_Header_Books` lifts the explicit-book serializer
 relation to `Inflate.Dynamic.Is_Encoding (Body, Consumed, Data)`.  The next step
@@ -383,8 +383,13 @@ executable common recognition and size queries, raw success contract, and model
 agreement now cover dynamic input as well as stored and fixed input.
 
 This completes the dynamic decoder-completeness consequence at the common
-boundary. Separate specialized fixed and dynamic decoders remain useful local
-proof paths beneath that shared contract.
+boundary. `Inflate.GZip.Compress` now consumes it for the first bounded class:
+zero runs of at least 4,096 bytes use sparse complete books covering the current
+literal/length and distance domain, with a defensive fixed fallback if checked
+book construction rejects. The exact dynamic prefix is reframed with the gzip
+trailer through `Body_Encodes`, so the theorem layer remains format-independent.
+Separate specialized fixed and dynamic decoders remain useful local proof paths
+beneath that shared contract.
 
 ## When to introduce the abstractions
 
@@ -392,13 +397,13 @@ Do not make all of these abstractions a prerequisite phase for the remaining
 M6 work.  The fixed-Huffman compressor, now with boundary-based longest
 matches of length three through ten at distances one through four, is connected
 through `Inflate.GZip.Compress`, the raw decoder's proved success path, and
-`Inflate.Theorems.GZip_Round_Trip`.  The remaining work is to support more
-lengths and wider distances, then emit dynamic blocks without breaking that
-connection.  The broader fixed-code baseline, bounded `Step`/`Trace`
+`Inflate.Theorems.GZip_Round_Trip`. The first dynamic gzip branch now preserves
+that same connection for long zero runs. The remaining work is to generalize
+frequency collection and cost-based dynamic selection, then support more
+lengths and wider distances. The broader fixed-code baseline, bounded `Step`/`Trace`
 reassessment, dynamic header/body serializer, and common semantic body
-boundary and the dynamic witness-erasure, framing, functionality, decoder, and
-executable-recognition proofs are now complete. The next work is selection of
-the dynamic body from gzip.
+boundary and the dynamic witness-erasure, framing, functionality, decoder,
+executable-recognition, and first gzip-selection proofs are now complete.
 
 Introducing abstractions before features can prevent duplication, but proof
 abstractions also introduce quantified relations, conversion theorems, and
@@ -418,7 +423,7 @@ wrapped a working specialized relation without removing it.
 | `Trace_Cursor` and `Step`/`Trace` | Reassessed and deferred.  At the current boundary they rename `One_Token_Matches` and `Prefix_Matches` but cannot replace the data-free `Spec_Walk`; the associated framing, closing, and functionality proofs would remain.  Revisit only if a later shared payload decoder provides a concrete deletion target. |
 | Append-only logical bitstream | Deferred.  The shared concrete payload writer closed with one framing proof, so no duplicated header/payload framing logic currently justifies another stream representation.  Revisit if dynamic-header serialization changes that evidence. |
 | Codebook abstraction | Complete: `Inflate.Codebooks` supplies fixed and canonical instances, and `Inflate.Payload.Serialize` uses only their common ready/length/code interface. |
-| `Body_Encodes` | Landed for stored/fixed at the intended just-in-time point and now admits the dynamic semantic relation as well. Common dynamic introduction, framing, cross-format disjointness, functionality, executable recognition, exact sizes, and decode success are complete. The next consumer is gzip selection. |
+| `Body_Encodes` | Landed for stored/fixed at the intended just-in-time point and now admits the dynamic semantic relation as well. Common dynamic introduction, framing, cross-format disjointness, functionality, executable recognition, exact sizes, decode success, and the first gzip producer are complete. |
 
 ## Recommended M6 order
 
@@ -438,20 +443,22 @@ wrapped a working specialized relation without removing it.
 5. **Complete.** `Inflate.Dynamic.Build_Lengths` now constructs a balanced
    complete code locally for every DEFLATE-sized alphabet, with used-symbol
    coverage, a proved length bound of nine, exact Kraft equality, and no
-   optimality claim or top-level gzip branch.
+   optimality claim.
 6. **Complete.** `Inflate.Codebooks` separates fixed and canonical code
    assignments, and `Inflate.Payload.Serialize` replaces the fixed writer while
    also serving the dynamic codebook adapter.  Actual framing duplication did
    not justify an append-only logical-stream layer.
 7. **Complete.** The dynamic header serializes complete canonical books without
    RLE, and the local dynamic-body relation composes it with the shared payload
-   without widening the gzip branch.
+   before widening the gzip branch.
 8. **Complete.** `Body_Encodes` admits stored, fixed, and dynamic relations and
    routes common framing, functionality, executable recognition, exact sizes,
    and raw decode success. The dynamic decoded-body relation is broader than
-   the deterministic serializer image but checks actual token semantics. The
-   next step is to select the body from gzip without reintroducing a format
-   branch above the boundary.
+   the deterministic serializer image but checks actual token semantics.
+9. **Complete for the first top-level class.** Long zero runs select sparse
+   dynamic books, retain a checked fixed fallback, and pass through gzip and
+   `GZip_Round_Trip` without reintroducing a format branch above
+   `Body_Encodes`. General frequency-driven selection remains ratio work.
 
 This is feature-driven abstraction: establish a semantic seam before concrete
 proof logic is duplicated, but generalize it only when the next feature gives
