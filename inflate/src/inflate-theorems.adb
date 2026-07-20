@@ -33,9 +33,6 @@ package body Inflate.Theorems with SPARK_Mode => On is
       Status   : Status_Type;
    begin
       GZip.Compress (Input, Compressed, C_Size);
-      Bodies.Lemma_Encoding_Recognized
-        (Compressed (CF + 10 .. CF + (C_Size - 1)),
-         C_Size - 18, Input);
       pragma Assert
         (GZip.Member
            (Compressed (CF .. CF + (C_Size - 1)), Restored'Length));

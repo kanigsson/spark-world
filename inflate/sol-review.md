@@ -129,9 +129,10 @@ polynomial step:
 Thus a table-generation or table-lookup mistake cannot satisfy the proof merely
 because the model repeats the same table walk. The remaining issue is the
 compressor-image wire format: `Inflate.Bodies.Body_Encodes` now removes the
-stored/fixed split from the container and theorem layers, but that common
-boundary is still built from the library's own executable relations rather
-than an independently formalized RFC semantics. A shared format mistake could
+format split from the container and theorem layers and admits the dynamic
+serializer relation, but that common proof-only boundary is still built from
+the library's own relations rather than an independently formalized RFC
+semantics. A shared format mistake could
 satisfy the formal round-trip theorem while failing an independent gzip
 implementation. The tests
 against C zlib provide useful evidence against such a mistake, but they are not
@@ -163,7 +164,7 @@ A current run of:
 gnatprove -P inflate.gpr --level=4 --report=fail
 ```
 
-completed successfully with 6,618 checks, all proved. The generated summary
+completed successfully with 6,659 checks, all proved. The generated summary
 reported zero `pragma Assume` statements for every analyzed unit, and the
 source contains no proof justifications.
 
@@ -181,9 +182,10 @@ Subject to public preconditions, the proof establishes:
   length three through ten at distances one through four and their local M4
   window witness, or the stored-block relation between compressor input and
   emitted body;
-- one common `Body_Encodes` boundary for those stored/fixed images, with proved
-  introduction, recognition, framing, and functionality lemmas used by raw,
-  gzip, and the branch-free round-trip theorem;
+- one proof-only `Body_Encodes` boundary for stored, fixed, and dynamic semantic
+  images, with common introduction, framing, cross-format disjointness, and
+  functionality; executable recognition and decoder completeness remain on the
+  selected stored/fixed alternatives used by the branch-free round-trip theorem;
 - bounded dynamic-Huffman length construction: every nonzero-frequency symbol
   is assigned a code of length at most nine and the resulting code is complete
   by exact scaled Kraft equality, without an optimality claim;
@@ -200,8 +202,8 @@ Subject to public preconditions, the proof establishes:
   with trailing bytes; canonical prefix separation, rank uniqueness, and the
   LZ77 window equation additionally prove that this self-describing dynamic
   relation is functional in its decoded byte sequence; a bounded canonical
-  analyzer recognizes the same relation from the input alone and its bridge
-  lemma proves the exact encoded byte count and decoded length;
+  analyzer accepts every such relation from the input alone and its one-way
+  bridge lemma proves the exact encoded byte count and decoded length;
 - compressor-image decode success, exact consumption and production, and
   agreement with the selected relation when the decoded data fits the output;
 - gzip framing values used by the compressor, including the input length and a
@@ -255,6 +257,8 @@ The formal result does not establish:
   without extra-bit length or distance codes;
 - dynamic-Huffman output from the top-level gzip compressor (the serialized
   header and body currently remain a proved local path);
+- dynamic serializer-image completeness in the shipping decoder and the
+  corresponding executable common recognition/size routing;
 - zlib or ZIP byte-level functional semantics;
 - rejection of every malformed or inconsistent stream;
 - stored-DEFLATE, zlib, gzip, or ZIP wire semantics against an independently

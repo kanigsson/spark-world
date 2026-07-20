@@ -173,6 +173,19 @@ package Inflate.GZip with SPARK_Mode => On is
                      (Output'First + 10 ..
                       Output'First + (Produced - 1)),
                    Produced - 18, Input)
+       and then Bodies.Recognized
+                  (Output
+                     (Output'First + 10 ..
+                      Output'First + (Produced - 1)),
+                   Input'Length)
+       and then Bodies.Encoded_Size
+                  (Output
+                     (Output'First + 10 ..
+                      Output'First + (Produced - 1))) = Produced - 18
+       and then Bodies.Decoded_Size
+                  (Output
+                     (Output'First + 10 ..
+                      Output'First + (Produced - 1))) = Input'Length
        and then Stores_LE32
                   (Output, Output'First + (Produced - 8),
                    CRC32.Compute (Input))

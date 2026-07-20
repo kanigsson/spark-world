@@ -318,6 +318,8 @@ package body Inflate.GZip with SPARK_Mode => On is
         (Output (F + 10 .. T - 1),
          Output (F + 10 .. T + 7),
          Raw_Produced, Input);
+      Bodies.Lemma_Encoding_Recognized
+        (Output (F + 10 .. T + 7), Raw_Produced, Input);
 
       Produced := Body_Size + 18;
       pragma Assert

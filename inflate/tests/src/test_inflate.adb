@@ -27,7 +27,7 @@ with Inflate.Raw;
 with Inflate.ZLib;
 with Inflate.GZip;
 with Inflate.ZIP;
-with Inflate.Bodies;
+with Inflate.Model;
 
 procedure Test_Inflate is
 
@@ -131,9 +131,9 @@ procedure Test_Inflate is
          end;
       elsif Mode = "compress" then
          --  The input file holds the data to compress. Compress, check
-         --  the in-process round trip and the executable common-body
-         --  relation, and drop the gzip member next to the input for the
-         --  Python driver's differential check against C zlib.
+         --  the in-process round trip and the independent executable DEFLATE
+         --  model, and drop the gzip member next to the input for the Python
+         --  driver's differential check against C zlib.
          if Input'Length > Raw.Max_Compress_Input then
             Fail ("input too large for the compressor");
          else
@@ -155,11 +155,11 @@ procedure Test_Inflate is
                elsif Consumed /= Comp_Produced then
                   Fail ("round trip consumed" & Consumed'Image
                         & ", expected" & Comp_Produced'Image);
-               elsif not Bodies.Body_Encodes
-                 (Comp (11 .. Comp_Produced),
-                  Comp_Produced - 18, Input.all)
+               elsif not Model.Is_Decoding
+                 (Comp (11 .. Comp_Produced), Input.all,
+                  Comp_Produced - 18, Input'Length)
                then
-                  Fail ("common body relation does not hold");
+                  Fail ("executable DEFLATE model does not hold");
                end if;
                Save (In_Path & ".gz", Comp (1 .. Comp_Produced));
                Free (Comp);

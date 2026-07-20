@@ -1,14 +1,17 @@
 --  Inflate.Bodies -- common semantic boundary for compressor-image bodies.
 --
 --  The gzip layer should not need to know whether its DEFLATE payload was
---  emitted as stored blocks or as the bounded fixed-Huffman image.  This
+--  emitted as stored blocks, as the bounded fixed-Huffman image, or as the
+--  bounded dynamic-Huffman image.  This
 --  package collects those local relations behind one predicate and exposes
---  the framing, recognition, and functionality consequences used by the
---  container proof.  The proved local dynamic image will join this boundary
---  before it is selected by the top-level compressor.
+--  shared framing and functionality consequences plus the currently
+--  integrated recognition path used by the container proof.  The top-level
+--  compressor can therefore select the dynamic image later without widening
+--  the semantic relation again.
 
 with Inflate.Model;
 with Inflate.Fixed;
+with Inflate.Dynamic;
 
 package Inflate.Bodies with Pure, SPARK_Mode => On is
 
@@ -20,6 +23,8 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
    --  decoding to exactly Data.  Bytes after Consumed may contain a container
    --  trailer.  The alternatives are deliberately local: each encoder proves
    --  its own relation, while users above this package see only Body_Encodes.
+   --  The common relation is proof-only because the self-describing dynamic
+   --  relation is proof-only; the input-side queries below remain executable.
    function Body_Encodes
      (Input    : Byte_Array;
       Consumed : Natural;
@@ -36,11 +41,17 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
          or else
          (Input'Length <= Fixed.Max_Stream_Bytes
           and then Data'Length <= Fixed.Max_Input
-          and then Fixed.Is_Encoding (Input, Consumed, Data))));
+          and then Fixed.Is_Encoding (Input, Consumed, Data))
+         or else
+         Dynamic.Is_Encoding (Input, Consumed, Data)))
+   with Ghost;
 
-   --  Input begins with one of the supported compressor images and its
-   --  decoded length fits in Out_Len.  Trailing bytes are ignored, which is
-   --  what a container needs when its trailer follows the body.
+   --  Input begins with one of the compressor images for which the shipping
+   --  decoder currently exposes a completeness proof, and its decoded length
+   --  fits in Out_Len.  Trailing bytes are ignored, which is what a container
+   --  needs when its trailer follows the body.  Dynamic input-side analysis
+   --  is available locally, but joins this executable boundary only with its
+   --  decoder-completeness bridge.
    function Recognized
      (Input : Byte_Array; Out_Len : Natural) return Boolean
    is
@@ -128,8 +139,18 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
      Pre  => Fixed.Is_Encoding (Input, Consumed, Data),
      Post => Body_Encodes (Input, Consumed, Data);
 
-   --  A semantic body determines the corresponding input-side recognition
-   --  facts needed by Inflate.Raw.Decompress.
+   procedure Lemma_Dynamic_Encoding
+     (Input    : Byte_Array;
+      Consumed : Natural;
+      Data     : Byte_Array)
+   with
+     Ghost,
+     Global => null,
+     Pre  => Dynamic.Is_Encoding (Input, Consumed, Data),
+     Post => Body_Encodes (Input, Consumed, Data);
+
+   --  A currently integrated stored/fixed semantic body determines the
+   --  input-side recognition facts needed by Inflate.Raw.Decompress.
    procedure Lemma_Encoding_Recognized
      (Input    : Byte_Array;
       Consumed : Natural;
@@ -137,7 +158,8 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
    with
      Ghost,
      Global => null,
-     Pre  => Body_Encodes (Input, Consumed, Data),
+     Pre  => Body_Encodes (Input, Consumed, Data)
+               and then not Dynamic.Is_Encoding (Input, Consumed, Data),
      Post => Recognized (Input, Data'Length)
                and then Encoded_Size (Input) = Consumed
                and then Decoded_Size (Input) = Data'Length;
@@ -160,9 +182,15 @@ package Inflate.Bodies with Pure, SPARK_Mode => On is
                    and then Fixed.Is_Encoding (Before, Consumed, Data)
               then After'Length <= Fixed.Max_Stream_Bytes)
                and then
+             (if Dynamic.Is_Encoding (Before, Consumed, Data)
+              then After'Length <= Fixed.Max_Stream_Bytes)
+               and then
              (for all I in 0 .. Consumed - 1 =>
                 After (After'First + I) = Before (Before'First + I)),
-     Post => Body_Encodes (After, Consumed, Data);
+     Post => Body_Encodes (After, Consumed, Data)
+               and then
+             (if not Dynamic.Is_Encoding (Before, Consumed, Data)
+              then not Dynamic.Is_Encoding (After, Consumed, Data));
 
    --  One supported body has only one decoded byte sequence.
    procedure Lemma_Encoding_Functional

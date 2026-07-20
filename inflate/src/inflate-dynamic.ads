@@ -33,8 +33,7 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
    --  slots.  Its code-length alphabet assigns a four-bit code to symbols
    --  0 .. 15 and leaves repeat symbols 16 .. 18 absent.  Consequently every
    --  transmitted length is one direct four-bit symbol: no RLE proof is needed
-   --  before the dynamic body is connected through the common Body_Encodes
-   --  relation.
+   --  in the common Body_Encodes relation.
    Header_Prefix_Bits : constant := 3 + 5 + 5 + 4 + 19 * 3;
    Header_Bit_Count   : constant :=
      Header_Prefix_Bits
@@ -381,9 +380,9 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
                           Fixed.Bit_Value (Output'Old, Position)));
    pragma Assertion_Policy (Pre => Check, Post => Check);
 
-   --  Local relation for one complete final dynamic block.  This deliberately
-   --  stops below Inflate.GZip: the next milestone will lift stored, fixed,
-   --  and dynamic bodies through one Body_Encodes relation.
+   --  Local relation for one complete final dynamic block.  Inflate.Bodies
+   --  lifts its witness-free form into the common semantic relation; gzip does
+   --  not select that alternative until decoder completeness is connected.
    function Is_Encoding
      (Input           : Byte_Array;
       Produced        : Natural;
@@ -411,9 +410,9 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
 
    --  Witness-free form of the local dynamic relation.  The codebooks are
    --  recovered from Input, so the body has the same three-argument shape as
-   --  the common stored/fixed boundary.  Framing, input-side recognition, and
-   --  functionality are proved below; only the common-boundary routing
-   --  remains before that boundary can admit this alternative.
+   --  the common body boundary.  Framing, input-side analysis, and
+   --  functionality are proved below; Inflate.Bodies routes those semantic
+   --  consequences while executable recognition awaits decoder completeness.
    function Is_Encoding
      (Input    : Byte_Array;
       Produced : Natural;
@@ -670,8 +669,8 @@ package Inflate.Dynamic with Pure, SPARK_Mode => On is
    pragma Assertion_Policy (Post => Check);
 
    --  A semantic dynamic body is accepted by the input-side analyzer with
-   --  the same exact byte count and decoded length.  This is the remaining
-   --  recognition consequence needed before Dynamic can join Body_Encodes.
+   --  the same exact byte count and decoded length.  This is the one-way
+   --  input-side consequence used by the common-boundary work.
    procedure Lemma_Encoding_Analyzes
      (Input    : Byte_Array;
       Produced : Natural;

@@ -226,8 +226,8 @@ M2–M5, it does not avoid them.
   research project of its own and buys round-trip nothing.
 
 **Current status: in progress, with a verified fixed-Huffman LZ77 slice, a
-proved local dynamic-Huffman body serializer, and a common stored/fixed body
-boundary.**
+proved local dynamic-Huffman body serializer, and a common semantic body
+boundary covering stored, fixed, and dynamic images.**
 `Inflate.Fixed` emits and recognizes one final fixed-code block containing
 literals, selected matches, and end-of-block. Its compression plan is now
 explicit: `Selected_Token`, `Next_Position`, and `Token_Bit_Cost` operate only
@@ -249,8 +249,8 @@ recursive relations and framing lemmas are erased from checks-enabled builds.
 `Inflate.GZip.Compress` selects this fixed coding throughout that domain and
 uses the stored encoder above it. `Inflate.Raw.Decompress` retains a proved
 success path for the expanded image. `Inflate.Bodies.Body_Encodes` now hides
-the selected stored/fixed format from `Inflate.Raw`, `Inflate.GZip`, and
-`Inflate.Theorems`: its recognition, framing, and functionality lemmas replace
+the body format from `Inflate.Raw`, `Inflate.GZip`, and `Inflate.Theorems`: its
+stored/fixed recognition plus common framing and functionality lemmas replace
 the former member predicates and `GZip_Round_Trip` has no format branch. Match
 lengths requiring extra bits, wider distances, and top-level dynamic-block
 selection remain open M6 ratio work. `Inflate.Dynamic.Build_Lengths` is the
@@ -276,9 +276,10 @@ payload. `Serialize_Body` establishes the relation without yet widening the
 gzip compressor branch. No append-only logical-stream layer was needed: the
 concrete header and payload writers retain explicit frame contracts.
 
-The common body boundary currently contains exactly the two images selected by
-the top-level compressor. The dynamic witness-erasure prerequisite is now
-complete: `Literal_Book_From_Header` and `Distance_Book_From_Header` rebuild
+The proof-only common body boundary now contains stored, fixed, and dynamic
+semantic alternatives, although the top-level compressor still selects only
+the first two. The dynamic witness-erasure prerequisite is complete:
+`Literal_Book_From_Header` and `Distance_Book_From_Header` rebuild
 exact canonical records from the 316 transmitted lengths, and
 `Lemma_Encoding_Uses_Header_Books` proves that the serializer's explicit-book
 relation implies the three-argument `Inflate.Dynamic.Is_Encoding (Body,
@@ -296,12 +297,15 @@ window equation makes matching back-references functional. The final local
 prerequisite is now complete as well: `Inflate.Dynamic.Analyze` recovers the
 canonical books and walks the bounded payload from the input alone, while
 `Lemma_Encoding_Analyzes` proves that every self-describing dynamic relation is
-recognized with its exact encoded byte count and decoded length. The dynamic
-alternative can therefore join `Body_Encodes`; the common wrapper only needs
-to route recognition, framing, and functionality to these local results.
+recognized with its exact encoded byte count and decoded length. Dynamic
+introduction, framing, cross-format disjointness, and functionality now route
+through `Body_Encodes`. The executable `Recognized`, `Encoded_Size`, and
+`Decoded_Size` queries remain stored/fixed: analyzer acceptance is a broader
+input-side condition than the serializer relation, so the remaining bridge is
+a decoder-completeness result that returns bytes satisfying that relation.
 
 The focused dynamic project proves all 5,810 checks at `--level=4`; the full
-library proves all 6,618 checks at `--level=4`, with no justifications or
+library proves all 6,659 checks at `--level=4`, with no justifications or
 assumptions.
 The dynamic runtime harness covers empty, singleton, sparse, and full DEFLATE
 alphabets, an exact shared-payload bit pattern, and a complete dynamic body that
@@ -403,11 +407,11 @@ M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
 literal/match slice with the same full-domain gzip theorem, plus a proved
 local dynamic header and body serializer. The remaining ratio work is:
 
-1. **Extend `Body_Encodes` from stored/fixed to dynamic.** The common relation
-   already replaced the format-specific branches in raw, gzip, and the theorem.
-   Dynamic header recovery and the witness-free three-argument local relation
-   are complete, as are container-style framing, input-side recognition, and
-   local functionality. Route those proved consequences through the common
-   relation without weakening it.
+1. **Complete dynamic decoder recognition.** `Body_Encodes` now has a dynamic
+   semantic alternative with common introduction, framing, and functionality.
+   Prove that the shipping decoder accepts the serializer image and returns
+   bytes satisfying that alternative, then extend the executable common
+   recognition and size queries without treating broader analyzer acceptance
+   as serializer membership.
 2. **Add the dynamic gzip branch.** Select the proved dynamic body locally and
-   lift it through the existing framing, decoder-success, and round-trip proof.
+   lift it through the completed decoder-success and round-trip path.
