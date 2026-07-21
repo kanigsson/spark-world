@@ -2,14 +2,6 @@ package body Unicode_Text.Models
   with SPARK_Mode
 is
 
-   procedure Lemma_Equal_Reflexive (Value : Text) is null;
-
-   procedure Lemma_Equal_Extensional (Left, Right : Text) is null;
-
-   procedure Lemma_Equal_Symmetric (Left, Right : Text) is null;
-
-   procedure Lemma_Equal_Transitive (First, Second, Third : Text) is null;
-
    procedure Lemma_Add_Is_Append (Before : Text; Value : Scalar_Value) is null;
 
    procedure Lemma_Prefix_Reflexive (Value : Text) is null;

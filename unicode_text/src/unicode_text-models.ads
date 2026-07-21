@@ -11,15 +11,9 @@ is
      SPARK.Containers.Functional.Infinite_Sequences
        (Element_Type         => Scalar_Value,
         Use_Logical_Equality => True);
+   use type Scalar_Sequences.Sequence;
 
    subtype Text is Scalar_Sequences.Sequence;
-
-   function Is_Equal (Left, Right : Text) return Boolean
-   is (Scalar_Sequences.Length (Left) = Scalar_Sequences.Length (Right)
-       and then
-         (for all I in Left =>
-            Scalar_Sequences.Get (Left, I) = Scalar_Sequences.Get (Right, I)))
-   with Ghost;
 
    function Is_Prefix (Prefix, Whole : Text) return Boolean
    is (Scalar_Sequences.Length (Prefix) <= Scalar_Sequences.Length (Whole)
@@ -72,29 +66,6 @@ is
                Result => Needle)))
    with Ghost;
 
-   procedure Lemma_Equal_Reflexive (Value : Text)
-   with Ghost, Global => null, Post => Is_Equal (Value, Value);
-
-   procedure Lemma_Equal_Extensional (Left, Right : Text)
-   with
-     Ghost,
-     Global => null,
-     Post   => Is_Equal (Left, Right) = Scalar_Sequences."=" (Left, Right);
-
-   procedure Lemma_Equal_Symmetric (Left, Right : Text)
-   with
-     Ghost,
-     Global => null,
-     Pre    => Is_Equal (Left, Right),
-     Post   => Is_Equal (Right, Left);
-
-   procedure Lemma_Equal_Transitive (First, Second, Third : Text)
-   with
-     Ghost,
-     Global => null,
-     Pre    => Is_Equal (First, Second) and then Is_Equal (Second, Third),
-     Post   => Is_Equal (First, Third);
-
    procedure Lemma_Add_Is_Append (Before : Text; Value : Scalar_Value)
    with
      Ghost,
@@ -133,7 +104,7 @@ is
      Pre    =>
        Is_Concatenation (Left, Right, First_Result)
        and then Is_Concatenation (Left, Right, Second_Result),
-     Post   => Is_Equal (First_Result, Second_Result);
+     Post   => First_Result = Second_Result;
 
    procedure Lemma_Concatenation_Associative
      (Left, Middle, Right                       : Text;
@@ -147,7 +118,7 @@ is
        and then Is_Concatenation (Left_Middle, Right, Left_Grouped_Result)
        and then Is_Concatenation (Middle, Right, Middle_Right)
        and then Is_Concatenation (Left, Middle_Right, Right_Grouped_Result),
-     Post   => Is_Equal (Left_Grouped_Result, Right_Grouped_Result);
+     Post   => Left_Grouped_Result = Right_Grouped_Result;
 
    procedure Lemma_Slice_Whole (Source : Text)
    with
