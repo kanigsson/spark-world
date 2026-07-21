@@ -16,6 +16,21 @@ is
       pragma Assert (Contains (Result, Right));
    end Nonempty_Witness;
 
+   procedure Concatenation_Associativity
+     (Left, Middle, Right                       : Text;
+      Left_Middle, Middle_Right                 : Text;
+      Left_Grouped_Result, Right_Grouped_Result : Text) is
+   begin
+      Lemma_Concatenation_Associative
+        (Left,
+         Middle,
+         Right,
+         Left_Middle,
+         Middle_Right,
+         Left_Grouped_Result,
+         Right_Grouped_Result);
+   end Concatenation_Associativity;
+
    procedure Chain_1 (T0, T1, R1 : Text) is null;
 
    procedure Chain_2 (T0, T1, T2, R1, R2 : Text) is null;

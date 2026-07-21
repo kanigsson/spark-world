@@ -66,46 +66,6 @@ is
                Result => Needle)))
    with Ghost;
 
-   procedure Lemma_Add_Is_Append (Before : Text; Value : Scalar_Value)
-   with
-     Ghost,
-     Global => null,
-     Post   => Is_Append (Before, Value, Scalar_Sequences.Add (Before, Value));
-
-   procedure Lemma_Prefix_Reflexive (Value : Text)
-   with Ghost, Global => null, Post => Is_Prefix (Value, Value);
-
-   procedure Lemma_Prefix_Transitive (First, Second, Third : Text)
-   with
-     Ghost,
-     Global => null,
-     Pre    => Is_Prefix (First, Second) and then Is_Prefix (Second, Third),
-     Post   => Is_Prefix (First, Third);
-
-   procedure Lemma_Concatenation_Empty_Left (Value : Text)
-   with
-     Ghost,
-     Global => null,
-     Post   =>
-       Is_Concatenation (Scalar_Sequences.Empty_Sequence, Value, Value);
-
-   procedure Lemma_Concatenation_Empty_Right (Value : Text)
-   with
-     Ghost,
-     Global => null,
-     Post   =>
-       Is_Concatenation (Value, Scalar_Sequences.Empty_Sequence, Value);
-
-   procedure Lemma_Concatenation_Unique
-     (Left, Right, First_Result, Second_Result : Text)
-   with
-     Ghost,
-     Global => null,
-     Pre    =>
-       Is_Concatenation (Left, Right, First_Result)
-       and then Is_Concatenation (Left, Right, Second_Result),
-     Post   => First_Result = Second_Result;
-
    procedure Lemma_Concatenation_Associative
      (Left, Middle, Right                       : Text;
       Left_Middle, Middle_Right                 : Text;
@@ -119,21 +79,5 @@ is
        and then Is_Concatenation (Middle, Right, Middle_Right)
        and then Is_Concatenation (Left, Middle_Right, Right_Grouped_Result),
      Post   => Left_Grouped_Result = Right_Grouped_Result;
-
-   procedure Lemma_Slice_Whole (Source : Text)
-   with
-     Ghost,
-     Global => null,
-     Post   => Is_Slice (Source, 1, Scalar_Sequences.Length (Source), Source);
-
-   procedure Lemma_Slice_Empty (Source : Text; First : Big_Positive)
-   with
-     Ghost,
-     Global => null,
-     Pre    => First <= Scalar_Sequences.Length (Source) + 1,
-     Post   => Is_Slice (Source, First, 0, Scalar_Sequences.Empty_Sequence);
-
-   procedure Lemma_Containment_Reflexive (Value : Text)
-   with Ghost, Global => null, Post => Contains (Value, Value);
 
 end Unicode_Text.Models;

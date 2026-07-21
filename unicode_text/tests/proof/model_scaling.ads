@@ -3,9 +3,24 @@ with Unicode_Text.Models; use Unicode_Text.Models;
 package Model_Scaling
   with SPARK_Mode
 is
+   use type Scalar_Sequences.Sequence;
 
    procedure Nonempty_Witness
    with Ghost, Global => null;
+
+   procedure Concatenation_Associativity
+     (Left, Middle, Right                       : Text;
+      Left_Middle, Middle_Right                 : Text;
+      Left_Grouped_Result, Right_Grouped_Result : Text)
+   with
+     Ghost,
+     Global => null,
+     Pre    =>
+       Is_Concatenation (Left, Middle, Left_Middle)
+       and then Is_Concatenation (Left_Middle, Right, Left_Grouped_Result)
+       and then Is_Concatenation (Middle, Right, Middle_Right)
+       and then Is_Concatenation (Left, Middle_Right, Right_Grouped_Result),
+     Post   => Left_Grouped_Result = Right_Grouped_Result;
 
    procedure Chain_1 (T0, T1, R1 : Text)
    with

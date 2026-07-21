@@ -1,19 +1,18 @@
 package body Unicode_Text.Models
   with SPARK_Mode
 is
-
-   procedure Lemma_Add_Is_Append (Before : Text; Value : Scalar_Value) is null;
-
-   procedure Lemma_Prefix_Reflexive (Value : Text) is null;
-
-   procedure Lemma_Prefix_Transitive (First, Second, Third : Text) is null;
-
-   procedure Lemma_Concatenation_Empty_Left (Value : Text) is null;
-
-   procedure Lemma_Concatenation_Empty_Right (Value : Text) is null;
+   use type Scalar_Sequences.Sequence;
 
    procedure Lemma_Concatenation_Unique
-     (Left, Right, First_Result, Second_Result : Text) is
+     (Left, Right, First_Result, Second_Result : Text)
+   with
+     Ghost,
+     Global => null,
+     Pre    =>
+       Is_Concatenation (Left, Right, First_Result)
+       and then Is_Concatenation (Left, Right, Second_Result),
+     Post   => First_Result = Second_Result
+   is
    begin
       pragma
         Assert
@@ -79,19 +78,5 @@ is
       Lemma_Concatenation_Unique
         (Left, Middle_Right, Left_Grouped_Result, Right_Grouped_Result);
    end Lemma_Concatenation_Associative;
-
-   procedure Lemma_Slice_Whole (Source : Text) is null;
-
-   procedure Lemma_Slice_Empty (Source : Text; First : Big_Positive) is null;
-
-   procedure Lemma_Containment_Reflexive (Value : Text) is
-   begin
-      if Scalar_Sequences.Length (Value) > 0 then
-         Lemma_Slice_Whole (Value);
-         pragma
-           Assert
-             (Is_Slice (Value, 1, Scalar_Sequences.Length (Value), Value));
-      end if;
-   end Lemma_Containment_Reflexive;
 
 end Unicode_Text.Models;

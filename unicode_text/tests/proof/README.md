@@ -5,6 +5,8 @@ concatenations. Each client proves that the original text remains a prefix of
 the final result using only the public `Unicode_Text.Models` specification.
 `Nonempty_Witness` separately constructs concrete scalar sequences and proves
 concatenation, slicing, and containment, guarding against vacuous results.
+`Concatenation_Associativity` is the demand-driven client for the one public
+model lemma retained in Milestone 1.
 
 The cases deliberately contain no implementation details and no calls to the
 library lemma bodies. They are an initial guard against sudden proof-complexity
