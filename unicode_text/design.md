@@ -1,6 +1,6 @@
 # Unicode Text Library Design
 
-Status: initial design
+Status: Milestone 1 complete
 
 This document defines a proposed SPARK-compatible string library whose only
 concrete encoding is UTF-8. The library is intended to support ordinary Ada
@@ -1041,9 +1041,40 @@ The initial targets are:
 Proof-friendly simplicity is preferred initially, but an unexpectedly poor
 runtime result must be visible rather than hidden behind proof success.
 
-## 20. Release criteria
+## 20. Versioning and compatibility
 
-An initial release requires:
+The library uses Semantic Versioning. `VERSION` contains the version of the
+current source tree, and release tags have the form `vMAJOR.MINOR.PATCH`.
+`CHANGELOG.md` records the user-visible changes in each release.
+
+Before `1.0.0`, the public Ada API and its contracts are still experimental:
+
+- `MINOR` is incremented for a change that can require a client source or
+  proof change, and for a milestone-sized addition to the public API.
+- `PATCH` is incremented for backward-compatible corrections, proof or
+  performance improvements, and documentation changes.
+- Development and release-candidate snapshots may use SemVer pre-release
+  suffixes such as `-dev.1` and `-rc.1`.
+
+`1.0.0` marks the first stable API after the release criteria below have been
+met. From that point, incompatible public API or contract changes increment
+`MAJOR`, backward-compatible additions increment `MINOR`, and compatible fixes
+increment `PATCH`.
+
+The library version is distinct from a Unicode data version. The foundational
+scalar and UTF-8 packages do not depend on Unicode character-property data.
+Any later package that does depend on such data exposes that data version
+separately; changing it still affects the library version according to the
+compatibility rules above.
+
+Milestones describe implementation scope, not an independent version number.
+Completion of Milestone 1 establishes version `0.1.0`; later release numbers
+are chosen from their compatibility impact rather than copied mechanically
+from the milestone number.
+
+## 21. Stable release criteria
+
+A `1.0.0` release requires:
 
 - the scalar-value and common text model packages;
 - plain-string validation and model mapping;
@@ -1064,7 +1095,7 @@ library as broadly useful. It composes validation, search, spans, cursor
 progress, empty-segment behavior, and reconstruction. If its clients prove
 reliably, the abstraction and lemma surface are likely adequate.
 
-## 21. Implementation sequence
+## 22. Implementation sequence
 
 ### Milestone 1: model
 
@@ -1120,7 +1151,7 @@ reliably, the abstraction and lemma surface are likely adequate.
 - Prototype scoped constant views.
 - Reconsider an owning resizable string without changing the common model.
 
-## 22. Open design questions
+## 23. Open design questions
 
 The following choices should be settled by small implementation and proof
 experiments:
