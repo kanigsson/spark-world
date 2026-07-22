@@ -14,7 +14,7 @@ project Unicode_Text is
    package Prove is
       for Proof_Dir use "proof";
       for Proof_Switches ("Ada") use
-        ("--mode=all", "--level=2", "--prover=all", "--timeout=30");
+        ("--mode=all", "--level=2", "--timeout=30");
    end Prove;
 
 end Unicode_Text;
