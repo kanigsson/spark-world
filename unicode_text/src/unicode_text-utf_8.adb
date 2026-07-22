@@ -23,7 +23,6 @@ is
             1,
             Decode_One (S, Byte_Offset).Value))
    with
-     Ghost => Static,
      Pre                =>
        Byte_Offset <= S'Length and then Valid_From (S, Byte_Offset),
      Post               =>
@@ -144,12 +143,455 @@ is
    function Is_Valid_UTF_8 (S : String) return Boolean
    is (Valid_From (S, 0));
 
+   procedure Lemma_ASCII_Valid_From
+     (S : String; Byte_Offset : Natural)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    =>
+       Byte_Offset <= S'Length
+       and then
+         (Byte_Offset = S'Length
+          or else
+            (for all Offset in Natural range Byte_Offset .. S'Length - 1 =>
+               Octet_At (S, Offset) <= 16#7F#)),
+     Post   =>
+       Valid_From (S, Byte_Offset)
+       and then Length_From (S, Byte_Offset) = S'Length - Byte_Offset,
+     Subprogram_Variant => (Decreases => S'Length - Byte_Offset)
+   is
+   begin
+      if Byte_Offset < S'Length then
+         Lemma_ASCII_Valid_From (S, Byte_Offset + 1);
+      end if;
+   end Lemma_ASCII_Valid_From;
+
    function Code_Point_Length (S : String) return Natural
    is (Length_From (S, 0));
+
+   procedure Lemma_ASCII_Valid (S : String) is
+   begin
+      Lemma_ASCII_Valid_From (S, 0);
+   end Lemma_ASCII_Valid;
 
    function Element
      (S : String; Index : Positive) return Scalar_Value
    is (Element_From (S, 0, Index));
+
+   function Cursor_At_Index
+     (S : String; Index : Positive) return Cursor_Type
+   with
+     Pre  =>
+       Is_Valid_UTF_8 (S) and then Index - 1 <= Code_Point_Length (S),
+     Post =>
+       (Runtime =>
+          Model_Index (Cursor_At_Index'Result) = Cursor_Index (Index),
+        Static => Is_Valid_Cursor (S, Cursor_At_Index'Result))
+   is
+      Cursor : Cursor_Type := First (S);
+      Value  : Scalar_Value;
+   begin
+      for Position in 1 .. Index - 1 loop
+         pragma Loop_Invariant (Static => Is_Valid_Cursor (S, Cursor));
+         pragma Loop_Invariant
+           (Model_Index (Cursor) = Cursor_Index (Position));
+         Next (S, Cursor, Value);
+         pragma Assert (Value in Scalar_Value);
+      end loop;
+      return Cursor;
+   end Cursor_At_Index;
+
+   function Is_Valid_Range
+     (S : String; First, Past_Last : Natural) return Boolean
+   is (First = Past_Last
+       or else
+         (Valid_At (S, First)
+          and then Sequence_Width_At (S, First) <= Past_Last - First
+          and then
+            Is_Valid_Range
+              (S, First + Sequence_Width_At (S, First), Past_Last)))
+   with
+     Pre                => First <= Past_Last and then Past_Last <= S'Length,
+     Subprogram_Variant => (Decreases => Past_Last - First);
+
+   function Valid_Range_Length
+     (S : String; First, Past_Last : Natural) return Natural
+   is (if First = Past_Last
+       then 0
+       else
+         1
+         + Valid_Range_Length
+             (S, First + Sequence_Width_At (S, First), Past_Last))
+   with
+     Pre                =>
+       First <= Past_Last
+       and then Past_Last <= S'Length
+       and then Is_Valid_Range (S, First, Past_Last),
+     Post               =>
+       Valid_Range_Length'Result <= Past_Last - First,
+     Subprogram_Variant => (Decreases => Past_Last - First);
+
+   function Range_Model
+     (S : String; First, Past_Last : Natural) return Text
+   is (if First = Past_Last
+       then Scalar_Sequences.Empty_Sequence
+       else
+         Scalar_Sequences.Add
+           (Range_Model
+              (S, First + Sequence_Width_At (S, First), Past_Last),
+            1,
+            Decode_One (S, First).Value))
+   with
+     Ghost => Static,
+     Pre                =>
+       First <= Past_Last
+       and then Past_Last <= S'Length
+       and then Is_Valid_Range (S, First, Past_Last),
+     Post               =>
+       Scalar_Sequences.Length (Range_Model'Result)
+       = To_Big_Integer (Valid_Range_Length (S, First, Past_Last)),
+     Subprogram_Variant => (Decreases => Past_Last - First);
+
+   function Is_Valid_Byte_Span (S : String; Span : Byte_Span) return Boolean
+   is (Is_Valid_UTF_8 (S)
+       and then Span.First <= Span.Past_Last
+       and then Span.Past_Last <= S'Length
+       and then Is_Valid_Range (S, Span.First, Span.Past_Last));
+
+   function Code_Point_Length (S : String; Span : Byte_Span) return Natural
+   is (Valid_Range_Length (S, Span.First, Span.Past_Last));
+
+   function Model (S : String; Span : Byte_Span) return Text
+   is (Range_Model (S, Span.First, Span.Past_Last));
+
+   procedure Lemma_Extend_Valid_Range
+     (S : String; First, Old_Past_Last, New_Past_Last : Natural)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    =>
+       First <= Old_Past_Last
+       and then Old_Past_Last < New_Past_Last
+       and then New_Past_Last <= S'Length
+       and then Is_Valid_Range (S, First, Old_Past_Last)
+       and then Valid_At (S, Old_Past_Last)
+       and then
+         New_Past_Last
+         = Old_Past_Last + Sequence_Width_At (S, Old_Past_Last),
+     Post   =>
+       Is_Valid_Range (S, First, New_Past_Last)
+       and then
+         Valid_Range_Length (S, First, New_Past_Last)
+         = Valid_Range_Length (S, First, Old_Past_Last) + 1
+       and then
+         Is_Concatenation
+           (Range_Model (S, First, Old_Past_Last),
+            [Decode_One (S, Old_Past_Last).Value],
+            Range_Model (S, First, New_Past_Last)),
+     Subprogram_Variant => (Decreases => Old_Past_Last - First)
+   is
+   begin
+      if First < Old_Past_Last then
+         declare
+            Width : constant Natural := Sequence_Width_At (S, First)
+            with Ghost => Static;
+         begin
+            Lemma_Extend_Valid_Range
+              (S,
+               First + Width,
+               Old_Past_Last,
+               New_Past_Last);
+            Lemma_Prepend_Concatenation
+              (Decode_One (S, First).Value,
+               Range_Model (S, First + Width, Old_Past_Last),
+               [Decode_One (S, Old_Past_Last).Value],
+               Range_Model (S, First + Width, New_Past_Last));
+         end;
+      end if;
+   end Lemma_Extend_Valid_Range;
+
+   procedure Lemma_Rebased_Valid_Range
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      Count        : Natural)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    =>
+       Left_Offset <= Left'Length
+       and then Count <= Left'Length - Left_Offset
+       and then Right_Offset <= Right'Length
+       and then Count = Right'Length - Right_Offset
+       and then
+         Same_Bytes (Left, Left_Offset, Right, Right_Offset, Count)
+       and then
+         Is_Valid_Range (Left, Left_Offset, Left_Offset + Count),
+     Post   =>
+       Valid_From (Right, Right_Offset)
+       and then
+         Scalar_Sequences.Length (Model_From (Right, Right_Offset))
+         = To_Big_Integer
+             (Valid_Range_Length
+                (Left, Left_Offset, Left_Offset + Count))
+       and then
+         Model_From (Right, Right_Offset)
+         = Range_Model (Left, Left_Offset, Left_Offset + Count),
+     Subprogram_Variant => (Decreases => Count);
+
+   procedure Lemma_Copied_Range
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      Count        : Natural)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    =>
+       Left_Offset <= Left'Length
+       and then Count <= Left'Length - Left_Offset
+       and then Right_Offset <= Right'Length
+       and then Count <= Right'Length - Right_Offset
+       and then
+         (Count = 0
+          or else
+            (for all I in Natural range 0 .. Count - 1 =>
+               Octet_At (Left, Left_Offset + I)
+               = Octet_At (Right, Right_Offset + I))),
+     Post   =>
+       Same_Bytes (Left, Left_Offset, Right, Right_Offset, Count),
+     Subprogram_Variant => (Decreases => Count)
+   is
+   begin
+      if Count > 0 then
+         Lemma_Copied_Range
+           (Left, Left_Offset, Right, Right_Offset, Count - 1);
+      end if;
+   end Lemma_Copied_Range;
+
+   function Slice (S : String; Span : Byte_Span) return String is
+   begin
+      if Span.First = Span.Past_Last then
+         return "";
+      else
+         declare
+            First_Index : constant Positive :=
+              S'Last - (S'Length - Span.First) + 1;
+            Last_Index  : constant Positive :=
+              S'Last - (S'Length - Span.Past_Last);
+            Result      : String (1 .. Span.Past_Last - Span.First);
+         begin
+            Result := S (First_Index .. Last_Index);
+            pragma Assert
+              (Static =>
+                 (for all I in Natural range 0 .. Result'Length - 1 =>
+                    Octet_At (S, Span.First + I) = Octet_At (Result, I)));
+            Lemma_Copied_Range
+              (S, Span.First, Result, 0, Result'Length);
+            Lemma_Rebased_Valid_Range
+              (S, Span.First, Result, 0, Result'Length);
+            return Result;
+         end;
+      end if;
+   end Slice;
+
+   function To_Byte_Span
+     (S : String; First : Positive; Count : Natural) return Byte_Span
+   is
+      Start_Cursor : constant Cursor_Type := Cursor_At_Index (S, First);
+      End_Cursor   : Cursor_Type := Start_Cursor;
+      Value        : Scalar_Value;
+   begin
+      for Position in 1 .. Count loop
+         pragma Loop_Invariant (Static => Is_Valid_Cursor (S, End_Cursor));
+         pragma Loop_Invariant
+           (Byte_Offset (Start_Cursor) <= Byte_Offset (End_Cursor));
+         pragma Loop_Invariant
+           (Static =>
+              Is_Valid_Range
+                (S,
+                 Byte_Offset (Start_Cursor),
+                 Byte_Offset (End_Cursor)));
+         pragma Loop_Invariant
+           (Static =>
+              Valid_Range_Length
+                (S,
+                 Byte_Offset (Start_Cursor),
+                 Byte_Offset (End_Cursor))
+              = Position - 1);
+         pragma Loop_Invariant
+           (Static =>
+              Is_Slice
+                (Source => Model (S),
+                 First  => To_Big_Integer (First),
+                 Count  => To_Big_Integer (Position - 1),
+                 Result =>
+                   Range_Model
+                     (S,
+                      Byte_Offset (Start_Cursor),
+                      Byte_Offset (End_Cursor))));
+         pragma Loop_Invariant
+           (Cursor_Index_Conversions.To_Big_Integer (Model_Index (End_Cursor))
+            = To_Big_Integer (First) + To_Big_Integer (Position) - 1);
+         declare
+            Old_End : constant Natural := Byte_Offset (End_Cursor)
+            with Ghost => Static;
+         begin
+            pragma Assert (Static => Valid_At (S, Old_End));
+            Next (S, End_Cursor, Value);
+            pragma Assert (Value in Scalar_Value);
+            Lemma_Extend_Valid_Range
+              (S,
+               Byte_Offset (Start_Cursor),
+               Old_End,
+               Byte_Offset (End_Cursor));
+            Lemma_Extend_Slice
+              (Source => Model (S),
+               First  => To_Big_Integer (First),
+               Count  => To_Big_Integer (Position - 1),
+               Before =>
+                 Range_Model
+                   (S, Byte_Offset (Start_Cursor), Old_End),
+               Value  => Value,
+               After  =>
+                 Range_Model
+                   (S,
+                    Byte_Offset (Start_Cursor),
+                    Byte_Offset (End_Cursor)));
+         end;
+      end loop;
+
+      return
+        (First     => Byte_Offset (Start_Cursor),
+         Past_Last => Byte_Offset (End_Cursor));
+   end To_Byte_Span;
+
+   function Slice
+     (S : String; First : Positive; Count : Natural) return String
+   is (Slice (S, To_Byte_Span (S, First, Count)));
+
+   function Find
+     (Haystack : String; Needle : String; From : Positive := 1)
+      return Natural
+   with Refined_Post =>
+     (Static =>
+        Is_First_Occurrence
+          (Haystack => Model (Haystack),
+           Needle   => Model (Needle),
+           From     => To_Big_Integer (From),
+           Result   => To_Big_Integer (Find'Result)))
+   is
+      Haystack_Length : constant Natural := Code_Point_Length (Haystack);
+      Needle_Length   : constant Natural := Code_Point_Length (Needle);
+
+      function Matches_At_Position (First : Positive) return Boolean
+      with
+        Pre  =>
+          Is_Valid_UTF_8 (Haystack)
+          and then Is_Valid_UTF_8 (Needle)
+          and then First - 1 <= Haystack_Length,
+        Post =>
+          (Static =>
+             Matches_At_Position'Result
+             = Matches_At
+                 (Model (Haystack),
+                  Model (Needle),
+                  To_Big_Integer (First)))
+      is
+      begin
+         if Needle_Length > Haystack_Length - (First - 1) then
+            return False;
+         end if;
+
+         for Offset in 1 .. Needle_Length loop
+            pragma Loop_Invariant
+              (First - 1 + Offset <= Haystack_Length);
+            pragma Loop_Invariant
+              (Static =>
+                 (for all I in Model (Needle) =>
+                    (if I < To_Big_Integer (Offset)
+                     then
+                       Scalar_Sequences.Get (Model (Needle), I)
+                       = Scalar_Sequences.Get
+                           (Model (Haystack),
+                            To_Big_Integer (First) + I - 1))));
+
+            if Element (Needle, Offset)
+              /= Element (Haystack, First - 1 + Offset)
+            then
+               return False;
+            end if;
+         end loop;
+         return True;
+      end Matches_At_Position;
+   begin
+      if Needle_Length = 0 then
+         return From;
+      elsif Needle_Length > Haystack_Length - (From - 1) then
+         return 0;
+      end if;
+
+      for Candidate in From .. Haystack_Length - Needle_Length + 1 loop
+         pragma Loop_Invariant
+           (Static =>
+              (for all I in Model (Haystack) =>
+                 (if I >= To_Big_Integer (From)
+                      and then I < To_Big_Integer (Candidate)
+                  then not Matches_At (Model (Haystack), Model (Needle), I))));
+
+         if Matches_At_Position (Candidate) then
+            return Candidate;
+         end if;
+      end loop;
+      return 0;
+   end Find;
+
+   function Find
+     (S : String; Value : Scalar_Value; From : Positive := 1) return Natural
+   is
+      Length : constant Natural := Code_Point_Length (S);
+   begin
+      if From > Length then
+         return 0;
+      end if;
+
+      for Position in From .. Length loop
+         pragma Loop_Invariant
+           (Static =>
+              (for all I in Model (S) =>
+                 (if I >= To_Big_Integer (From)
+                      and then I < To_Big_Integer (Position)
+                  then Scalar_Sequences.Get (Model (S), I) /= Value)));
+         if Element (S, Position) = Value then
+            return Position;
+         end if;
+      end loop;
+      return 0;
+   end Find;
+
+   function Reverse_Find (S : String; Value : Scalar_Value) return Natural is
+      Length : constant Natural := Code_Point_Length (S);
+   begin
+      for Position in reverse 1 .. Length loop
+         pragma Loop_Invariant
+           (Static =>
+              (for all I in Model (S) =>
+                 (if I > To_Big_Integer (Position)
+                  then Scalar_Sequences.Get (Model (S), I) /= Value)));
+         if Element (S, Position) = Value then
+            return Position;
+         end if;
+      end loop;
+      return 0;
+   end Reverse_Find;
+
+   function Contains (Haystack : String; Needle : String) return Boolean is
+      Result : constant Natural := Find (Haystack, Needle);
+   begin
+      return Result /= 0;
+   end Contains;
 
    function First (S : String) return Cursor_Type
    is ((Offset => 0, Index => 1));
@@ -777,6 +1219,39 @@ is
         (Static => Decode_One (Left, Left_Offset)
          = Decode_One (Right, Right_Offset));
    end Lemma_Same_Bytes_Decode;
+
+   procedure Lemma_Rebased_Valid_Range
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      Count        : Natural)
+   is
+   begin
+      if Count > 0 then
+         declare
+            Width : constant Natural :=
+              Sequence_Width_At (Left, Left_Offset)
+            with Ghost => Static;
+         begin
+            Lemma_Same_Bytes_Decode
+              (Left, Left_Offset, Right, Right_Offset, Count);
+            Lemma_Same_Bytes_Suffix
+              (Left,
+               Left_Offset,
+               Right,
+               Right_Offset,
+               Count,
+               Width);
+            Lemma_Rebased_Valid_Range
+              (Left,
+               Left_Offset + Width,
+               Right,
+               Right_Offset + Width,
+               Count - Width);
+         end;
+      end if;
+   end Lemma_Rebased_Valid_Range;
 
    procedure Lemma_Rebased_Model_From
      (Left         : String;

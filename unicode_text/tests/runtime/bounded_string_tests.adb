@@ -124,6 +124,45 @@ begin
       Check
         (Text.Byte_Offset (Cursor) = Text.Byte_Length (Copy),
          "iteration ends at byte length");
+
+      declare
+         Span        : constant Text.Byte_Span :=
+           Text.To_Byte_Span (Value, 3, 3);
+         Part        : constant Text.Bounded_String := Text.Slice (Value, Span);
+         Indexed     : constant Text.Bounded_String := Text.Slice (Value, 3, 3);
+         Empty_Part  : constant Text.Bounded_String := Text.Slice (Value, 10, 0);
+         Needle      : constant Text.Bounded_String :=
+           Text.To_Bounded_String
+             (Bytes
+                ([16#DF#, 16#BF#,
+                  16#E0#, 16#A0#, 16#80#,
+                  16#ED#, 16#9F#, 16#BF#]));
+      begin
+         Check (Span.First = 2 and then Span.Past_Last = 9,
+                "bounded code-point span");
+         Check (Text.Is_Valid_Byte_Span (Value, Span),
+                "bounded span validity");
+         Check (Part = Indexed, "bounded span and indexed slices agree");
+         Check (Text.Code_Point_Length (Part) = 3, "bounded slice length");
+         Check (Text.Is_Empty (Empty_Part), "bounded empty ending slice");
+         Check
+           (Text.Find (Value, Scalar_Value'(16#7F#)) = 2,
+            "bounded scalar search");
+         Check
+           (Text.Reverse_Find (Value, Scalar_Value'(16#10_FFFF#)) = 9,
+            "bounded reverse scalar search");
+         Check (Text.Find (Value, Needle) = 4, "bounded needle search");
+         Check
+           (Text.Find (Value, Text.To_String (Needle), From => 5) = 0,
+            "bounded string needle from later position");
+         Check (Text.Find (Value, "") = 1, "bounded empty needle");
+         Check (Text.Find (Value, "", From => 10) = 10,
+                "bounded empty needle at end");
+         Check (Text.Contains (Value, Needle), "bounded containment");
+         Check
+           (not Text.Contains (Needle, Value),
+            "bounded missing containment");
+      end;
    end;
 
    declare

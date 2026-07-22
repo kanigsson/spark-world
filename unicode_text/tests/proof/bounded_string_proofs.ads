@@ -8,4 +8,7 @@ is
    procedure Repeated_Appends
    with Ghost => Static, Global => null;
 
+   procedure Slice_And_Search
+   with Ghost => Static, Global => null;
+
 end Bounded_String_Proofs;

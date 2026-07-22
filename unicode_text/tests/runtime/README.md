@@ -9,12 +9,15 @@ Ada string bounds.
 
 `plain_string_tests.adb` covers Milestone 3 code-point length, indexed access,
 forward cursor progress, prefix, suffix, comparison, mixed-width text, and
-non-default Ada string bounds. It also confirms that executable API
+non-default Ada string bounds. Its Milestone 5 cases cover byte spans,
+code-point slices, scalar and substring search, reverse search, containment,
+empty needles, and search offsets. It also confirms that executable API
 preconditions remain enabled while static ghost-model contracts are erased.
 
 `bounded_string_tests.adb` covers Milestone 4 zero and exact capacities,
 construction and copying, all append forms, clearing, equality independent of
-unused storage, indexed access, and cursor iteration.
+unused storage, indexed access, and cursor iteration. Its Milestone 5 cases
+cover bounded slices and ordinary/bounded needle search wrappers.
 
 Run it from the repository root with:
 

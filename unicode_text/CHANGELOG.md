@@ -5,6 +5,28 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-22
+
+### Added
+
+- Validated byte spans and code-point-to-byte span mapping for ordinary and
+  bounded strings.
+- Byte-span and code-point slicing with byte-preservation, UTF-8 validity, and
+  scalar-model slice contracts.
+- Forward scalar search, reverse scalar search, substring search, and
+  containment for ordinary and bounded strings.
+- First-occurrence, last-occurrence, and match-at model relations, plus a
+  reusable slice-extension lemma.
+- ASCII validity/length proof support and ordinary, bounded, and repeated-search
+  proof clients.
+- Runtime coverage for slicing and search, including empty needles, offsets,
+  mixed-width text, and bounded wrappers.
+
+### Changed
+
+- Search operates over scalar indices directly, making byte-search and
+  model-search equivalence available compositionally to clients.
+
 ## [0.4.0] - 2026-07-22
 
 ### Added

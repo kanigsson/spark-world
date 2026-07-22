@@ -89,6 +89,47 @@ begin
    Check (Compare (U_0080, A) = Greater, "two-byte comparison");
    Check (Compare (U_0800, U_10000) = Less, "wide comparison");
 
+   declare
+      Middle : constant Byte_Span := To_Byte_Span (Mixed, 2, 2);
+      At_End : constant Byte_Span := To_Byte_Span (Mixed, 5, 0);
+   begin
+      Check
+        (Middle = (First => 1, Past_Last => 6),
+         "mixed code-point span");
+      Check (Is_Valid_Byte_Span (Mixed, Middle), "mixed span validity");
+      Check (Slice (Mixed, Middle) = U_0080 & U_0800, "span slice");
+      Check (Slice (Mixed, 2, 2) = U_0080 & U_0800, "indexed slice");
+      Check
+        (At_End = (First => Mixed'Length, Past_Last => Mixed'Length),
+         "empty ending span");
+      Check (Slice (Mixed, At_End) = "", "empty ending slice");
+   end;
+
+   Check (Find (Mixed, Scalar_Value'(16#41#)) = 1, "find ASCII scalar");
+   Check (Find (Mixed, Scalar_Value'(16#80#)) = 2, "find two-byte scalar");
+   Check (Find (Mixed, Scalar_Value'(16#800#)) = 3, "find three-byte scalar");
+   Check
+     (Find (Mixed, Scalar_Value'(16#1_0000#)) = 4,
+      "find four-byte scalar");
+   Check
+     (Find (Mixed, Scalar_Value'(16#80#), From => 3) = 0,
+      "scalar search from later position");
+   Check
+     (Reverse_Find (Mixed & U_0080, Scalar_Value'(16#80#)) = 5,
+      "reverse scalar search");
+   Check
+     (Find (Mixed, U_0080 & U_0800) = 2,
+      "find multibyte substring");
+   Check
+     (Find (Mixed, U_0080 & U_0800, From => 3) = 0,
+      "substring search from later position");
+   Check (Find (Mixed, "") = 1, "empty needle at start");
+   Check (Find (Mixed, "", From => 5) = 5, "empty needle at end");
+   Check (Contains (Mixed, U_0800 & U_10000), "substring containment");
+   Check (not Contains (Mixed, U_10000 & U_0800), "missing substring");
+   Check (Find ("aaa", "aa") = 1, "overlapping first substring");
+   Check (Find ("aaa", "aa", From => 2) = 2, "overlapping search from");
+
    Check_Executable_Precondition;
 
    declare
@@ -102,6 +143,10 @@ begin
       Check (Value = 16#41#, "shifted cursor value");
       Check (Is_Prefix (A & U_0080, Shifted), "shifted prefix");
       Check (Compare (Shifted, Mixed) = Equal, "shifted comparison");
+      Check (Slice (Shifted, 2, 2) = U_0080 & U_0800, "shifted slice");
+      Check
+        (Find (Shifted, U_0080 & U_0800) = 2,
+         "shifted substring search");
    end;
 
    Put_Line ("Plain-string runtime tests passed:" & Checks'Image & " checks");

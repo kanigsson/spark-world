@@ -68,6 +68,139 @@ is
           Element'Result
           = Scalar_Sequences.Get (Model (S), To_Big_Integer (Index)));
 
+   subtype Byte_Span is Unicode_Text.UTF_8.Byte_Span;
+
+   function Is_Valid_Byte_Span
+     (S : Bounded_String; Span : Byte_Span) return Boolean
+   with
+     Post =>
+       (if Is_Valid_Byte_Span'Result
+        then
+          Span.First <= Span.Past_Last
+          and then Span.Past_Last <= Byte_Length (S));
+
+   function To_Byte_Span
+     (S : Bounded_String; First : Positive; Count : Natural) return Byte_Span
+   with
+     Pre  =>
+       First - 1 <= Code_Point_Length (S)
+       and then Count <= Code_Point_Length (S) - (First - 1),
+     Post =>
+       (Runtime => Is_Valid_Byte_Span (S, To_Byte_Span'Result),
+        Static  =>
+          Is_Slice
+            (Source => Model (S),
+             First  => To_Big_Integer (First),
+             Count  => To_Big_Integer (Count),
+             Result =>
+               Unicode_Text.UTF_8.Model
+                 (Unicode_Text.UTF_8.Slice
+                    (To_String (S), To_Byte_Span'Result))));
+
+   function Slice (S : Bounded_String; Span : Byte_Span) return Bounded_String
+   with
+     Pre  => Is_Valid_Byte_Span (S, Span),
+     Post =>
+       (Runtime => Byte_Length (Slice'Result) = Span.Past_Last - Span.First,
+        Static  =>
+          Model (Slice'Result)
+          = Unicode_Text.UTF_8.Model
+              (Unicode_Text.UTF_8.Slice (To_String (S), Span)));
+
+   function Slice
+     (S : Bounded_String; First : Positive; Count : Natural)
+      return Bounded_String
+   with
+     Pre  =>
+       First - 1 <= Code_Point_Length (S)
+       and then Count <= Code_Point_Length (S) - (First - 1),
+     Post =>
+       (Static =>
+          Is_Slice
+            (Source => Model (S),
+             First  => To_Big_Integer (First),
+             Count  => To_Big_Integer (Count),
+             Result => Model (Slice'Result)));
+
+   function Find
+     (S : Bounded_String; Value : Scalar_Value; From : Positive := 1)
+      return Natural
+   with
+     Pre  => From - 1 <= Code_Point_Length (S),
+     Post =>
+       (Runtime => Find'Result <= Code_Point_Length (S),
+        Static  =>
+          Is_First_Occurrence
+            (Source => Model (S),
+             Value  => Value,
+             From   => To_Big_Integer (From),
+             Result => To_Big_Integer (Find'Result)));
+
+   function Reverse_Find
+     (S : Bounded_String; Value : Scalar_Value) return Natural
+   with
+     Post =>
+       (Runtime => Reverse_Find'Result <= Code_Point_Length (S),
+        Static  =>
+          Is_Last_Occurrence
+            (Source => Model (S),
+             Value  => Value,
+             Result => To_Big_Integer (Reverse_Find'Result)));
+
+   function Find
+     (Haystack : Bounded_String;
+      Needle   : String;
+      From     : Positive := 1) return Natural
+   with
+     Pre  =>
+       Unicode_Text.UTF_8.Is_Valid_UTF_8 (Needle)
+       and then From - 1 <= Code_Point_Length (Haystack),
+     Post =>
+       (Runtime =>
+          Find'Result = 0
+          or else Find'Result - 1 <= Code_Point_Length (Haystack),
+        Static  =>
+          Is_First_Occurrence
+            (Haystack => Model (Haystack),
+             Needle   => Unicode_Text.UTF_8.Model (Needle),
+             From     => To_Big_Integer (From),
+             Result   => To_Big_Integer (Find'Result)));
+
+   function Find
+     (Haystack : Bounded_String;
+      Needle   : Bounded_String;
+      From     : Positive := 1) return Natural
+   with
+     Pre  => From - 1 <= Code_Point_Length (Haystack),
+     Post =>
+       (Runtime =>
+          Find'Result = 0
+          or else Find'Result - 1 <= Code_Point_Length (Haystack),
+        Static  =>
+          Is_First_Occurrence
+            (Haystack => Model (Haystack),
+             Needle   => Model (Needle),
+             From     => To_Big_Integer (From),
+             Result   => To_Big_Integer (Find'Result)));
+
+   function Contains
+     (Haystack : Bounded_String; Needle : String) return Boolean
+   with
+     Pre  => Unicode_Text.UTF_8.Is_Valid_UTF_8 (Needle),
+     Post =>
+       (Static =>
+          Contains'Result
+          = Unicode_Text.Models.Contains
+              (Model (Haystack), Unicode_Text.UTF_8.Model (Needle)));
+
+   function Contains
+     (Haystack : Bounded_String; Needle : Bounded_String) return Boolean
+   with
+     Post =>
+       (Static =>
+          Contains'Result
+          = Unicode_Text.Models.Contains (Model (Haystack), Model (Needle)));
+
    procedure Clear (S : out Bounded_String)
    with Post => Is_Empty (S);
 

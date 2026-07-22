@@ -1,6 +1,6 @@
 # Unicode Text Library Design
 
-Status: Milestone 4 complete; Milestone 5 planned
+Status: Milestone 5 complete; Milestone 6 planned
 
 This document defines a proposed SPARK-compatible string library whose only
 concrete encoding is UTF-8. The library is intended to support ordinary Ada

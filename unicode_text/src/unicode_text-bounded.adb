@@ -72,6 +72,76 @@ is
      (S : Bounded_String; Index : Positive) return Scalar_Value
    is (Unicode_Text.UTF_8.Element (S.Data (1 .. S.Used), Index));
 
+   function Is_Valid_Byte_Span
+     (S : Bounded_String; Span : Byte_Span) return Boolean
+   is (Unicode_Text.UTF_8.Is_Valid_Byte_Span
+         (S.Data (1 .. S.Used), Span));
+
+   function To_Byte_Span
+     (S : Bounded_String; First : Positive; Count : Natural) return Byte_Span
+   is (Unicode_Text.UTF_8.To_Byte_Span
+         (S.Data (1 .. S.Used), First, Count));
+
+   function Slice (S : Bounded_String; Span : Byte_Span) return Bounded_String
+   is
+      Bytes : constant String :=
+        Unicode_Text.UTF_8.Slice (S.Data (1 .. S.Used), Span);
+   begin
+      pragma Assert (Bytes'Length <= S.Used);
+      pragma Assert (Bytes'Length <= Max_Byte_Length);
+      return To_Bounded_String (Bytes);
+   end Slice;
+
+   function Slice
+     (S : Bounded_String; First : Positive; Count : Natural)
+      return Bounded_String
+   is
+      Bytes : constant String :=
+        Unicode_Text.UTF_8.Slice
+          (S.Data (1 .. S.Used), First, Count);
+   begin
+      pragma Assert (Bytes'Length <= S.Used);
+      pragma Assert (Bytes'Length <= Max_Byte_Length);
+      return To_Bounded_String (Bytes);
+   end Slice;
+
+   function Find
+     (S : Bounded_String; Value : Scalar_Value; From : Positive := 1)
+      return Natural
+   is (Unicode_Text.UTF_8.Find
+         (S.Data (1 .. S.Used), Value, From));
+
+   function Reverse_Find
+     (S : Bounded_String; Value : Scalar_Value) return Natural
+   is (Unicode_Text.UTF_8.Reverse_Find (S.Data (1 .. S.Used), Value));
+
+   function Find
+     (Haystack : Bounded_String;
+      Needle   : String;
+      From     : Positive := 1) return Natural
+   is (Unicode_Text.UTF_8.Find
+         (Haystack.Data (1 .. Haystack.Used), Needle, From));
+
+   function Find
+     (Haystack : Bounded_String;
+      Needle   : Bounded_String;
+      From     : Positive := 1) return Natural
+   is (Unicode_Text.UTF_8.Find
+         (Haystack.Data (1 .. Haystack.Used),
+          Needle.Data (1 .. Needle.Used),
+          From));
+
+   function Contains
+     (Haystack : Bounded_String; Needle : String) return Boolean
+   is (Unicode_Text.UTF_8.Contains
+         (Haystack.Data (1 .. Haystack.Used), Needle));
+
+   function Contains
+     (Haystack : Bounded_String; Needle : Bounded_String) return Boolean
+   is (Unicode_Text.UTF_8.Contains
+         (Haystack.Data (1 .. Haystack.Used),
+          Needle.Data (1 .. Needle.Used)));
+
    procedure Clear (S : out Bounded_String) is
    begin
       S := Empty;

@@ -95,6 +95,92 @@ is
                Result => Needle)))
    with Ghost => Static;
 
+   function Matches_At
+     (Haystack : Text; Needle : Text; First : Big_Positive) return Boolean
+   is (Is_Slice
+         (Source => Haystack,
+          First  => First,
+          Count  => Scalar_Sequences.Length (Needle),
+          Result => Needle))
+   with Ghost => Static;
+
+   function Is_First_Occurrence
+     (Haystack : Text;
+      Needle   : Text;
+      From     : Big_Positive;
+      Result   : Big_Natural) return Boolean
+   is (From <= Scalar_Sequences.Length (Haystack) + 1
+       and then
+         (if Result = 0
+          then
+            Scalar_Sequences.Length (Needle) > 0
+            and then
+              (for all I in Haystack =>
+                 (if I >= From then not Matches_At (Haystack, Needle, I)))
+          else
+            Result >= From
+            and then Matches_At (Haystack, Needle, Result)
+            and then
+              (for all I in Haystack =>
+                 (if I >= From and then I < Result
+                  then not Matches_At (Haystack, Needle, I)))))
+   with Ghost => Static;
+
+   function Is_First_Occurrence
+     (Source : Text;
+      Value  : Scalar_Value;
+      From   : Big_Positive;
+      Result : Big_Natural) return Boolean
+   is (From <= Scalar_Sequences.Length (Source) + 1
+       and then
+         (if Result = 0
+          then
+            (for all I in Source =>
+               (if I >= From
+                then Scalar_Sequences.Get (Source, I) /= Value))
+          else
+            Result >= From
+            and then Result <= Scalar_Sequences.Length (Source)
+            and then Scalar_Sequences.Get (Source, Result) = Value
+            and then
+              (for all I in Source =>
+                 (if I >= From and then I < Result
+                  then Scalar_Sequences.Get (Source, I) /= Value))))
+   with Ghost => Static;
+
+   function Is_Last_Occurrence
+     (Source : Text; Value : Scalar_Value; Result : Big_Natural)
+      return Boolean
+   is (if Result = 0
+       then
+         (for all I in Source => Scalar_Sequences.Get (Source, I) /= Value)
+       else
+         Result >= 1
+         and then Result <= Scalar_Sequences.Length (Source)
+         and then Scalar_Sequences.Get (Source, Result) = Value
+         and then
+           (for all I in Source =>
+              (if I > Result
+               then Scalar_Sequences.Get (Source, I) /= Value)))
+   with Ghost => Static;
+
+   procedure Lemma_Extend_Slice
+     (Source : Text;
+      First  : Big_Positive;
+      Count  : Big_Natural;
+      Before : Text;
+      Value  : Scalar_Value;
+      After  : Text)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    =>
+       Is_Slice (Source, First, Count, Before)
+       and then First + Count <= Scalar_Sequences.Length (Source)
+       and then Value = Scalar_Sequences.Get (Source, First + Count)
+       and then Is_Concatenation (Before, [Value], After),
+     Post   => Is_Slice (Source, First, Count + 1, After);
+
    procedure Lemma_Concatenation_Associative
      (Left, Middle, Right                       : Text;
       Left_Middle, Middle_Right                 : Text;

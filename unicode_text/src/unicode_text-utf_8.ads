@@ -158,6 +158,12 @@ is
 
    function Is_Valid_UTF_8 (S : String) return Boolean;
 
+   function Is_ASCII (S : String) return Boolean
+   is (S'Length = 0
+       or else
+         (for all Offset in Natural range 0 .. S'Length - 1 =>
+            Octet_At (S, Offset) <= 16#7F#));
+
    function Byte_Length (S : String) return Natural
    is (S'Length);
 
@@ -381,6 +387,15 @@ is
             To_Big_Integer (S'Length)
             <= 4 * To_Big_Integer (Code_Point_Length'Result));
 
+   procedure Lemma_ASCII_Valid (S : String)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Is_ASCII (S),
+     Post   =>
+       Is_Valid_UTF_8 (S)
+       and then Code_Point_Length (S) = S'Length;
+
    function Element
      (S : String; Index : Positive) return Scalar_Value
    with
@@ -390,6 +405,140 @@ is
        (Static =>
           Element'Result
           = Scalar_Sequences.Get (Model (S), To_Big_Integer (Index)));
+
+   type Byte_Span is record
+      First     : Natural;
+      Past_Last : Natural;
+   end record;
+
+   function Is_Valid_Byte_Span (S : String; Span : Byte_Span) return Boolean
+   with
+     Post =>
+       (if Is_Valid_Byte_Span'Result
+        then
+          Is_Valid_UTF_8 (S)
+          and then Span.First <= Span.Past_Last
+          and then Span.Past_Last <= S'Length);
+
+   function Code_Point_Length (S : String; Span : Byte_Span) return Natural
+   with
+     Pre  => Is_Valid_Byte_Span (S, Span),
+     Post =>
+       Code_Point_Length'Result <= Span.Past_Last - Span.First;
+
+   function Model (S : String; Span : Byte_Span) return Text
+   with
+     Ghost => Static,
+     Pre   => Is_Valid_Byte_Span (S, Span),
+     Post  =>
+       Scalar_Sequences.Length (Model'Result)
+       = To_Big_Integer (Code_Point_Length (S, Span));
+
+   function Slice (S : String; Span : Byte_Span) return String
+   with
+     Pre  => Is_Valid_Byte_Span (S, Span),
+     Post =>
+       (Runtime =>
+          Slice'Result'First = 1
+          and then Slice'Result'Length = Span.Past_Last - Span.First
+          and then
+            Code_Point_Length (Slice'Result)
+            = Code_Point_Length (S, Span)
+          and then Is_Valid_UTF_8 (Slice'Result),
+        Static =>
+          Same_Bytes
+            (S, Span.First, Slice'Result, 0, Slice'Result'Length)
+          and then Model (Slice'Result) = Model (S, Span));
+
+   function To_Byte_Span
+     (S : String; First : Positive; Count : Natural) return Byte_Span
+   with
+     Pre  =>
+       Is_Valid_UTF_8 (S)
+       and then First - 1 <= Code_Point_Length (S)
+       and then Count <= Code_Point_Length (S) - (First - 1),
+     Post =>
+       (Runtime =>
+          Is_Valid_Byte_Span (S, To_Byte_Span'Result)
+          and then
+            Code_Point_Length (S, To_Byte_Span'Result) = Count,
+        Static  =>
+          Is_Slice
+            (Source => Model (S),
+             First  => To_Big_Integer (First),
+             Count  => To_Big_Integer (Count),
+             Result => Model (Slice (S, To_Byte_Span'Result))));
+
+   function Slice
+     (S : String; First : Positive; Count : Natural) return String
+   with
+     Pre  =>
+       Is_Valid_UTF_8 (S)
+       and then First - 1 <= Code_Point_Length (S)
+       and then Count <= Code_Point_Length (S) - (First - 1),
+     Post =>
+       (Runtime =>
+          Slice'Result'First = 1
+          and then Slice'Result'Length <= S'Length
+          and then Is_Valid_UTF_8 (Slice'Result),
+        Static =>
+          Is_Slice
+            (Source => Model (S),
+             First  => To_Big_Integer (First),
+             Count  => To_Big_Integer (Count),
+             Result => Model (Slice'Result)));
+
+   function Find
+     (S : String; Value : Scalar_Value; From : Positive := 1) return Natural
+   with
+     Pre  =>
+       Is_Valid_UTF_8 (S) and then From - 1 <= Code_Point_Length (S),
+     Post =>
+       (Runtime => Find'Result <= Code_Point_Length (S),
+        Static  =>
+          Is_First_Occurrence
+            (Source => Model (S),
+             Value  => Value,
+             From   => To_Big_Integer (From),
+             Result => To_Big_Integer (Find'Result)));
+
+   function Reverse_Find (S : String; Value : Scalar_Value) return Natural
+   with
+     Pre  => Is_Valid_UTF_8 (S),
+     Post =>
+       (Runtime => Reverse_Find'Result <= Code_Point_Length (S),
+        Static  =>
+          Is_Last_Occurrence
+            (Source => Model (S),
+             Value  => Value,
+             Result => To_Big_Integer (Reverse_Find'Result)));
+
+   function Find
+     (Haystack : String; Needle : String; From : Positive := 1)
+      return Natural
+   with
+     Pre  =>
+       Is_Valid_UTF_8 (Haystack)
+       and then Is_Valid_UTF_8 (Needle)
+       and then From - 1 <= Code_Point_Length (Haystack),
+     Post =>
+       (Runtime =>
+          Find'Result = 0
+          or else Find'Result - 1 <= Code_Point_Length (Haystack),
+        Static  =>
+          Is_First_Occurrence
+            (Haystack => Model (Haystack),
+             Needle   => Model (Needle),
+             From     => To_Big_Integer (From),
+             Result   => To_Big_Integer (Find'Result)));
+
+   function Contains (Haystack : String; Needle : String) return Boolean
+   with
+     Pre  => Is_Valid_UTF_8 (Haystack) and then Is_Valid_UTF_8 (Needle),
+     Post =>
+       (Static =>
+          Contains'Result
+          = Unicode_Text.Models.Contains (Model (Haystack), Model (Needle)));
 
    type Cursor_Type is private;
 
@@ -441,6 +590,11 @@ is
           and then Byte_Offset (Cursor)
                    = Byte_Offset (Cursor'Old)
                      + Natural (Encoding_Width (Value))
+          and then Byte_Offset (Cursor)
+                   = Byte_Offset (Cursor'Old)
+                     + Sequence_Width_At (S, Byte_Offset (Cursor'Old))
+          and then
+            Value = Decode_One (S, Byte_Offset (Cursor'Old)).Value
           and then Byte_Offset (Cursor) > Byte_Offset (Cursor'Old),
         Static =>
           Is_Valid_Cursor (S, Cursor)

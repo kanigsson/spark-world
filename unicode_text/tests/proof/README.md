@@ -18,12 +18,18 @@ of active storage prefixes, and model concatenation after appending valid text
 using only the public `Unicode_Text.UTF_8` specification. Its loop invariants
 mention cursor positions and model indices, never UTF-8 continuation-byte
 arithmetic. The active-prefix and append cases are the representative bounded
-storage obligations required by Milestone 3.1.
+storage obligations required by Milestone 3.1. Its Milestone 5 clients prove
+slice and first-occurrence contracts through the public scalar model.
 
 `Bounded_String_Proofs` instantiates the Milestone 4 generic and proves an
 append at exact byte capacity plus repeated scalar appends whose final model is
-the expected scalar sequence. The instantiations also cause GNATprove to
+the expected scalar sequence. Its Milestone 5 client proves bounded slice,
+search, and containment contracts. The instantiations also cause GNATprove to
 analyze the complete generic implementation.
+
+`Search_Scaling` performs eight searches over one source under ordinary proof
+settings and checks that every result retains its first-occurrence contract.
+It is the initial scheduled proof-performance baseline for Milestone 5.
 
 The cases deliberately contain no implementation details and no calls to the
 library lemma bodies. They are an initial guard against sudden proof-complexity

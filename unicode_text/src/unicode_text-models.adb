@@ -3,6 +3,34 @@ package body Unicode_Text.Models
 is
    use type Scalar_Sequences.Sequence;
 
+   procedure Lemma_Extend_Slice
+     (Source : Text;
+      First  : Big_Positive;
+      Count  : Big_Natural;
+      Before : Text;
+      Value  : Scalar_Value;
+      After  : Text)
+   is
+   begin
+      pragma Assert
+        (Static => Scalar_Sequences.Length (After) = Count + 1);
+      pragma Assert
+        (Static =>
+           (for all I in After =>
+              (if I <= Count
+               then
+                 Scalar_Sequences.Get (After, I)
+                 = Scalar_Sequences.Get (Before, I)
+                 and then
+                   Scalar_Sequences.Get (Before, I)
+                   = Scalar_Sequences.Get (Source, First + I - 1)
+               else
+                 I = Count + 1
+                 and then Scalar_Sequences.Get (After, I) = Value
+                 and then
+                   Value = Scalar_Sequences.Get (Source, First + I - 1))));
+   end Lemma_Extend_Slice;
+
    procedure Lemma_Concatenation_Unique
      (Left, Right, First_Result, Second_Result : Text)
    with
