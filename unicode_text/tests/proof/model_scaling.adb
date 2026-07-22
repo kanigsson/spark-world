@@ -4,16 +4,16 @@ is
 
    procedure Nonempty_Witness is
       Left   : constant Text := [0, 16#7F#, 16#80#]
-      with Ghost;
+      with Ghost => Static;
       Right  : constant Text := [16#D7FF#, 16#E000#, 16#10_FFFF#]
-      with Ghost;
+      with Ghost => Static;
       Result : constant Text :=
         [0, 16#7F#, 16#80#, 16#D7FF#, 16#E000#, 16#10_FFFF#]
-      with Ghost;
+      with Ghost => Static;
    begin
-      pragma Assert (Is_Concatenation (Left, Right, Result));
-      pragma Assert (Is_Slice (Result, 4, 3, Right));
-      pragma Assert (Contains (Result, Right));
+      pragma Assert (Static => Is_Concatenation (Left, Right, Result));
+      pragma Assert (Static => Is_Slice (Result, 4, 3, Right));
+      pragma Assert (Static => Contains (Result, Right));
    end Nonempty_Witness;
 
    procedure Concatenation_Associativity

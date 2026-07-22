@@ -13,9 +13,12 @@ non-vacuous witnesses at every UTF-8 width and scalar boundary. The byte-layer
 implementation itself proves bounds safety, strict recursive progress, scalar
 range safety, validation/model agreement, and the encoding/decoding formulas.
 
-`Plain_String_Proofs` proves cursor counting and model-order iteration using
-only the public `Unicode_Text.UTF_8` specification. Its loop invariants mention
-cursor positions and model indices, never UTF-8 continuation-byte arithmetic.
+`Plain_String_Proofs` proves cursor counting, model-order iteration, equality
+of active storage prefixes, and model concatenation after appending valid text
+using only the public `Unicode_Text.UTF_8` specification. Its loop invariants
+mention cursor positions and model indices, never UTF-8 continuation-byte
+arithmetic. The active-prefix and append cases are the representative bounded
+storage obligations required by Milestone 3.1.
 
 The cases deliberately contain no implementation details and no calls to the
 library lemma bodies. They are an initial guard against sudden proof-complexity

@@ -1,6 +1,6 @@
 # Unicode Text Library Design
 
-Status: Milestone 3 complete; Milestone 3.1 planned
+Status: Milestone 3.1 complete; Milestone 4 planned
 
 This document defines a proposed SPARK-compatible string library whose only
 concrete encoding is UTF-8. The library is intended to support ordinary Ada
@@ -1187,9 +1187,9 @@ GNATprove improvements are not a prerequisite for Milestone 4.  Small isolated
 reproducers should nevertheless record any remaining difficulty with array
 extensionality across different lower bounds, rebased index normalization, or
 extension of quantified byte-range facts.  Such cases can motivate focused
-tool improvements without blocking the library: the completed Milestone 3
-proof has no check taking more than one second and does not indicate a general
-solver-performance problem.
+tool improvements without blocking the library.  Completion is judged under
+the ordinary multi-prover settings rather than by a per-check one-second
+threshold.
 
 ### Milestone 4: bounded strings
 

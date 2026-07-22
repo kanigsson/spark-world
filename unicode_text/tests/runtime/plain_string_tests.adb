@@ -1,3 +1,4 @@
+with Ada.Assertions;
 with Ada.Text_IO;        use Ada.Text_IO;
 with Unicode_Text;       use Unicode_Text;
 with Unicode_Text.UTF_8; use Unicode_Text.UTF_8;
@@ -16,6 +17,23 @@ procedure Plain_String_Tests is
          raise Program_Error with Message;
       end if;
    end Check;
+
+   procedure Check_Executable_Precondition is
+      Raised : Boolean := False;
+   begin
+      begin
+         declare
+            Ignored : constant Scalar_Value := Element ([1 => C (16#80#)], 1);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when Ada.Assertions.Assertion_Error =>
+            Raised := True;
+      end;
+      Check (Raised, "invalid UTF-8 precondition is checked");
+   end Check_Executable_Precondition;
 
    A       : constant String := "A";
    U_0080  : constant String := [C (16#C2#), C (16#80#)];
@@ -70,6 +88,8 @@ begin
    Check (Compare (A, A & A) = Less, "prefix comparison");
    Check (Compare (U_0080, A) = Greater, "two-byte comparison");
    Check (Compare (U_0800, U_10000) = Less, "wide comparison");
+
+   Check_Executable_Precondition;
 
    declare
       Shifted : String (10 .. 19) := Mixed;

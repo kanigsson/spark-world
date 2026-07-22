@@ -9,7 +9,7 @@ is
 
    procedure Scalar_Round_Trip (Value : Scalar_Value)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Post   =>
        Is_Valid_UTF_8 (Encode_One (Value))
@@ -19,6 +19,6 @@ is
        and then Model (Encode_One (Value)) = [Value];
 
    procedure Boundary_Witness
-   with Ghost, Global => null;
+   with Ghost => Static, Global => null;
 
 end Byte_Layer_Proofs;

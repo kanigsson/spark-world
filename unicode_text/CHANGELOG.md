@@ -5,6 +5,24 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-22
+
+### Added
+
+- Lower-bound-independent `Same_Bytes` and `Is_Byte_Concatenation` ghost
+  relations with focused range, prefix, and whole-string lemmas.
+- A reusable canonical-encoding injectivity theorem and a model-concatenation
+  bridge for initialized result buffers.
+- Proof clients for equality of active storage prefixes and model
+  concatenation after appending valid UTF-8 text.
+
+### Changed
+
+- The plain-string equality bridge now derives byte equality through the
+  shared encoding proof layer.
+- Ghost model contracts and assertions use the static assertion level while
+  executable contracts and assertions remain enabled at runtime.
+
 ## [0.3.0] - 2026-07-22
 
 ### Added

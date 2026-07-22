@@ -6,14 +6,14 @@ is
    use type Scalar_Sequences.Sequence;
 
    procedure Nonempty_Witness
-   with Ghost, Global => null;
+   with Ghost => Static, Global => null;
 
    procedure Concatenation_Associativity
      (Left, Middle, Right                       : Text;
       Left_Middle, Middle_Right                 : Text;
       Left_Grouped_Result, Right_Grouped_Result : Text)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    =>
        Is_Concatenation (Left, Middle, Left_Middle)
@@ -24,14 +24,14 @@ is
 
    procedure Chain_1 (T0, T1, R1 : Text)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    => Is_Concatenation (T0, T1, R1),
      Post   => Is_Prefix (T0, R1);
 
    procedure Chain_2 (T0, T1, T2, R1, R2 : Text)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    =>
        Is_Concatenation (T0, T1, R1) and then Is_Concatenation (R1, T2, R2),
@@ -39,7 +39,7 @@ is
 
    procedure Chain_4 (T0, T1, T2, T3, T4, R1, R2, R3, R4 : Text)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    =>
        Is_Concatenation (T0, T1, R1)
@@ -52,7 +52,7 @@ is
      (T0, T1, T2, T3, T4, T5, T6, T7, T8 : Text;
       R1, R2, R3, R4, R5, R6, R7, R8     : Text)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    =>
        Is_Concatenation (T0, T1, R1)
@@ -71,7 +71,7 @@ is
       R1, R2, R3, R4, R5, R6, R7, R8        : Text;
       R9, R10, R11, R12, R13, R14, R15, R16 : Text)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    =>
        Is_Concatenation (T0, T1, R1)

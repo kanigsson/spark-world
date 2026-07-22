@@ -23,12 +23,13 @@ is
             1,
             Decode_One (S, Byte_Offset).Value))
    with
-     Ghost,
+     Ghost => Static,
      Pre                =>
        Byte_Offset <= S'Length and then Valid_From (S, Byte_Offset),
      Post               =>
-       Scalar_Sequences.Length (Model_From'Result)
-       <= To_Big_Integer (S'Length - Byte_Offset),
+       (Static =>
+          Scalar_Sequences.Length (Model_From'Result)
+          <= To_Big_Integer (S'Length - Byte_Offset)),
      Subprogram_Variant => (Decreases => S'Length - Byte_Offset);
 
    function Length_From (S : String; Byte_Offset : Natural) return Natural
@@ -42,13 +43,13 @@ is
      Pre                =>
        Byte_Offset <= S'Length and then Valid_From (S, Byte_Offset),
      Post               =>
-       Length_From'Result <= S'Length - Byte_Offset
-       and then
-         To_Big_Integer (Length_From'Result)
-         = Scalar_Sequences.Length (Model_From (S, Byte_Offset))
-       and then
-         To_Big_Integer (S'Length - Byte_Offset)
-         <= 4 * To_Big_Integer (Length_From'Result),
+       (Runtime => Length_From'Result <= S'Length - Byte_Offset,
+        Static  =>
+          To_Big_Integer (Length_From'Result)
+          = Scalar_Sequences.Length (Model_From (S, Byte_Offset))
+          and then
+            To_Big_Integer (S'Length - Byte_Offset)
+            <= 4 * To_Big_Integer (Length_From'Result)),
      Subprogram_Variant => (Decreases => S'Length - Byte_Offset);
 
    function Element_From
@@ -67,9 +68,10 @@ is
        and then Valid_From (S, Byte_Offset)
        and then Index <= Length_From (S, Byte_Offset),
      Post               =>
-       Element_From'Result
-       = Scalar_Sequences.Get
-           (Model_From (S, Byte_Offset), To_Big_Integer (Index)),
+       (Static =>
+          Element_From'Result
+          = Scalar_Sequences.Get
+              (Model_From (S, Byte_Offset), To_Big_Integer (Index))),
      Subprogram_Variant => (Decreases => Index);
 
    function Character_At (S : String; Offset : Natural) return Character
@@ -176,18 +178,22 @@ is
       if Cursor.Offset < S'Length then
          pragma Assert (Valid_At (S, Cursor.Offset));
          pragma Assert
-           (Scalar_Sequences.Length (Model_From (S, Cursor.Offset)) > 0);
+           (Static =>
+              Scalar_Sequences.Length (Model_From (S, Cursor.Offset)) > 0);
          pragma Assert
-           (Cursor_Index_Conversions.To_Big_Integer (Cursor.Index)
-            <= Scalar_Sequences.Length (Model (S)));
+           (Static =>
+              Cursor_Index_Conversions.To_Big_Integer (Cursor.Index)
+              <= Scalar_Sequences.Length (Model (S)));
          return True;
       else
          pragma Assert (Cursor.Offset = S'Length);
          pragma Assert
-           (Scalar_Sequences.Length (Model_From (S, Cursor.Offset)) = 0);
+           (Static =>
+              Scalar_Sequences.Length (Model_From (S, Cursor.Offset)) = 0);
          pragma Assert
-           (Cursor_Index_Conversions.To_Big_Integer (Cursor.Index)
-            = Scalar_Sequences.Length (Model (S)) + 1);
+           (Static =>
+              Cursor_Index_Conversions.To_Big_Integer (Cursor.Index)
+              = Scalar_Sequences.Length (Model (S)) + 1);
          return False;
       end if;
    end Has_Element;
@@ -218,18 +224,20 @@ is
       begin
          while Has_Element (Prefix, Prefix_Cursor) loop
             pragma Loop_Invariant
-              (Is_Valid_Cursor (Prefix, Prefix_Cursor));
-            pragma Loop_Invariant (Is_Valid_Cursor (Whole, Whole_Cursor));
+              (Static => Is_Valid_Cursor (Prefix, Prefix_Cursor));
+            pragma Loop_Invariant
+              (Static => Is_Valid_Cursor (Whole, Whole_Cursor));
             pragma Loop_Invariant
               (Model_Index (Prefix_Cursor) = Model_Index (Whole_Cursor));
             pragma Loop_Invariant
-              (for all I in Model (Prefix) =>
-                 (if I
-                     < Cursor_Index_Conversions.To_Big_Integer
-                         (Model_Index (Prefix_Cursor))
-                  then
-                    Scalar_Sequences.Get (Model (Prefix), I)
-                    = Scalar_Sequences.Get (Model (Whole), I)));
+              (Static =>
+                 (for all I in Model (Prefix) =>
+                    (if I
+                        < Cursor_Index_Conversions.To_Big_Integer
+                            (Model_Index (Prefix_Cursor))
+                     then
+                       Scalar_Sequences.Get (Model (Prefix), I)
+                       = Scalar_Sequences.Get (Model (Whole), I))));
             pragma Loop_Variant (Decreases => Prefix'Length - Byte_Offset (Prefix_Cursor));
 
             Next (Prefix, Prefix_Cursor, Prefix_Value);
@@ -259,7 +267,8 @@ is
       begin
          if Difference > 0 then
             for Ignored in 1 .. Difference loop
-               pragma Loop_Invariant (Is_Valid_Cursor (Whole, Whole_Cursor));
+               pragma Loop_Invariant
+                 (Static => Is_Valid_Cursor (Whole, Whole_Cursor));
                pragma Loop_Invariant
                  (Model_Index (Whole_Cursor) = Cursor_Index (Ignored));
                declare
@@ -273,8 +282,9 @@ is
 
          while Has_Element (Suffix, Suffix_Cursor) loop
             pragma Loop_Invariant
-              (Is_Valid_Cursor (Suffix, Suffix_Cursor));
-            pragma Loop_Invariant (Is_Valid_Cursor (Whole, Whole_Cursor));
+              (Static => Is_Valid_Cursor (Suffix, Suffix_Cursor));
+            pragma Loop_Invariant
+              (Static => Is_Valid_Cursor (Whole, Whole_Cursor));
             pragma Loop_Invariant
               (Cursor_Index_Conversions.To_Big_Integer
                  (Model_Index (Whole_Cursor))
@@ -282,14 +292,15 @@ is
                    (Model_Index (Suffix_Cursor))
                  + To_Big_Integer (Difference));
             pragma Loop_Invariant
-              (for all I in Model (Suffix) =>
-                 (if I
-                     < Cursor_Index_Conversions.To_Big_Integer
-                         (Model_Index (Suffix_Cursor))
-                  then
-                    Scalar_Sequences.Get (Model (Suffix), I)
-                    = Scalar_Sequences.Get
-                        (Model (Whole), To_Big_Integer (Difference) + I)));
+              (Static =>
+                 (for all I in Model (Suffix) =>
+                    (if I
+                        < Cursor_Index_Conversions.To_Big_Integer
+                            (Model_Index (Suffix_Cursor))
+                     then
+                       Scalar_Sequences.Get (Model (Suffix), I)
+                       = Scalar_Sequences.Get
+                           (Model (Whole), To_Big_Integer (Difference) + I))));
             pragma Loop_Variant (Decreases => Suffix'Length - Byte_Offset (Suffix_Cursor));
 
             Next (Suffix, Suffix_Cursor, Suffix_Value);
@@ -311,44 +322,51 @@ is
       while Has_Element (Left, Left_Cursor)
         and then Has_Element (Right, Right_Cursor)
       loop
-         pragma Loop_Invariant (Is_Valid_Cursor (Left, Left_Cursor));
-         pragma Loop_Invariant (Is_Valid_Cursor (Right, Right_Cursor));
+         pragma Loop_Invariant
+           (Static => Is_Valid_Cursor (Left, Left_Cursor));
+         pragma Loop_Invariant
+           (Static => Is_Valid_Cursor (Right, Right_Cursor));
          pragma Loop_Invariant
            (Model_Index (Left_Cursor) = Model_Index (Right_Cursor));
          pragma Loop_Invariant
-           (for all I in Model (Left) =>
-              (if I
-                  < Cursor_Index_Conversions.To_Big_Integer
-                      (Model_Index (Left_Cursor))
-               then
-                 Scalar_Sequences.Get (Model (Left), I)
-                 = Scalar_Sequences.Get (Model (Right), I)));
+           (Static =>
+              (for all I in Model (Left) =>
+                 (if I
+                     < Cursor_Index_Conversions.To_Big_Integer
+                         (Model_Index (Left_Cursor))
+                  then
+                    Scalar_Sequences.Get (Model (Left), I)
+                    = Scalar_Sequences.Get (Model (Right), I))));
          pragma Loop_Variant (Decreases => Left'Length - Byte_Offset (Left_Cursor));
 
          declare
             Current_Index : constant Big_Positive :=
               Cursor_Index_Conversions.To_Big_Integer
                 (Model_Index (Left_Cursor))
-            with Ghost;
+            with Ghost => Static;
          begin
             Next (Left, Left_Cursor, Left_Value);
             Next (Right, Right_Cursor, Right_Value);
             if Left_Value < Right_Value then
                pragma Assert
-                 (for all J in Model (Left) =>
-                    (if J < Current_Index
-                     then
-                       Scalar_Sequences.Get (Model (Left), J)
-                       = Scalar_Sequences.Get (Model (Right), J)));
+                 (Static =>
+                    (for all J in Model (Left) =>
+                       (if J < Current_Index
+                        then
+                          Scalar_Sequences.Get (Model (Left), J)
+                          = Scalar_Sequences.Get (Model (Right), J))));
                pragma Assert
-                 (Scalar_Sequences.Get (Model (Left), Current_Index)
-                  < Scalar_Sequences.Get (Model (Right), Current_Index));
+                 (Static =>
+                    Scalar_Sequences.Get (Model (Left), Current_Index)
+                    < Scalar_Sequences.Get (Model (Right), Current_Index));
                pragma Assert
-                 (Is_Lexicographically_Less (Model (Left), Model (Right)));
+                 (Static =>
+                    Is_Lexicographically_Less (Model (Left), Model (Right)));
                return Less;
             elsif Left_Value > Right_Value then
                pragma Assert
-                 (Is_Lexicographically_Less (Model (Right), Model (Left)));
+                 (Static =>
+                    Is_Lexicographically_Less (Model (Right), Model (Left)));
                return Greater;
             end if;
          end;
@@ -356,16 +374,20 @@ is
 
       if Has_Element (Right, Right_Cursor) then
          pragma Assert
-           (Unicode_Text.Models.Is_Prefix (Model (Left), Model (Right)));
+           (Static =>
+              Unicode_Text.Models.Is_Prefix (Model (Left), Model (Right)));
          pragma Assert
-           (Scalar_Sequences.Length (Model (Left))
-            < Scalar_Sequences.Length (Model (Right)));
+           (Static =>
+              Scalar_Sequences.Length (Model (Left))
+              < Scalar_Sequences.Length (Model (Right)));
          pragma Assert
-           (Is_Lexicographically_Less (Model (Left), Model (Right)));
+           (Static =>
+              Is_Lexicographically_Less (Model (Left), Model (Right)));
          return Less;
       elsif Has_Element (Left, Left_Cursor) then
          pragma Assert
-           (Is_Lexicographically_Less (Model (Right), Model (Left)));
+           (Static =>
+              Is_Lexicographically_Less (Model (Right), Model (Left)));
          return Greater;
       else
          return Equal;
@@ -374,7 +396,7 @@ is
 
    procedure Lemma_Decode_Encode_At (S : String; Offset : Natural)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    => Offset < S'Length and then Valid_At (S, Offset),
      Post   =>
@@ -392,68 +414,46 @@ is
               = Encode_One (Decode_One (S, Offset).Value) (1 + I))
    is
       Unit    : constant Decoded_Unit := Decode_One (S, Offset)
-      with Ghost;
+      with Ghost => Static;
       Encoded : constant String := Encode_One (Unit.Value)
-      with Ghost;
+      with Ghost => Static;
    begin
       case Unit.Width is
          when 1 =>
-            pragma Assert (Unit.Value <= 16#7F#);
-            pragma Assert (Unit.Width = Encoding_Width (Unit.Value));
-            pragma Assert (Octet_At (S, Offset) = Octet_At (Encoded, 0));
-            pragma Assert (S (S'First + Offset) = Encoded (1));
+            pragma Assert (Static => Unit.Value <= 16#7F#);
+            pragma Assert (Static => Unit.Width = Encoding_Width (Unit.Value));
+            pragma Assert (Static => Octet_At (S, Offset) = Octet_At (Encoded, 0));
+            pragma Assert (Static => S (S'First + Offset) = Encoded (1));
          when 2 =>
-            pragma Assert (Unit.Value in 16#80# .. 16#7FF#);
-            pragma Assert (Unit.Width = Encoding_Width (Unit.Value));
-            pragma Assert (Octet_At (S, Offset) = Octet_At (Encoded, 0));
-            pragma Assert (Octet_At (S, Offset + 1) = Octet_At (Encoded, 1));
-            pragma Assert (S (S'First + Offset) = Encoded (1));
-            pragma Assert (S (S'First + Offset + 1) = Encoded (2));
+            pragma Assert (Static => Unit.Value in 16#80# .. 16#7FF#);
+            pragma Assert (Static => Unit.Width = Encoding_Width (Unit.Value));
+            pragma Assert (Static => Octet_At (S, Offset) = Octet_At (Encoded, 0));
+            pragma Assert (Static => Octet_At (S, Offset + 1) = Octet_At (Encoded, 1));
+            pragma Assert (Static => S (S'First + Offset) = Encoded (1));
+            pragma Assert (Static => S (S'First + Offset + 1) = Encoded (2));
          when 3 =>
             pragma Assert
-              (Unit.Value in 16#800# .. 16#D7FF# | 16#E000# .. 16#FFFF#);
-            pragma Assert (Unit.Width = Encoding_Width (Unit.Value));
-            pragma Assert (Octet_At (S, Offset) = Octet_At (Encoded, 0));
-            pragma Assert (Octet_At (S, Offset + 1) = Octet_At (Encoded, 1));
-            pragma Assert (Octet_At (S, Offset + 2) = Octet_At (Encoded, 2));
-            pragma Assert (S (S'First + Offset) = Encoded (1));
-            pragma Assert (S (S'First + Offset + 1) = Encoded (2));
-            pragma Assert (S (S'First + Offset + 2) = Encoded (3));
+              (Static => Unit.Value in 16#800# .. 16#D7FF# | 16#E000# .. 16#FFFF#);
+            pragma Assert (Static => Unit.Width = Encoding_Width (Unit.Value));
+            pragma Assert (Static => Octet_At (S, Offset) = Octet_At (Encoded, 0));
+            pragma Assert (Static => Octet_At (S, Offset + 1) = Octet_At (Encoded, 1));
+            pragma Assert (Static => Octet_At (S, Offset + 2) = Octet_At (Encoded, 2));
+            pragma Assert (Static => S (S'First + Offset) = Encoded (1));
+            pragma Assert (Static => S (S'First + Offset + 1) = Encoded (2));
+            pragma Assert (Static => S (S'First + Offset + 2) = Encoded (3));
          when 4 =>
-            pragma Assert (Unit.Value in 16#1_0000# .. 16#10_FFFF#);
-            pragma Assert (Unit.Width = Encoding_Width (Unit.Value));
-            pragma Assert (Octet_At (S, Offset) = Octet_At (Encoded, 0));
-            pragma Assert (Octet_At (S, Offset + 1) = Octet_At (Encoded, 1));
-            pragma Assert (Octet_At (S, Offset + 2) = Octet_At (Encoded, 2));
-            pragma Assert (Octet_At (S, Offset + 3) = Octet_At (Encoded, 3));
-            pragma Assert (S (S'First + Offset) = Encoded (1));
-            pragma Assert (S (S'First + Offset + 1) = Encoded (2));
-            pragma Assert (S (S'First + Offset + 2) = Encoded (3));
-            pragma Assert (S (S'First + Offset + 3) = Encoded (4));
+            pragma Assert (Static => Unit.Value in 16#1_0000# .. 16#10_FFFF#);
+            pragma Assert (Static => Unit.Width = Encoding_Width (Unit.Value));
+            pragma Assert (Static => Octet_At (S, Offset) = Octet_At (Encoded, 0));
+            pragma Assert (Static => Octet_At (S, Offset + 1) = Octet_At (Encoded, 1));
+            pragma Assert (Static => Octet_At (S, Offset + 2) = Octet_At (Encoded, 2));
+            pragma Assert (Static => Octet_At (S, Offset + 3) = Octet_At (Encoded, 3));
+            pragma Assert (Static => S (S'First + Offset) = Encoded (1));
+            pragma Assert (Static => S (S'First + Offset + 1) = Encoded (2));
+            pragma Assert (Static => S (S'First + Offset + 2) = Encoded (3));
+            pragma Assert (Static => S (S'First + Offset + 3) = Encoded (4));
       end case;
    end Lemma_Decode_Encode_At;
-
-   function Equal_Byte_Ranges
-     (Left         : String;
-      Left_Offset  : Natural;
-      Right        : String;
-      Right_Offset : Natural;
-      Count        : Natural) return Boolean
-   is (Count = 0
-       or else
-         (Equal_Byte_Ranges
-            (Left, Left_Offset, Right, Right_Offset, Count - 1)
-          and then
-            Character_At (Left, Left_Offset + Count - 1)
-            = Character_At (Right, Right_Offset + Count - 1)))
-   with
-     Ghost,
-     Pre                =>
-       Left_Offset <= Left'Length
-       and then Count <= Left'Length - Left_Offset
-       and then Right_Offset <= Right'Length
-       and then Count <= Right'Length - Right_Offset,
-     Subprogram_Variant => (Decreases => Count);
 
    procedure Lemma_Equal_Decoded_Bytes
      (Left         : String;
@@ -461,7 +461,7 @@ is
       Right        : String;
       Right_Offset : Natural)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    =>
        Left_Offset < Left'Length
@@ -475,7 +475,7 @@ is
        Decode_One (Left, Left_Offset).Width
        = Decode_One (Right, Right_Offset).Width
        and then
-         Equal_Byte_Ranges
+         Same_Bytes
            (Left,
             Left_Offset,
             Right,
@@ -484,144 +484,177 @@ is
    is
       Left_Unit  : constant Decoded_Unit :=
         Decode_One (Left, Left_Offset)
-      with Ghost;
+      with Ghost => Static;
       Right_Unit : constant Decoded_Unit :=
         Decode_One (Right, Right_Offset)
-      with Ghost;
+      with Ghost => Static;
    begin
       Lemma_Decode_Encode_At (Left, Left_Offset);
       Lemma_Decode_Encode_At (Right, Right_Offset);
-      pragma Assert (Left_Unit.Width = Right_Unit.Width);
+      pragma Assert (Static => Left_Unit.Width = Right_Unit.Width);
       pragma Assert
-        (for all I in Natural range 0 .. Natural (Left_Unit.Width) - 1 =>
-           Left (Left'First + Left_Offset + I)
-           = Right (Right'First + Right_Offset + I));
+        (Static =>
+           (for all I in Natural range
+              0 .. Natural (Left_Unit.Width) - 1 =>
+                Left (Left'First + Left_Offset + I)
+                = Right (Right'First + Right_Offset + I)));
       case Left_Unit.Width is
          when 1 =>
             pragma Assert
-              (Equal_Byte_Ranges
+              (Static => Same_Bytes
                  (Left, Left_Offset, Right, Right_Offset, 1));
          when 2 =>
             pragma Assert
-              (Equal_Byte_Ranges
+              (Static => Same_Bytes
                  (Left, Left_Offset, Right, Right_Offset, 2));
          when 3 =>
             pragma Assert
-              (Equal_Byte_Ranges
+              (Static => Same_Bytes
                  (Left, Left_Offset, Right, Right_Offset, 3));
          when 4 =>
             pragma Assert
-              (Equal_Byte_Ranges
+              (Static => Same_Bytes
                  (Left, Left_Offset, Right, Right_Offset, 4));
       end case;
    end Lemma_Equal_Decoded_Bytes;
 
-   procedure Lemma_Extend_Equal_Bytes
-     (Left, Right : String; First, Count : Natural)
-   with
-     Ghost,
-     Global => null,
-     Pre    =>
-       First <= Left'Length
-       and then First <= Right'Length
-       and then Equal_Byte_Ranges (Left, 0, Right, 0, First)
-       and then Count <= Left'Length - First
-       and then Count <= Right'Length - First
-       and then Equal_Byte_Ranges (Left, First, Right, First, Count),
-     Post   => Equal_Byte_Ranges (Left, 0, Right, 0, First + Count),
-     Subprogram_Variant => (Decreases => Count)
-   is
+   procedure Lemma_Same_Bytes_Reflexive
+     (S : String; Offset, Count : Natural) is
    begin
       if Count > 0 then
-         pragma Assert
-           (Equal_Byte_Ranges (Left, First, Right, First, Count - 1));
-         Lemma_Extend_Equal_Bytes (Left, Right, First, Count - 1);
-         pragma Assert
-           (Character_At (Left, First + Count - 1)
-            = Character_At (Right, First + Count - 1));
-         pragma Assert
-           (Equal_Byte_Ranges (Left, 0, Right, 0, First + Count));
+         Lemma_Same_Bytes_Reflexive (S, Offset, Count - 1);
       end if;
-   end Lemma_Extend_Equal_Bytes;
+   end Lemma_Same_Bytes_Reflexive;
 
-   procedure Lemma_Equal_Prefix_Ranges
-     (Left, Right : String; Count : Natural)
+   procedure Lemma_Same_Bytes_At
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      Count        : Natural;
+      Index        : Natural) is
+   begin
+      if Index < Count - 1 then
+         Lemma_Same_Bytes_At
+           (Left,
+            Left_Offset,
+            Right,
+            Right_Offset,
+            Count - 1,
+            Index);
+      end if;
+   end Lemma_Same_Bytes_At;
+
+   procedure Lemma_Same_Bytes_Suffix
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      Count        : Natural;
+      Dropped      : Natural) is
+   begin
+      if Dropped < Count then
+         Lemma_Same_Bytes_Suffix
+           (Left,
+            Left_Offset,
+            Right,
+            Right_Offset,
+            Count - 1,
+            Dropped);
+         Lemma_Same_Bytes_At
+           (Left,
+            Left_Offset,
+            Right,
+            Right_Offset,
+            Count,
+            Count - 1);
+      end if;
+   end Lemma_Same_Bytes_Suffix;
+
+   procedure Lemma_Same_Bytes_Concatenation
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      First_Count  : Natural;
+      Second_Count : Natural) is
+   begin
+      if Second_Count > 0 then
+         Lemma_Same_Bytes_Concatenation
+           (Left,
+            Left_Offset,
+            Right,
+            Right_Offset,
+            First_Count,
+            Second_Count - 1);
+      end if;
+   end Lemma_Same_Bytes_Concatenation;
+
+   procedure Lemma_Transfer_To_Prefixes
+     (Left, Right : String; Prefix_Count, Count : Natural)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    =>
-       Count < Left'Length
-       and then Count < Right'Length
-       and then Equal_Byte_Ranges (Left, 0, Right, 0, Count),
+       Prefix_Count <= Left'Length
+       and then Prefix_Count <= Right'Length
+       and then Count <= Prefix_Count
+       and then Same_Bytes (Left, 0, Right, 0, Count),
      Post   =>
-       Equal_Byte_Ranges
-         (Left (Left'First .. Left'Last - 1),
+       Same_Bytes
+         (Prefix_Bytes (Left, Prefix_Count),
           0,
-          Right (Right'First .. Right'Last - 1),
+          Prefix_Bytes (Right, Prefix_Count),
           0,
           Count),
      Subprogram_Variant => (Decreases => Count)
    is
    begin
       if Count > 0 then
-         pragma Assert (Equal_Byte_Ranges (Left, 0, Right, 0, Count - 1));
-         Lemma_Equal_Prefix_Ranges (Left, Right, Count - 1);
-         pragma Assert
-           (Character_At
-              (Left (Left'First .. Left'Last - 1), Count - 1)
-            = Character_At (Left, Count - 1));
-         pragma Assert
-           (Character_At
-              (Right (Right'First .. Right'Last - 1), Count - 1)
-            = Character_At (Right, Count - 1));
-         pragma Assert
-           (Equal_Byte_Ranges
-              (Left (Left'First .. Left'Last - 1),
-               0,
-               Right (Right'First .. Right'Last - 1),
-               0,
-               Count));
+         Lemma_Transfer_To_Prefixes
+           (Left, Right, Prefix_Count, Count - 1);
       end if;
-   end Lemma_Equal_Prefix_Ranges;
+   end Lemma_Transfer_To_Prefixes;
 
-   procedure Lemma_String_Equality_From_Bytes (Left, Right : String)
-   with
-     Ghost,
-     Global => null,
-     Pre    =>
-       Left'Length = Right'Length
-       and then Equal_Byte_Ranges (Left, 0, Right, 0, Left'Length),
-     Post   => Left = Right,
-     Subprogram_Variant => (Decreases => Left'Length)
-   is
+   procedure Lemma_Same_Bytes_Prefixes
+     (Left, Right : String; Count : Natural) is
+   begin
+      Lemma_Transfer_To_Prefixes (Left, Right, Count, Count);
+   end Lemma_Same_Bytes_Prefixes;
+
+   procedure Lemma_Same_Bytes_Whole_Equality
+     (Left, Right : String) is
    begin
       if Left'Length = 0 then
-         pragma Assert (Left = Right);
+         pragma Assert (Static => Left = Right);
       elsif Left'Length = 1 then
-         pragma Assert (Left (Left'First) = Right (Right'First));
-         pragma Assert (Left = Right);
+         pragma Assert (Static => Left (Left'First) = Right (Right'First));
+         pragma Assert (Static => Left = Right);
       else
          declare
-            Left_Prefix  : String renames Left (Left'First .. Left'Last - 1);
-            Right_Prefix : String renames Right (Right'First .. Right'Last - 1);
+            Left_Prefix  : constant String :=
+              Prefix_Bytes (Left, Left'Length - 1)
+            with Ghost => Static;
+            Right_Prefix : constant String :=
+              Prefix_Bytes (Right, Right'Length - 1)
+            with Ghost => Static;
          begin
-            pragma Assert (Left_Prefix'Length = Right_Prefix'Length);
+            pragma Assert (Static => Left_Prefix'Length = Right_Prefix'Length);
             pragma Assert
-              (Equal_Byte_Ranges
-                 (Left, 0, Right, 0, Left'Length - 1));
-            Lemma_Equal_Prefix_Ranges (Left, Right, Left'Length - 1);
-            Lemma_String_Equality_From_Bytes (Left_Prefix, Right_Prefix);
-            pragma Assert (Left_Prefix = Right_Prefix);
-            pragma Assert (Left (Left'Last) = Right (Right'Last));
-            pragma Assert (Left = Right);
+              (Static => Same_Bytes (Left, 0, Right, 0, Left'Length - 1));
+            Lemma_Same_Bytes_Prefixes (Left, Right, Left'Length - 1);
+            Lemma_Same_Bytes_Whole_Equality (Left_Prefix, Right_Prefix);
+            pragma Assert (Static => Left_Prefix = Right_Prefix);
+            pragma Assert (Static => Left (Left'Last) = Right (Right'Last));
+            pragma Assert (Static => Left = Right);
          end;
       end if;
-   end Lemma_String_Equality_From_Bytes;
+   end Lemma_Same_Bytes_Whole_Equality;
 
    procedure Lemma_Equal_Strings_Decode
      (Left, Right : String; Offset : Natural)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    =>
        Left = Right
@@ -631,43 +664,43 @@ is
      Post   => Decode_One (Left, Offset) = Decode_One (Right, Offset)
    is
       Width : constant Natural := Sequence_Width_At (Left, Offset)
-      with Ghost;
+      with Ghost => Static;
    begin
-      pragma Assert (Left'Length = Right'Length);
+      pragma Assert (Static => Left'Length = Right'Length);
       pragma Assert
-        (Left (Left'First + Offset) = Right (Right'First + Offset));
-      pragma Assert (Octet_At (Left, Offset) = Octet_At (Right, Offset));
+        (Static => Left (Left'First + Offset) = Right (Right'First + Offset));
+      pragma Assert (Static => Octet_At (Left, Offset) = Octet_At (Right, Offset));
       if Width >= 2 then
          pragma Assert
-           (Left (Left'First + Offset + 1)
+           (Static => Left (Left'First + Offset + 1)
             = Right (Right'First + Offset + 1));
          pragma Assert
-           (Octet_At (Left, Offset + 1) = Octet_At (Right, Offset + 1));
+           (Static => Octet_At (Left, Offset + 1) = Octet_At (Right, Offset + 1));
       end if;
       if Width >= 3 then
          pragma Assert
-           (Left (Left'First + Offset + 2)
+           (Static => Left (Left'First + Offset + 2)
             = Right (Right'First + Offset + 2));
          pragma Assert
-           (Octet_At (Left, Offset + 2) = Octet_At (Right, Offset + 2));
+           (Static => Octet_At (Left, Offset + 2) = Octet_At (Right, Offset + 2));
       end if;
       if Width = 4 then
          pragma Assert
-           (Left (Left'First + Offset + 3)
+           (Static => Left (Left'First + Offset + 3)
             = Right (Right'First + Offset + 3));
          pragma Assert
-           (Octet_At (Left, Offset + 3) = Octet_At (Right, Offset + 3));
+           (Static => Octet_At (Left, Offset + 3) = Octet_At (Right, Offset + 3));
       end if;
       pragma Assert
-        (Sequence_Width_At (Left, Offset)
+        (Static => Sequence_Width_At (Left, Offset)
          = Sequence_Width_At (Right, Offset));
-      pragma Assert (Decode_One (Left, Offset) = Decode_One (Right, Offset));
+      pragma Assert (Static => Decode_One (Left, Offset) = Decode_One (Right, Offset));
    end Lemma_Equal_Strings_Decode;
 
    procedure Lemma_Equal_Strings_Model_From
      (Left, Right : String; Offset : Natural)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    =>
        Left = Right
@@ -682,82 +715,277 @@ is
          Lemma_Equal_Strings_Decode (Left, Right, Offset);
          declare
             Width       : constant Natural := Sequence_Width_At (Left, Offset)
-            with Ghost;
+            with Ghost => Static;
             Next_Offset : constant Natural := Offset + Width
-            with Ghost;
+            with Ghost => Static;
          begin
             pragma Assert
-              (Width = Sequence_Width_At (Right, Offset));
+              (Static => Width = Sequence_Width_At (Right, Offset));
             Lemma_Equal_Strings_Model_From (Left, Right, Next_Offset);
             pragma Assert
-              (Model_From (Left, Offset) = Model_From (Right, Offset));
+              (Static => Model_From (Left, Offset) = Model_From (Right, Offset));
          end;
       end if;
    end Lemma_Equal_Strings_Model_From;
 
-   procedure Lemma_Equality (Left, Right : String) is
+   procedure Lemma_Same_Bytes_Decode
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      Count        : Natural)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Left_Offset < Left'Length
+       and then Count <= Left'Length - Left_Offset
+       and then Right_Offset < Right'Length
+       and then Count <= Right'Length - Right_Offset
+       and then Same_Bytes
+                  (Left, Left_Offset, Right, Right_Offset, Count)
+       and then Valid_At (Left, Left_Offset)
+       and then Sequence_Width_At (Left, Left_Offset) <= Count,
+     Post   =>
+       Valid_At (Right, Right_Offset)
+       and then
+         Decode_One (Left, Left_Offset)
+         = Decode_One (Right, Right_Offset)
+   is
+      Width : constant Natural := Sequence_Width_At (Left, Left_Offset)
+      with Ghost => Static;
+   begin
+      pragma Assert (Static => Width in 1 .. 4);
+      pragma Assert (Static => Width <= Count);
+      Lemma_Same_Bytes_At
+        (Left, Left_Offset, Right, Right_Offset, Count, 0);
+      if Width >= 2 then
+         Lemma_Same_Bytes_At
+           (Left, Left_Offset, Right, Right_Offset, Count, 1);
+      end if;
+      if Width >= 3 then
+         Lemma_Same_Bytes_At
+           (Left, Left_Offset, Right, Right_Offset, Count, 2);
+      end if;
+      if Width = 4 then
+         Lemma_Same_Bytes_At
+           (Left, Left_Offset, Right, Right_Offset, Count, 3);
+      end if;
+      pragma Assert
+        (Static => Sequence_Width_At (Right, Right_Offset) = Width);
+      pragma Assert
+        (Static => Decode_One (Left, Left_Offset)
+         = Decode_One (Right, Right_Offset));
+   end Lemma_Same_Bytes_Decode;
+
+   procedure Lemma_Rebased_Model_From
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Left_Offset <= Left'Length
+       and then Right_Offset <= Right'Length
+       and then Left'Length - Left_Offset = Right'Length - Right_Offset
+       and then
+         Same_Bytes
+           (Left,
+            Left_Offset,
+            Right,
+            Right_Offset,
+            Left'Length - Left_Offset)
+       and then Valid_From (Left, Left_Offset),
+     Post   =>
+       Valid_From (Right, Right_Offset)
+       and then
+         Model_From (Left, Left_Offset)
+         = Model_From (Right, Right_Offset),
+     Subprogram_Variant => (Decreases => Left'Length - Left_Offset)
+   is
+   begin
+      if Left_Offset < Left'Length then
+         declare
+            Count : constant Natural := Left'Length - Left_Offset
+            with Ghost => Static;
+            Width : constant Natural :=
+              Sequence_Width_At (Left, Left_Offset)
+            with Ghost => Static;
+         begin
+            Lemma_Same_Bytes_Decode
+              (Left, Left_Offset, Right, Right_Offset, Count);
+            Lemma_Same_Bytes_Suffix
+              (Left,
+               Left_Offset,
+               Right,
+               Right_Offset,
+               Count,
+               Width);
+            Lemma_Rebased_Model_From
+              (Left,
+               Left_Offset + Width,
+               Right,
+               Right_Offset + Width);
+         end;
+      end if;
+   end Lemma_Rebased_Model_From;
+
+   procedure Lemma_Concatenation_From
+     (Left, Right, Result : String; Offset : Natural)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Offset <= Left'Length
+       and then Valid_From (Left, Offset)
+       and then Is_Valid_UTF_8 (Right)
+       and then Left'Length <= Natural'Last - Right'Length
+       and then Is_Byte_Concatenation (Left, Right, Result),
+     Post   =>
+       Valid_From (Result, Offset)
+       and then
+         Is_Concatenation
+           (Model_From (Left, Offset),
+            Model (Right),
+            Model_From (Result, Offset)),
+     Subprogram_Variant => (Decreases => Left'Length - Offset)
+   is
+   begin
+      if Offset = Left'Length then
+         Lemma_Rebased_Model_From
+           (Right, 0, Result, Left'Length);
+         pragma Assert
+           (Static => Scalar_Sequences.Length (Model_From (Left, Offset)) = 0);
+         pragma Assert
+           (Static => Model_From (Result, Offset) = Model (Right));
+         pragma Assert
+           (Static => Is_Concatenation
+              (Model_From (Left, Offset),
+               Model (Right),
+               Model_From (Result, Offset)));
+      else
+         declare
+            Count       : constant Natural := Left'Length - Offset
+            with Ghost => Static;
+            Width       : constant Natural :=
+              Sequence_Width_At (Left, Offset)
+            with Ghost => Static;
+            Next_Offset : constant Natural := Offset + Width
+            with Ghost => Static;
+         begin
+            Lemma_Same_Bytes_Suffix
+              (Left,
+               0,
+               Result,
+               0,
+               Left'Length,
+               Offset);
+            Lemma_Same_Bytes_Decode
+              (Left, Offset, Result, Offset, Count);
+            Lemma_Concatenation_From
+              (Left, Right, Result, Next_Offset);
+            Lemma_Prepend_Concatenation
+              (Decode_One (Left, Offset).Value,
+               Model_From (Left, Next_Offset),
+               Model (Right),
+               Model_From (Result, Next_Offset));
+            pragma Assert (Static => Valid_At (Result, Offset));
+            pragma Assert (Static => Valid_From (Result, Next_Offset));
+            pragma Assert (Static => Valid_From (Result, Offset));
+         end;
+      end if;
+   end Lemma_Concatenation_From;
+
+   procedure Lemma_Encoding_Injective
+     (Left, Right : String; Value : Text)
+   is
       Left_Cursor  : Cursor_Type := First (Left);
       Right_Cursor : Cursor_Type := First (Right);
       Left_Value   : Scalar_Value;
       Right_Value  : Scalar_Value;
    begin
-      if Left = Right then
-         Lemma_Equal_Strings_Model_From (Left, Right, 0);
-         pragma Assert (Model (Left) = Model (Right));
-         pragma Assert ((Left = Right) = (Model (Left) = Model (Right)));
-         return;
-      end if;
-
-      if Model (Left) /= Model (Right) then
-         pragma Assert (Left /= Right);
-         pragma Assert ((Left = Right) = (Model (Left) = Model (Right)));
-         return;
-      end if;
+      pragma Assert (Static => Model (Left) = Value);
+      pragma Assert (Static => Model (Right) = Value);
 
       while Has_Element (Left, Left_Cursor) loop
-         pragma Loop_Invariant (Is_Valid_Cursor (Left, Left_Cursor));
-         pragma Loop_Invariant (Is_Valid_Cursor (Right, Right_Cursor));
+         pragma Loop_Invariant (Static => Is_Valid_Cursor (Left, Left_Cursor));
+         pragma Loop_Invariant (Static => Is_Valid_Cursor (Right, Right_Cursor));
          pragma Loop_Invariant
-           (Model_Index (Left_Cursor) = Model_Index (Right_Cursor));
+           (Static => Model_Index (Left_Cursor) = Model_Index (Right_Cursor));
          pragma Loop_Invariant
-           (Byte_Offset (Left_Cursor) = Byte_Offset (Right_Cursor));
+           (Static => Byte_Offset (Left_Cursor) = Byte_Offset (Right_Cursor));
          pragma Loop_Invariant
-           (Equal_Byte_Ranges
+           (Static => Same_Bytes
               (Left, 0, Right, 0, Byte_Offset (Left_Cursor)));
          pragma Loop_Variant
            (Decreases => Left'Length - Byte_Offset (Left_Cursor));
 
-         pragma Assert (Has_Element (Right, Right_Cursor));
+         pragma Assert (Static => Has_Element (Right, Right_Cursor));
          declare
             Old_Offset : constant Natural := Byte_Offset (Left_Cursor)
-            with Ghost;
+            with Ghost => Static;
          begin
-            pragma Assert
-              (Equal_Byte_Ranges (Left, 0, Right, 0, Old_Offset));
-            Lemma_Decode_Encode_At (Left, Old_Offset);
-            Lemma_Decode_Encode_At (Right, Old_Offset);
+            pragma Assert (Static => Same_Bytes (Left, 0, Right, 0, Old_Offset));
             Next (Left, Left_Cursor, Left_Value);
             Next (Right, Right_Cursor, Right_Value);
-            pragma Assert (Left_Value = Right_Value);
+            pragma Assert (Static => Left_Value = Right_Value);
             Lemma_Equal_Decoded_Bytes (Left, Old_Offset, Right, Old_Offset);
             pragma Assert
-              (Byte_Offset (Left_Cursor) = Byte_Offset (Right_Cursor));
-            Lemma_Extend_Equal_Bytes
+              (Static => Byte_Offset (Left_Cursor) = Byte_Offset (Right_Cursor));
+            pragma Assert
+              (Static => Byte_Offset (Left_Cursor) - Old_Offset
+               = Natural (Decode_One (Left, Old_Offset).Width));
+            pragma Assert
+              (Static => Same_Bytes
+                 (Left,
+                  Old_Offset,
+                  Right,
+                  Old_Offset,
+                  Byte_Offset (Left_Cursor) - Old_Offset));
+            Lemma_Same_Bytes_Concatenation
               (Left,
+               0,
                Right,
+               0,
                Old_Offset,
                Byte_Offset (Left_Cursor) - Old_Offset);
          end;
       end loop;
 
-      pragma Assert (not Has_Element (Right, Right_Cursor));
-      pragma Assert (Left'Length = Right'Length);
-      pragma Assert (Byte_Offset (Left_Cursor) = Left'Length);
-      pragma Assert (Equal_Byte_Ranges (Left, 0, Right, 0, Left'Length));
-      Lemma_String_Equality_From_Bytes (Left, Right);
-      pragma Assert (Left = Right);
-      pragma Assert ((Left = Right) = (Model (Left) = Model (Right)));
+      pragma Assert (Static => not Has_Element (Right, Right_Cursor));
+      pragma Assert (Static => Left'Length = Right'Length);
+      pragma Assert (Static => Byte_Offset (Left_Cursor) = Left'Length);
+      pragma Assert (Static => Same_Bytes (Left, 0, Right, 0, Left'Length));
+   end Lemma_Encoding_Injective;
+
+   procedure Lemma_Equality (Left, Right : String) is
+   begin
+      if Left = Right then
+         Lemma_Equal_Strings_Model_From (Left, Right, 0);
+         pragma Assert (Static => Model (Left) = Model (Right));
+         pragma Assert (Static => (Left = Right) = (Model (Left) = Model (Right)));
+         return;
+      end if;
+
+      if Model (Left) /= Model (Right) then
+         pragma Assert (Static => Left /= Right);
+         pragma Assert (Static => (Left = Right) = (Model (Left) = Model (Right)));
+         return;
+      end if;
+
+      Lemma_Encoding_Injective (Left, Right, Model (Left));
+      Lemma_Same_Bytes_Whole_Equality (Left, Right);
+      pragma Assert (Static => Left = Right);
+      pragma Assert (Static => (Left = Right) = (Model (Left) = Model (Right)));
    end Lemma_Equality;
+
+   procedure Lemma_Concatenation
+     (Left, Right, Result : String) is
+   begin
+      Lemma_Concatenation_From (Left, Right, Result, 0);
+   end Lemma_Concatenation;
 
    procedure Lemma_Prefix (Prefix, Whole : String) is null;
 
@@ -798,25 +1026,25 @@ is
 
    procedure Lemma_Encode_Decode (Value : Scalar_Value) is
       Encoded : constant String := Encode_One (Value)
-      with Ghost;
+      with Ghost => Static;
       Unit    : constant Decoded_Unit := Decode_One (Encoded, 0)
-      with Ghost;
+      with Ghost => Static;
       Empty   : constant Text := Scalar_Sequences.Empty_Sequence
-      with Ghost;
+      with Ghost => Static;
       One     : constant Text := [Value]
-      with Ghost;
+      with Ghost => Static;
       Front   : constant Text := Scalar_Sequences.Add (Empty, 1, Value)
-      with Ghost;
+      with Ghost => Static;
    begin
-      pragma Assert (Valid_At (Encoded, 0));
-      pragma Assert (Unit.Value = Value);
-      pragma Assert (Unit.Width = Encoding_Width (Value));
-      pragma Assert (Natural (Unit.Width) = Encoded'Length);
-      pragma Assert (Model_From (Encoded, Encoded'Length) = Empty);
-      pragma Assert (Model_From (Encoded, 0) = Front);
-      pragma Assert (Is_Encoding (Encoded, Model (Encoded)));
-      pragma Assert (Front = One);
-      pragma Assert (Model (Encoded) = One);
+      pragma Assert (Static => Valid_At (Encoded, 0));
+      pragma Assert (Static => Unit.Value = Value);
+      pragma Assert (Static => Unit.Width = Encoding_Width (Value));
+      pragma Assert (Static => Natural (Unit.Width) = Encoded'Length);
+      pragma Assert (Static => Model_From (Encoded, Encoded'Length) = Empty);
+      pragma Assert (Static => Model_From (Encoded, 0) = Front);
+      pragma Assert (Static => Is_Encoding (Encoded, Model (Encoded)));
+      pragma Assert (Static => Front = One);
+      pragma Assert (Static => Model (Encoded) = One);
    end Lemma_Encode_Decode;
 
 end Unicode_Text.UTF_8;

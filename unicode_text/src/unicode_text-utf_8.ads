@@ -162,29 +162,224 @@ is
    is (S'Length);
 
    function Is_Encoding (S : String; Value : Text) return Boolean
-   with Ghost, Pre => Is_Valid_UTF_8 (S);
+   with Ghost => Static, Pre => Is_Valid_UTF_8 (S);
    --  Relates the complete byte sequence in S to the complete scalar sequence
    --  in Value.  It is independent of Ada array bounds.
 
    function Model (S : String) return Text
    with
-     Ghost,
+     Ghost => Static,
      Pre  => Is_Valid_UTF_8 (S),
      Post =>
-       Is_Encoding (S, Model'Result)
+       (Static =>
+          Is_Encoding (S, Model'Result)
+          and then
+            Scalar_Sequences.Length (Model'Result)
+            <= To_Big_Integer (S'Length));
+
+   function Same_Bytes
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      Count        : Natural) return Boolean
+   is (Count = 0
+       or else
+         (Same_Bytes
+            (Left, Left_Offset, Right, Right_Offset, Count - 1)
+          and then
+            Octet_At (Left, Left_Offset + Count - 1)
+            = Octet_At (Right, Right_Offset + Count - 1)))
+   with
+     Ghost => Static,
+     Pre                =>
+       Left_Offset <= Left'Length
+       and then Count <= Left'Length - Left_Offset
+       and then Right_Offset <= Right'Length
+       and then Count <= Right'Length - Right_Offset,
+     Subprogram_Variant => (Decreases => Count);
+   --  Positional equality of two byte ranges.  The relation uses zero-based
+   --  offsets and is independent of the Ada bounds of either string.
+
+   function Prefix_Bytes (S : String; Count : Natural) return String
+   is (if Count = 0
+       then ""
+       else S (S'First .. S'Last - (S'Length - Count)))
+   with Ghost => Static, Pre => Count <= S'Length;
+
+   function Is_Byte_Concatenation
+     (Left, Right, Result : String) return Boolean
+   is (Result'Length = Left'Length + Right'Length
+       and then Same_Bytes (Left, 0, Result, 0, Left'Length)
        and then
-         Scalar_Sequences.Length (Model'Result) <= To_Big_Integer (S'Length);
+         Same_Bytes
+           (Right, 0, Result, Left'Length, Right'Length))
+   with
+     Ghost => Static,
+     Pre => Left'Length <= Natural'Last - Right'Length;
+
+   procedure Lemma_Same_Bytes_Reflexive
+     (S : String; Offset, Count : Natural)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    => Offset <= S'Length and then Count <= S'Length - Offset,
+     Post   => Same_Bytes (S, Offset, S, Offset, Count),
+     Subprogram_Variant => (Decreases => Count);
+
+   procedure Lemma_Same_Bytes_At
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      Count        : Natural;
+      Index        : Natural)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Left_Offset <= Left'Length
+       and then Count <= Left'Length - Left_Offset
+       and then Right_Offset <= Right'Length
+       and then Count <= Right'Length - Right_Offset
+       and then Same_Bytes (Left, Left_Offset, Right, Right_Offset, Count)
+       and then Index < Count,
+     Post   =>
+       Octet_At (Left, Left_Offset + Index)
+       = Octet_At (Right, Right_Offset + Index),
+     Subprogram_Variant => (Decreases => Count);
+
+   procedure Lemma_Same_Bytes_Suffix
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      Count        : Natural;
+      Dropped      : Natural)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Left_Offset <= Left'Length
+       and then Count <= Left'Length - Left_Offset
+       and then Right_Offset <= Right'Length
+       and then Count <= Right'Length - Right_Offset
+       and then Same_Bytes (Left, Left_Offset, Right, Right_Offset, Count)
+       and then Dropped <= Count,
+     Post   =>
+       Same_Bytes
+         (Left,
+          Left_Offset + Dropped,
+          Right,
+          Right_Offset + Dropped,
+          Count - Dropped),
+     Subprogram_Variant => (Decreases => Count - Dropped);
+
+   procedure Lemma_Same_Bytes_Concatenation
+     (Left         : String;
+      Left_Offset  : Natural;
+      Right        : String;
+      Right_Offset : Natural;
+      First_Count  : Natural;
+      Second_Count : Natural)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Left_Offset <= Left'Length
+       and then First_Count <= Left'Length - Left_Offset
+       and then Second_Count
+                  <= Left'Length - Left_Offset - First_Count
+       and then Right_Offset <= Right'Length
+       and then First_Count <= Right'Length - Right_Offset
+       and then Second_Count
+                  <= Right'Length - Right_Offset - First_Count
+       and then
+         Same_Bytes
+           (Left, Left_Offset, Right, Right_Offset, First_Count)
+       and then
+         Same_Bytes
+           (Left,
+            Left_Offset + First_Count,
+            Right,
+            Right_Offset + First_Count,
+            Second_Count),
+     Post   =>
+       Same_Bytes
+         (Left,
+          Left_Offset,
+          Right,
+          Right_Offset,
+          First_Count + Second_Count),
+     Subprogram_Variant => (Decreases => Second_Count);
+
+   procedure Lemma_Same_Bytes_Prefixes
+     (Left, Right : String; Count : Natural)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Count <= Left'Length
+       and then Count <= Right'Length
+       and then Same_Bytes (Left, 0, Right, 0, Count),
+     Post   =>
+       Same_Bytes
+         (Prefix_Bytes (Left, Count),
+          0,
+          Prefix_Bytes (Right, Count),
+          0,
+          Count);
+
+   procedure Lemma_Same_Bytes_Whole_Equality (Left, Right : String)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Left'Length = Right'Length
+       and then Same_Bytes (Left, 0, Right, 0, Left'Length),
+     Post   => Left = Right,
+     Subprogram_Variant => (Decreases => Left'Length);
+
+   procedure Lemma_Encoding_Injective
+     (Left, Right : String; Value : Text)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Is_Valid_UTF_8 (Left)
+       and then Is_Valid_UTF_8 (Right)
+       and then Is_Encoding (Left, Value)
+       and then Is_Encoding (Right, Value),
+     Post   =>
+       Left'Length = Right'Length
+       and then Same_Bytes (Left, 0, Right, 0, Left'Length);
+
+   procedure Lemma_Concatenation (Left, Right, Result : String)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Is_Valid_UTF_8 (Left)
+       and then Is_Valid_UTF_8 (Right)
+       and then Left'Length <= Natural'Last - Right'Length
+       and then Is_Byte_Concatenation (Left, Right, Result),
+     Post   =>
+       Is_Valid_UTF_8 (Result)
+       and then
+         Is_Concatenation
+           (Model (Left), Model (Right), Model (Result));
 
    function Code_Point_Length (S : String) return Natural
    with
      Pre  => Is_Valid_UTF_8 (S),
      Post =>
-       To_Big_Integer (Code_Point_Length'Result)
-       = Scalar_Sequences.Length (Model (S))
-       and then Code_Point_Length'Result <= S'Length
-       and then
-         To_Big_Integer (S'Length)
-         <= 4 * To_Big_Integer (Code_Point_Length'Result);
+       (Runtime => Code_Point_Length'Result <= S'Length,
+        Static  =>
+          To_Big_Integer (Code_Point_Length'Result)
+          = Scalar_Sequences.Length (Model (S))
+          and then
+            To_Big_Integer (S'Length)
+            <= 4 * To_Big_Integer (Code_Point_Length'Result));
 
    function Element
      (S : String; Index : Positive) return Scalar_Value
@@ -192,8 +387,9 @@ is
      Pre  =>
        Is_Valid_UTF_8 (S) and then Index <= Code_Point_Length (S),
      Post =>
-       Element'Result
-       = Scalar_Sequences.Get (Model (S), To_Big_Integer (Index));
+       (Static =>
+          Element'Result
+          = Scalar_Sequences.Get (Model (S), To_Big_Integer (Index)));
 
    type Cursor_Type is private;
 
@@ -204,47 +400,53 @@ is
    function Model_Index (Cursor : Cursor_Type) return Cursor_Index;
 
    function Big_Model_Index (Cursor : Cursor_Type) return Big_Positive
-   with Ghost;
+   with Ghost => Static;
 
    function Is_Valid_Cursor (S : String; Cursor : Cursor_Type) return Boolean
-   with Ghost;
+   with Ghost => Static;
 
    function First (S : String) return Cursor_Type
    with
      Pre  => Is_Valid_UTF_8 (S),
      Post =>
-       Is_Valid_UTF_8 (S)
-       and then Is_Valid_Cursor (S, First'Result)
-       and then Byte_Offset (First'Result) = 0
-       and then Model_Index (First'Result) = 1;
+       (Runtime =>
+          Is_Valid_UTF_8 (S)
+          and then Byte_Offset (First'Result) = 0
+          and then Model_Index (First'Result) = 1,
+        Static => Is_Valid_Cursor (S, First'Result));
 
    function Has_Element (S : String; Cursor : Cursor_Type) return Boolean
    with
-     Pre  => Is_Valid_UTF_8 (S) and then Is_Valid_Cursor (S, Cursor),
+     Pre  =>
+       (Runtime => Is_Valid_UTF_8 (S),
+        Static  => Is_Valid_Cursor (S, Cursor)),
      Post =>
-       Has_Element'Result = (Byte_Offset (Cursor) < S'Length)
-       and then
-       Has_Element'Result
-         = (Big_Model_Index (Cursor)
-            <= Scalar_Sequences.Length (Model (S)));
+       (Runtime =>
+          Has_Element'Result = (Byte_Offset (Cursor) < S'Length),
+        Static =>
+          Has_Element'Result
+          = (Big_Model_Index (Cursor)
+             <= Scalar_Sequences.Length (Model (S))));
 
    procedure Next
      (S : String; Cursor : in out Cursor_Type; Value : out Scalar_Value)
    with
      Pre  =>
-       Is_Valid_UTF_8 (S)
-       and then Is_Valid_Cursor (S, Cursor)
-       and then Has_Element (S, Cursor),
+       (Runtime =>
+          Is_Valid_UTF_8 (S) and then Byte_Offset (Cursor) < S'Length,
+        Static  => Is_Valid_Cursor (S, Cursor)),
      Post =>
-       Is_Valid_Cursor (S, Cursor)
-       and then Value
-                = Scalar_Sequences.Get
-                    (Model (S), Big_Model_Index (Cursor'Old))
-       and then Model_Index (Cursor) = Model_Index (Cursor'Old) + 1
-       and then Byte_Offset (Cursor)
-                = Byte_Offset (Cursor'Old)
-                  + Natural (Encoding_Width (Value))
-       and then Byte_Offset (Cursor) > Byte_Offset (Cursor'Old);
+       (Runtime =>
+          Model_Index (Cursor) = Model_Index (Cursor'Old) + 1
+          and then Byte_Offset (Cursor)
+                   = Byte_Offset (Cursor'Old)
+                     + Natural (Encoding_Width (Value))
+          and then Byte_Offset (Cursor) > Byte_Offset (Cursor'Old),
+        Static =>
+          Is_Valid_Cursor (S, Cursor)
+          and then Value
+                   = Scalar_Sequences.Get
+                       (Model (S), Big_Model_Index (Cursor'Old)));
 
    type Comparison_Result is (Less, Equal, Greater);
 
@@ -252,37 +454,40 @@ is
    with
      Pre  => Is_Valid_UTF_8 (Prefix) and then Is_Valid_UTF_8 (Whole),
      Post =>
-       Is_Prefix'Result
-       = Unicode_Text.Models.Is_Prefix (Model (Prefix), Model (Whole));
+       (Static =>
+          Is_Prefix'Result
+          = Unicode_Text.Models.Is_Prefix (Model (Prefix), Model (Whole)));
 
    function Is_Suffix (Suffix, Whole : String) return Boolean
    with
      Pre  => Is_Valid_UTF_8 (Suffix) and then Is_Valid_UTF_8 (Whole),
      Post =>
-       Is_Suffix'Result
-       = Unicode_Text.Models.Is_Suffix (Model (Suffix), Model (Whole));
+       (Static =>
+          Is_Suffix'Result
+          = Unicode_Text.Models.Is_Suffix (Model (Suffix), Model (Whole)));
 
    function Compare (Left, Right : String) return Comparison_Result
    with
      Pre  => Is_Valid_UTF_8 (Left) and then Is_Valid_UTF_8 (Right),
      Post =>
-       (case Compare'Result is
-          when Less =>
-            Is_Lexicographically_Less (Model (Left), Model (Right)),
-          when Equal => Model (Left) = Model (Right),
-          when Greater =>
-            Is_Lexicographically_Less (Model (Right), Model (Left)));
+       (Static =>
+          (case Compare'Result is
+             when Less =>
+               Is_Lexicographically_Less (Model (Left), Model (Right)),
+             when Equal => Model (Left) = Model (Right),
+             when Greater =>
+               Is_Lexicographically_Less (Model (Right), Model (Left))));
 
    procedure Lemma_Equality (Left, Right : String)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    => Is_Valid_UTF_8 (Left) and then Is_Valid_UTF_8 (Right),
      Post   => (Left = Right) = (Model (Left) = Model (Right));
 
    procedure Lemma_Prefix (Prefix, Whole : String)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    => Is_Valid_UTF_8 (Prefix) and then Is_Valid_UTF_8 (Whole),
      Post   =>
@@ -291,7 +496,7 @@ is
 
    procedure Lemma_Suffix (Suffix, Whole : String)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    => Is_Valid_UTF_8 (Suffix) and then Is_Valid_UTF_8 (Whole),
      Post   =>
@@ -300,7 +505,7 @@ is
 
    procedure Lemma_Comparison (Left, Right : String)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    => Is_Valid_UTF_8 (Left) and then Is_Valid_UTF_8 (Right),
      Post   =>
@@ -324,7 +529,7 @@ is
 
    procedure Lemma_Encoding_Unique (S : String; Left, Right : Text)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Pre    =>
        Is_Valid_UTF_8 (S)
@@ -334,7 +539,7 @@ is
 
    procedure Lemma_Encode_Decode (Value : Scalar_Value)
    with
-     Ghost,
+     Ghost => Static,
      Global => null,
      Post   =>
        Is_Valid_UTF_8 (Encode_One (Value))

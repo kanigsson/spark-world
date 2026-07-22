@@ -1,9 +1,3 @@
---  Model contracts and proof instrumentation contain Ghost entities.  Keep
---  predicate checks enabled by -gnata, but do not elaborate proof-only code
---  in executable builds.
-pragma Assertion_Policy
-  (Pre            => Ignore,
-   Post           => Ignore,
-   Assert         => Ignore,
-   Loop_Invariant => Ignore,
-   Ghost          => Ignore);
+--  Static assertions contain proof-only models and are always ignored by the
+--  compiler.  Executable contracts and assertions remain enabled by -gnata.
+pragma Assertion_Policy (Ghost => Ignore);

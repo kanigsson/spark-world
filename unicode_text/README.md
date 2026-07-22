@@ -4,13 +4,13 @@
 The complete design and implementation milestones are described in
 [`design.md`](design.md).
 
-Milestones 1 through 3 provide the Unicode scalar types, the shared ghost text
+Milestones 1 through 3.1 provide the Unicode scalar types, the shared ghost text
 model, strict UTF-8 validation, single-scalar encoding and decoding, validation
 error offsets, code-point length and indexed access, forward cursors, plain
-prefix/suffix/comparison operations, byte/model bridge lemmas, and proof
-clients.
+prefix/suffix/comparison operations, compositional byte-range and
+byte-concatenation proof relations, byte/model bridge lemmas, and proof clients.
 
-The current version is `0.3.0`. Releases follow Semantic Versioning; the
+The current version is `0.3.1`. Releases follow Semantic Versioning; the
 repository's version and compatibility policy are described in
 [`VERSION`](VERSION), [`CHANGELOG.md`](CHANGELOG.md), and the versioning section
 of [`design.md`](design.md#20-versioning-and-compatibility).

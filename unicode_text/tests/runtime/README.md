@@ -9,7 +9,8 @@ Ada string bounds.
 
 `plain_string_tests.adb` covers Milestone 3 code-point length, indexed access,
 forward cursor progress, prefix, suffix, comparison, mixed-width text, and
-non-default Ada string bounds.
+non-default Ada string bounds. It also confirms that executable API
+preconditions remain enabled while static ghost-model contracts are erased.
 
 Run it from the repository root with:
 
