@@ -15,7 +15,6 @@ follow [Semantic Versioning](https://semver.org/).
 - Ghost mapping from valid Ada strings to the common text model, with a public
   byte/model relation and scalar round-trip theorem.
 - Exhaustive scalar round-trip tests and systematic malformed-input coverage.
-- Demand-driven model lemmas for append construction and singleton placement.
 
 ## [0.1.0] - 2026-07-21
 

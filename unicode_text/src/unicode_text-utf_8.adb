@@ -135,7 +135,7 @@ is
       with Ghost;
       Empty   : constant Text := Scalar_Sequences.Empty_Sequence
       with Ghost;
-      One     : constant Text := Scalar_Sequences.Add (Empty, Value)
+      One     : constant Text := [Value]
       with Ghost;
       Front   : constant Text := Scalar_Sequences.Add (Empty, 1, Value)
       with Ghost;
@@ -147,9 +147,8 @@ is
       pragma Assert (Model_From (Encoded, Encoded'Length) = Empty);
       pragma Assert (Model_From (Encoded, 0) = Front);
       pragma Assert (Is_Encoding (Encoded, Model (Encoded)));
-      Lemma_Singleton_Placement (Value);
+      pragma Assert (Front = One);
       pragma Assert (Model (Encoded) = One);
-      Lemma_Add_Is_Append (Empty, Value);
    end Lemma_Encode_Decode;
 
 end Unicode_Text.UTF_8;
