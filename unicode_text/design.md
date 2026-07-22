@@ -1,6 +1,6 @@
 # Unicode Text Library Design
 
-Status: Milestone 3 complete
+Status: Milestone 3 complete; Milestone 3.1 planned
 
 This document defines a proposed SPARK-compatible string library whose only
 concrete encoding is UTF-8. The library is intended to support ordinary Ada
@@ -1129,6 +1129,67 @@ reliably, the abstraction and lemma surface are likely adequate.
 - Add the forward cursor.
 - Add equality, prefix, suffix, and comparison bridge lemmas.
 - Prove iteration client examples using only the public specification.
+
+### Milestone 3.1: compositional UTF-8 proof foundation
+
+Milestone 3 established the intended plain-string API, but its equality bridge
+exposed a missing proof abstraction.  Proving
+
+```text
+Left = Right  iff  Model(Left) = Model(Right)
+```
+
+required reconstructing UTF-8 canonicality through local lemmas about
+decode/encode inversion, equality of encoded byte ranges, concatenation of
+adjacent ranges, rebased Ada array indices, and extensional array equality.
+This is conceptually one foundational encoding theorem and should be reusable
+by bounded strings rather than repeated in their proofs.
+
+Before beginning Milestone 4:
+
+- Extract a ghost byte-range relation, provisionally `Same_Bytes`, that compares
+  ranges positionally and is independent of Ada array lower bounds.
+- Provide focused lemmas for reflexivity, range extension or concatenation, and
+  promotion of whole-range equality to Ada `String` equality.
+- Establish the canonical bridge once:
+
+  ```text
+  Is_Valid_UTF_8(S) implies Octets(S) = Encode(Model(S)).
+  ```
+
+  Derive model injectivity and the public plain-string equality bridge from
+  this result.
+- Place the encoding and byte-range lemmas in a reusable proof layer rather
+  than leaving them as operation-specific local machinery.  Ordinary clients
+  should continue to reason in terms of text models, not continuation bytes.
+- Add a proof client for equality of active prefixes, representative of a
+  bounded string's initialized storage.
+- Add a proof client for model concatenation after appending a valid UTF-8
+  string.  This checks the other principal proof obligation expected from
+  bounded append.
+- Mark contracts and assertions that mention non-executable ghost models with
+  an explicit static assertion level.  Retain runtime checking for executable
+  preconditions, postconditions, predicates, and safety assertions instead of
+  globally suppressing all preconditions, postconditions, and assertions.
+
+The preferred first design is a small set of relational byte-range predicates,
+consistent with Section 8, rather than another constructed functional byte
+sequence.  An explicit ghost octet sequence should be introduced only if the
+active-prefix and append experiments show that relations do not compose
+adequately.
+
+Milestone 3.1 is complete when the two representative clients prove under the
+ordinary proof settings, the plain-string equality bridge is derived from the
+shared foundation, and bounded-string implementations can reuse the proof
+layer without exposing byte arithmetic in their public contracts.
+
+GNATprove improvements are not a prerequisite for Milestone 4.  Small isolated
+reproducers should nevertheless record any remaining difficulty with array
+extensionality across different lower bounds, rebased index normalization, or
+extension of quantified byte-range facts.  Such cases can motivate focused
+tool improvements without blocking the library: the completed Milestone 3
+proof has no check taking more than one second and does not indicate a general
+solver-performance problem.
 
 ### Milestone 4: bounded strings
 
