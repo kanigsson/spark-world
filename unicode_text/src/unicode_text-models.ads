@@ -66,6 +66,20 @@ is
                Result => Needle)))
    with Ghost;
 
+   procedure Lemma_Add_Is_Append (Before : Text; Value : Scalar_Value)
+   with
+     Ghost,
+     Global => null,
+     Post   => Is_Append (Before, Value, Scalar_Sequences.Add (Before, Value));
+
+   procedure Lemma_Singleton_Placement (Value : Scalar_Value)
+   with
+     Ghost,
+     Global => null,
+     Post   =>
+       Scalar_Sequences.Add (Scalar_Sequences.Empty_Sequence, 1, Value)
+       = Scalar_Sequences.Add (Scalar_Sequences.Empty_Sequence, Value);
+
    procedure Lemma_Concatenation_Associative
      (Left, Middle, Right                       : Text;
       Left_Middle, Middle_Right                 : Text;

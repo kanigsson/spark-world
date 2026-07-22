@@ -3,6 +3,10 @@ package body Unicode_Text.Models
 is
    use type Scalar_Sequences.Sequence;
 
+   procedure Lemma_Add_Is_Append (Before : Text; Value : Scalar_Value) is null;
+
+   procedure Lemma_Singleton_Placement (Value : Scalar_Value) is null;
+
    procedure Lemma_Concatenation_Unique
      (Left, Right, First_Result, Second_Result : Text)
    with

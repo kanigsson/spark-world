@@ -8,6 +8,11 @@ concatenation, slicing, and containment, guarding against vacuous results.
 `Concatenation_Associativity` is the demand-driven client for the one public
 model lemma retained in Milestone 1.
 
+`Byte_Layer_Proofs` checks the public scalar round-trip theorem and supplies
+non-vacuous witnesses at every UTF-8 width and scalar boundary. The byte-layer
+implementation itself proves bounds safety, strict recursive progress, scalar
+range safety, validation/model agreement, and the encoding/decoding formulas.
+
 The cases deliberately contain no implementation details and no calls to the
 library lemma bodies. They are an initial guard against sudden proof-complexity
 growth as the model API evolves.

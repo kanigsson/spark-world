@@ -1,6 +1,6 @@
 # Unicode Text Library Design
 
-Status: Milestone 1 complete
+Status: Milestone 2 complete
 
 This document defines a proposed SPARK-compatible string library whose only
 concrete encoding is UTF-8. The library is intended to support ordinary Ada
@@ -286,12 +286,21 @@ type Decoded_Unit is record
 end record;
 
 function Valid_At
-  (S : String; Byte_Position : Positive) return Boolean;
+  (S : String; Byte_Offset : Natural) return Boolean
+with Pre => Byte_Offset < S'Length;
 
 function Decode_One
-  (S : String; Byte_Position : Positive) return Decoded_Unit
-with Pre => Valid_At (S, Byte_Position);
+  (S : String; Byte_Offset : Natural) return Decoded_Unit
+with Pre =>
+  Byte_Offset < S'Length
+  and then Valid_At (S, Byte_Offset);
 ```
+
+These offsets are zero based and independent of `S'First`, consistently with
+the byte-offset terminology used by spans. `Validation_Result` reports
+`S'Length` on success. On failure it reports the offset of the first byte that
+cannot begin a valid scalar encoding; a malformed multibyte sequence is
+therefore reported at its leading byte.
 
 The validator and ghost `Model` function must share the same byte
 classification rules. The foundational bridge theorem is:
@@ -1158,7 +1167,6 @@ experiments:
 
 - Whether plain UTF-8 operations live directly in `Unicode_Text` or in
   `Unicode_Text.UTF_8`.
-- The exact shape and error detail of `Validation_Result`.
 - Whether `Find` returns only a code-point index or optionally returns a cursor
   or byte span to avoid rescanning.
 - Whether reverse iteration belongs in the first stable API.

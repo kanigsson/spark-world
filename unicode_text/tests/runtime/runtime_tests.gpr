@@ -1,0 +1,14 @@
+with "../../unicode_text.gpr";
+
+project Runtime_Tests is
+
+   for Source_Dirs use (".");
+   for Object_Dir use "../../obj/runtime_tests";
+   for Exec_Dir use "../../obj/runtime_tests";
+   for Main use ("utf_8_tests.adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use ("-gnat2022", "-gnata");
+   end Compiler;
+
+end Runtime_Tests;
