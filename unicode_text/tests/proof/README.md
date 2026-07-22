@@ -20,6 +20,11 @@ mention cursor positions and model indices, never UTF-8 continuation-byte
 arithmetic. The active-prefix and append cases are the representative bounded
 storage obligations required by Milestone 3.1.
 
+`Bounded_String_Proofs` instantiates the Milestone 4 generic and proves an
+append at exact byte capacity plus repeated scalar appends whose final model is
+the expected scalar sequence. The instantiations also cause GNATprove to
+analyze the complete generic implementation.
+
 The cases deliberately contain no implementation details and no calls to the
 library lemma bodies. They are an initial guard against sudden proof-complexity
 growth as the model API evolves.

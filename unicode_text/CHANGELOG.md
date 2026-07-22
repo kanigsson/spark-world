@@ -5,6 +5,21 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-22
+
+### Added
+
+- Generic fixed-byte-capacity bounded strings, including zero-capacity empty
+  instances and a private valid-UTF-8 active-prefix invariant.
+- Empty and ordinary-string construction, copying conversion, clearing,
+  byte/code-point length, indexed access, and scalar, string, and bounded-string
+  append operations.
+- Model-based bounded equality and source-safe forward cursor iteration.
+- Runtime coverage for capacity boundaries, all append forms, unused-storage
+  independence, and mixed-width iteration.
+- Proof clients for exact-capacity append and repeated append, which also prove
+  the instantiated generic implementation.
+
 ## [0.3.1] - 2026-07-22
 
 ### Added

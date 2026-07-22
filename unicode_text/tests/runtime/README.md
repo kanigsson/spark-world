@@ -12,10 +12,15 @@ forward cursor progress, prefix, suffix, comparison, mixed-width text, and
 non-default Ada string bounds. It also confirms that executable API
 preconditions remain enabled while static ghost-model contracts are erased.
 
+`bounded_string_tests.adb` covers Milestone 4 zero and exact capacities,
+construction and copying, all append forms, clearing, equality independent of
+unused storage, indexed access, and cursor iteration.
+
 Run it from the repository root with:
 
 ```sh
 gprbuild -P tests/runtime/runtime_tests.gpr
 ./obj/runtime_tests/utf_8_tests
 ./obj/runtime_tests/plain_string_tests
+./obj/runtime_tests/bounded_string_tests
 ```

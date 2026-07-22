@@ -1,6 +1,6 @@
 # Unicode Text Library Design
 
-Status: Milestone 3.1 complete; Milestone 4 planned
+Status: Milestone 4 complete; Milestone 5 planned
 
 This document defines a proposed SPARK-compatible string library whose only
 concrete encoding is UTF-8. The library is intended to support ordinary Ada
@@ -530,6 +530,9 @@ of the logical value. The model is exactly:
 ```text
 Model(S) = Model(Active_Bytes(S)).
 ```
+
+`Capacity = 0` is supported and produces an empty-only instance. Empty string
+appends remain valid; every nonempty append fails its capacity precondition.
 
 Bounded-string equality must compare active bytes or models, not the entire
 record, because unused bytes have no semantic meaning.
@@ -1231,7 +1234,6 @@ experiments:
 - Whether `Find` returns only a code-point index or optionally returns a cursor
   or byte span to avoid rescanning.
 - Whether reverse iteration belongs in the first stable API.
-- Whether bounded capacity zero is supported as a useful empty-only instance.
 - Which model lemmas should be automatic and which should be explicit.
 - The primary prover and initial step budgets for stable client regression
   tests.
