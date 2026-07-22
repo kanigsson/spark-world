@@ -23,6 +23,35 @@ is
             = Scalar_Sequences.Get (Whole, I)))
    with Ghost;
 
+   function Is_Suffix (Suffix, Whole : Text) return Boolean
+   is (Scalar_Sequences.Length (Suffix) <= Scalar_Sequences.Length (Whole)
+       and then
+         (for all I in Suffix =>
+            Scalar_Sequences.Get (Suffix, I)
+            = Scalar_Sequences.Get
+                (Whole,
+                 Scalar_Sequences.Length (Whole)
+                 - Scalar_Sequences.Length (Suffix)
+                 + I)))
+   with Ghost;
+
+   function Is_Lexicographically_Less (Left, Right : Text) return Boolean
+   is ((Scalar_Sequences.Length (Left) < Scalar_Sequences.Length (Right)
+        and then Is_Prefix (Left, Right))
+       or else
+         (for some I in Left =>
+            I <= Scalar_Sequences.Length (Right)
+            and then
+              (for all J in Left =>
+                 (if J < I
+                  then
+                    Scalar_Sequences.Get (Left, J)
+                    = Scalar_Sequences.Get (Right, J)))
+            and then
+              Scalar_Sequences.Get (Left, I)
+              < Scalar_Sequences.Get (Right, I)))
+   with Ghost;
+
    function Is_Append
      (Before : Text; Value : Scalar_Value; After : Text) return Boolean
    is (Scalar_Sequences.Length (After) = Scalar_Sequences.Length (Before) + 1

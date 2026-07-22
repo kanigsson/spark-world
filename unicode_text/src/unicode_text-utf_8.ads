@@ -158,16 +158,8 @@ is
 
    function Is_Valid_UTF_8 (S : String) return Boolean;
 
-   function Validate (S : String) return Validation_Result
-   with
-     Post =>
-       Validate'Result.Valid = Is_Valid_UTF_8 (S)
-       and then
-         (if Validate'Result.Valid
-          then Validate'Result.Error_Offset = S'Length
-          else
-            Validate'Result.Error_Offset < S'Length
-            and then not Valid_At (S, Validate'Result.Error_Offset));
+   function Byte_Length (S : String) return Natural
+   is (S'Length);
 
    function Is_Encoding (S : String; Value : Text) return Boolean
    with Ghost, Pre => Is_Valid_UTF_8 (S);
@@ -182,6 +174,153 @@ is
        Is_Encoding (S, Model'Result)
        and then
          Scalar_Sequences.Length (Model'Result) <= To_Big_Integer (S'Length);
+
+   function Code_Point_Length (S : String) return Natural
+   with
+     Pre  => Is_Valid_UTF_8 (S),
+     Post =>
+       To_Big_Integer (Code_Point_Length'Result)
+       = Scalar_Sequences.Length (Model (S))
+       and then Code_Point_Length'Result <= S'Length
+       and then
+         To_Big_Integer (S'Length)
+         <= 4 * To_Big_Integer (Code_Point_Length'Result);
+
+   function Element
+     (S : String; Index : Positive) return Scalar_Value
+   with
+     Pre  =>
+       Is_Valid_UTF_8 (S) and then Index <= Code_Point_Length (S),
+     Post =>
+       Element'Result
+       = Scalar_Sequences.Get (Model (S), To_Big_Integer (Index));
+
+   type Cursor_Type is private;
+
+   type Cursor_Index is range 1 .. Long_Long_Integer'Last;
+
+   function Byte_Offset (Cursor : Cursor_Type) return Natural;
+
+   function Model_Index (Cursor : Cursor_Type) return Cursor_Index;
+
+   function Big_Model_Index (Cursor : Cursor_Type) return Big_Positive
+   with Ghost;
+
+   function Is_Valid_Cursor (S : String; Cursor : Cursor_Type) return Boolean
+   with Ghost;
+
+   function First (S : String) return Cursor_Type
+   with
+     Pre  => Is_Valid_UTF_8 (S),
+     Post =>
+       Is_Valid_UTF_8 (S)
+       and then Is_Valid_Cursor (S, First'Result)
+       and then Byte_Offset (First'Result) = 0
+       and then Model_Index (First'Result) = 1;
+
+   function Has_Element (S : String; Cursor : Cursor_Type) return Boolean
+   with
+     Pre  => Is_Valid_UTF_8 (S) and then Is_Valid_Cursor (S, Cursor),
+     Post =>
+       Has_Element'Result = (Byte_Offset (Cursor) < S'Length)
+       and then
+       Has_Element'Result
+         = (Big_Model_Index (Cursor)
+            <= Scalar_Sequences.Length (Model (S)));
+
+   procedure Next
+     (S : String; Cursor : in out Cursor_Type; Value : out Scalar_Value)
+   with
+     Pre  =>
+       Is_Valid_UTF_8 (S)
+       and then Is_Valid_Cursor (S, Cursor)
+       and then Has_Element (S, Cursor),
+     Post =>
+       Is_Valid_Cursor (S, Cursor)
+       and then Value
+                = Scalar_Sequences.Get
+                    (Model (S), Big_Model_Index (Cursor'Old))
+       and then Model_Index (Cursor) = Model_Index (Cursor'Old) + 1
+       and then Byte_Offset (Cursor)
+                = Byte_Offset (Cursor'Old)
+                  + Natural (Encoding_Width (Value))
+       and then Byte_Offset (Cursor) > Byte_Offset (Cursor'Old);
+
+   type Comparison_Result is (Less, Equal, Greater);
+
+   function Is_Prefix (Prefix, Whole : String) return Boolean
+   with
+     Pre  => Is_Valid_UTF_8 (Prefix) and then Is_Valid_UTF_8 (Whole),
+     Post =>
+       Is_Prefix'Result
+       = Unicode_Text.Models.Is_Prefix (Model (Prefix), Model (Whole));
+
+   function Is_Suffix (Suffix, Whole : String) return Boolean
+   with
+     Pre  => Is_Valid_UTF_8 (Suffix) and then Is_Valid_UTF_8 (Whole),
+     Post =>
+       Is_Suffix'Result
+       = Unicode_Text.Models.Is_Suffix (Model (Suffix), Model (Whole));
+
+   function Compare (Left, Right : String) return Comparison_Result
+   with
+     Pre  => Is_Valid_UTF_8 (Left) and then Is_Valid_UTF_8 (Right),
+     Post =>
+       (case Compare'Result is
+          when Less =>
+            Is_Lexicographically_Less (Model (Left), Model (Right)),
+          when Equal => Model (Left) = Model (Right),
+          when Greater =>
+            Is_Lexicographically_Less (Model (Right), Model (Left)));
+
+   procedure Lemma_Equality (Left, Right : String)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Is_Valid_UTF_8 (Left) and then Is_Valid_UTF_8 (Right),
+     Post   => (Left = Right) = (Model (Left) = Model (Right));
+
+   procedure Lemma_Prefix (Prefix, Whole : String)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Is_Valid_UTF_8 (Prefix) and then Is_Valid_UTF_8 (Whole),
+     Post   =>
+       Is_Prefix (Prefix, Whole)
+       = Unicode_Text.Models.Is_Prefix (Model (Prefix), Model (Whole));
+
+   procedure Lemma_Suffix (Suffix, Whole : String)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Is_Valid_UTF_8 (Suffix) and then Is_Valid_UTF_8 (Whole),
+     Post   =>
+       Is_Suffix (Suffix, Whole)
+       = Unicode_Text.Models.Is_Suffix (Model (Suffix), Model (Whole));
+
+   procedure Lemma_Comparison (Left, Right : String)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Is_Valid_UTF_8 (Left) and then Is_Valid_UTF_8 (Right),
+     Post   =>
+       (case Compare (Left, Right) is
+          when Less =>
+            Is_Lexicographically_Less (Model (Left), Model (Right)),
+          when Equal => Model (Left) = Model (Right),
+          when Greater =>
+            Is_Lexicographically_Less (Model (Right), Model (Left)));
+
+   function Validate (S : String) return Validation_Result
+   with
+     Post =>
+       Validate'Result.Valid = Is_Valid_UTF_8 (S)
+       and then
+         (if Validate'Result.Valid
+          then Validate'Result.Error_Offset = S'Length
+          else
+            Validate'Result.Error_Offset < S'Length
+            and then not Valid_At (S, Validate'Result.Error_Offset));
 
    procedure Lemma_Encoding_Unique (S : String; Left, Right : Text)
    with
@@ -203,5 +342,23 @@ is
        and then
          Decode_One (Encode_One (Value), 0).Width = Encoding_Width (Value)
        and then Model (Encode_One (Value)) = [Value];
+
+private
+
+   package Cursor_Index_Conversions is new Signed_Conversions (Cursor_Index);
+
+   type Cursor_Type is record
+      Offset : Natural := 0;
+      Index  : Cursor_Index := 1;
+   end record;
+
+   function Byte_Offset (Cursor : Cursor_Type) return Natural
+   is (Cursor.Offset);
+
+   function Model_Index (Cursor : Cursor_Type) return Cursor_Index
+   is (Cursor.Index);
+
+   function Big_Model_Index (Cursor : Cursor_Type) return Big_Positive
+   is (Cursor_Index_Conversions.To_Big_Integer (Cursor.Index));
 
 end Unicode_Text.UTF_8;

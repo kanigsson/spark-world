@@ -5,6 +5,22 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-22
+
+### Added
+
+- Code-point length and indexed scalar access for valid ordinary strings.
+- Source-safe forward cursors with byte offsets, model indices, strict
+  progress, and model-order contracts.
+- Plain-string prefix, suffix, and scalar-value lexicographic comparison.
+- Equality, prefix, suffix, and comparison bridge lemmas connecting concrete
+  strings to the shared text model.
+- Public-only cursor proof clients and mixed-width runtime coverage.
+
+### Changed
+
+- GNATprove now uses all available provers with a 30-second timeout.
+
 ## [0.2.0] - 2026-07-21
 
 ### Added

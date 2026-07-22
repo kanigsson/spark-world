@@ -8,12 +8,13 @@ project Unicode_Text is
    package Compiler is
       for Default_Switches ("Ada") use
         ("-gnat2022", "-gnata");
+      for Local_Configuration_Pragmas use "gnat.adc";
    end Compiler;
 
    package Prove is
       for Proof_Dir use "proof";
       for Proof_Switches ("Ada") use
-        ("--mode=all", "--level=2", "--prover=cvc5", "--steps=10000");
+        ("--mode=all", "--level=2", "--prover=all", "--timeout=30");
    end Prove;
 
 end Unicode_Text;

@@ -13,6 +13,10 @@ non-vacuous witnesses at every UTF-8 width and scalar boundary. The byte-layer
 implementation itself proves bounds safety, strict recursive progress, scalar
 range safety, validation/model agreement, and the encoding/decoding formulas.
 
+`Plain_String_Proofs` proves cursor counting and model-order iteration using
+only the public `Unicode_Text.UTF_8` specification. Its loop invariants mention
+cursor positions and model indices, never UTF-8 continuation-byte arithmetic.
+
 The cases deliberately contain no implementation details and no calls to the
 library lemma bodies. They are an initial guard against sudden proof-complexity
 growth as the model API evolves.
@@ -23,6 +27,6 @@ Run them together with the library proof using:
 gnatprove -P unicode_text.gpr
 ```
 
-The initial Milestone 1 run proves every scaling case with the project-wide
-10,000-step limit. Numeric performance thresholds will be set only after the
-API and toolchain reach a stable pilot, as specified in `design.md`.
+The proof project uses all available provers with a 30-second per-attempt
+timeout. Numeric performance thresholds will be set only after the API and
+toolchain reach a stable pilot, as specified in `design.md`.

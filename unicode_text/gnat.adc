@@ -1,0 +1,9 @@
+--  Model contracts and proof instrumentation contain Ghost entities.  Keep
+--  predicate checks enabled by -gnata, but do not elaborate proof-only code
+--  in executable builds.
+pragma Assertion_Policy
+  (Pre            => Ignore,
+   Post           => Ignore,
+   Assert         => Ignore,
+   Loop_Invariant => Ignore,
+   Ghost          => Ignore);
