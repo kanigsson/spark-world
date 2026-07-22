@@ -1,444 +1,222 @@
-# A Fully Proved DEFLATE/gzip Codec in SPARK — Milestone Plan
+# Compression roadmap
 
-Summer project scoping. Starting point: the existing `inflate/` library is an
-**AoRTE-only** proof of a DEFLATE/zlib/gzip/ZIP *decoder* (701 checks, `--level=2`,
-no manual lemmas, no assumptions). The README is explicit that decoded bytes are
-*tested* against C zlib, **not proved correct**. This plan layers functional
-correctness and round-trip on top, and adds a validity-preserving compressor.
+This is the living plan for improving `inflate`'s compression ratio. The
+correctness foundations and the end-to-end gzip round-trip theorem are already
+complete. M6 is now a compressor-quality milestone: every step below must
+preserve the theorem, but none is a prerequisite for the theorem as it stands.
 
-## Verdict
+## Current boundary
 
-Ignoring time, this is **realistic with no fundamental blocker** — provided:
+`Inflate.Theorems.GZip_Round_Trip` proves, for every input within the public size
+cap and with sufficiently large caller-provided buffers, that gzip compression
+followed by decompression returns the input exactly. The proof is branch-free at
+the theorem layer. `Inflate.Bodies.Body_Encodes` hides whether the compressor
+selected a stored, fixed-Huffman, or dynamic-Huffman body.
 
-1. Correctness is anchored on **round-trip / identity** properties (spec-free)
-   rather than "decode matches the RFC" (which smuggles a debatable spec into the
-   trusted base), and
-2. We never try to prove the compressor **optimal** — only that it produces
-   **valid** output. Optimality is where scope explodes and buys round-trip nothing.
+The current compressor selects:
 
-Everything in DEFLATE is finite-alphabet: no heap, no reals, no unbounded
-quantifier alternation. It is "hard but bounded." The one place real proof-research
-difficulty concentrates is the **canonical-Huffman completeness (Kraft) lemma** —
-which is exactly the lemma the current AoRTE proof *deliberately dodged* with a
-defensive runtime check (`followup.txt`: "offsets never exceed 288 … needs ghost
-summation and induction lemmas"). That dodge is now the load-bearing proof.
+- a sparse dynamic-Huffman block for profitable constant-byte runs of at least
+  4,096 bytes;
+- a fixed-Huffman block otherwise, while the input fits the fixed encoder's
+  arithmetic domain; or
+- stored blocks above that domain.
 
-## The reframe: two meanings of "proved"
+The shared token plan currently finds the longest match of length 3 through 10
+at distances 1 through 4. These symbols require no RFC 1951 extra bits. This is
+enough to exercise and prove the complete Huffman/LZ77 round-trip path, but it is
+not enough for competitive compression on ordinary files.
 
-- **Decode-matches-spec.** The spec of DEFLATE *is* essentially another decoder, so
-  this collapses to "fast decoder agrees with my ghost reference decoder." Real
-  value (catches fast-path bugs) but only as trustworthy as the ghost model.
-- **Round-trip / identity: `Decompress(Compress(x)) = x`.** Spec-free — a
-  self-contained property between two of our own programs, nothing debatable in the
-  trusted base. **This is the target.**
+The last recorded proof and test baseline is:
 
-Asymmetry to respect: `Decompress ∘ Compress = id` is true and provable; the other
-direction `Compress ∘ Decompress = id` is **false** (encoding is not canonical) —
-do not chase it. The DEFLATE decode quirks the README lists (deliberately-incomplete
-fixed distance code, one-code incomplete tables) live *outside* the image of any
-compressor we write, so they are outside the round-trip domain — ignorable for M6,
-but must be modeled for full decode-correctness (M5).
+- 7,695 checks proved at `--level=4`, with no assumptions or justifications;
+- 6,449 debug/runtime cases and 22 compressor interoperability cases passing;
+- C zlib independently accepting every focused compressor output.
 
-Precision the eventual tool's claims must keep: the round-trip lemma is spec-free
-and unconditional, but it says nothing about streams outside our compressor's
-image. Decode correctness on *foreign* streams (someone else's `gzip -9` output)
-is provable only relative to our ghost DEFLATE model (M5) — say so explicitly
-rather than letting "fully proved" blur the two.
+On commit `83fa4aa`, aggregating the 12 checked-in `tests/corpus` files gave:
 
-## How the round-trip theorem is mechanized
+| Compressor | Compressed/input size |
+|---|---:|
+| current `bin/inflate` | 86.8% |
+| Python gzip level 6 | 26.0% |
 
-One ghost reference function `Decode_Model : Byte_Array → Byte_Array` (partial,
-via a status) is the pivot for everything:
+This is a baseline, not a zlib-parity promise. M6 must materially close that gap
+without adding compression optimality to the proof claim.
 
-- `Compress` gets post `Decode_Model (Output (1 .. Produced)) = Input`,
-- `Decompress` gets post `Status = OK ⟹ Output (1 .. Produced) = Decode_Model (Input)`,
-- round-trip is then a trivial ghost lemma by transitivity.
+## Completed foundations
 
-Design decisions to make early:
+| Milestone | Result |
+|---|---|
+| M0 | Absence of run-time errors for the decoder |
+| M1 | Bit-reader model and Huffman lookup equivalence |
+| M2 | Complete, prefix-free canonical Huffman construction |
+| M3 | Standalone Huffman encode/decode round-trip |
+| M4 | LZ77 back-reference correctness, including overlap |
+| M5 | Successful raw DEFLATE decoding satisfies the executable full model |
+| M6a | Stored gzip compressor, CLI, size/totality contracts, and full round-trip theorem |
+| M7 | CRC-32 and Adler-32 connected to mathematical specifications |
 
-- **The ghost model may recurse.** SPARK ghost functions can use recursion (with a
-  termination measure) even though the library code has none — a recursive
-  reference decoder is the natural shape; don't contort it into loops.
-- **Executable ghost, tested spec.** Ghost code can be compiled and executed: run
-  `Decode_Model` itself against the existing 6415-stream zlib differential suite.
-  That converts "trustworthy only up to the ghost model" from a shrug into a
-  tested claim, cheaply. The ghost model is the trusted base of M5 — keep it small
-  and validate it.
-- **Side conditions are part of the theorem.** The lemma holds only for *output
-  buffer large enough* and *input under the size cap*. So M6/M6a also owe:
-  - a proved **size bound** — `Compress` needs at most `Input'Length + overhead`
-    bytes of output (easy for a stored-block base: ~5 bytes per 64 KiB + framing),
-  - proved **totality** — `Status = OK` for *every* input given a big-enough
-    buffer. Validity alone makes the theorem vacuous on inputs where `Compress`
-    bails.
+Completed M6 infrastructure includes the verified fixed-Huffman token path,
+balanced dynamic codebook builder, shared codebook/payload writer, complete
+dynamic header/body serializer, dynamic analyzer and specialized decoder,
+stored/fixed/dynamic semantic body boundary, exact dynamic-versus-fixed size
+comparison, and the constant-byte-run dynamic gzip branch.
 
-## Milestone ladder
+## M6 roadmap
 
-| # | Milestone | Difficulty | Depends on | Confidence |
-|---|-----------|-----------|-----------|-----------|
-| M0 | AoRTE for inflate/DEFLATE/gz/zlib/zip | — (done) | — | done |
-| M1 | Bit-reader functional model + Huffman decode equivalence | — (done) | M0 | done |
-| M2 | Canonical Huffman construction: prefix-free + complete (Kraft) | — (done) | M1 | done |
-| M3 | Huffman round-trip (encode/decode mutual inverse), standalone | — (done) | M2 | done |
-| M4 | LZ77 back-reference decode correctness (window model) | — (done) | M1 | done |
-| M5 | Full DEFLATE decode functional correctness vs ghost model | — (done) | M1,M2,M4 | done |
-| M6a | Stored-only compressor + full gzip round-trip + CLI | — (done) | M1,M7 | done |
-| M6 | Huffman/LZ77 compressor upgrade, same round-trip theorem | Medium–Hard | M2,M3,M4,M6a | Medium |
-| M7 | CRC32/Adler32 = mathematical spec; container framing | — (done) | — | done |
+### M6-1 — General dynamic candidates
 
-Numbering is by topic, not by schedule. The recommended *order* is:
-M1 → M7 → **M6a** (theorem + tool exist, end to end) — with **M2 pressure-tested
-in parallel** — then M3, M4, M5, M6 as ratio/coverage upgrades that must
-preserve the already-stated theorem.
+Replace the constant-byte specialization with a pass over the deterministic
+token plan for eligible nonconstant inputs.
 
-### M1 — Bit reader + Huffman decode equivalence
-Prove the fast 1024-entry table lookup returns the same symbol as a canonical
-bit-by-bit walk of the code defined by the length array. The existing `First <= Code`
-invariant already does much of the load-bearing work. **High confidence.**
+Work:
 
-### M2 — Canonical Huffman construction correctness ⬅ project crux
-Prove that from a code-length histogram, the RFC 1951 §3.2.2 assignment yields a
-code that is **prefix-free** and **complete** (Kraft equality). Requires ghost
-summation over the length counts and induction. Tractable in SPARK (all finite) but
-**this is where the "no manual lemmas" luxury ends** — expect ghost functions and
-lemma procedures. If M2 discharges, everything downstream is careful work rather
-than unknown feasibility. **Pressure-test this milestone early** (in parallel with
-the M6a bootstrap) before committing the summer to the full ladder.
+- collect literal/length and distance symbol coverage and counts without
+  overflow;
+- prove that every selected token is covered by the resulting codebooks;
+- build and serialize the dynamic candidate through the existing shared
+  header/payload path;
+- retain it only when its exact body is smaller than the fixed alternative;
+- preserve the fixed fallback if construction fails or dynamic coding loses;
+- add a reproducible aggregate corpus-ratio command or script.
 
-### M3 — Huffman round-trip (standalone) — the headline deliverable
-A pure `symbols → bits → symbols` module over a code-length assignment, decoupled
-from LZ77 and block framing. A finite-alphabet **prefix-code bijection**:
-- encode injective ⟸ canonical code is prefix-free (from M2),
-- decode inverts encode ⟸ per-length interval-containment,
-- completeness (every bit pattern used) ⟸ Kraft equality (M2).
+Acceptance:
 
-Cleanest, most self-contained, most defensible result in the plan. Land it first
-after M2. **Directly answers "is Huffman round-trip realistic?" — yes, gated on M2.**
+- at least one nonconstant corpus input selects dynamic coding profitably;
+- no selected dynamic body is larger than its exact fixed alternative;
+- the full round-trip theorem, full proof, runtime suite, CLI suite, and zlib
+  interoperability checks remain clean;
+- the before/after aggregate corpus ratio is recorded.
 
-**Current status: complete as a standalone proved module.**
-`spikes/m3_huffman` reuses M2's exact histogram and scaled-Kraft result to admit
-only complete canonical codebooks, then proves an ordinary executable
-`Round_Trip` procedure for every sequence of up to 32 symbols (480 encoded bits).
-The encoder writes canonical code integers most-significant bit first; the
-decoder consumes only the resulting bit buffer and bit count and recovers each
-symbol through the canonical per-length interval and rank.  The original input
-appears on the decode side only in ghost assertions, not in executable control
-flow.  The proof includes the prefix-separation, code-prefix shortening,
-rank-uniqueness, and sequence-framing lemmas needed to compose individual
-codewords.  The complete M3/M2 project proves all 615 checks at `--level=2`;
-the executable harness covers a mixed `0, 10, 110, 111` code, the RFC 1951 fixed
-literal/length code over all 288 symbols, and the empty sequence.
+Expected complexity: **medium**. The semantic, serializer, decoder, framing, and
+fallback machinery already exists. The main proof obligation is connecting the
+collector to `Inflate.Payload.Covers`.
 
-The bound is deliberately a proof-harness capacity rather than a Huffman
-limitation: the theorem is universal over every sequence fitting those buffers.
-Lifting it for integration into M6 is a buffer/API generalization, not new
-prefix-code mathematics.
+The current `Build_Lengths` uses frequency only as a used/unused test and emits a
+balanced complete tree. M6-1 may retain that valid heuristic. Frequency-weighted
+length selection is deferred to M6-5 unless measurement shows it is needed
+earlier.
 
-### M4 — LZ77 back-reference decode
-Window model: `output[i] = output[i - distance]`. The interesting case is
-overlapping copies where `distance < length` (RLE-style) — the code already handles
-the `Dist = 1` run and the general overlap loop; prove they realize the intended
-byte relation. **Medium.**
+### M6-2 — Full RFC token representation
 
-**Current status: complete and connected to the shipping decoder.**
-`Inflate.Model.Copies_Match` is the executable relation: it preserves the
-already-produced prefix and states each appended byte as either a byte from
-that prefix or an earlier byte from the same match. `Inflate.LZ77.Copy_Match`
-implements and proves all three concrete paths — distance-one fill,
-non-overlapping slice copy, and forward byte-by-byte overlap — and
-`Inflate.Raw.Codes` now calls that proved primitive after validating length,
-distance, and output capacity. Thus M4 is a contract on the code users run,
-not only on a duplicate proof spike.
+Generalize the shared payload boundary from the no-extra-bit subset to all RFC
+1951 length and distance symbols.
 
-The focused primitive proves 117 checks at `--level=2`; its combined M4/model
-project proves 515, and the full shipping library proves all 1,942 checks. The
-debug differential quick suite passes 3,337 generated streams plus
-16 compressor interoperability cases, while the focused executable checks the
-three copy shapes directly. Quantified proof assertions are ignored in library
-executables to avoid quadratic debug instrumentation; project debug builds
-disable proof contracts while the small M4 harness evaluates the executable
-relation explicitly.
+Work:
 
-### M5 — Full DEFLATE decode correctness
-Assemble M1+M2+M4 against a ghost decode model over block framing. Carries the
-spec-faithfulness caveat — trustworthy only up to the ghost model, so make the
-ghost model executable and run it through the zlib differential suite (see the
-mechanization section). **Medium once the pieces exist.**
+- define shared, table-driven mappings between lengths/distances and their base
+  symbol, extra-bit count, and extra-bit value;
+- prove the mappings' ranges and encode/decode correspondence;
+- include extra bits in exact token cost and output bounds;
+- extend payload serialization, analyzers, semantic relations, and specialized
+  decoders to write and read those bits;
+- keep the existing matcher restricted initially, so this step changes the
+  representation boundary without simultaneously changing match selection.
 
-**Current status: complete as checked refinement.** The primary path of
-`Inflate.Model.Is_Decoding` is an independent executable canonical parser for
-stored, fixed-Huffman, and dynamic-Huffman blocks. It reads dynamic length RLE,
-builds its own canonical tables directly from the transmitted lengths, decodes
-symbols bit by bit, and validates literals and overlapping LZ77 matches against
-the returned output; it does not reuse the shipping fast table. Exact fixed and
-dynamic semantic relations now supplement that parser as proof-completeness
-fallbacks for the specialized decoders. `Inflate.Raw.Decompress` retains
-`Status = OK` only when that exact consumed/produced result satisfies the model,
-and its public postcondition exposes the relation. Thus the proof is
-unconditional for successful foreign DEFLATE streams but remains explicitly
-relative to this executable model, not to RFC prose.
+Acceptance:
 
-At that milestone, the focused model proved all 685 checks and the full library
-proved all 2,242 checks at `--level=2`. The debug differential suite passed
-6,443 generated/corpus cases plus 16 compressor interoperability cases, with
-language checks enabled and proof contracts disabled. The ordinary
-model path is iterative; the older recursive stored-only relations remain for
-the M6a proof but are not executed by project debug builds.
+- focused cases cover every length/distance coding boundary, including length
+  258 and distance 32,768;
+- existing short-match encodings remain valid;
+- fixed and dynamic serializer images round trip through the shipping decoder;
+- full proof and interoperability validation remain clean.
 
-### M6a — Stored-only compressor + gzip round-trip + CLI ⬅ the bootstrap
-DEFLATE has a gift the ladder should exploit: **stored blocks** (type 00). A
-compressor emitting only stored blocks is a *valid* DEFLATE compressor — ratio
-~1.0, but every stock `gunzip` consumes its output — and its round-trip proof
-needs **no Huffman theory at all**: decode correctness restricted to the stored
-fragment, plus gzip framing and checksums (M7). Deliver here, early and
-independently of M2:
+Expected complexity: **medium-hard**. This removes a simplification repeated
+through `Inflate.Fixed`, `Inflate.Payload`, and `Inflate.Dynamic`, but it does not
+yet require a new match-finder design.
 
-- the round-trip theorem, stated once with its side conditions (size bound,
-  totality — see the mechanization section), proved end to end through gzip;
-- the actual command-line tool over it.
+### M6-3 — Longer matches
 
-**Current status: complete.** The stored compressor, executable relation, exact
-size/totality contracts, and full gzip round-trip theorem are in the library.
-The `inflate` command now compresses to stored-block gzip, decompresses gzip
-(including concatenated members), grows its output buffer on
-`Output_Too_Small`, and has focused interoperability and failure-path tests.
-As planned, this file-I/O and allocation wrapper remains outside the SPARK proof
-boundary.
+Raise the selected match length from 10 to the DEFLATE maximum of 258 while
+retaining the current small distance window.
 
-Payoff: every later milestone becomes a **ratio upgrade that must preserve an
-already-stated theorem**, not a prerequisite for stating it. If M2 fights back
-harder than expected, a proved codec still ships. The theorem statement, ghost
-decode model, and CLI plumbing all get debugged on the easy fragment first.
-**High confidence.**
+Work:
 
-### M6 — Huffman/LZ77 compressor upgrade, same theorem
-Swap the stored-only emitter for fixed-Huffman, then dynamic-Huffman + LZ77,
-re-establishing M6a's round-trip theorem each time. The compressor's **AoRTE is
-genuinely new work** (comparable in effort to the decoder). The round-trip
-*proof* is then composition: `Compress` emits bits the decode-model maps back to
-`x`, and `Decompress = decode-model`, so transitivity closes it — it *reuses*
-M2–M5, it does not avoid them.
+- extend `Matching_Length`, `Selected_Token`, and token-plan bounds;
+- generalize the plan's remaining-length and bit-cost arithmetic;
+- prove every longer emitted match still carries the local `Match_Applies`
+  witness used by the M4 copy primitive;
+- collect the newly reachable length symbols in dynamic candidates.
 
-**Scope discipline (the trap that would blow up the timeline):**
-- Match finder needs only "every emitted (length, distance) is a real
-  back-reference into already-emitted output" — a locally checkable property.
-  Emit only verified matches; ratio suffers, proof does not.
-- Tree builder needs only "complete prefix code, lengths ≤ 15" — **not**
-  minimum-redundancy. Proving length-limiting *optimal* (package-merge) is a
-  research project of its own and buys round-trip nothing.
+Acceptance:
 
-**Current status: in progress, with a verified fixed-Huffman LZ77 slice, a
-proved dynamic-Huffman body serializer and decoder, a bounded top-level
-dynamic selection, and a common semantic body boundary recognizing stored,
-fixed, and dynamic images.**
-`Inflate.Fixed` emits and recognizes one final fixed-code block containing
-literals, selected matches, and end-of-block. Its compression plan is now
-explicit: `Selected_Token`, `Next_Position`, and `Token_Bit_Cost` operate only
-at positions reached by the deterministic token-boundary relation. At any such
-boundary the bounded finder examines distances one through four and selects the
-longest verified match of length three through ten, preferring the smaller
-distance on a tie. These fixed literal/length and distance symbols need no
-extra bits, so every match remains a twelve-bit token. Every selected match
-carries a local `Match_Applies` witness for the M4 window equation, and one
-forward-copy primitive establishes that equation for all overlapping and
-non-overlapping shapes in the specialized decoder. All other bytes remain
-literals.
+- focused overlapping and non-overlapping matches exercise all length-symbol
+  ranges and length 258;
+- long runs improve materially over the M6-2 baseline;
+- the full theorem and validation gates remain unchanged.
 
-The arbitrary 32-symbol M3 harness bound remains gone: `Max_Input` is derived
-from the largest stream whose bit offsets plus gzip trailer fit in `Natural`
-(238,609,285 input bytes on the current target). The analyzer, executable
-encoding relation, and decoded-prefix checker are iterative; proof-only
-recursive relations and framing lemmas are erased from checks-enabled builds.
-`Inflate.GZip.Compress` selects this fixed coding throughout that domain except
-for the bounded constant-byte-run dynamic class described below, and uses the
-stored encoder above it. `Inflate.Raw.Decompress` has proved
-specialized success paths for both bounded Huffman images.
-`Inflate.Bodies.Body_Encodes` now hides the body format from `Inflate.Raw`,
-`Inflate.GZip`, and `Inflate.Theorems`: its common recognition, framing, and
-functionality lemmas replace
-the former member predicates and `GZip_Round_Trip` has no format branch. Match
-lengths requiring extra bits, wider distances, and general adaptive
-dynamic-block selection remain open M6 ratio work.
-`Inflate.Dynamic.Build_Lengths` is the completed local tree-building step: it
-includes every symbol with nonzero frequency,
-adds dummy leaves only for the degenerate zero/one-symbol cases, and produces a
-balanced complete code. For alphabets of 2 through 286 symbols its contract
-proves that all used symbols receive a code, all lengths are at most nine, and
-the Kraft sum is exactly one. The construction is intentionally not optimal.
-`Inflate.Codebooks` provides
-constant fixed books and checked canonical books through one `Ready`,
-`Length_Of`, and `Code_Of` interface. `Inflate.Payload.Serialize` consumes that
-interface and owns the shared literal, length/distance, and end-of-block writer,
-including exact bit-count, semantic-encoding, and frame contracts. The fixed
-compressor delegates to it, while `Inflate.Dynamic.Build_Codebook` and
-`Serialize_Payload` exercise the canonical path. `Serialize_Header` now emits a
-complete RFC 1951 dynamic header around those books. It deliberately transmits
-all 286 literal/length and 30 distance lengths directly through a complete
-four-bit code-length alphabet: the header is larger than an RLE-optimized one,
-but its reconstruction proof has no repeat-code cases. `Header_Encodes` states
-the exact header bits and reconstructed lengths, while the local
-`Inflate.Dynamic.Is_Encoding` relation composes that header with the shared
-payload. `Serialize_Body` establishes the local relation, and
-`Compress_Byte_Run` supplies the first data-dependent top-level producer. No
-append-only logical-stream layer was needed: the concrete header and payload
-writers retain explicit frame contracts.
+Expected complexity: **medium** after M6-2. This should deliver a large gain on
+runs without introducing match-finder state.
 
-The proof-only common body boundary now contains stored, fixed, and dynamic
-semantic alternatives, and the top-level compressor can select all three. The
-dynamic witness-erasure prerequisite is complete:
-`Literal_Book_From_Header` and `Distance_Book_From_Header` rebuild
-exact canonical records from the 316 transmitted lengths, and
-`Lemma_Encoding_Uses_Header_Books` proves that the serializer's explicit-book
-relation implies the three-argument `Inflate.Dynamic.Is_Encoding (Body,
-Consumed, Data)` relation. Codebook and payload congruence lemmas establish
-that ready/coverage facts, canonical codes, token bit counts, payload bits, and
-the produced size are unchanged by recovery. Two more common-boundary
-prerequisites are now complete. `Inflate.Payload.Lemma_Payload_Frame` preserves
-the shared payload relation across differently sized arrays, and
-`Inflate.Dynamic.Lemma_Encoding_Frame` combines it with header recovery to
-preserve the witness-free dynamic relation when a container adds trailing
-bytes. `Inflate.Dynamic.Lemma_Encoding_Functional` proves that one such body
-cannot denote two different byte sequences: canonical prefix separation and
-rank uniqueness identify each literal/length and distance symbol, while the M4
-window equation makes matching back-references functional. The
-decoder-completeness bridge is now complete. `Inflate.Dynamic.Analyze` recovers
-the canonical books and walks the bounded payload from the input alone. The
-executable `Encoding_Matches` predicate checks actual literal/match semantics,
-and the broader `Dynamic.Decodes` relation combines that check with the
-recovered header, exact consumed size, and decoded length. It deliberately does
-not claim that an accepted input used the serializer's deterministic token
-plan. `Dynamic.Decompress` constructs the bytes for every accepted bounded
-stream whose output fits and proves `Decodes`; serializer images map into that
-relation through `Lemma_Encoding_Decodes`. Framing and functionality are proved
-for this broader relation. `Body_Encodes`, executable `Recognized`,
-`Encoded_Size`, and `Decoded_Size`, the raw decoder's success contract, and the
-executable full model now route dynamic bodies alongside stored and fixed
-bodies. The top-level gzip compressor tries a sparse dynamic body for constant
-byte runs of at least 4,096 bytes within `Dynamic.Max_Input`. Its literal book
-is specialized to the repeated byte and also covers end-of-block and every
-length-three-through-ten symbol; the distance book covers distances one through
-four. The same deterministic match plan is therefore serialized without a new
-semantic case. The candidate is retained only when its exact produced body is
-smaller than `Fixed.Encoded_Size`; a defensive canonical-builder failure also
-falls back to fixed coding, preserving totality. The returned dynamic prefix is
-framed with the gzip trailer and lifted through common recognition and the
-unchanged branch-free round-trip theorem.
+### M6-4 — Wider, efficient match search
 
-The focused `Inflate.Dynamic` unit proves all 2,483 checks at `--level=4`; the
-full library proves all 7,695 checks at `--level=4`, with no justifications or
-assumptions.
-The dynamic runtime harness covers empty, singleton, sparse, and full DEFLATE
-alphabets, an exact shared-payload bit pattern, and complete dynamic bodies that
-round trip through the specialized and public shipping decoders. One body uses
-the deterministic match plan; another uses nine literals for the same data,
-exercising accepted semantics outside the serializer image. The
-input-side analyzer reports its exact encoded and decoded sizes before and
-after the body is copied into a differently bounded larger buffer with
-unrelated trailing bytes; the shipping decoder also round trips that framing.
-C zlib independently decodes both focused bodies and every top-level compressor
-result. The complete debug suite passes 6,449 cases and 22 compressor
-differential cases. Threshold regressions keep 4,095-byte zero and `0xA5` runs
-fixed, select a dynamic block for their 4,096-byte counterparts, and require
-both outputs to beat their exact prior fixed-plan sizes; the 300,000-byte zero
-case is 22,686 bytes. Existing exact
-bit-level checks still cover length-ten matches at distances one, three, and
-four.
+Widen the distance-four window enough to find repeated substrings in ordinary
+files. Do not implement this as a scan of all 32,768 distances at every input
+position.
 
-The planned token-trace reassessment against this broader baseline is also
-complete. A `Step` relation would restate `One_Token_Matches`, while `Trace`
-would restate `Prefix_Matches`; the current framing, extension, closing, and
-functionality lemmas would still need the same recursive token cases.
-`Spec_Walk` cannot be replaced by that data-semantic trace because the analyzer
-computes validity and decoded length before an output array exists. Sharing
-that recursion would require a second structural trace and a bridge, adding a
-layer without deleting proof logic. The acceptance criterion in `abstract.md`
-is therefore not met, no source refactor is retained, and the current boundary
-proof remains the baseline for dynamic-Huffman work.
+Work:
 
-### M7 — Checksums as math
-CRC32 = polynomial division mod the generator; Adler32 = the mod-65521 running
-sums. Self-contained and very tractable. No longer a bonus at the end: M6a needs
-gzip framing, so this lands early and makes container round-trip almost free.
+- introduce a bounded, no-heap candidate index, likely based on short-prefix
+  hashing with a fixed candidate budget;
+- validate candidate bytes before emitting a match, making `Match_Applies` the
+  only semantic obligation exported by the finder;
+- increase the window incrementally, measuring ratio and run time at each
+  useful boundary;
+- support the full 32 KiB DEFLATE distance domain if the bounded representation
+  and performance justify it;
+- make no claim that the selected match is globally longest or optimal.
 
-**Current status: complete.** CRC-32 is connected to a table-independent
-reflected GF(2) model: the public contracts define a bit step using the standard
-generator, compose eight steps into a byte remainder, prove the elaborated table
-caches those remainders, and prove the table-driven update equals a fold over the
-polynomial model. The gzip compressor already pins down its fixed header and
-little-endian trailer bytes in its postcondition. Adler-32 now uses a direct
-modulus-65521 state and its public `Update` postcondition equates the result with
-a byte-by-byte fold of the two standard running sums. The implementation uses
-that direct step rather than the former 5,552-byte reduction batching; restoring
-batching would be a performance optimization with a new congruence proof, not a
-gap in the checksum specification.
+Acceptance:
 
-## Format choice
+- repeated substrings at distances well beyond four are selected and round
+  trip, including overlapping and non-overlapping cases;
+- compressor execution remains bounded and scales acceptably on incompressible
+  input;
+- corpus ratio closes most of the gap between the M6-1 baseline and gzip level
+  6;
+- full proof, runtime, CLI, and interoperability validation remain clean.
 
-- **Target gzip = DEFLATE + CRC32 + framing**, built on the existing `inflate`.
-  Right ambition; M7 gives container round-trip cheaply.
-- **Avoid bzip2.** Round-trip there rests on the **inverse-BWT bijection**
-  (LF-mapping / stable-sort-of-rotations permutation argument) — materially harder
-  than anything in DEFLATE, a research project in itself. Only pick it if proving
-  BWT *is* the goal.
-- **Go deep on one format, not shallow on many.** Formats share almost nothing at
-  the proof layer (each has its own entropy coder), so "multiple formats" multiplies
-  the M2-class work rather than amortizing it.
+Expected complexity: **hard**. The local match-validity proof is simple; the
+main design risk is an efficient stateful finder that fits the current pure
+token-plan and no-heap architecture.
 
-## Expectation reset
+### M6-5 — Ratio gate and targeted refinements
 
-The current headline (`--level=2`, no ghost code, sub-second VCs) is a property of
-*AoRTE*. From M2 onward expect: ghost functions, explicit lemma procedures, the
-"true-but-not-inductive" invariant-strengthening trick (the followup notes two such
-instances already), likely `--level=4` with manual assertion stepping, and possibly
-Why3-adjacent grind. Still SPARK-tractable — budget for it.
+Measure the result of M6-1 through M6-4 before adding more proof surface. If the
+ratio is still not respectable, choose the smallest measured bottleneck from:
 
-## Functionality & interoperability (for the eventual tool)
+- assigning shorter balanced-tree positions to more frequent symbols, or a
+  stronger frequency-sensitive but non-optimal tree heuristic;
+- RFC 1951 repeat codes 16 through 18 for compressing the dynamic header;
+- lazy or bounded-lookahead token selection;
+- multiple blocks when one global codebook is demonstrably poor.
 
-- The proved core is a **pure library** (no OS, no I/O). The CLI is an **unproved
-  I/O rind** (file → `Decompress` → file) with the syscalls outside the SPARK
-  boundary by design — but it is more than 30 lines. The security posture below
-  ("never size from ISIZE") plus the one-shot API means the decompress path needs
-  a **retry-with-larger-buffer loop under a user-settable ceiling**; the compress
-  path allocates from the proved size bound (mechanization section). Budget a
-  real, if modest, chunk for `Output_Too_Small` handling, exit codes, and
-  argument parsing — it is the part users touch.
-- **Decompression interop: full.** gzip is gzip; differential-tested against C zlib
-  on 6415 streams. Any normal `.gz` decodes byte-identically to `gunzip`. Caveats:
-  one-shot/in-memory (no streaming), zlib preset dictionaries (FDICT) reported not
-  supported, ZIP is classic 32-bit stored+deflate only.
-- **Compression interop: full, at a ratio cost.** A DEFLATE decoder does not care how
-  well you compressed — any *valid* stream decodes everywhere. So a
-  provably-correct-but-non-optimal compressor still emits standard `.gz` that stock
-  `gunzip`/browsers consume; it is just larger than `gzip -9`. Correctness, not ratio.
+M6 is complete when the repository records a repeatable corpus measurement,
+the compressor produces a substantial real-world reduction rather than merely
+exercising compressed block types, and the existing full-domain theorem and
+validation gates remain intact. Matching zlib's ratio or proving compression
+optimality is explicitly outside the milestone.
 
-## Security posture (informs the "safe by construction" story)
+## Rules for every M6 subgoal
 
-- **Amplification bomb:** defused structurally — no allocator exists; output is a
-  caller-sized buffer; overflow returns `Output_Too_Small` (proved
-  `Produced <= Output'Length`). Caller sets the ceiling — **never size from ISIZE or
-  the ZIP size field** (attacker-controlled, ISIZE is mod 2³²).
-- **CPU/time bomb:** killed by **proved termination** — work is linear in
-  input bits + output bytes, both capped. No backtracking.
-- **ZIP huge-directory:** iterative walk, entry count bounded by input size
-  (≥46 bytes/entry), **no recursion, no auto-descent** into nested archives.
-- **Zip-slip:** library is immune (no filesystem I/O); path sanitization is the
-  I/O wrapper's responsibility.
-- **Malformed input:** no crash by proof (AoRTE) — every failure is a defined
-  `Status_Type`.
-- **Residual (design limit, not a hole):** one-shot means input + output are held in
-  memory at once (input capped ~2 GB); enforce an input-size limit before loading.
+- Preserve `Inflate.Theorems.GZip_Round_Trip` for the complete public input
+  domain; stored and fixed fallbacks remain valid design choices.
+- Prove only that every emitted match is valid. Do not prove match-search or
+  Huffman-tree optimality.
+- Keep exact size/totality contracts and caller-provided output bounds.
+- Keep the SPARK library no-heap and free of package state.
+- Keep wire-format compatibility independently checked against zlib; the
+  theorem relates this library's compressor and decoder through its executable
+  model, not through a separately formalized RFC specification.
+- Prefer incremental proof boundaries that delete an old restriction before
+  adding abstraction layers.
 
-## Current next moves
+The standard completion gate is:
 
-M1 through M5, M6a, and M7 are complete. M6 now has a verified fixed-Huffman
-literal/match slice with the same full-domain gzip theorem, plus a proved
-dynamic header/body path selected by gzip for profitable long constant-byte
-runs. The remaining ratio work is:
+```sh
+gnatprove -P inflate.gpr --level=4 -j0 --timeout=60 --report=fail
+(cd tests && gprbuild -P tests.gpr -XMODE=debug && python3 run_tests.py)
+python3 tests/run_cli_tests.py
+```
 
-1. **Generalize dynamic selection.** Replace the constant-byte specialization
-   with symbol coverage/frequencies collected from the deterministic token plan
-   for nonconstant inputs; keep the completed exact comparison with the fixed
-   alternative.
-2. **Extend the ratio domain.** Add length/distance codes requiring extra bits
-   and widen the current distance-four match window without weakening the
-   completed semantic boundary.
+Run focused proof and interoperability tests first, then the full gate. Update
+the recorded proof/test counts and corpus ratio only from actual runs.
