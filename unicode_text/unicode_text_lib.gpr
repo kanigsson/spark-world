@@ -1,9 +1,12 @@
-with "unicode_text_lib.gpr";
+with "sparklib";
 
-project Unicode_Text is
+library project Unicode_Text_Lib is
 
-   for Source_Dirs use ("tests/proof");
-   for Object_Dir use "obj/proof_clients";
+   for Library_Name use "unicode_text";
+   for Library_Kind use "static";
+   for Source_Dirs use ("src");
+   for Object_Dir use "obj/lib";
+   for Library_Dir use "lib";
 
    package Compiler is
       for Default_Switches ("Ada") use
@@ -12,9 +15,9 @@ project Unicode_Text is
    end Compiler;
 
    package Prove is
-      for Proof_Dir use "proof/clients";
+      for Proof_Dir use "proof/lib";
       for Proof_Switches ("Ada") use
         ("--mode=all", "--level=2", "--timeout=30");
    end Prove;
 
-end Unicode_Text;
+end Unicode_Text_Lib;

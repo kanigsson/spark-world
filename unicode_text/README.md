@@ -20,11 +20,11 @@ repository's version and compatibility policy are described in
 [`VERSION`](VERSION), [`CHANGELOG.md`](CHANGELOG.md), and the versioning section
 of [`design.md`](design.md#20-versioning-and-compatibility).
 
-Build and prove the current sources with:
+Build the library-only project and prove the library plus proof clients with:
 
 ```sh
-gprbuild -P unicode_text.gpr
-gnatprove -P unicode_text.gpr
+gprbuild -P unicode_text_lib.gpr
+gnatprove -P unicode_text.gpr -XSPARKLIB_EXTERNALLY_BUILT=true
 ```
 
 Run the exhaustive scalar round-trip, malformed-input, and plain-string tests
@@ -37,9 +37,11 @@ gprbuild -P tests/runtime/runtime_tests.gpr
 ./obj/runtime_tests/bounded_string_tests
 ```
 
-The local `sparklib.gpr` is the application-owned project required by the
-installed SPARK library. Build and proof artifacts are written below `obj/`
-and `proof/` and are intentionally ignored by Git.
+`unicode_text_lib.gpr` is the production project exposed by the Alire crate.
+It contains only the units under `src/`.  `unicode_text.gpr` is the proof
+umbrella: it imports the production project and adds `tests/proof` and the
+application-owned `sparklib.gpr`.  Build and proof artifacts are written below
+`obj/` and `proof/` and are intentionally ignored by Git.
 
 The library is licensed under the Apache License 2.0 with LLVM Exceptions
 (`Apache-2.0 WITH LLVM-exception`). See [`LICENSE`](LICENSE).
