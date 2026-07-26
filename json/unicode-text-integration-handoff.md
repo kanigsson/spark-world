@@ -248,8 +248,7 @@ schema data, not hostile JSON input.
 6. Make `JSON.Walk.Matches` and `Find_Member` compare decoded key values.
 7. Add proof clients demonstrating that callers can consume these guarantees.
 8. Add focused runtime tests and pass the full differential suite.
-9. Update the README, proof status, dependency metadata, and recorded proof
-   counts.
+9. Update the README and dependency metadata.
 
 ### Optional follow-on
 
@@ -550,4 +549,3 @@ The work is complete when:
 - one fresh whole-project GNATprove run proves every check with no
   justifications or assumptions;
 - README and proof counts describe the final implementation accurately.
-

@@ -3,8 +3,7 @@
 A pull-cursor JSON parser over caller-provided buffers: one event per
 call, payloads returned as slices into the input, nothing materialized.
 The entire library is SPARK. The current proof work covers absence of
-run-time errors, termination, and initialization/data-flow checks (see
-Proof Status below). Functional behavior is covered by differential tests
+run-time errors, termination, and initialization/data-flow checks. Functional behavior is covered by differential tests
 against Python's `json` module on 1,918 valid and invalid documents —
 including this crate's own GNATprove `result.json` and SARIF output,
 compared event by event.
@@ -105,28 +104,6 @@ rejected (RFC 8259 has no such tokens; Python accepts them by default).
 Unicode Text reports malformed and incomplete raw multi-byte sequences through
 the same zero-width classifier result, so JSON maps both cases to
 `Invalid_UTF8`; structural/token truncation continues to report `Truncated`.
-
-## Proof Status
-
-The current level-2 proof reports **472 checks in the JSON units, all proved,
-with no justifications, assumptions, or flow errors**. Because `json.gpr`
-imports the Unicode Text library project, the same invocation proves the full
-runtime dependency closure: **2,044 checks, all proved**. The separate client
-project adds 18 focused checks showing that the exported UTF-8 guarantees can
-be consumed directly, including empty/lower-bounded buffers and a terminating
-`JSON.Walk` loop using logical key matching.
-
-This covers run-time checks such as overflow, index, range, and division
-checks, plus termination, initialization/data flow, payload bounds and UTF-8
-validity, the valid active decode prefix, event progress, and walk readiness.
-See [`proof-status.md`](proof-status.md) for the acceptance record.
-
-```sh
-gnatprove -P json.gpr -XSPARKLIB_EXTERNALLY_BUILT=true \
-  -f -j16 --level=2 --report=fail
-gnatprove -P tests/proof/proof_clients.gpr \
-  -XSPARKLIB_EXTERNALLY_BUILT=true -f -j16 --level=2 --report=fail
-```
 
 ## Build
 
