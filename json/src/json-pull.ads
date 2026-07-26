@@ -1,3 +1,5 @@
+with Unicode_Text.UTF_8;
+
 --  JSON.Pull — the pull-cursor parser: repeated calls to Next walk one
 --  document and hand back one event at a time. Nothing is materialized;
 --  string and number payloads are slices of the caller's input buffer, so
@@ -73,7 +75,7 @@ package JSON.Pull with SPARK_Mode => On is
    type Parser is record
       Pos   : Natural    := 0;   --  consumed characters (offset from 'First)
       Depth : Natural    := 0;   --  open containers
-      Stack : Container_Stack := (others => In_Array);
+      Stack : Container_Stack := [others => In_Array];
       State : State_Type := Expect_Value;
    end record;
 
@@ -90,11 +92,12 @@ package JSON.Pull with SPARK_Mode => On is
             when Expect_Value | Failed            => True));
 
    --  Deliver the next event. On OK every payload slice lies within
-   --  Input; on any other status the parser moves to Failed and stays
-   --  there. Every event except Document_End consumes at least one
-   --  character, so a Next loop terminates — and Document_End is only
-   --  delivered once every container is closed, so a loop that runs
-   --  while a container is open advances on every step.
+   --  Input, and string/key payload bytes are valid UTF-8 even when they
+   --  still contain JSON escapes. On any other status the parser moves to
+   --  Failed and stays there. Every event except Document_End consumes at
+   --  least one character, so a Next loop terminates — and Document_End
+   --  is only delivered once every container is closed, so a loop that
+   --  runs while a container is open advances on every step.
    procedure Next
      (Input  : in     String;
       P      : in out Parser;
@@ -122,6 +125,12 @@ package JSON.Pull with SPARK_Mode => On is
                                 then Ev.First >= Input'First
                                      and then Ev.Last <= Input'Last
                                      and then Ev.First - 1 <= Ev.Last)
+                      and then
+                        (if Ev.Kind in Member_Key | String_Value
+                         then
+                           Unicode_Text.UTF_8.Is_Valid_UTF_8
+                             (JSON.Payload
+                                (Input, Ev.First, Ev.Last)))
                  else P.State = Failed);
 
    --  Run the cursor over the whole document: Status = OK means Input is

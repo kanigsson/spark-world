@@ -5,7 +5,7 @@ call, payloads returned as slices into the input, nothing materialized.
 The entire library is SPARK. The current proof work covers absence of
 run-time errors, termination, and initialization/data-flow checks (see
 Proof Status below). Functional behavior is covered by differential tests
-against Python's `json` module on 1914 valid and invalid documents —
+against Python's `json` module on 1,918 valid and invalid documents —
 including this crate's own GNATprove `result.json` and SARIF output,
 compared event by event.
 
@@ -18,6 +18,11 @@ checked for well-formed UTF-8 (overlong forms, surrogate code points and
 sequences above U+10FFFF are rejected) and for complete escapes including
 surrogate pairs; numbers are checked against the RFC grammar; a document
 that parses to `Document_End` conforms to RFC 8259.
+
+UTF-8 classification, scalar decoding, and scalar encoding come from the
+sibling [`unicode_text`](../../unicode_text) crate. JSON retains only the JSON
+string and escape grammar; it does not maintain a second UTF-8 range table or
+encoder.
 
 ## Packages
 
@@ -45,9 +50,15 @@ end loop;
 String and key payloads arrive undecoded (the bytes between the quotes);
 the event's `Escaped` flag says whether `JSON.Strings.Decode` is needed
 at all — when it is, an output buffer the size of the payload provably
-suffices, because every escape shrinks. Number payloads arrive as the
-token slice with an `Is_Integer` flag; the typed accessors revalidate, so
-they are also safe on slices from elsewhere.
+suffices, because every escape shrinks. `JSON.Pull.Next` guarantees that every
+successful key/string payload returned by `JSON.Payload` is valid UTF-8,
+including raw payloads that still contain ASCII escape syntax.
+`JSON.Strings.Decode` guarantees that
+`JSON.Strings.Active_Prefix (Buffer, Length)` is valid UTF-8 on `OK`; a proved
+client can pass either guaranteed text directly to Unicode Text operations
+without a second validation guard. Bytes beyond `Length` remain scratch data.
+Number payloads arrive as the token slice with an `Is_Integer` flag; the typed
+accessors revalidate, so they are also safe on slices from elsewhere.
 
 Clients that validate a document against a compile-time-known shape walk
 it with `JSON.Walk` instead of dispatching on raw events: expect an
@@ -59,6 +70,12 @@ cursor — `Document_End` is only delivered once every container is closed
 provably terminating on arbitrary bytes. The
 [`proof_results`](../proof/README.md) crate (a typed model of GNATprove's
 `result.json`) is the first consumer.
+
+`JSON.Walk.Matches` and `Find_Member` compare logical decoded key text.
+For example, `"abc"` and `"a\u0062c"` match, as do escaped BMP or
+surrogate-pair spellings and their raw UTF-8 forms. The comparison is streaming
+and allocation-free. `Name` is application schema data and has a valid-UTF-8
+precondition.
 
 ## Limits — by design, not by accident
 
@@ -85,23 +102,30 @@ Departures from Python's `json` (both deliberate): lone surrogates in
 `\uXXXX` escapes are rejected (they have no UTF-8 encoding; Python lets
 them into `str` and fails on encode), and `NaN`/`Infinity` literals are
 rejected (RFC 8259 has no such tokens; Python accepts them by default).
+Unicode Text reports malformed and incomplete raw multi-byte sequences through
+the same zero-width classifier result, so JSON maps both cases to
+`Invalid_UTF8`; structural/token truncation continues to report `Truncated`.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=2` run reported **639 checks,
-all proved, no justifications, no assumptions** (machine-readable verdict
-in `obj/gnatprove/result.json`: `overall = all_proved`). This covers
-run-time checks such as overflow, index, range, and division checks, plus
-termination of all loops and subprograms, full initialization and
-data-flow correctness, and the contracts in the specs — among them: every
-payload slice an event delivers lies within the input buffer; every event
-except `Document_End` consumes input, and `Document_End` only arrives
-with every container closed (so client loops terminate); the decoded
-form of a string never exceeds its raw payload's length; every `Walk`
-helper re-establishes the cursor's readiness and strictly advances it.
+The current level-2 proof reports **472 checks in the JSON units, all proved,
+with no justifications, assumptions, or flow errors**. Because `json.gpr`
+imports the Unicode Text library project, the same invocation proves the full
+runtime dependency closure: **2,044 checks, all proved**. The separate client
+project adds 18 focused checks showing that the exported UTF-8 guarantees can
+be consumed directly, including empty/lower-bounded buffers and a terminating
+`JSON.Walk` loop using logical key matching.
 
-```
-gnatprove -P json.gpr -j0
+This covers run-time checks such as overflow, index, range, and division
+checks, plus termination, initialization/data flow, payload bounds and UTF-8
+validity, the valid active decode prefix, event progress, and walk readiness.
+See [`proof-status.md`](proof-status.md) for the acceptance record.
+
+```sh
+gnatprove -P json.gpr -XSPARKLIB_EXTERNALLY_BUILT=true \
+  -f -j16 --level=2 --report=fail
+gnatprove -P tests/proof/proof_clients.gpr \
+  -XSPARKLIB_EXTERNALLY_BUILT=true -f -j16 --level=2 --report=fail
 ```
 
 ## Build
@@ -110,6 +134,10 @@ gnatprove -P json.gpr -j0
 gprbuild -P json.gpr                  # release: -O2, checks suppressed
 gprbuild -P json.gpr -XMODE=debug    # debug: -gnata, -O0
 ```
+
+The Alire manifest declares `unicode_text ^0.5.0` and pins the sibling checkout
+for this workspace. `unicode_text` exposes a library-only production project;
+its proof clients are not part of this library.
 
 Suppressing checks in release is the point of the proof: the run-time
 checks are discharged statically, so the release library runs at
@@ -128,10 +156,15 @@ event stream (structure, decoded strings, converted numbers) against
 Python's `json` on the same bytes. The harness runs with assertions
 enabled; any propagated exception is a failure.
 
-The walk helpers have their own behavioural driver pinning what each
-helper accepts and rejects (wrong shapes, oversized integers, escaped
-keys, truncated containers):
+The walk helpers have their own behavioural driver pinning what each helper
+accepts and rejects (wrong shapes, oversized integers, logically equal escaped
+keys, and truncated containers). A focused Unicode driver covers raw and
+escaped scalars, all short escapes, surrogate pairs, malformed encodings, and
+the empty active prefix:
 
-```
-cd tests && gprbuild -P tests.gpr && ./test_walk
+```sh
+cd tests
+gprbuild -P tests.gpr
+./test_walk
+./test_unicode
 ```

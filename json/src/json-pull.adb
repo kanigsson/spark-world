@@ -80,19 +80,6 @@ package body JSON.Pull with SPARK_Mode => On is
      Post   => Pos in Pos'Old .. Input'Length
                and then (if Status = OK then Pos > Pos'Old);
 
-   --  One continuation byte, constrained to Lo .. Hi
-
-   procedure Take_Cont
-     (Input  : in     String;
-      Pos    : in out Natural;
-      Lo, Hi : in     Natural;
-      Status :    out Status_Type)
-   with
-     Global => null,
-     Pre    => Lo <= Hi and then Hi <= 255 and then Pos <= Input'Length,
-     Post   => Pos in Pos'Old .. Input'Length
-               and then (if Status = OK then Pos = Pos'Old + 1);
-
    --  One multi-byte UTF-8 sequence, from its lead byte. Rejects stray
    --  continuation bytes, overlong forms, surrogates and > U+10FFFF.
 
@@ -123,7 +110,10 @@ package body JSON.Pull with SPARK_Mode => On is
                and then (if Status = OK
                          then First >= Input'First
                               and then Last <= Input'Last
-                              and then First - 1 <= Last);
+                              and then First - 1 <= Last
+                              and then
+                                Unicode_Text.UTF_8.Is_Valid_UTF_8
+                                  (JSON.Payload (Input, First, Last)));
 
    --  A whole number token, from its '-' or first digit
 
@@ -183,7 +173,13 @@ package body JSON.Pull with SPARK_Mode => On is
                               and then (if Ev.Kind in String_Value | Number_Value
                                         then Ev.First >= Input'First
                                              and then Ev.Last <= Input'Last
-                                             and then Ev.First - 1 <= Ev.Last));
+                                             and then Ev.First - 1 <= Ev.Last)
+                              and then
+                                (if Ev.Kind = String_Value
+                                 then
+                                   Unicode_Text.UTF_8.Is_Valid_UTF_8
+                                     (JSON.Payload
+                                        (Input, Ev.First, Ev.Last))));
 
    --  One object member key and its ':', from the key's opening quote
    --  (or earlier whitespace already skipped by the caller)
@@ -206,7 +202,11 @@ package body JSON.Pull with SPARK_Mode => On is
                               and then Ev.Kind = Member_Key
                               and then Ev.First >= Input'First
                               and then Ev.Last <= Input'Last
-                              and then Ev.First - 1 <= Ev.Last);
+                              and then Ev.First - 1 <= Ev.Last
+                              and then
+                                Unicode_Text.UTF_8.Is_Valid_UTF_8
+                                  (JSON.Payload
+                                     (Input, Ev.First, Ev.Last)));
 
    -------------
    -- Skip_WS --
@@ -340,31 +340,6 @@ package body JSON.Pull with SPARK_Mode => On is
    end Scan_Escape;
 
    ---------------
-   -- Take_Cont --
-   ---------------
-
-   procedure Take_Cont
-     (Input  : in     String;
-      Pos    : in out Natural;
-      Lo, Hi : in     Natural;
-      Status :    out Status_Type)
-   is
-      B : Natural;
-   begin
-      if Pos >= Input'Length then
-         Status := Truncated;
-         return;
-      end if;
-      B := Character'Pos (Cur (Input, Pos));
-      if B in Lo .. Hi then
-         Pos    := Pos + 1;
-         Status := OK;
-      else
-         Status := Invalid_UTF8;
-      end if;
-   end Take_Cont;
-
-   ---------------
    -- Scan_UTF8 --
    ---------------
 
@@ -373,48 +348,18 @@ package body JSON.Pull with SPARK_Mode => On is
       Pos    : in out Natural;
       Status :    out Status_Type)
    is
-      B0   : constant Natural := Character'Pos (Cur (Input, Pos));
-      Rest : Natural;
+      Width : constant Natural :=
+        Unicode_Text.UTF_8.Sequence_Width_At (Input, Pos);
    begin
-      Pos := Pos + 1;
-
-      --  The lead byte decides the length and the constraint on the
-      --  first continuation byte; the remaining continuation bytes are
-      --  plain 80 .. BF. The tightened first-byte ranges exclude
-      --  overlong forms (C0/C1, E0 80 .., F0 80 ..), surrogates
-      --  (ED A0 ..) and anything above U+10FFFF (F4 90 .., F5 ..).
-
-      if B0 in 16#C2# .. 16#DF# then
-         Take_Cont (Input, Pos, 16#80#, 16#BF#, Status);
-         Rest := 0;
-      elsif B0 = 16#E0# then
-         Take_Cont (Input, Pos, 16#A0#, 16#BF#, Status);
-         Rest := 1;
-      elsif B0 in 16#E1# .. 16#EC# or else B0 in 16#EE# .. 16#EF# then
-         Take_Cont (Input, Pos, 16#80#, 16#BF#, Status);
-         Rest := 1;
-      elsif B0 = 16#ED# then
-         Take_Cont (Input, Pos, 16#80#, 16#9F#, Status);
-         Rest := 1;
-      elsif B0 = 16#F0# then
-         Take_Cont (Input, Pos, 16#90#, 16#BF#, Status);
-         Rest := 2;
-      elsif B0 in 16#F1# .. 16#F3# then
-         Take_Cont (Input, Pos, 16#80#, 16#BF#, Status);
-         Rest := 2;
-      elsif B0 = 16#F4# then
-         Take_Cont (Input, Pos, 16#80#, 16#8F#, Status);
-         Rest := 2;
-      else
+      if Width = 0 then
+         --  Sequence_Width_At deliberately gives one failure result for
+         --  malformed and incomplete sequences. JSON maps both to its
+         --  stable Invalid_UTF8 token status.
          Status := Invalid_UTF8;
-         return;
+      else
+         Pos    := Pos + Width;
+         Status := OK;
       end if;
-
-      for I in 1 .. Rest loop
-         pragma Loop_Invariant (Pos in Pos'Loop_Entry .. Input'Length);
-         exit when Status /= OK;
-         Take_Cont (Input, Pos, 16#80#, 16#BF#, Status);
-      end loop;
    end Scan_UTF8;
 
    -----------------
@@ -431,6 +376,7 @@ package body JSON.Pull with SPARK_Mode => On is
    is
       Content : constant Natural := Pos + 1;  --  offset of the content
       C       : Character;
+      Check   : Unicode_Text.UTF_8.Validation_Result;
    begin
       First   := Input'First;
       Last    := Input'First - 1;
@@ -449,7 +395,10 @@ package body JSON.Pull with SPARK_Mode => On is
             First  := Input'First + Content;
             Last   := Input'First + (Pos - 1);
             Pos    := Pos + 1;
-            Status := OK;
+            Check :=
+              Unicode_Text.UTF_8.Validate
+                (JSON.Payload (Input, First, Last));
+            Status := (if Check.Valid then OK else Invalid_UTF8);
             return;
          elsif C = '\' then
             Escaped := True;

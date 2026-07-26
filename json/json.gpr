@@ -1,3 +1,5 @@
+with "../../unicode_text/unicode_text_lib.gpr";
+
 --  The library crate: pure SPARK, no I/O, no OS, no heap. A pull-cursor
 --  JSON (RFC 8259) parser over caller-provided buffers, with separate
 --  string-escape decoding and typed number conversion.
@@ -20,10 +22,10 @@ library project Json is
       case Mode is
          when "debug" =>
             for Default_Switches ("Ada") use
-              ("-gnat2012", "-gnatwa", "-gnata", "-g", "-O0");
+              ("-gnat2022", "-gnatwa", "-gnata", "-g", "-O0");
          when "release" =>
             for Default_Switches ("Ada") use
-              ("-gnat2012", "-gnatwa", "-O2", "-gnatp");
+              ("-gnat2022", "-gnatwa", "-O2", "-gnatp");
       end case;
    end Compiler;
 

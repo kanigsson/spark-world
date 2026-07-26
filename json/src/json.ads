@@ -50,4 +50,17 @@ package JSON with Pure, SPARK_Mode => On is
       Invalid_Escape,        --  malformed \ escape, or a lone surrogate
       Invalid_UTF8);         --  ill-formed UTF-8 (overlong, surrogate, ...)
 
+   --  A bounds-safe view of a payload described by inclusive bounds.
+   --  First .. Last may be the canonical null range First .. First - 1.
+   function Payload
+     (Buffer : String;
+      First  : Positive;
+      Last   : Natural) return String
+   is (if Last < First then "" else Buffer (First .. Last))
+   with
+     Pre =>
+       First >= Buffer'First
+       and then Last <= Buffer'Last
+       and then First - 1 <= Last;
+
 end JSON;

@@ -197,7 +197,8 @@ begin
       Check (St = Wrong_Shape and then N = 0, "integer beyond Integer_64");
    end;
 
-   --  Escaped keys never match a plain name (treated as unknown).
+   --  Escaped and raw spellings compare as decoded JSON text. The first
+   --  logically equal member wins.
    declare
       Doc : constant String := "{""a\u0062c"": 1, ""abc"": 2}";
       P   : JSON.Pull.Parser;
@@ -207,9 +208,47 @@ begin
    begin
       Open_Object (Doc, P, St);
       Find_Member (Doc, P, "abc", Found, St);
-      Check (St = OK and then Found, "escaped twin skipped");
+      Check (St = OK and then Found, "escaped ASCII key matched");
       Get_Integer (Doc, P, N, St);
-      Check (St = OK and then N = 2, "plain key's value read");
+      Check (St = OK and then N = 1, "first logical twin's value read");
+   end;
+
+   declare
+      E_Acute : constant String :=
+        (1 => Character'Val (16#C3#), 2 => Character'Val (16#A9#));
+      G_Clef : constant String :=
+        (1 => Character'Val (16#F0#), 2 => Character'Val (16#9D#),
+         3 => Character'Val (16#84#), 4 => Character'Val (16#9E#));
+
+      procedure Check_Key
+        (Doc, Name : String; Expected : Boolean; Label : String)
+      is
+         P    : JSON.Pull.Parser;
+         St   : Step_Status;
+         Key  : Span;
+         Done : Boolean;
+      begin
+         Open_Object (Doc, P, St);
+         Next_Member (Doc, P, Key, Done, St);
+         Check
+           (St = OK
+            and then not Done
+            and then Matches (Doc, Key, Name) = Expected,
+            Label);
+      end Check_Key;
+   begin
+      Check_Key
+        ("{""\u00e9"": 1}", E_Acute, True, "escaped BMP key");
+      Check_Key
+        ("{""\ud834\udd1e"": 1}", G_Clef, True,
+         "escaped supplementary key");
+      Check_Key
+        ("{""a\u0062c"": 1}", "abd", False, "different escaped key");
+      Check_Key
+        ("{""\\"": 1}", "\", True, "escaped reverse solidus key");
+      Check_Key
+        ("{""" & E_Acute & """: 1}", E_Acute, True,
+         "raw non-ASCII key");
    end;
 
    --  Bad JSON: truncated and garbage documents report Bad_JSON, never

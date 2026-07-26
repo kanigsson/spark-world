@@ -1,3 +1,5 @@
+with Unicode_Text.UTF_8;
+
 --  JSON.Strings — decoding a string payload (the slice a Pull event hands
 --  back, i.e. the content between the quotes) into its UTF-8 text: escape
 --  sequences are resolved, including \uXXXX and surrogate pairs.
@@ -15,6 +17,17 @@
 
 package JSON.Strings with SPARK_Mode => On is
 
+   --  The initialized active prefix of a caller-owned buffer. The empty
+   --  prefix is represented without forming a fragile First - 1 slice.
+   function Active_Prefix
+     (Buffer : String;
+      Length : Natural) return String
+   is (if Length = 0
+       then ""
+       else Buffer (Buffer'First .. Buffer'First + Length - 1))
+   with
+     Pre => Buffer'Last < Positive'Last and then Length <= Buffer'Length;
+
    --  Decode Input into Output (Output'First .. Output'First + Length - 1).
    --  Output is a scratch buffer: bytes beyond Length may have been
    --  written, and on a non-OK status Length is 0. It is `in out` rather
@@ -30,6 +43,23 @@ package JSON.Strings with SPARK_Mode => On is
      Pre    => Input'Last < Positive'Last
                and then Output'Last < Positive'Last
                and then Output'Length >= Input'Length,
-     Post   => Length <= Input'Length;
+     Post   =>
+       Length <= Input'Length
+       and then
+         (if Status = OK
+          then
+            Unicode_Text.UTF_8.Is_Valid_UTF_8
+              (Active_Prefix (Output, Length))
+          else Length = 0);
+
+   --  Compare the logical text represented by a JSON string payload with
+   --  an already-valid UTF-8 string. Input is treated as hostile and a
+   --  malformed payload simply compares unequal. The comparison streams
+   --  scalar by scalar and allocates no temporary decoded string.
+   function Decoded_Equals (Input, Expected : String) return Boolean
+   with
+     Pre =>
+       Input'Last < Positive'Last
+       and then Unicode_Text.UTF_8.Is_Valid_UTF_8 (Expected);
 
 end JSON.Strings;

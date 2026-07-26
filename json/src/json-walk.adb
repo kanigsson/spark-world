@@ -27,7 +27,14 @@ package body JSON.Walk with SPARK_Mode => On is
                                         | JSON.Pull.Number_Value
                                then Ev.First >= Input'First
                                     and then Ev.Last <= Input'Last
-                                    and then Ev.First - 1 <= Ev.Last))
+                                    and then Ev.First - 1 <= Ev.Last)
+                     and then
+                       (if Kind in JSON.Pull.Member_Key
+                                  | JSON.Pull.String_Value
+                        then
+                          Unicode_Text.UTF_8.Is_Valid_UTF_8
+                            (JSON.Payload
+                               (Input, Ev.First, Ev.Last))))
    is
       St : JSON.Status_Type;
    begin

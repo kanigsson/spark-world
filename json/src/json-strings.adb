@@ -1,18 +1,18 @@
---  JSON.Strings body. The decode loop maintains one central invariant:
---  the output position never exceeds the input position, because every
---  step writes at most as many bytes as it consumes (plain characters and
---  UTF-8 sequences copy one-for-one; every escape shrinks). That invariant
---  is what lets the output index checks and the Length postcondition
---  discharge. The escape and UTF-8 validation mirrors the pull parser's
---  treatment so that the decoder stands alone on unvalidated input.
+with Unicode_Text;
+
+--  JSON.Strings uses one hostile-input scalar iterator for both decoding
+--  and equality. JSON escape syntax stays here; raw UTF-8 classification,
+--  scalar decoding, and scalar encoding come from Unicode_Text.UTF_8.
 
 package body JSON.Strings with SPARK_Mode => On is
+
+   use type Unicode_Text.Scalar_Value;
 
    function Cur (Input : String; Pos : Natural) return Character is
      (Input (Input'First + Pos))
    with Pre => Pos < Input'Length;
 
-   --  Four hex digits of a \u escape, as a code unit
+   --  Four hex digits of a \u escape, as a code unit.
 
    procedure Hex4
      (Input  : in     String;
@@ -22,61 +22,52 @@ package body JSON.Strings with SPARK_Mode => On is
    with
      Global => null,
      Pre    => Pos <= Input'Length,
-     Post   => Pos in Pos'Old .. Input'Length
-               and then Code <= 16#FFFF#
-               and then (if Status = OK then Pos = Pos'Old + 4);
+     Post   =>
+       Pos in Pos'Old .. Input'Length
+       and then Code <= 16#FFFF#
+       and then (if Status = OK then Pos = Pos'Old + 4);
 
-   --  One byte of output
+   --  Decode one logical scalar from a JSON string payload. On success,
+   --  the encoded scalar cannot be wider than the source spelling it
+   --  consumed; this is the bound used by Decode's caller-buffer proof.
 
-   procedure Put
+   procedure Next_Scalar
+     (Input  : in     String;
+      Pos    : in out Natural;
+      Value  :    out Unicode_Text.Scalar_Value;
+      Status :    out Status_Type)
+   with
+     Global => null,
+     Pre    => Pos < Input'Length,
+     Post   =>
+       Pos in Pos'Old .. Input'Length
+       and then
+         (if Status = OK
+          then
+            Pos > Pos'Old
+            and then
+              Natural (Unicode_Text.UTF_8.Encoding_Width (Value))
+                <= Pos - Pos'Old);
+
+   --  Append one complete canonical encoding. Out_Pos is advanced only
+   --  after every byte has been written.
+
+   procedure Append_Scalar
      (Output  : in out String;
       Out_Pos : in out Natural;
-      B       : in     Natural)
+      Value   : in     Unicode_Text.Scalar_Value)
    with
      Global => null,
-     Pre    => B <= 255
-               and then Output'Last < Positive'Last
-               and then Out_Pos < Output'Length,
-     Post   => Out_Pos = Out_Pos'Old + 1;
-
-   --  One code point as UTF-8, at most four bytes
-
-   procedure Encode
-     (Output  : in out String;
-      Out_Pos : in out Natural;
-      U       : in     Natural)
-   with
-     Global => null,
-     Pre    => U <= 16#10FFFF#
-               and then Output'Last < Positive'Last
-               and then Output'Length - Out_Pos >= 4,
-     Post   => Out_Pos = Out_Pos'Old + (if U < 16#80# then 1
-                                        elsif U < 16#800# then 2
-                                        elsif U < 16#10000# then 3
-                                        else 4);
-
-   --  One validated continuation byte, copied through
-
-   procedure Copy_Cont
-     (Input   : in     String;
-      In_Pos  : in out Natural;
-      Output  : in out String;
-      Out_Pos : in out Natural;
-      Lo, Hi  : in     Natural;
-      Status  :    out Status_Type)
-   with
-     Global => null,
-     Pre    => Lo <= Hi and then Hi <= 255
-               and then In_Pos <= Input'Length
-               and then Output'Last < Positive'Last
-               and then Out_Pos <= Output'Length
-               and then (In_Pos >= Input'Length
-                         or else Out_Pos < Output'Length),
-     Post   => In_Pos in In_Pos'Old .. Input'Length
-               and then Out_Pos in Out_Pos'Old .. Out_Pos'Old + 1
-               and then (if Status = OK
-                         then In_Pos = In_Pos'Old + 1
-                              and then Out_Pos = Out_Pos'Old + 1);
+     Pre    =>
+       Output'Last < Positive'Last
+       and then Out_Pos <= Output'Length
+       and then
+         Natural (Unicode_Text.UTF_8.Encoding_Width (Value))
+           <= Output'Length - Out_Pos,
+     Post   =>
+       Out_Pos
+         = Out_Pos'Old
+           + Natural (Unicode_Text.UTF_8.Encoding_Width (Value));
 
    ----------
    -- Hex4 --
@@ -101,15 +92,15 @@ package body JSON.Strings with SPARK_Mode => On is
          pragma Loop_Invariant
            (Code <= (case I is
                         when 1 => 0, when 2 => 15,
-                        when 3 => 255, when 4 => 4095));
+                        when 3 => 255, when 4 => 4_095));
          C := Cur (Input, Pos);
          case C is
             when '0' .. '9' =>
                V := Character'Pos (C) - Character'Pos ('0');
             when 'a' .. 'f' =>
-               V := (Character'Pos (C) - Character'Pos ('a')) + 10;
+               V := Character'Pos (C) - Character'Pos ('a') + 10;
             when 'A' .. 'F' =>
-               V := (Character'Pos (C) - Character'Pos ('A')) + 10;
+               V := Character'Pos (C) - Character'Pos ('A') + 10;
             when others =>
                Code   := 0;
                Status := Invalid_Escape;
@@ -121,74 +112,127 @@ package body JSON.Strings with SPARK_Mode => On is
       Status := OK;
    end Hex4;
 
-   ---------
-   -- Put --
-   ---------
+   -----------------
+   -- Next_Scalar --
+   -----------------
 
-   procedure Put
-     (Output  : in out String;
-      Out_Pos : in out Natural;
-      B       : in     Natural)
+   procedure Next_Scalar
+     (Input  : in     String;
+      Pos    : in out Natural;
+      Value  :    out Unicode_Text.Scalar_Value;
+      Status :    out Status_Type)
    is
+      C    : Character;
+      High : Natural;
+      Low  : Natural;
+      Unit : Unicode_Text.UTF_8.Decoded_Unit;
    begin
-      Output (Output'First + Out_Pos) := Character'Val (B);
-      Out_Pos := Out_Pos + 1;
-   end Put;
+      Value := 0;
+      C := Cur (Input, Pos);
 
-   ------------
-   -- Encode --
-   ------------
+      if C = '\' then
+         Pos := Pos + 1;
+         if Pos >= Input'Length then
+            Status := Truncated;
+            return;
+         end if;
 
-   procedure Encode
-     (Output  : in out String;
-      Out_Pos : in out Natural;
-      U       : in     Natural)
-   is
-   begin
-      if U < 16#80# then
-         Put (Output, Out_Pos, U);
-      elsif U < 16#800# then
-         Put (Output, Out_Pos, 16#C0# + U / 64);
-         Put (Output, Out_Pos, 16#80# + U mod 64);
-      elsif U < 16#10000# then
-         Put (Output, Out_Pos, 16#E0# + U / 4096);
-         Put (Output, Out_Pos, 16#80# + (U / 64) mod 64);
-         Put (Output, Out_Pos, 16#80# + U mod 64);
-      else
-         Put (Output, Out_Pos, 16#F0# + U / 262144);
-         Put (Output, Out_Pos, 16#80# + (U / 4096) mod 64);
-         Put (Output, Out_Pos, 16#80# + (U / 64) mod 64);
-         Put (Output, Out_Pos, 16#80# + U mod 64);
-      end if;
-   end Encode;
+         C   := Cur (Input, Pos);
+         Pos := Pos + 1;
+         case C is
+            when '"' | '\' | '/' =>
+               Value := Unicode_Text.Scalar_Value (Character'Pos (C));
+            when 'b' =>
+               Value := 8;
+            when 'f' =>
+               Value := 12;
+            when 'n' =>
+               Value := 10;
+            when 'r' =>
+               Value := 13;
+            when 't' =>
+               Value := 9;
 
-   ---------------
-   -- Copy_Cont --
-   ---------------
+            when 'u' =>
+               Hex4 (Input, Pos, High, Status);
+               if Status /= OK then
+                  return;
+               end if;
 
-   procedure Copy_Cont
-     (Input   : in     String;
-      In_Pos  : in out Natural;
-      Output  : in out String;
-      Out_Pos : in out Natural;
-      Lo, Hi  : in     Natural;
-      Status  :    out Status_Type)
-   is
-      B : Natural;
-   begin
-      if In_Pos >= Input'Length then
-         Status := Truncated;
-         return;
-      end if;
-      B := Character'Pos (Cur (Input, In_Pos));
-      if B in Lo .. Hi then
-         Put (Output, Out_Pos, B);
-         In_Pos := In_Pos + 1;
+               if High in 16#D800# .. 16#DBFF# then
+                  if Input'Length - Pos < 2 then
+                     Status := Truncated;
+                     return;
+                  end if;
+                  if Cur (Input, Pos) /= '\'
+                    or else Cur (Input, Pos + 1) /= 'u'
+                  then
+                     Status := Invalid_Escape;
+                     return;
+                  end if;
+                  Pos := Pos + 2;
+                  Hex4 (Input, Pos, Low, Status);
+                  if Status /= OK then
+                     return;
+                  end if;
+                  if Low not in 16#DC00# .. 16#DFFF# then
+                     Status := Invalid_Escape;
+                     return;
+                  end if;
+                  Value :=
+                    Unicode_Text.Scalar_Value
+                      (16#10000#
+                       + (High - 16#D800#) * 16#400#
+                       + (Low - 16#DC00#));
+               elsif High in 16#DC00# .. 16#DFFF# then
+                  Status := Invalid_Escape;
+                  return;
+               else
+                  Value := Unicode_Text.Scalar_Value (High);
+               end if;
+
+            when others =>
+               Status := Invalid_Escape;
+               return;
+         end case;
          Status := OK;
-      else
+
+      elsif Character'Pos (C) < 32 then
+         Status := Invalid_String_Char;
+
+      elsif Character'Pos (C) < 128 then
+         Value  := Unicode_Text.Scalar_Value (Character'Pos (C));
+         Pos    := Pos + 1;
+         Status := OK;
+
+      elsif not Unicode_Text.UTF_8.Valid_At (Input, Pos) then
          Status := Invalid_UTF8;
+
+      else
+         Unit   := Unicode_Text.UTF_8.Decode_One (Input, Pos);
+         Value  := Unit.Value;
+         Pos    := Pos + Natural (Unit.Width);
+         Status := OK;
       end if;
-   end Copy_Cont;
+   end Next_Scalar;
+
+   -------------------
+   -- Append_Scalar --
+   -------------------
+
+   procedure Append_Scalar
+     (Output  : in out String;
+      Out_Pos : in out Natural;
+      Value   : in     Unicode_Text.Scalar_Value)
+   is
+      Encoded : constant String := Unicode_Text.UTF_8.Encode_One (Value);
+   begin
+      for Offset in 0 .. Encoded'Length - 1 loop
+         Output (Output'First + Out_Pos + Offset) :=
+           Encoded (Encoded'First + Offset);
+      end loop;
+      Out_Pos := Out_Pos + Encoded'Length;
+   end Append_Scalar;
 
    ------------
    -- Decode --
@@ -202,12 +246,8 @@ package body JSON.Strings with SPARK_Mode => On is
    is
       In_Pos  : Natural := 0;
       Out_Pos : Natural := 0;
-      C       : Character;
-      B0      : Natural;
-      Rest    : Natural;
-      High    : Natural;
-      Low     : Natural;
-      U       : Natural;
+      Value   : Unicode_Text.Scalar_Value;
+      Check   : Unicode_Text.UTF_8.Validation_Result;
    begin
       Length := 0;
 
@@ -215,137 +255,69 @@ package body JSON.Strings with SPARK_Mode => On is
          pragma Loop_Invariant (In_Pos <= Input'Length);
          pragma Loop_Invariant (Out_Pos <= In_Pos);
          pragma Loop_Variant (Increases => In_Pos);
-         C := Cur (Input, In_Pos);
 
-         if C = '\' then
-            In_Pos := In_Pos + 1;
-            if In_Pos >= Input'Length then
-               Status := Truncated;
-               return;
-            end if;
-            C      := Cur (Input, In_Pos);
-            In_Pos := In_Pos + 1;
-            case C is
-               when '"' | '\' | '/' =>
-                  Put (Output, Out_Pos, Character'Pos (C));
-               when 'b' =>
-                  Put (Output, Out_Pos, 8);
-               when 'f' =>
-                  Put (Output, Out_Pos, 12);
-               when 'n' =>
-                  Put (Output, Out_Pos, 10);
-               when 'r' =>
-                  Put (Output, Out_Pos, 13);
-               when 't' =>
-                  Put (Output, Out_Pos, 9);
-
-               when 'u' =>
-                  Hex4 (Input, In_Pos, High, Status);
-                  if Status /= OK then
-                     return;
-                  end if;
-                  if High in 16#D800# .. 16#DBFF# then
-                     --  High surrogate: require the paired \uXXXX low
-                     --  surrogate and emit one supplementary character
-                     if Input'Length - In_Pos < 2 then
-                        Status := Truncated;
-                        return;
-                     end if;
-                     if Cur (Input, In_Pos) /= '\'
-                       or else Cur (Input, In_Pos + 1) /= 'u'
-                     then
-                        Status := Invalid_Escape;
-                        return;
-                     end if;
-                     In_Pos := In_Pos + 2;
-                     Hex4 (Input, In_Pos, Low, Status);
-                     if Status /= OK then
-                        return;
-                     end if;
-                     if Low not in 16#DC00# .. 16#DFFF# then
-                        Status := Invalid_Escape;
-                        return;
-                     end if;
-                     U := (16#10000# + ((High - 16#D800#) * 16#400#))
-                       + (Low - 16#DC00#);
-                     Encode (Output, Out_Pos, U);
-                  elsif High in 16#DC00# .. 16#DFFF# then
-                     Status := Invalid_Escape;
-                     return;
-                  else
-                     Encode (Output, Out_Pos, High);
-                  end if;
-
-               when others =>
-                  Status := Invalid_Escape;
-                  return;
-            end case;
-
-         elsif Character'Pos (C) < 32 then
-            Status := Invalid_String_Char;
-            return;
-
-         elsif Character'Pos (C) < 128 then
-            Put (Output, Out_Pos, Character'Pos (C));
-            In_Pos := In_Pos + 1;
-
-         else
-            --  A multi-byte UTF-8 sequence: validate (the same tightened
-            --  first-byte ranges as the pull parser, excluding overlong
-            --  forms, surrogates and > U+10FFFF) and copy through
-            B0     := Character'Pos (C);
-            Put (Output, Out_Pos, B0);
-            In_Pos := In_Pos + 1;
-            if B0 in 16#C2# .. 16#DF# then
-               Copy_Cont (Input, In_Pos, Output, Out_Pos,
-                          16#80#, 16#BF#, Status);
-               Rest := 0;
-            elsif B0 = 16#E0# then
-               Copy_Cont (Input, In_Pos, Output, Out_Pos,
-                          16#A0#, 16#BF#, Status);
-               Rest := 1;
-            elsif B0 in 16#E1# .. 16#EC# or else B0 in 16#EE# .. 16#EF# then
-               Copy_Cont (Input, In_Pos, Output, Out_Pos,
-                          16#80#, 16#BF#, Status);
-               Rest := 1;
-            elsif B0 = 16#ED# then
-               Copy_Cont (Input, In_Pos, Output, Out_Pos,
-                          16#80#, 16#9F#, Status);
-               Rest := 1;
-            elsif B0 = 16#F0# then
-               Copy_Cont (Input, In_Pos, Output, Out_Pos,
-                          16#90#, 16#BF#, Status);
-               Rest := 2;
-            elsif B0 in 16#F1# .. 16#F3# then
-               Copy_Cont (Input, In_Pos, Output, Out_Pos,
-                          16#80#, 16#BF#, Status);
-               Rest := 2;
-            elsif B0 = 16#F4# then
-               Copy_Cont (Input, In_Pos, Output, Out_Pos,
-                          16#80#, 16#8F#, Status);
-               Rest := 2;
-            else
-               Status := Invalid_UTF8;
-               return;
-            end if;
+         declare
+            Old_In : constant Natural := In_Pos;
+         begin
+            Next_Scalar (Input, In_Pos, Value, Status);
             if Status /= OK then
                return;
             end if;
-            for I in 1 .. Rest loop
-               pragma Loop_Invariant
-                 (In_Pos in In_Pos'Loop_Entry .. Input'Length);
-               pragma Loop_Invariant (Out_Pos <= In_Pos);
-               Copy_Cont (Input, In_Pos, Output, Out_Pos,
-                          16#80#, 16#BF#, Status);
-               if Status /= OK then
-                  return;
-               end if;
-            end loop;
+            pragma Assert
+              (Natural (Unicode_Text.UTF_8.Encoding_Width (Value))
+                 <= In_Pos - Old_In);
+         end;
+
+         Append_Scalar (Output, Out_Pos, Value);
+      end loop;
+
+      Check :=
+        Unicode_Text.UTF_8.Validate (Active_Prefix (Output, Out_Pos));
+      if Check.Valid then
+         Length := Out_Pos;
+         Status := OK;
+      else
+         --  Every output unit came from Encode_One. Keep this defensive
+         --  boundary so the public guarantee never relies on an assertion.
+         Status := Invalid_UTF8;
+      end if;
+   end Decode;
+
+   --------------------
+   -- Decoded_Equals --
+   --------------------
+
+   function Decoded_Equals (Input, Expected : String) return Boolean is
+      Pos          : Natural := 0;
+      Expected_Pos : Natural := 0;
+      Actual       : Unicode_Text.Scalar_Value;
+      Wanted       : Unicode_Text.UTF_8.Decoded_Unit;
+      Status       : Status_Type;
+   begin
+      while Pos < Input'Length loop
+         pragma Loop_Invariant (Pos <= Input'Length);
+         pragma Loop_Invariant (Expected_Pos <= Expected'Length);
+         pragma Loop_Variant (Increases => Pos);
+
+         if Expected_Pos >= Expected'Length then
+            return False;
+         end if;
+
+         Next_Scalar (Input, Pos, Actual, Status);
+         if Status /= OK then
+            return False;
+         end if;
+         if not Unicode_Text.UTF_8.Valid_At (Expected, Expected_Pos) then
+            return False;
+         end if;
+         Wanted := Unicode_Text.UTF_8.Decode_One (Expected, Expected_Pos);
+         Expected_Pos := Expected_Pos + Natural (Wanted.Width);
+         if Actual /= Wanted.Value then
+            return False;
          end if;
       end loop;
 
-      Length := Out_Pos;
-      Status := OK;
-   end Decode;
+      return Expected_Pos = Expected'Length;
+   end Decoded_Equals;
 
 end JSON.Strings;

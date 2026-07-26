@@ -20,7 +20,9 @@
 --  that is what keeps a reader forward-compatible.
 
 with JSON.Pull;
+with JSON.Strings;
 with Interfaces;
+with Unicode_Text.UTF_8;
 
 package JSON.Walk with SPARK_Mode => On is
 
@@ -55,15 +57,28 @@ package JSON.Walk with SPARK_Mode => On is
       and then S.Last <= Input'Last
       and then S.First - 1 <= S.Last);
 
-   --  Raw comparison of a span against an expected name. An escaped span
-   --  never matches: schema keys are plain ASCII, and a key that spells
-   --  the same text through escapes is treated as unknown (and skipped),
-   --  which is the safe reading.
-   function Matches (Input : String; S : Span; Name : String) return Boolean
-     is (not S.Escaped
-         and then S.Last - S.First + 1 = Name'Length
-         and then Input (S.First .. S.Last) = Name)
+   function Payload (Input : String; S : Span) return String
+   is (JSON.Payload (Input, S.First, S.Last))
    with Pre => Valid_Span (S, Input);
+
+   function Valid_Text_Span (S : Span; Input : String) return Boolean is
+     (Valid_Span (S, Input)
+      and then
+        Unicode_Text.UTF_8.Is_Valid_UTF_8 (Payload (Input, S)));
+
+   --  Compare logical decoded key text. Unescaped payloads take the direct
+   --  byte-equality fast path; escaped payloads are streamed scalar by
+   --  scalar without a temporary decoded string. Name is application
+   --  schema data and therefore must already be valid UTF-8.
+   function Matches (Input : String; S : Span; Name : String) return Boolean
+   is (if not S.Escaped
+       then Payload (Input, S) = Name
+       else JSON.Strings.Decoded_Equals (Payload (Input, S), Name))
+   with
+     Pre =>
+       Input'Last < Positive'Last
+       and then Valid_Text_Span (S, Input)
+       and then Unicode_Text.UTF_8.Is_Valid_UTF_8 (Name);
 
    --  Expect the start of an object / array.
    procedure Open_Object
@@ -104,7 +119,8 @@ package JSON.Walk with SPARK_Mode => On is
      Post   => (if Status = OK
                 then Ready (Input, P)
                      and then P.Pos > P.Pos'Old
-                     and then (if not Done then Valid_Span (Key, Input)));
+                     and then
+                       (if not Done then Valid_Text_Span (Key, Input)));
 
    --  Skip members until one named Name is found (Found = True, cursor
    --  standing before its value) or the object ends (Found = False, the
@@ -119,7 +135,9 @@ package JSON.Walk with SPARK_Mode => On is
       Status :    out Step_Status)
    with
      Global => null,
-     Pre    => Ready (Input, P),
+     Pre    =>
+       Ready (Input, P)
+       and then Unicode_Text.UTF_8.Is_Valid_UTF_8 (Name),
      Post   => (if Status = OK
                 then Ready (Input, P) and then P.Pos > P.Pos'Old);
 
@@ -148,7 +166,7 @@ package JSON.Walk with SPARK_Mode => On is
      Post   => (if Status = OK
                 then Ready (Input, P)
                      and then P.Pos > P.Pos'Old
-                     and then Valid_Span (Value, Input));
+                     and then Valid_Text_Span (Value, Input));
 
    --  Expect an integer number (no fraction, no exponent) that fits
    --  Integer_64; anything else — including a too-large integer — is
@@ -204,6 +222,7 @@ package JSON.Walk with SPARK_Mode => On is
      Post   => (if Status = OK
                 then Ready (Input, P)
                      and then P.Pos > P.Pos'Old
-                     and then (if not Done then Valid_Span (Value, Input)));
+                     and then
+                       (if not Done then Valid_Text_Span (Value, Input)));
 
 end JSON.Walk;
