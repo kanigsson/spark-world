@@ -1,0 +1,84 @@
+- Byte buffers with:
+   append;
+  consume;
+  available capacity;
+  subviews;
+  read/write positions;
+  checked multi-byte access;
+  endian conversion;
+  overlapping or non-overlapping copies;
+  consumed/produced results.
+
+subcategories: bounded byte buffer, non-owning view/span, read/write cursors
+
+
+
+- bounded strings (no utf8 yet)
+
+construct from String;
+append character/string;
+slice or substring;
+equality and lexicographic comparison;
+starts/ends with;
+find character/subsequence;
+trim;
+ASCII case conversion;
+replace;
+safe numeric conversion;
+integer formatting;
+a builder-style API
+
+- optional and result type
+
+- bounded queue, deque, ring buffer
+
+- array algorithms (generic)
+
+linear search;
+binary search;
+lower/upper bound;
+sort;
+stable sort;
+reverse;
+rotate;
+copy;
+move with overlap;
+fill;
+equality;
+lexicographic comparison;
+partition;
+unique adjacent elements;
+min/max;
+count;
+all/any.
+
+- bit and endian utilities
+
+rotate left/right;
+extract and insert bit fields;
+safe masks;
+count leading/trailing zeroes;
+population count;
+byte swap;
+endian load/store;
+checked shifts;
+explicit truncation and extension;
+conversion between byte arrays and modular integers.
+
+- bit-addressed buffers
+
+read/write bit cursors, LSB-first and MSB-first;
+take/put N bits;
+bit position and byte alignment;
+value of the bit at a position;
+framing (a write leaves bits outside its span alone).
+
+- simpler containers for small systems
+
+sorted-array map;
+flat hash map with open addressing;
+direct-index map;
+fixed-capacity set;
+small-vector optimization.
+
+- Arenas??

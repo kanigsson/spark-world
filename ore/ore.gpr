@@ -1,0 +1,20 @@
+with "ore_lib.gpr";
+
+project Ore is
+
+   for Source_Dirs use ("tests/proof");
+   for Object_Dir use "obj/proof_clients";
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        ("-gnat2022", "-gnata");
+      for Local_Configuration_Pragmas use "gnat.adc";
+   end Compiler;
+
+   package Prove is
+      for Proof_Dir use "proof/clients";
+      for Proof_Switches ("Ada") use
+        ("--mode=all", "--level=2", "--timeout=30");
+   end Prove;
+
+end Ore;

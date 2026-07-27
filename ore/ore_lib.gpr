@@ -1,0 +1,21 @@
+library project Ore_Lib is
+
+   for Library_Name use "ore";
+   for Library_Kind use "static";
+   for Source_Dirs use ("src");
+   for Object_Dir use "obj/lib";
+   for Library_Dir use "lib";
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        ("-gnat2022", "-gnata");
+      for Local_Configuration_Pragmas use "gnat.adc";
+   end Compiler;
+
+   package Prove is
+      for Proof_Dir use "proof/lib";
+      for Proof_Switches ("Ada") use
+        ("--mode=all", "--level=2", "--timeout=30");
+   end Prove;
+
+end Ore_Lib;
