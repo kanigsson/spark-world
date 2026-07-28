@@ -2,7 +2,7 @@
 """Generate PROOF_STATUS.md from the output of a gnatprove run.
 
 gnatprove writes one <unit>.spark file per analysed unit into the gnatprove
-subdirectory of the project's object directory.  Those files are JSON and
+subdirectory of the project's object directory. Those files are JSON and
 carry everything the status table needs: which entities are in SPARK, and one
 record per check with its rule and whether it was proved.
 
@@ -10,7 +10,7 @@ record per check with its rule and whether it was proved.
     tools/proof_status.py --check    # fail if PROOF_STATUS.md is out of date
 
 The assurance level of a unit is computed from the checks, not declared, up to
-gold.  Platinum cannot be computed -- it is a claim about the specification
+gold. Platinum cannot be computed -- it is a claim about the specification
 being complete, not about the checks passing -- so it is declared in
 proof_levels.json and accepted only for a unit that already reaches gold.
 """
@@ -26,7 +26,7 @@ OUTPUT = ROOT / "PROOF_STATUS.md"
 DECLARATIONS = ROOT / "proof_levels.json"
 
 #  The categories of the summary table gnatprove prints, and the assurance
-#  level each one belongs to.  The mapping mirrors VC_Kind_To_Summary and
+#  level each one belongs to. The mapping mirrors VC_Kind_To_Summary and
 #  Flow_Kind_To_Summary in the gnatprove sources; a rule that is not listed is
 #  reported rather than silently dropped, so that a new check kind cannot
 #  quietly improve the level.
@@ -154,7 +154,7 @@ class Unit:
 
     @property
     def attained_level(self):
-        """The highest level the checks support.  Platinum is never attained
+        """The highest level the checks support. Platinum is never attained
         by computation; it is a claim about the specification."""
         if self.unknown_rules:
             return "not analyzed"

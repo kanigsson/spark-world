@@ -1,7 +1,7 @@
 package body Ore.Byte_Buffers with SPARK_Mode => On is
 
    --  The loop invariants and assertions below quantify over the produced
-   --  bytes.  Evaluating them once per appended byte would make an
+   --  bytes. Evaluating them once per appended byte would make an
    --  assertion-enabled build quadratic in buffer length, so they are
    --  proof-only; GNATprove verifies Ignore-policy assertions normally.
    pragma Assertion_Policy

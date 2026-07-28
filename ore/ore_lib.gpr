@@ -1,8 +1,8 @@
 library project Ore_Lib is
 
    --  "debug" keeps the executable contracts of the library; "release" drops
-   --  them, on the grounds that they have been proved.  Ghost code is ignored
-   --  in both modes, see gnat.adc.  "restrictions" is not a mode to ship: it
+   --  them, on the grounds that they have been proved. Ghost code is ignored
+   --  in both modes, see gnat.adc. "restrictions" is not a mode to ship: it
    --  is a debug build that additionally checks the library against the
    --  no-heap, no-access-types, no-tasking, no-OS, no-exceptions promise, see
    --  restrictions.adc.
@@ -49,7 +49,7 @@ library project Ore_Lib is
 
    --  Install the GNATprove summary files (global effects, termination) next
    --  to the installed library, so that clients of the installed library get
-   --  that information rather than assuming it.  The destination must match
+   --  that information rather than assuming it. The destination must match
    --  the directory gprinstall puts the ALI files in.
    package Install is
       for Artifacts ("lib/ore_lib/gnatprove") use

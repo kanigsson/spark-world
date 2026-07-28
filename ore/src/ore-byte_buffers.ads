@@ -2,53 +2,39 @@
 --
 --  A Buffer is a fixed-capacity array of octets plus two cursors: a write
 --  position (how many bytes have been produced) and a read position (how many
---  of those have been consumed).  Producers append at the write position,
+--  of those have been consumed). Producers append at the write position,
 --  consumers take from the read position, and the invariant
 --
 --     0 <= Read_Position <= Length <= Capacity
 --
---  holds at every point.  Nothing here raises to report a full or an empty
---  buffer: the checked operations carry preconditions, and the bulk
---  operations report how much they moved through a Transfer result.
+--  holds at every point.
 --
---  WHAT THIS PACKAGE IS FOR.  Every codec, wire protocol and syscall shim
---  written in SPARK ends up re-deriving the same handful of facts about the
---  byte arrays it fills: that a write left the earlier bytes alone, that two
---  ranges hold equal content, that a multi-byte field reads back as the value
---  that was stored, and that a back-reference copy is well defined even where
---  source and destination overlap.  Those facts are the deliverable of this
---  package, not the cursor bookkeeping:
 --
 --    * Same_Prefix / Matches_At — what a produce operation preserves and what
 --      it establishes; the framing and content vocabulary of the contracts.
---    * Equal_Ranges / Unchanged_Outside — the same two ideas on plain arrays,
---      for clients whose data is not in a Buffer.
+--    * Equal_Ranges / Unchanged_Outside — the same two ideas on plain arrays.
 --    * Load_16/32/64 and Store_16/32/64 — checked multi-byte access in either
 --      byte order, with the store/load round trip as a postcondition.
 --    * Copies_Back — the forward-copy equation of a back-reference, valid for
 --      overlapping as well as disjoint copies.
 --
---  MODEL.  Contents is the ghost model: the produced bytes as an ordinary
---  Byte_Array indexed from 1.  Contracts prefer element-wise statements over
---  it — the model is there so clients can state whole-buffer equalities, not
---  because the proofs need a separate mathematical sequence.
+--  MODEL. Contents is the ghost model: the produced bytes as an ordinary
+--  Byte_Array indexed from 1. Contracts prefer element-wise statements over
+--  it; the model states whole-buffer equalities, which the proofs themselves
+--  do not need.
 --
---  All ghost entities sit at the Static assertion level, so an
---  assertion-enabled build pays for the cheap Runtime clauses only, and never
---  copies a buffer to evaluate a 'Old.
-
 --  The two configuration pragmas below are repeated here rather than left to
 --  the library's own configuration file, because a client compiling against
 --  this spec applies its own configuration, not ours.
 
 --  Postconditions are written as conjunctions of independent clauses, so most
 --  'Old prefixes sit under a short-circuit operator and are formally
---  "potentially unevaluated".  The prefixes here are scalar queries or ghost
+--  "potentially unevaluated". The prefixes here are scalar queries or ghost
 --  buffer copies, both harmless to evaluate on entry.
 pragma Unevaluated_Use_Of_Old (Allow);
 
 --  Static assertions contain proof-only models and are always ignored by the
---  compiler.  Executable contracts and assertions remain enabled by -gnata.
+--  compiler. Executable contracts and assertions remain enabled by -gnata.
 pragma Assertion_Policy (Ghost => Ignore);
 
 package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
@@ -58,10 +44,10 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    ---------------------------------------------------------------------------
 
    --  Count bytes from From_Left in Left equal Count bytes from From_Right in
-   --  Right.  Bounds are part of the predicate rather than a precondition, and
+   --  Right. Bounds are part of the predicate rather than a precondition, and
    --  are written in subtraction form so no index arithmetic can overflow; an
-   --  empty range is always equal.  This is the "same content, possibly at a
-   --  different offset" relation that checksum, search and copy contracts need.
+   --  empty range is always equal. This is the "same content, possibly at a
+   --  different offset" relation.
    function Equal_Ranges
      (Left, Right           : Byte_Array;
       From_Left, From_Right : Index;
@@ -82,7 +68,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
 
    --  After is Before outside the half-open window First .. Past_Last - 1:
    --  the frame condition of every operation that writes a bounded window of
-   --  an array.  Both arrays must have the same bounds.
+   --  an array. Both arrays must have the same bounds.
    function Unchanged_Outside
      (Before, After : Byte_Array;
       First         : Index;
@@ -96,7 +82,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
            (if I < First or else I >= Past_Last then After (I) = Before (I))))
    with Ghost => Static;
 
-   --  Equal content is transitive.  Stated with three independent offsets
+   --  Equal content is transitive. Stated with three independent offsets
    --  because the three ranges are typically in three different buffers.
    procedure Lemma_Equal_Ranges_Trans
      (Left, Middle, Right                : Byte_Array;
@@ -114,11 +100,10 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    --  Checked multi-byte access and endian conversion
    ---------------------------------------------------------------------------
 
-   --  The 2, 4 or 8 bytes at From, read as one value in the given order.  The
+   --  The 2, 4 or 8 bytes at From, read as one value in the given order. The
    --  preconditions are the bounds check — "the field fits" — in subtraction
-   --  form.  These are expression functions on purpose: a client proving
-   --  something about the bytes of a field it wrote by hand needs to see the
-   --  arithmetic, not just a contract.
+   --  form. These are expression functions on purpose: the arithmetic is
+   --  visible to proof, not hidden behind a contract.
    function Load_16
      (A : Byte_Array; From : Index; Order : Byte_Order) return Word16
    is
@@ -180,7 +165,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
      Pre    => From >= A'First and then From <= A'Last
                and then A'Last - From >= 7;
 
-   --  Write Value at From in the given order.  The postcondition is the round
+   --  Write Value at From in the given order. The postcondition is the round
    --  trip — the field reads back as the value stored — together with the
    --  frame condition that nothing outside the field moved.
    procedure Store_16
@@ -223,8 +208,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
         Static  => Unchanged_Outside (A'Old, A, From, From + 8));
 
    --  A load reads its own bytes and nothing else: equal fields load equal
-   --  values, wherever they sit.  This is what carries a stored field across a
-   --  copy into a larger frame, or relates a writer's field to a reader's.
+   --  values, wherever they sit.
    procedure Lemma_Load_16_Frame
      (Left, Right           : Byte_Array;
       From_Left, From_Right : Index;
@@ -280,7 +264,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    subtype Capacity_Range is Natural range 0 .. Max_Capacity;
 
    --  Capacity is a discriminant rather than a generic formal so that one
-   --  subprogram can serve buffers of every size.  A default-initialized
+   --  subprogram can serve buffers of every size. A default-initialized
    --  buffer is empty and zero-filled: initialization is not left to the
    --  caller's discipline.
    type Buffer (Capacity : Capacity_Range) is private
@@ -290,7 +274,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    function Length (B : Buffer) return Natural
    with Global => null, Post => Length'Result <= B.Capacity;
 
-   --  Bytes consumed so far — the read position.  The next byte a consumer
+   --  Bytes consumed so far — the read position. The next byte a consumer
    --  sees is at position Read_Position + 1.
    function Read_Position (B : Buffer) return Natural
    with Global => null, Post => Read_Position'Result <= Length (B);
@@ -309,7 +293,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    function Is_Full (B : Buffer) return Boolean
    with Global => null, Post => Is_Full'Result = (Available (B) = 0);
 
-   --  The produced byte at a 1-based position.  Positions above the write
+   --  The produced byte at a 1-based position. Positions above the write
    --  position hold no data, whether or not storage exists for them.
    function Element (B : Buffer; Position : Positive) return Byte
    with Global => null, Pre => Position <= Length (B);
@@ -330,7 +314,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    --  Proof vocabulary over buffers
    ---------------------------------------------------------------------------
 
-   --  Left and Right agree on their first Count produced bytes.  This is what
+   --  Left and Right agree on their first Count produced bytes. This is what
    --  a produce operation preserves: "the bytes already there did not move".
    function Same_Prefix (Left, Right : Buffer; Count : Natural) return Boolean
    is
@@ -341,8 +325,8 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
            Element (Left, Position) = Element (Right, Position)))
    with Ghost => Static;
 
-   --  The produced bytes of B starting at From are exactly Bytes.  This is
-   --  what a produce operation establishes.  Like Equal_Ranges the bounds are
+   --  The produced bytes of B starting at From are exactly Bytes. This is
+   --  what a produce operation establishes. Like Equal_Ranges the bounds are
    --  part of the predicate, in subtraction form.
    function Matches_At
      (B     : Buffer;
@@ -357,10 +341,10 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    with Ghost => Static;
 
    --  After is Before with Count bytes appended by a back-reference Distance
-   --  bytes long: the forward-copy equation of an LZ77-style match.  The first
+   --  bytes long: the forward-copy equation of an LZ77-style match. The first
    --  Distance appended bytes come from the pre-existing content; beyond that
    --  the copy reads bytes this very operation wrote, which is what makes a
-   --  short distance repeat its window.  Disjoint copies are the special case
+   --  short distance repeat its window. Disjoint copies are the special case
    --  Count <= Distance.
    function Copies_Back
      (Before, After : Buffer;
@@ -383,7 +367,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    --  Multi-byte access within a buffer
    ---------------------------------------------------------------------------
 
-   --  The field of produced bytes at From, read as one value.  Defined as the
+   --  The field of produced bytes at From, read as one value. Defined as the
    --  array-level load over the model, so the two views never disagree.
    function Load_16
      (B : Buffer; From : Positive; Order : Byte_Order) return Word16
@@ -487,16 +471,15 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
           and then Load_64 (B, Length (B)'Old + 1, Order) = Value,
         Static  => Same_Prefix (B'Old, B, Length (B)'Old));
 
-   --  How much a bulk operation moved.  Consumed and Produced coincide for a
-   --  plain byte transfer; they are reported separately because the pair is
-   --  the shape every filter and codec returns, and a caller that loops needs
-   --  both halves to advance its own cursors.
+   --  How much a bulk operation moved. Consumed and Produced coincide for a
+   --  plain byte transfer; they are reported separately because an operation
+   --  that transforms rather than copies moves a different count on each side.
    type Transfer is record
       Consumed : Natural := 0;   --  bytes taken from the source
       Produced : Natural := 0;   --  bytes written to the target
    end record;
 
-   --  Append as much of Bytes as fits and report how much moved.  This is the
+   --  Append as much of Bytes as fits and report how much moved. This is the
    --  form to use when a short transfer is normal rather than an error; the
    --  checked Append above is the form that must not lose data.
    procedure Put
@@ -550,7 +533,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
           and then Value = Element (B, Read_Position (B)),
         Static  => Same_Prefix (B'Old, B, Length (B)));
 
-   --  Read exactly Into'Length bytes.  Fails its precondition rather than
+   --  Read exactly Into'Length bytes. Fails its precondition rather than
    --  returning short, so Into is fully written.
    procedure Read (B : in out Buffer; Into : out Byte_Array)
    with
@@ -654,7 +637,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    --  Cursor and content management
    ---------------------------------------------------------------------------
 
-   --  Drop everything: both cursors return to zero.  Storage is not scrubbed;
+   --  Drop everything: both cursors return to zero. Storage is not scrubbed;
    --  the bytes above the write position are not readable through Element.
    procedure Clear (B : in out Buffer)
    with
@@ -681,10 +664,9 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
           and then Read_Position (B) = Read_Position (B)'Old,
         Static  => Same_Prefix (B'Old, B, New_Length));
 
-   --  Discard the consumed prefix, moving the unread bytes to the front.  The
-   --  read position becomes zero and the freed space becomes available.  This
-   --  is the operation that makes a buffer reusable in a streaming loop, and
-   --  the reason a buffer needs an overlapping move at all.
+   --  Discard the consumed prefix, moving the unread bytes to the front. The
+   --  read position becomes zero and the freed space becomes available. This
+   --  is the reason a buffer needs an overlapping move at all.
    procedure Compact (B : in out Buffer)
    with
      Global => null,
@@ -699,7 +681,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    --  Subviews
    ---------------------------------------------------------------------------
 
-   --  A half-open range of produced positions.  Past_Last is one past the last
+   --  A half-open range of produced positions. Past_Last is one past the last
    --  byte, so an empty span has First = Past_Last and a span of the whole
    --  content ends at Length + 1 — which is why positions stop one short of
    --  Positive'Last.
@@ -732,7 +714,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
        and then Is_Valid_Span (B, Unread_Span'Result)
        and then Length (Unread_Span'Result) = Unread (B);
 
-   --  A copy of the bytes a span designates.  This is a copy, not a view: a
+   --  A copy of the bytes a span designates. This is a copy, not a view: a
    --  non-owning view type is a separate subject, and a Span together with its
    --  buffer already serves wherever a view would only be read.
    function Slice (B : Buffer; S : Span) return Byte_Array
@@ -772,9 +754,9 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
 
    --  Append Count bytes copied from Distance bytes back — a back-reference,
    --  the operation an LZ77-style decompressor performs after validating a
-   --  (length, distance) pair.  Copying is forward and overlap is intended:
+   --  (length, distance) pair. Copying is forward and overlap is intended:
    --  when Distance < Count the window repeats, which is how run-length
-   --  expansion is expressed.  See Copies_Back for the exact equation.
+   --  expansion is expressed. See Copies_Back for the exact equation.
    procedure Append_Copy
      (B        : in out Buffer;
       Distance : Positive;
@@ -790,8 +772,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
 
    --  Where the copy does not reach into its own output, the equation is plain
    --  equality with the source range: the disjoint-copy reading of
-   --  Copies_Back, for clients that never overlap and should not have to
-   --  unfold the recurrence.
+   --  Copies_Back, with the recurrence already unfolded.
    procedure Lemma_Copies_Back_Disjoint
      (Before, After : Buffer;
       Distance      : Positive;
@@ -808,10 +789,9 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
             Element (Before, Length (Before) + 1 + K - Distance));
 
    --  A distance-one back-reference repeats one byte: every appended byte is
-   --  the last byte of the content the copy started from.  This is run-length
-   --  expansion, and the induction it needs — each copied byte is equal to the
-   --  one before it, all the way back to the original — is done once here
-   --  rather than in every client.
+   --  the last byte of the content the copy started from. This is run-length
+   --  expansion; the induction it needs — each copied byte is equal to the one
+   --  before it, all the way back to the original — is discharged here.
    procedure Lemma_Copies_Back_Run
      (Before, After : Buffer;
       Count         : Natural)
@@ -831,8 +811,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
    ---------------------------------------------------------------------------
 
    --  Prefix preservation composes: what survived two produce operations in
-   --  turn survived the pair.  A loop that appends once per iteration carries
-   --  its invariant with this.
+   --  turn survived the pair.
    procedure Lemma_Same_Prefix_Trans
      (First, Middle, Last : Buffer;
       Count               : Natural)
@@ -845,9 +824,8 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
      Post   => Same_Prefix (First, Last, Count);
 
    --  A match established before a later produce operation still holds after
-   --  it, provided the match lies inside the preserved prefix.  This is the
-   --  framing lemma: it is what lets a client build a structure incrementally
-   --  and keep the facts proved about the parts already written.
+   --  it, provided the match lies inside the preserved prefix. This is the
+   --  framing lemma for content already written.
    procedure Lemma_Matches_At_Frame
      (Before, After : Buffer;
       From          : Positive;
@@ -863,9 +841,8 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
        and then Bytes'Length <= Count - (From - 1),
      Post   => Matches_At (After, From, Bytes);
 
-   --  Two matches that abut are one match on the concatenation.  Consecutive
-   --  appends therefore describe the whole they produced, which is how a
-   --  writer states its postcondition in terms of its output as a unit.
+   --  Two matches that abut are one match on the concatenation: consecutive
+   --  appends describe the whole they produced.
    procedure Lemma_Matches_At_Concat
      (B     : Buffer;
       From  : Positive;
@@ -885,8 +862,7 @@ package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
              else Right (Right'First + (K - Left'Length))));
 
    --  Element-wise agreement over the whole content is model equality: a
-   --  client that proved a prefix relation can state its result as one
-   --  Contents equality.
+   --  prefix relation over the full length becomes a single Contents equality.
    procedure Lemma_Contents_Equal (Left, Right : Buffer)
    with
      Ghost  => Static,

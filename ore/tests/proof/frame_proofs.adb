@@ -31,7 +31,7 @@ package body Frame_Proofs with SPARK_Mode => On is
 
             --  The tag and the length field were written before the payload
             --  was; carrying them across that append is what the framing
-            --  vocabulary is for.  Prefix preservation composes over the three
+            --  vocabulary is for. Prefix preservation composes over the three
             --  appends, and the length field then loads the same value out of
             --  the longer buffer because its own two bytes did not move.
             Lemma_Same_Prefix_Trans (Start, After_Tag, After_Header, Base);

@@ -1,4 +1,4 @@
---  Runtime tests for Ore.Byte_Buffers.  The contracts are checked as the test
+--  Runtime tests for Ore.Byte_Buffers. The contracts are checked as the test
 --  runs (-gnata), so every call is also a test of the Runtime-level clauses;
 --  what the assertions below add is the actual byte values, which a
 --  postcondition about cursors and framing does not pin down for a reader.

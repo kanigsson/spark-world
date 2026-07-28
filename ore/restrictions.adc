@@ -1,11 +1,11 @@
 --  Configuration pragmas for the "restrictions" build mode.
 --
 --  These state the promise the README makes: no heap, no access types, no
---  tasking, no OS, no exceptions.  They are not part of the shipped
+--  tasking, no OS, no exceptions. They are not part of the shipped
 --  configuration because the restrictions below are partition-wide -- GNAT
 --  records them in the ALI files and the binder rejects a partition in which
 --  any unit violates one -- so compiling the library with them would force
---  every client to obey them too.  Building in this mode checks the library
+--  every client to obey them too. Building in this mode checks the library
 --  against its own promise without exporting the obligation:
 --
 --     gprbuild -P ore_lib.gpr -XORE_BUILD_MODE=restrictions
@@ -21,7 +21,7 @@ pragma Restrictions (No_Implicit_Task_Allocations);
 pragma Restrictions (No_Implicit_Protected_Object_Allocations);
 pragma Restrictions (No_Coextensions);
 
---  No access types.  There is no restriction identifier for "no access types"
+--  No access types. There is no restriction identifier for "no access types"
 --  as such -- declaring one is not something the language lets a restriction
 --  forbid -- so this is the enforceable part: nothing may be allocated,
 --  aliased or reached through a subprogram pointer.
@@ -36,12 +36,12 @@ pragma Restrictions (No_Protected_Types);
 pragma Restrictions (No_Delay);
 pragma Restrictions (Max_Tasks => 0);
 
---  No exceptions.  The library raises nothing and handles nothing; failures
+--  No exceptions. The library raises nothing and handles nothing; failures
 --  are reported through preconditions and result values.
 pragma Restrictions (No_Exceptions);
 
 --  No OS, and in fact no dependency on anything outside the library: the
---  sources have no context clauses at all.  The list below names the runtime
+--  sources have no context clauses at all. The list below names the runtime
 --  units that would signal a dependency on an operating system, so that
 --  acquiring one is a compile error rather than an oversight.
 pragma Restrictions (No_Dependence => Ada.Text_IO);
