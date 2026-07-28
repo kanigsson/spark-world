@@ -68,12 +68,13 @@ package body Inflate.Payload with SPARK_Mode => On is
                  then Fixed.Bit_Value (Output, P) =
                         Fixed.Bit_Value (Output'Old, P)))
    is
-      Offset : constant Bits.Bit_Index_8 := Position mod 8;
-      P      : constant Buffer_Index := Output'First + Position / 8;
    begin
-      --  One-bit field insertion, which carries its own frame condition:
-      --  no other bit of the byte moved, and no other byte was touched.
-      Output (P) := Bits.Insert (Output (P), Byte (Value), Offset, 1);
+      --  Ore's single-bit store, in the numbering DEFLATE reads its stream
+      --  in. Its postcondition is the bit that changed together with the
+      --  frame over every other bit position of the array, which is the
+      --  frame stated above.
+      Bit_Cursors.Set_Bit
+        (Output, Position, Value = 1, Bit_Cursors.Lsb_First);
    end Set_Stream_Bit;
 
    procedure Write_Code

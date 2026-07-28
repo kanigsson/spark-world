@@ -30,6 +30,7 @@
 --  type and no conversion is ever needed at the boundary.
 
 with Ore;
+with Ore.Bit_Cursors;
 with Ore.Bits;
 
 package Inflate with Pure, SPARK_Mode => On is
@@ -58,6 +59,15 @@ package Inflate with Pure, SPARK_Mode => On is
    --  qualified reference: the bit accessor the encoders' models are stated
    --  with, single-bit insertion, and explicit narrowing.
    package Bits renames Ore.Bits;
+
+   --  Ore.Bit_Cursors likewise: DEFLATE addresses its fields by bit position
+   --  in a stream of octets, which is what that package is, and the stream
+   --  the encoders write into and the decoders read is a plain byte array a
+   --  caller owns — the shape its operations are defined on. The bit accessor
+   --  the encoders' stream model is stated with and the single-bit store the
+   --  encoders write through both come from there, so that the step from the
+   --  byte written to the bit position it moved is made once.
+   package Bit_Cursors renames Ore.Bit_Cursors;
 
    --  DEFLATE is a bit-oriented format and the checksums are polynomial
    --  divisions, so shifts appear throughout. These are Ore's machine

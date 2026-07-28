@@ -221,15 +221,14 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
 
    --  Value of Length consecutive stream bits, interpreted in Huffman
    --  transmission order (first bit is the most significant code bit).
-   --  Ore.Bits.Bit is the same expression over the same intrinsic; this is
-   --  the arithmetic view of it, because a stream bit is summed into a code
-   --  value rather than tested. Stating it through Bit is what lets the
-   --  bit-level lemmas of Ore.Bits apply to a byte of the stream.
+   --  The bit itself is Ore's bit-addressed accessor, in the numbering
+   --  DEFLATE uses: bits run from the least significant end of each byte.
+   --  This is the arithmetic view of it, because a stream bit is summed into
+   --  a code value rather than tested. Naming it through Ore is what lets
+   --  the bit-level lemmas of the bit layer apply to the stream.
    function Bit_Value
      (Input : Byte_Array; Position : Natural) return Natural is
-     (if Bits.Bit (Input (Input'First + Position / 8), Position mod 8)
-      then 1
-      else 0)
+     (Bit_Cursors.Bit_Value (Input, Position, Bit_Cursors.Lsb_First))
    with
      Pre  => Input'Length <= Max_Stream_Bytes
                and then Position < 8 * Input'Length,

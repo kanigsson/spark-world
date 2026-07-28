@@ -25,7 +25,10 @@ dependency is [Ore](../../ore), a SPARK library of proved bounded building
 blocks, which supplies the physical byte and word types, the byte array
 every layer is written against, the checked little- and big-endian field
 access the three container formats parse their headers with, and the bit
-layer the encoders' stream model and single-bit writes are stated through. The shipping
+layer the encoders' stream model and single-bit writes are stated through:
+bit positions of a caller's byte array, the single-bit store with its frame
+condition, and the low-bit masks the decoder's bit reader takes its fields
+with. The shipping
 decoder and the ordinary full-model validation path are iterative; recursive
 stored-fragment relations remain in the proof layer. Project debug builds keep
 ordinary language run-time checks but disable execution of proof contracts via

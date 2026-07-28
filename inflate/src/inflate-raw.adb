@@ -68,13 +68,16 @@ package body Inflate.Raw with SPARK_Mode => On is
 
    subtype Bit_Request is Natural range 0 .. 16;
 
-   --  2**N - 1 and 2**N as lookup tables: the provers reason about a
-   --  concrete array by case enumeration, where a variable exponent would
-   --  need power-function lemmas they do not reliably find.
-   Mask_Table : constant array (Bit_Request) of Natural :=
-     (0, 1, 3, 7, 15, 31, 63, 127, 255, 511, 1023, 2047, 4095, 8191,
-      16383, 32767, 65535);
+   --  The low N bits set, and the value of a field that wide: Ore's mask
+   --  states both the bits it sets and the number it is, so the low-bit mask
+   --  no longer needs a table beside it. Truncating to Natural is exact for
+   --  every request width here, all of them well under 32.
+   function Mask (N : Bit_Request) return Natural is
+     (Natural (Bits.Low_Mask_32 (N)));
 
+   --  2**N as a lookup table: the provers reason about a concrete array by
+   --  case enumeration, where a variable exponent would need power-function
+   --  lemmas they do not reliably find.
    Pow2 : constant array (Natural range 0 .. 16) of Natural :=
      (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192,
       16384, 32768, 65536);
@@ -100,7 +103,7 @@ package body Inflate.Raw with SPARK_Mode => On is
        S.Produced = S.Produced'Old
        and then (if Good
                  then Valid_In (Input, S)
-                      and then Value <= Mask_Table (N)
+                      and then Value <= Mask (N)
                       and then Bit_Position (S) =
                                  Bit_Position (S'Old) + Long_Long_Integer (N)
                  else S = S'Old
@@ -115,7 +118,7 @@ package body Inflate.Raw with SPARK_Mode => On is
                       and then S.Consumed'Old < Input'Length
                       and then Word32 (Value) =
                                  (Word32 (Input (Input'First + S.Consumed'Old))
-                                  and Word32 (Mask_Table (N)))
+                                  and Bits.Low_Mask_32 (N))
                       and then S.Bit_Buf =
                                  Shift_Right
                                    (Word32
@@ -125,7 +128,7 @@ package body Inflate.Raw with SPARK_Mode => On is
                  then S.Consumed = S.Consumed'Old
                       and then S.Bit_Cnt = S.Bit_Cnt'Old - N
                       and then Word32 (Value) =
-                                 (S.Bit_Buf'Old and Word32 (Mask_Table (N)))
+                                 (S.Bit_Buf'Old and Bits.Low_Mask_32 (N))
                       and then S.Bit_Buf = Shift_Right (S.Bit_Buf'Old, N))
    is
       Buf : Word32 := S.Bit_Buf;
@@ -154,7 +157,7 @@ package body Inflate.Raw with SPARK_Mode => On is
          Pos := Pos + 1;
          Cnt := Cnt + 8;
       end loop;
-      Value := Natural (Buf and Word32 (Mask_Table (N)));
+      Value := Natural (Buf and Bits.Low_Mask_32 (N));
       S.Bit_Buf  := Shift_Right (Buf, N);
       S.Bit_Cnt  := Cnt - N;
       S.Consumed := Pos;
