@@ -1,7 +1,11 @@
 # Ore
 
 `Ore` is a SPARK library of proved building blocks for bounded, heap-free
-systems code: no heap, no access types, no tasking, no OS, no exceptions.
+systems code: no heap allocation, no access-based design, no tasking, no OS
+services, and no application-level exception paths when preconditions hold.
+In an assertion-enabled build, violating a precondition can still raise
+`Assertion_Error`; that is a debugging check, not an operation's way of
+reporting an expected full or empty buffer.
 
 The current version is `0.1.0`. Releases follow
 [Semantic Versioning](https://semver.org/); see [`VERSION`](VERSION) and
@@ -53,6 +57,9 @@ Run the tests, which execute with contracts enabled:
 ```sh
 gprbuild -P tests/runtime/runtime_tests.gpr
 ./obj/runtime_tests/byte_buffer_tests
+gprbuild -P tests/restrictions/restriction_smoke.gpr \
+    -XORE_BUILD_MODE=restrictions
+./obj/restriction_smoke/restriction_smoke
 ```
 
 `ore_lib.gpr` is the production project; `ore.gpr` adds the proof clients under
@@ -73,7 +80,8 @@ spaces of indentation. Every project has to be named in turn, since each one
 covers a different source directory:
 
 ```sh
-for p in ore_lib.gpr ore.gpr tests/runtime/runtime_tests.gpr; do
+for p in ore_lib.gpr ore.gpr tests/runtime/runtime_tests.gpr \
+         tests/restrictions/restriction_smoke.gpr; do
     gnatformat -P "$p" --no-subprojects --charset utf-8
 done
 ```
@@ -104,26 +112,29 @@ gprbuild -P my_app.gpr -XORE_BUILD_MODE=release
 A project file cannot set an external for a project it withs — only an
 aggregate project can, with `for External ("ORE_BUILD_MODE") use "release";`.
 
-### Checking the no-heap, no-access-types, no-tasking, no-OS, no-exceptions promise
+### Checking the restricted-runtime promise
 
 ```sh
-gprbuild -P ore_lib.gpr -XORE_BUILD_MODE=restrictions
+gprbuild -P tests/restrictions/restriction_smoke.gpr \
+    -XORE_BUILD_MODE=restrictions
+./obj/restriction_smoke/restriction_smoke
 ```
 
-This compiles the library under the `pragma Restrictions` of
-`restrictions.adc`, into its own object and library directories so that it
-never replaces a build that was proved or installed. The restrictions are kept
-out of the shipped configuration on purpose: most of them are partition-wide,
-recorded in the ALI files and checked by the binder, so a library compiled with
-them would force every client to obey them too. Keeping them to a build mode
-checks the promise without exporting the obligation.
+This compiles the library and a minimal client under the `pragma Restrictions`
+of `restrictions.adc`, then binds a complete partition. The library uses its own
+object and library directories in this mode, so the check never replaces a
+build that was proved or installed. The restrictions are kept out of the
+shipped configuration on purpose: most of them are partition-wide, recorded in
+the ALI files and checked by the binder, so a library compiled with them would
+force every client to obey them too. The smoke project applies them only to
+this end-to-end check.
 
 Two of the five claims are only partly enforceable this way. "No access types"
 has no restriction identifier — the language does not let a restriction forbid
 declaring one — so what is checked is that nothing is allocated, aliased or
 reached through a subprogram pointer. "No OS" is checked as `No_Dependence` on
-the runtime units that would signal one; the library in fact has no context
-clauses at all.
+the runtime units that would signal one. More precisely, the library makes no
+direct use of OS services; its sources have no context clauses at all.
 
 ## Using Ore from another project
 

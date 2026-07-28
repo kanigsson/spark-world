@@ -4,8 +4,7 @@ library project Ore_Lib is
    --  them, on the grounds that they have been proved. Ghost code is ignored
    --  in both modes, see gnat.adc. "restrictions" is not a mode to ship: it
    --  is a debug build that additionally checks the library against the
-   --  no-heap, no-access-types, no-tasking, no-OS, no-exceptions promise, see
-   --  restrictions.adc.
+   --  restricted-runtime promise, see restrictions.adc.
    type Build_Mode_Type is ("debug", "release", "restrictions");
    Build_Mode : Build_Mode_Type := external ("ORE_BUILD_MODE", "debug");
 

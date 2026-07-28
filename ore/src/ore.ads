@@ -10,10 +10,12 @@
 --    Ore.Byte_Buffers — bounded byte buffers: produce/consume cursors,
 --                       subviews, checked multi-byte access, copies.
 --
---  DESIGN: no heap, no access types, no tasking, no OS. Every operation is
---  bounded and total on its precondition; nothing raises to report a full or
---  an empty buffer. Contracts speak about array elements rather than slices
---  or functional sequences, because that is what provers handle well at scale.
+--  DESIGN: no heap allocation, access-based design, tasking or direct OS
+--  services. Every operation is bounded and total on its precondition; nothing
+--  raises to report a full or an empty buffer. An assertion-enabled build may
+--  still raise Assertion_Error when a precondition is violated. Contracts
+--  speak about array elements rather than slices or functional sequences,
+--  because that is what provers handle well at scale.
 --
 --  The word types are declared here rather than taken from Interfaces so that
 --  a client writing `use Ore;` gets their operators, and so that the sources

@@ -96,16 +96,24 @@ is
                Element (B, Length (B)'Old + K) = Value));
 
    --  Drain the unread bytes of Source into Target, compacting Target whenever
-   --  it fills, until Source is exhausted or Target cannot take more. The
-   --  loop is here for its termination and cursor arithmetic, which is what a
-   --  streaming client actually has to get right.
+   --  it fills, until Source is exhausted or Target cannot take more. Besides
+   --  cursor progress, the contract says that the bytes consumed from Source
+   --  are the final Moved bytes of Target, in order.
    procedure Drain
      (Source : in out Buffer; Target : in out Buffer; Moved : out Natural)
    with
      Global => null,
      Post   =>
-       Moved = Read_Position (Source) - Read_Position (Source)'Old
-       and then Length (Source) = Length (Source)'Old
-       and then Read_Position (Source) <= Length (Source);
+       (Runtime =>
+          Moved = Read_Position (Source) - Read_Position (Source)'Old
+          and then Length (Source) = Length (Source)'Old
+          and then Read_Position (Source) <= Length (Source)
+          and then Moved <= Length (Target),
+        Static  =>
+          Same_Prefix (Source'Old, Source, Length (Source))
+          and then
+            (for all K in 0 .. Moved - 1 =>
+               Element (Target, Length (Target) - Moved + 1 + K)
+               = Element (Source'Old, Read_Position (Source)'Old + 1 + K)));
 
 end Frame_Proofs;

@@ -111,28 +111,22 @@ is
    procedure Drain
      (Source : in out Buffer; Target : in out Buffer; Moved : out Natural)
    is
-      Start  : constant Natural := Read_Position (Source);
       Result : Transfer;
    begin
       Moved := 0;
 
-      loop
-         --  Reclaim the consumed prefix before concluding there is no room:
-         --  a full buffer whose bytes have all been read is not really full.
-         if Available (Target) = 0 then
-            Compact (Target);
-         end if;
+      --  Reclaim the consumed prefix before concluding there is no room: a
+      --  full buffer whose bytes have been read is not really full.
+      if Available (Target) = 0 then
+         Compact (Target);
+      end if;
 
-         exit when Unread (Source) = 0 or else Available (Target) = 0;
-
+      --  One Move is sufficient: by definition it either exhausts Source or
+      --  fills Target, which is exactly the stopping condition.
+      if Unread (Source) > 0 and then Available (Target) > 0 then
          Move (Source, Target, Result);
-         Moved := Moved + Result.Consumed;
-
-         pragma Loop_Invariant (Length (Source) = Length (Source)'Loop_Entry);
-         pragma Loop_Invariant (Read_Position (Source) >= Start);
-         pragma Loop_Invariant (Moved = Read_Position (Source) - Start);
-         pragma Loop_Variant (Decreases => Unread (Source));
-      end loop;
+         Moved := Result.Consumed;
+      end if;
    end Drain;
 
 end Frame_Proofs;

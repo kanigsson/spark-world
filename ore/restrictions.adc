@@ -1,14 +1,16 @@
 --  Configuration pragmas for the "restrictions" build mode.
 --
---  These state the promise the README makes: no heap, no access types, no
---  tasking, no OS, no exceptions. They are not part of the shipped
---  configuration because the restrictions below are partition-wide -- GNAT
---  records them in the ALI files and the binder rejects a partition in which
---  any unit violates one -- so compiling the library with them would force
---  every client to obey them too. Building in this mode checks the library
---  against its own promise without exporting the obligation:
+--  These check the restricted-runtime promise described in the README: no
+--  heap allocation, no access-based design, no tasking, no direct OS services,
+--  and no application-level exception paths when preconditions hold. They are
+--  not part of the shipped configuration because the restrictions below are
+--  partition-wide -- GNAT records them in the ALI files and the binder rejects
+--  a partition in which any unit violates one -- so compiling the library with
+--  them would force every client to obey them too. The smoke project checks a
+--  complete partition without exporting the obligation:
 --
---     gprbuild -P ore_lib.gpr -XORE_BUILD_MODE=restrictions
+--     gprbuild -P tests/restrictions/restriction_smoke.gpr \
+--         -XORE_BUILD_MODE=restrictions
 --
 --  This mode writes to its own object and library directories, so it never
 --  replaces the artifacts of a debug or release build.
@@ -36,8 +38,10 @@ pragma Restrictions (No_Protected_Types);
 pragma Restrictions (No_Delay);
 pragma Restrictions (Max_Tasks => 0);
 
---  No exceptions. The library raises nothing and handles nothing; failures
---  are reported through preconditions and result values.
+--  No application-level exception paths. The library raises nothing and
+--  handles nothing; expected failures are represented by preconditions and
+--  result values. Assertion-enabled builds may still turn a violated contract
+--  into Assertion_Error.
 pragma Restrictions (No_Exceptions);
 
 --  No OS, and in fact no dependency on anything outside the library: the

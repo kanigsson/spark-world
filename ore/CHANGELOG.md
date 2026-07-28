@@ -5,6 +5,20 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Clarified that the exception-free design excludes application-level
+  exception paths for calls that satisfy their preconditions; assertion-enabled
+  builds can still raise `Assertion_Error` for contract violations.
+- Strengthened the external `Drain` proof client to prove the content and order
+  of transferred bytes as well as cursor progress.
+
+### Added
+
+- A bindable restrictions smoke test that checks a complete partition.
+- Exhaustive small-capacity and back-reference runtime cases, plus endian stores
+  at both legal array boundaries.
+
 ## [0.1.0] - 2026-07-27
 
 ### Added

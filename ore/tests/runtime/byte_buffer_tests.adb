@@ -3,6 +3,7 @@
 --  what the assertions below add is the actual byte values, which a
 --  postcondition about cursors and framing does not pin down for a reader.
 
+with Ada.Command_Line;
 with Ada.Text_IO;      use Ada.Text_IO;
 with Ore;              use Ore;
 with Ore.Byte_Buffers; use Ore.Byte_Buffers;
@@ -222,6 +223,149 @@ procedure Byte_Buffer_Tests is
 
    ---------------------------------------------------------------------------
 
+   procedure Test_Small_State_Spaces is
+      Input : constant Byte_Array (1 .. 8) := (1, 2, 3, 4, 5, 6, 7, 8);
+   begin
+      --  Exercise every small capacity through a fill, partial consume,
+      --  compaction and refill. This checks the cursor/content interaction at
+      --  every boundary, including zero capacity.
+      for Capacity in 0 .. 8 loop
+         declare
+            B        : Buffer (Capacity);
+            Result   : Transfer;
+            Consumed : constant Natural := Capacity / 2;
+            Kept     : constant Natural := Capacity - Consumed;
+         begin
+            Put (B, Input, Result);
+            Check
+              (Result.Produced = Capacity and then Length (B) = Capacity,
+               "small-state fill");
+
+            Consume (B, Consumed);
+            Compact (B);
+            Check
+              (Read_Position (B) = 0
+               and then Length (B) = Kept
+               and then
+                 (for all K in 1 .. Kept =>
+                    Element (B, K) = Byte (Consumed + K)),
+               "small-state compact");
+
+            Append_Fill (B, 16#EE#, Consumed);
+            Check
+              (Length (B) = Capacity
+               and then
+                 (for all K in Kept + 1 .. Capacity =>
+                    Element (B, K) = 16#EE#),
+               "small-state refill");
+         end;
+      end loop;
+
+      --  Exhaust the overlap shapes for small back-references. Expected is
+      --  updated front to back, independently of Append_Copy.
+      for Base in 1 .. 6 loop
+         for Distance in 1 .. Base loop
+            for Count in 0 .. 8 - Base loop
+               declare
+                  B        : Buffer (8);
+                  Expected : Byte_Array (1 .. 8) := (others => 0);
+               begin
+                  for I in 1 .. Base loop
+                     Expected (I) := Byte (17 * I + Base);
+                     Append (B, Expected (I));
+                  end loop;
+
+                  if Count > 0 then
+                     for K in 0 .. Count - 1 loop
+                        Expected (Base + 1 + K) :=
+                          Expected (Base + 1 + K - Distance);
+                     end loop;
+                  end if;
+
+                  Append_Copy (B, Distance, Count);
+                  Check
+                    (Length (B) = Base + Count
+                     and then
+                       (for all I in 1 .. Base + Count =>
+                          Element (B, I) = Expected (I)),
+                     "small-state back-reference");
+               end;
+            end loop;
+         end loop;
+      end loop;
+   end Test_Small_State_Spaces;
+
+   ---------------------------------------------------------------------------
+
+   procedure Test_Endian_Edges is
+      A      : Byte_Array (5 .. 20) := (others => 16#A5#);
+      Before : Byte_Array (A'Range);
+   begin
+      for Order in Byte_Order loop
+         A := (others => 16#A5#);
+         Before := A;
+         Store_16 (A, A'First, 16#1234#, Order);
+         Check
+           (Load_16 (A, A'First, Order) = 16#1234#
+            and then
+              (for all I in A'Range =>
+                 (if I > A'First + 1 then A (I) = Before (I))),
+            "16-bit store at first position");
+
+         A := (others => 16#A5#);
+         Before := A;
+         Store_16 (A, A'Last - 1, 16#ABCD#, Order);
+         Check
+           (Load_16 (A, A'Last - 1, Order) = 16#ABCD#
+            and then
+              (for all I in A'Range =>
+                 (if I < A'Last - 1 then A (I) = Before (I))),
+            "16-bit store at last position");
+
+         A := (others => 16#A5#);
+         Before := A;
+         Store_32 (A, A'First, 16#DEAD_BEEF#, Order);
+         Check
+           (Load_32 (A, A'First, Order) = 16#DEAD_BEEF#
+            and then
+              (for all I in A'Range =>
+                 (if I > A'First + 3 then A (I) = Before (I))),
+            "32-bit store at first position");
+
+         A := (others => 16#A5#);
+         Before := A;
+         Store_32 (A, A'Last - 3, 16#7654_3210#, Order);
+         Check
+           (Load_32 (A, A'Last - 3, Order) = 16#7654_3210#
+            and then
+              (for all I in A'Range =>
+                 (if I < A'Last - 3 then A (I) = Before (I))),
+            "32-bit store at last position");
+
+         A := (others => 16#A5#);
+         Before := A;
+         Store_64 (A, A'First, 16#0123_4567_89AB_CDEF#, Order);
+         Check
+           (Load_64 (A, A'First, Order) = 16#0123_4567_89AB_CDEF#
+            and then
+              (for all I in A'Range =>
+                 (if I > A'First + 7 then A (I) = Before (I))),
+            "64-bit store at first position");
+
+         A := (others => 16#A5#);
+         Before := A;
+         Store_64 (A, A'Last - 7, 16#FEDC_BA98_7654_3210#, Order);
+         Check
+           (Load_64 (A, A'Last - 7, Order) = 16#FEDC_BA98_7654_3210#
+            and then
+              (for all I in A'Range =>
+                 (if I < A'Last - 7 then A (I) = Before (I))),
+            "64-bit store at last position");
+      end loop;
+   end Test_Endian_Edges;
+
+   ---------------------------------------------------------------------------
+
    procedure Test_Degenerate is
       Empty_Buffer : Buffer (0);
       B            : Buffer (4);
@@ -249,11 +393,14 @@ begin
    Test_Spans;
    Test_Copies;
    Test_Compact;
+   Test_Small_State_Spaces;
+   Test_Endian_Edges;
    Test_Degenerate;
 
    if Failures = 0 then
       Put_Line ("byte_buffer_tests: all checks passed");
    else
       Put_Line ("byte_buffer_tests:" & Failures'Image & " failure(s)");
+      Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
    end if;
 end Byte_Buffer_Tests;
