@@ -247,6 +247,11 @@ is
    function Low_Mask_64 (Count : Bit_Count_64) return Word64
    is (not Intrinsics.Shift_Left (Word64'Last, Count));
 
+   procedure Lemma_Bound_Bits (Value : Byte; Count : Bit_Count_8) is null;
+   procedure Lemma_Bound_Bits (Value : Word16; Count : Bit_Count_16) is null;
+   procedure Lemma_Bound_Bits (Value : Word32; Count : Bit_Count_32) is null;
+   procedure Lemma_Bound_Bits (Value : Word64; Count : Bit_Count_64) is null;
+
    function Field_Mask_8
      (Offset : Bit_Count_8; Count : Bit_Count_8) return Byte
    is (Shift_Left (Low_Mask_8 (Count), Offset));

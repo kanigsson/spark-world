@@ -7,7 +7,7 @@ In an assertion-enabled build, violating a precondition can still raise
 `Assertion_Error`; that is a debugging check, not an operation's way of
 reporting an expected full or empty buffer.
 
-The current version is `0.2.0`. Releases follow
+The current version is `0.3.0`. Releases follow
 [Semantic Versioning](https://semver.org/); see [`VERSION`](VERSION) and
 [`CHANGELOG.md`](CHANGELOG.md). The planned scope is listed in
 [`ROADMAP.md`](ROADMAP.md).
@@ -18,8 +18,10 @@ The library is a hierarchy rooted at `Ore`, which holds the physical types its
 children share: `Byte`, `Word16/32/64`, the unconstrained `Byte_Array`,
 `Byte_Order`, and the capacity ceiling. Each child package adds one
 self-contained layer: `Ore.Byte_Buffers`, bounded byte buffers with
-produce/consume cursors, and `Ore.Bits`, the bit-level operations on the word
-types. See [`ROADMAP.md`](ROADMAP.md) for what is planned.
+produce/consume cursors; `Ore.Bits`, the bit-level operations on the word
+types; and `Ore.Bit_Cursors`, bit-addressed access to a plain byte array —
+the bit at a position, the field of N bits, and a cursor that takes and puts
+them. See [`ROADMAP.md`](ROADMAP.md) for what is planned.
 
 Each package, in addition to the spec and implementation of a primitive and its
 operations, also contains predicates and lemmas intended to help client code
@@ -64,6 +66,7 @@ Run the tests, which execute with contracts enabled:
 gprbuild -P tests/runtime/runtime_tests.gpr
 ./obj/runtime_tests/byte_buffer_tests
 ./obj/runtime_tests/bit_tests
+./obj/runtime_tests/bit_cursor_tests
 gprbuild -P tests/restrictions/restriction_smoke.gpr \
     -XORE_BUILD_MODE=restrictions
 ./obj/restriction_smoke/restriction_smoke
@@ -72,7 +75,7 @@ gprbuild -P tests/restrictions/restriction_smoke.gpr \
 `ore_lib.gpr` is the production project; `ore.gpr` adds the proof clients under
 `tests/proof`, which must prove without reaching inside the library.
 
-Everything in 0.2.0 is proved at `--level=2` with no unproved checks and no
+Everything in 0.3.0 is proved at `--level=2` with no unproved checks and no
 justifications. The one thing GNATprove is not shown a body of is the shift
 and rotate intrinsics `Ore.Bits` imports, which it models natively.
 [`PROOF_STATUS.md`](PROOF_STATUS.md) carries the per-unit figures; regenerate

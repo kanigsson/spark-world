@@ -77,6 +77,20 @@ procedure Bit_Tests is
       Check (Field_Mask_8 (5, 3) = 2#1110_0000#, "the top three bits");
       Check (Field_Mask_32 (8, 8) = 16#0000_FF00#, "the second byte");
       Check (Field_Mask_32 (32, 0) = 0, "an empty field at the end");
+
+      --  The value clauses are Runtime clauses, so -gnata has checked them at
+      --  each call above; what these add is the value written the way a client
+      --  writes a bound, against the mask it would otherwise tabulate.
+      for Count in Bit_Count_32 range 0 .. 31 loop
+         Check
+           (Low_Mask_32 (Count) = 2 ** Count - 1,
+            "the low 32-bit mask is two to the count less one");
+      end loop;
+      Check
+        (Low_Mask_32 (32) = Word32'Last, "the full-width mask is every bit");
+      Check
+        (Field_Mask_32 (8, 8) = Low_Mask_32 (8) * 2 ** 8,
+         "a field mask is its low mask moved up");
    end Test_Masks;
 
    procedure Test_Fields is

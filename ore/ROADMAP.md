@@ -41,11 +41,25 @@ particular release.
 
 ## Bit-addressed buffers
 
-* Read/write bit cursors, LSB-first and MSB-first
-* Take/put N bits
-* Bit position and byte alignment
-* Value of the bit at a position
-* Framing: a write leaves bits outside its span alone
+Delivered in 0.3.0 as `Ore.Bit_Cursors`: bit and field accessors, read and
+write cursors in both orders, byte alignment, and the framing lemmas.
+
+The open question was whether a cursor over an array the caller owns is in
+scope for a library of bounded containers. It is, and it is the only form the
+layer takes: a cursor is a position and a `Byte_Array`, as the endian loads
+are, because a bounded owning container cannot wrap memory it did not allocate
+and its capacity ceiling is not the ceiling of an input a caller mapped or
+read. There is no bit-addressed container type, and none is planned. Reading
+the bits of a `Buffer` means reading the bits of a `Slice` of it.
+
+What is not there yet:
+
+* A field wider than 32 bits in one take or put
+* A take that reports how many bits it could supply, rather than only that it
+  could not supply all of them
+* A frame lemma for a whole span written by hand. `Put_Bits` states the span
+  frame for its own write and `Lemma_Bit_Frame` states it for one bit; a client
+  that writes a span with its own byte stores has to compose the two
 
 ## Simpler containers for small systems
 

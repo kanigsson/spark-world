@@ -5,6 +5,52 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-28
+
+### Added
+
+- `Ore.Bit_Cursors`: bit-addressed access to a plain byte array — a cursor is a
+  position and an array the caller owns, not a container, so an input longer
+  than `Max_Capacity` is addressable and every bound is a division rather than
+  the product of a length and eight.
+  - `Bit` and `Bit_Value`: the bit at a position across the whole array, as a
+    Boolean and as a number, in either bit numbering.
+  - `Fits`, `Byte_Of`, `Bit_In_Byte`, `Is_Byte_Aligned` and `Align_To_Byte`:
+    the bounds check and the two numberings.
+  - `Bits_At`: the field of up to 32 bits at a position, assembled low bit
+    first or high bit first — two orders that alternate on one cursor rather
+    than being chosen once per stream.
+  - `Set_Bit`, `Take_Bits` and `Put_Bits`: the write of one bit, and the cursor
+    operations, which report that the array does not hold the field and leave
+    the cursor and the array as they were.
+  - `Bits_Unchanged_Outside`: the frame vocabulary, over bit positions and with
+    a count rather than a one-past-the-end position.
+  - Lemmas: `Lemma_Bit_Frame`, from "one byte changed and one bit within it" to
+    "one bit position changed" — the array-level analogue of
+    `Lemma_Insert_Frame`; and `Lemma_Bits_At_Frame`, that a field over unchanged
+    bits is an unchanged field.
+- `Ore.Bits.Lemma_Bound_Bits`: from the arithmetic bound `Value <= Low_Mask_*`
+  to the bit-wise fact that nothing above the field is set — the direction
+  `Extract` does not give.
+- A proof client under `tests/proof` for a two-field header written and read
+  back over a caller's array, the arithmetic view of a code, and a client that
+  writes its own bytes and still inherits the array-level frame.
+- Runtime tests for `Ore.Bit_Cursors` under `tests/runtime`.
+
+### Changed
+
+- `Low_Mask_8/16/32/64` and `Field_Mask_8/16/32/64` now state their value as
+  well as their bits: a `Runtime` clause gives the number the mask is, so a
+  mask serves as an arithmetic bound and not only as something to mask with.
+  `Extract`'s bound inherits this, since its right-hand side is a mask. This is
+  what lets a client drop a table of `2 ** N - 1` it kept because a bit-by-bit
+  postcondition could not be evaluated to a number.
+- The proof timeout in both projects is 180 seconds, up from 60. The 64-bit
+  field goals are bit-vector problems with a variable shift amount and sit
+  close to the old limit when a whole run competes for the cores.
+- The comment on `Max_Capacity` no longer claims that the bit-addressed layers
+  share the ceiling: they take arrays a caller owns and impose none.
+
 ## [0.2.0] - 2026-07-28
 
 ### Added

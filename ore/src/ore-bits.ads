@@ -513,11 +513,23 @@ is
    --  width by its subtype, and the full-width mask — the one an expression
    --  like 2 ** Count - 1 cannot form without overflowing — is just the
    --  largest legal count.
+   --
+   --  A mask is used two ways in the same contract: to mask, and as an
+   --  arithmetic bound on a value that fits under it. The Static clause serves
+   --  the first, and a client that needs the second cannot get there from
+   --  "these bits are set". So the value is stated as well, in a Runtime
+   --  clause. The case distinction on the full width is the same awkwardness
+   --  that makes the operation worth having; it is stated here once so that no
+   --  client has to write it, or keep a table of masks to avoid writing it.
    function Low_Mask_8 (Count : Bit_Count_8) return Byte
    with
      Global => null,
      Post   =>
-       (Static =>
+       (Runtime =>
+          (if Count < 8
+           then Low_Mask_8'Result = 2 ** Count - 1
+           else Low_Mask_8'Result = Byte'Last),
+        Static  =>
           (for all I in 0 .. Count - 1 => Bit (Low_Mask_8'Result, I))
           and then
             (for all I in Count .. 7 => not Bit (Low_Mask_8'Result, I)));
@@ -526,7 +538,11 @@ is
    with
      Global => null,
      Post   =>
-       (Static =>
+       (Runtime =>
+          (if Count < 16
+           then Low_Mask_16'Result = 2 ** Count - 1
+           else Low_Mask_16'Result = Word16'Last),
+        Static  =>
           (for all I in 0 .. Count - 1 => Bit (Low_Mask_16'Result, I))
           and then
             (for all I in Count .. 15 => not Bit (Low_Mask_16'Result, I)));
@@ -535,7 +551,11 @@ is
    with
      Global => null,
      Post   =>
-       (Static =>
+       (Runtime =>
+          (if Count < 32
+           then Low_Mask_32'Result = 2 ** Count - 1
+           else Low_Mask_32'Result = Word32'Last),
+        Static  =>
           (for all I in 0 .. Count - 1 => Bit (Low_Mask_32'Result, I))
           and then
             (for all I in Count .. 31 => not Bit (Low_Mask_32'Result, I)));
@@ -544,21 +564,65 @@ is
    with
      Global => null,
      Post   =>
-       (Static =>
+       (Runtime =>
+          (if Count < 64
+           then Low_Mask_64'Result = 2 ** Count - 1
+           else Low_Mask_64'Result = Word64'Last),
+        Static  =>
           (for all I in 0 .. Count - 1 => Bit (Low_Mask_64'Result, I))
           and then
             (for all I in Count .. 63 => not Bit (Low_Mask_64'Result, I)));
 
+   --  A value that fits under a low mask has no bits above the mask. This is
+   --  the step from the arithmetic bound a client carries — the form a bound
+   --  is usually written and checked in — to the bit-wise fact the contracts
+   --  here are stated in, and it is the direction Extract does not give: that
+   --  one produces the bound from the bits, this one the bits from the bound.
+   procedure Lemma_Bound_Bits (Value : Byte; Count : Bit_Count_8)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Value <= Low_Mask_8 (Count),
+     Post   => (for all I in Count .. 7 => not Bit (Value, I));
+
+   procedure Lemma_Bound_Bits (Value : Word16; Count : Bit_Count_16)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Value <= Low_Mask_16 (Count),
+     Post   => (for all I in Count .. 15 => not Bit (Value, I));
+
+   procedure Lemma_Bound_Bits (Value : Word32; Count : Bit_Count_32)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Value <= Low_Mask_32 (Count),
+     Post   => (for all I in Count .. 31 => not Bit (Value, I));
+
+   procedure Lemma_Bound_Bits (Value : Word64; Count : Bit_Count_64)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Value <= Low_Mask_64 (Count),
+     Post   => (for all I in Count .. 63 => not Bit (Value, I));
+
    --  Count bits set, starting at Offset: the mask of one field. The bound is
    --  in subtraction form, so the sum Offset + Count is never formed where it
    --  could leave the width.
+   --
+   --  The value clause is the low mask moved up, which is what a client
+   --  comparing against a field in place needs. The multiplication is the one
+   --  the field itself fits in — Count bits at Offset stay inside the width —
+   --  except in the empty case Offset = width, where 2 ** Offset wraps to zero
+   --  and multiplies a mask that is zero anyway.
    function Field_Mask_8
      (Offset : Bit_Count_8; Count : Bit_Count_8) return Byte
    with
      Global => null,
      Pre    => Count <= 8 - Offset,
      Post   =>
-       (Static =>
+       (Runtime => Field_Mask_8'Result = Low_Mask_8 (Count) * 2 ** Offset,
+        Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Field_Mask_8'Result, I))
           and then
@@ -573,7 +637,8 @@ is
      Global => null,
      Pre    => Count <= 16 - Offset,
      Post   =>
-       (Static =>
+       (Runtime => Field_Mask_16'Result = Low_Mask_16 (Count) * 2 ** Offset,
+        Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Field_Mask_16'Result, I))
           and then
@@ -588,7 +653,8 @@ is
      Global => null,
      Pre    => Count <= 32 - Offset,
      Post   =>
-       (Static =>
+       (Runtime => Field_Mask_32'Result = Low_Mask_32 (Count) * 2 ** Offset,
+        Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Field_Mask_32'Result, I))
           and then
@@ -603,7 +669,8 @@ is
      Global => null,
      Pre    => Count <= 64 - Offset,
      Post   =>
-       (Static =>
+       (Runtime => Field_Mask_64'Result = Low_Mask_64 (Count) * 2 ** Offset,
+        Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Field_Mask_64'Result, I))
           and then
@@ -618,7 +685,9 @@ is
 
    --  The Count bits at Offset, moved down to bit zero. The Runtime clause is
    --  the fact the next operation usually needs — the result fits in Count
-   --  bits — and it is exactly the precondition of Insert.
+   --  bits — and it is exactly the precondition of Insert. Its right-hand side
+   --  is a mask, whose own contract gives the number that mask is, so the
+   --  bound is available as an arithmetic bound and not only as a mask.
    function Extract
      (Value : Byte; Offset : Bit_Count_8; Count : Bit_Count_8) return Byte
    with

@@ -17,8 +17,12 @@ project Ore is
       --  bit-level contract on a 64-bit word is a bit-vector problem with a
       --  variable shift amount, which the provers solve in seconds on their
       --  own and in tens of seconds when a whole run competes for the cores.
+      --  The margin over that is deliberate: at 60 seconds the field
+      --  operations on a 64-bit word were proved on their own and lost in a
+      --  whole-library run, which is a proof result that depends on the
+      --  machine it was obtained on.
       for Proof_Switches ("Ada") use
-        ("--mode=all", "--level=2", "--timeout=60");
+        ("--mode=all", "--level=2", "--timeout=180");
    end Prove;
 
 end Ore;

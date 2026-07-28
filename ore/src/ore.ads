@@ -11,6 +11,9 @@
 --                       subviews, checked multi-byte access, copies.
 --    Ore.Bits         — bit-level operations on the word types: shifts,
 --                       rotates, masks, fields, counts, byte order.
+--    Ore.Bit_Cursors  — bit-addressed access to a plain byte array: the bit
+--                       at a position, the field of N bits in either order,
+--                       and a cursor that takes and puts them.
 --
 --  DESIGN: no heap allocation, access-based design, tasking or direct OS
 --  services. Every operation is bounded and total on its precondition; nothing
@@ -48,10 +51,12 @@ is
    --  Which end of a multi-byte value a buffer stores first.
    type Byte_Order is (Little_Endian, Big_Endian);
 
-   --  Largest capacity a bounded container of this library accepts. The cap
-   --  is not a storage limit but an arithmetic one: it leaves room for bit
-   --  positions (8 * Length) to stay inside Natural, so the bit-addressed
-   --  layers can share these buffers without their own length ceiling.
+   --  Largest capacity a bounded container of this library accepts. The cap is
+   --  not a storage limit but an arithmetic one: it keeps the bit positions of
+   --  a container (8 * Length) inside Natural. It bounds the containers and
+   --  nothing else — an array a caller owns is not built here and can be
+   --  longer, so the bit-addressed layer imposes no ceiling of its own and
+   --  writes each of its bounds as a division rather than that product.
    Max_Capacity : constant := 2 ** 27;
 
 end Ore;
