@@ -58,8 +58,9 @@ justifications.
 | --- | --- |
 | `debug` (default) | `-gnata`: the executable contracts are checked |
 | `release` | `-O2`, no `-gnata`: the contracts have been proved instead |
+| `restrictions` | `debug` plus the checks of [`restrictions.adc`](restrictions.adc) |
 
-Ghost code is ignored in both modes; that comes from `gnat.adc`, not from the
+Ghost code is ignored in every mode; that comes from `gnat.adc`, not from the
 mode. A client selects a mode on the command line, which reaches `Ore_Lib`
 however deeply it is withed:
 
@@ -69,6 +70,27 @@ gprbuild -P my_app.gpr -XORE_BUILD_MODE=release
 
 A project file cannot set an external for a project it withs — only an
 aggregate project can, with `for External ("ORE_BUILD_MODE") use "release";`.
+
+### Checking the no-heap, no-access-types, no-tasking, no-OS, no-exceptions promise
+
+```sh
+gprbuild -P ore_lib.gpr -XORE_BUILD_MODE=restrictions
+```
+
+This compiles the library under the `pragma Restrictions` of
+`restrictions.adc`, into its own object and library directories so that it
+never replaces a build that was proved or installed. The restrictions are kept
+out of the shipped configuration on purpose: most of them are partition-wide,
+recorded in the ALI files and checked by the binder, so a library compiled with
+them would force every client to obey them too. Keeping them to a build mode
+checks the promise without exporting the obligation.
+
+Two of the five claims are only partly enforceable this way. "No access types"
+has no restriction identifier — the language does not let a restriction forbid
+declaring one — so what is checked is that nothing is allocated, aliased or
+reached through a subprogram pointer. "No OS" is checked as `No_Dependence` on
+the runtime units that would signal one; the library in fact has no context
+clauses at all.
 
 ## Using Ore from another project
 

@@ -2,21 +2,44 @@ library project Ore_Lib is
 
    --  "debug" keeps the executable contracts of the library; "release" drops
    --  them, on the grounds that they have been proved.  Ghost code is ignored
-   --  in both modes, see gnat.adc.
-   type Build_Mode_Type is ("debug", "release");
+   --  in both modes, see gnat.adc.  "restrictions" is not a mode to ship: it
+   --  is a debug build that additionally checks the library against the
+   --  no-heap, no-access-types, no-tasking, no-OS, no-exceptions promise, see
+   --  restrictions.adc.
+   type Build_Mode_Type is ("debug", "release", "restrictions");
    Build_Mode : Build_Mode_Type := external ("ORE_BUILD_MODE", "debug");
 
    Mode_Switches := ();
+   Obj_Dir       := "obj/lib";
+   Lib_Dir       := "lib";
    case Build_Mode is
-      when "debug"   => Mode_Switches := ("-gnata");
-      when "release" => Mode_Switches := ("-O2");
+      when "debug"        => Mode_Switches := ("-gnata");
+      when "release"      => Mode_Switches := ("-O2");
+      when "restrictions" =>
+         Mode_Switches := ("-gnata");
+         --  Own directories, so that checking the promise never replaces the
+         --  artifacts that were built, proved and installed.
+         Obj_Dir := "obj/lib-restrictions";
+         Lib_Dir := "lib-restrictions";
    end case;
 
    for Library_Name use "ore";
    for Library_Kind use "static";
    for Source_Dirs use ("src");
-   for Object_Dir use "obj/lib";
-   for Library_Dir use "lib";
+   for Object_Dir use Obj_Dir;
+   for Library_Dir use Lib_Dir;
+
+   --  The restrictions come in on top of gnat.adc rather than replacing it,
+   --  and as a Builder attribute, which is honoured only when this project is
+   --  the root one -- a client that withs the library never inherits them.
+   package Builder is
+      case Build_Mode is
+         when "restrictions" =>
+            for Global_Configuration_Pragmas use "restrictions.adc";
+         when others =>
+            null;
+      end case;
+   end Builder;
 
    package Compiler is
       for Default_Switches ("Ada") use
