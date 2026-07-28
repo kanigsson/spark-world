@@ -13,6 +13,13 @@ The assurance level of a unit is computed from the checks, not declared, up to
 gold. Platinum cannot be computed -- it is a claim about the specification
 being complete, not about the checks passing -- so it is declared in
 proof_levels.json and accepted only for a unit that already reaches gold.
+
+An entity whose body GNATprove never sees -- an imported machine intrinsic --
+counts as outside SPARK and so drags the computed level down to stone, while
+none of its checks can fail because it has none. A declaration may vouch for
+that gap, and only for that gap: a declared level is refused unless the
+checks of the unit support it once entity coverage is set aside. What a
+declaration can never do is cover an unproved check.
 """
 
 import argparse
@@ -153,12 +160,13 @@ class Unit:
                    if category in categories)
 
     @property
-    def attained_level(self):
-        """The highest level the checks support. Platinum is never attained
-        by computation; it is a claim about the specification."""
+    def check_level(self):
+        """The highest level the checks support, setting entity coverage
+        aside. Platinum is never attained by computation; it is a claim about
+        the specification."""
         if self.unknown_rules:
             return "not analyzed"
-        if not self.analyzed or self.in_spark < self.entities:
+        if not self.analyzed:
             return "stone"
         if self.unproved_in(FLOW_CATEGORIES):
             return "stone"
@@ -167,6 +175,14 @@ class Unit:
         if self.unproved_in(FUNCTIONAL_CATEGORIES):
             return "silver"
         return "gold"
+
+    @property
+    def attained_level(self):
+        """The highest level this unit reaches on its own: the checks, and
+        every entity analyzed."""
+        if self.in_spark < self.entities and self.check_level != "not analyzed":
+            return "stone"
+        return self.check_level
 
     @property
     def has_checks(self):
@@ -204,7 +220,10 @@ def render(units, declarations):
         "no run-time errors is silver, contracts proved as well is gold. Platinum",
         "says the specification is complete, which no tool can decide, so it is",
         "declared in [`proof_levels.json`](proof_levels.json) and accepted only",
-        "for a unit that already reaches gold.",
+        "for a unit that already reaches gold. A declaration is also what",
+        "accounts for an entity GNATprove never sees a body of — an imported",
+        "machine intrinsic — which has no checks to fail but is not counted in",
+        "the SPARK column either.",
         "",
         "| Unit | SPARK | Level | Proved | Checks |",
         "| --- | --- | --- | --- | --- |",
@@ -244,7 +263,8 @@ def render(units, declarations):
 
 def check_declarations(units, declarations):
     """A declared level may not exceed what the checks support, except that
-    platinum is allowed on top of gold."""
+    platinum is allowed on top of gold. Entity coverage is set aside here:
+    that is the one gap a declaration is allowed to vouch for."""
     errors = []
     by_name = {unit.name: unit for unit in units}
     for name, declaration in declarations.items():
@@ -258,7 +278,7 @@ def check_declarations(units, declarations):
         if declared not in LEVELS:
             errors.append(f"{name}: unknown level {declared!r}")
             continue
-        attained = unit.attained_level
+        attained = unit.check_level
         if declared == "platinum":
             if attained != "gold":
                 errors.append(f"{name}: platinum declared but the checks only "

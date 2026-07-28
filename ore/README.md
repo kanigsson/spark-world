@@ -7,7 +7,7 @@ In an assertion-enabled build, violating a precondition can still raise
 `Assertion_Error`; that is a debugging check, not an operation's way of
 reporting an expected full or empty buffer.
 
-The current version is `0.1.0`. Releases follow
+The current version is `0.2.0`. Releases follow
 [Semantic Versioning](https://semver.org/); see [`VERSION`](VERSION) and
 [`CHANGELOG.md`](CHANGELOG.md). The planned scope is listed in
 [`ROADMAP.md`](ROADMAP.md).
@@ -16,9 +16,10 @@ The current version is `0.1.0`. Releases follow
 
 The library is a hierarchy rooted at `Ore`, which holds the physical types its
 children share: `Byte`, `Word16/32/64`, the unconstrained `Byte_Array`,
-`Byte_Order`, and the capacity ceiling. Each child package adds one bounded,
-self-contained abstraction; 0.1.0 provides `Ore.Byte_Buffers`. See
-[`ROADMAP.md`](ROADMAP.md) for what is planned.
+`Byte_Order`, and the capacity ceiling. Each child package adds one
+self-contained layer: `Ore.Byte_Buffers`, bounded byte buffers with
+produce/consume cursors, and `Ore.Bits`, the bit-level operations on the word
+types. See [`ROADMAP.md`](ROADMAP.md) for what is planned.
 
 Each package, in addition to the spec and implementation of a primitive and its
 operations, also contains predicates and lemmas intended to help client code
@@ -27,13 +28,14 @@ that these predicates and lemmas are usable from outside.
 
 Two conventions hold throughout.
 
-Contracts state facts element by element rather than as slice equalities or
-over a sequence model. Element-wise is the form a client's own checks need them
-in: nothing has to bridge a slice equality to the byte it is about, and no
-functional-sequence model sits in between — which would in any case be
-unbounded and pointer-based. What that costs is that the steps such a model
-would give for free, transitivity and carrying a fact across a later write, have
-to be supplied explicitly; the lemmas in each package are those steps.
+Contracts state facts element by element — bit by bit, where the subject is a
+word — rather than as slice equalities or over a sequence model. Element-wise
+is the form a client's own checks need them in: nothing has to bridge a slice
+equality to the byte it is about, and no functional-sequence model sits in
+between — which would in any case be unbounded and pointer-based. What that
+costs is that the steps such a model would give for free, transitivity and
+carrying a fact across a later write, have to be supplied explicitly; the
+lemmas in each package are those steps.
 
 A contract that is checked at run time must not be asymptotically more
 expensive than the operation it describes. Postconditions are therefore split
@@ -42,7 +44,11 @@ clauses, while anything quantified over a buffer — and every `'Old` that would
 copy one — is a `Static` clause and is never executed. So an assertion-enabled
 build checks that an append moved the cursors, but appending in a loop stays
 linear. Where the operation is itself linear, as for `Slice`, the quantified
-postcondition does run.
+postcondition does run. A postcondition quantified over the bits of a word is
+constant-cost and so passes that rule by the letter, but it is still tens of
+operations to describe a single machine instruction; those are `Static`
+clauses too, and what an assertion-enabled build checks of a shift or a bit
+count is the cheap scalar fact beside it.
 
 ## Building and proving
 
@@ -57,6 +63,7 @@ Run the tests, which execute with contracts enabled:
 ```sh
 gprbuild -P tests/runtime/runtime_tests.gpr
 ./obj/runtime_tests/byte_buffer_tests
+./obj/runtime_tests/bit_tests
 gprbuild -P tests/restrictions/restriction_smoke.gpr \
     -XORE_BUILD_MODE=restrictions
 ./obj/restriction_smoke/restriction_smoke
@@ -65,9 +72,11 @@ gprbuild -P tests/restrictions/restriction_smoke.gpr \
 `ore_lib.gpr` is the production project; `ore.gpr` adds the proof clients under
 `tests/proof`, which must prove without reaching inside the library.
 
-Everything in 0.1.0 is proved at `--level=2` with no unproved checks and no
-justifications. [`PROOF_STATUS.md`](PROOF_STATUS.md) carries the per-unit
-figures; regenerate it after a proof run with
+Everything in 0.2.0 is proved at `--level=2` with no unproved checks and no
+justifications. The one thing GNATprove is not shown a body of is the shift
+and rotate intrinsics `Ore.Bits` imports, which it models natively.
+[`PROOF_STATUS.md`](PROOF_STATUS.md) carries the per-unit figures; regenerate
+it after a proof run with
 
 ```sh
 tools/proof_status.py           # or --check, to fail if it is out of date

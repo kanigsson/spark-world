@@ -5,6 +5,36 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-28
+
+### Added
+
+- `Ore.Bits`: bit-level operations on `Byte`, `Word16`, `Word32` and `Word64`,
+  with contracts stated bit by bit through the `Bit` accessor.
+  - `Intrinsics`: the machine shift and rotate instructions, unconstrained in
+    their amount, which GNATprove translates to bit-vector operations.
+  - Checked shifts and rotates: `Shift_Left`, `Shift_Right`, `Rotate_Left`,
+    `Rotate_Right`, with the amount bounded by the width of the type.
+  - Masks: `Low_Mask_8/16/32/64` and `Field_Mask_8/16/32/64`, including the
+    full-width mask that `2 ** Count - 1` cannot form.
+  - Bit fields: `Extract` and `Insert`, the latter with the frame condition
+    that no bit outside the field moved.
+  - Counting: `Population_Count`, `Leading_Zeroes`, `Trailing_Zeroes`, and the
+    ghost recurrence `Count_Bits` they are specified against.
+  - Byte order within a word: `Byte_At` in either order, and `Byte_Swap`.
+  - Explicit width changes: `Truncate_To_Byte/Word16/Word32` and
+    `Extend_To_Word16/Word32/Word64`.
+  - Lemmas: `Lemma_Bits_Equal` and `Lemma_Bytes_Equal`, from agreement bit by
+    bit or byte by byte to equality of the values; `Lemma_And/Or/Xor/Not_Bits`
+    for the bitwise operators; `Lemma_Insert_Frame`, that inserting one field
+    leaves a disjoint one alone; `Lemma_Byte_Swap_Involutive`.
+- A proof client under `tests/proof` for the packed-header round trip and the
+  significant-bit width of a value.
+- Runtime tests for `Ore.Bits` under `tests/runtime`.
+- A bindable restrictions smoke test that checks a complete partition.
+- Exhaustive small-capacity and back-reference runtime cases, plus endian stores
+  at both legal array boundaries.
+
 ### Changed
 
 - Clarified that the exception-free design excludes application-level
@@ -12,12 +42,6 @@ follow [Semantic Versioning](https://semver.org/).
   builds can still raise `Assertion_Error` for contract violations.
 - Strengthened the external `Drain` proof client to prove the content and order
   of transferred bytes as well as cursor progress.
-
-### Added
-
-- A bindable restrictions smoke test that checks a complete partition.
-- Exhaustive small-capacity and back-reference runtime cases, plus endian stores
-  at both legal array boundaries.
 
 ## [0.1.0] - 2026-07-27
 

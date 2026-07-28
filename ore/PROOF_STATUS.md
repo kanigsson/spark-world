@@ -8,11 +8,15 @@ The level of a unit is computed from the checks — flow clean is bronze,
 no run-time errors is silver, contracts proved as well is gold. Platinum
 says the specification is complete, which no tool can decide, so it is
 declared in [`proof_levels.json`](proof_levels.json) and accepted only
-for a unit that already reaches gold.
+for a unit that already reaches gold. A declaration is also what
+accounts for an entity GNATprove never sees a body of — an imported
+machine intrinsic — which has no checks to fail but is not counted in
+the SPARK column either.
 
 | Unit | SPARK | Level | Proved | Checks |
 | --- | --- | --- | --- | --- |
+| `Ore.Bits` | 86% (102/118 entities) | gold | `██████████` 100% | 779/779 checks — the 16 entities outside SPARK are the shift and rotate intrinsics, which have no body for GNATprove to analyse and are modelled natively by it |
 | `Ore.Byte_Buffers` | 100% (63/63 entities) | gold | `██████████` 100% | 813/813 checks |
 | `Ore` | 100% (1/1 entities) | — | — | physical types only; no subprograms, so nothing to prove |
 
-Total: 813 of 813 checks proved.
+Total: 1592 of 1592 checks proved.

@@ -39,19 +39,6 @@ particular release.
 * Count
 * All/any
 
-## Bit and endian utilities
-
-* Rotate left/right
-* Extract and insert bit fields
-* Safe masks
-* Count leading/trailing zeroes
-* Population count
-* Byte swap
-* Endian load/store
-* Checked shifts
-* Explicit truncation and extension
-* Conversion between byte arrays and modular integers
-
 ## Bit-addressed buffers
 
 * Read/write bit cursors, LSB-first and MSB-first

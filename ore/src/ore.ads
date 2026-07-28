@@ -9,6 +9,8 @@
 --
 --    Ore.Byte_Buffers — bounded byte buffers: produce/consume cursors,
 --                       subviews, checked multi-byte access, copies.
+--    Ore.Bits         — bit-level operations on the word types: shifts,
+--                       rotates, masks, fields, counts, byte order.
 --
 --  DESIGN: no heap allocation, access-based design, tasking or direct OS
 --  services. Every operation is bounded and total on its precondition; nothing
@@ -19,10 +21,11 @@
 --
 --  The word types are declared here rather than taken from Interfaces so that
 --  a client writing `use Ore;` gets their operators, and so that the sources
---  need no context clause. Multi-byte values are decomposed with
---  multiplication and division by powers of two rather than with shift
---  intrinsics. Converting to or from Interfaces types is a plain modular
---  conversion where a client needs it.
+--  need no context clause. Converting to or from Interfaces types is a plain
+--  modular conversion where a client needs it. The endian layer decomposes
+--  multi-byte values with multiplication and division by powers of two; the
+--  shift and rotate instructions themselves are in Ore.Bits, which is where
+--  contracts are stated bit by bit and need them.
 
 package Ore
   with Pure, SPARK_Mode => On

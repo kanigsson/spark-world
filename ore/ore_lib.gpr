@@ -57,8 +57,12 @@ library project Ore_Lib is
 
    package Prove is
       for Proof_Dir use "proof/lib";
+      --  The timeout is set by the hardest goals in the library: a
+      --  bit-level contract on a 64-bit word is a bit-vector problem with a
+      --  variable shift amount, which the provers solve in seconds on their
+      --  own and in tens of seconds when a whole run competes for the cores.
       for Proof_Switches ("Ada") use
-        ("--mode=all", "--level=2", "--timeout=30");
+        ("--mode=all", "--level=2", "--timeout=60");
    end Prove;
 
 end Ore_Lib;
