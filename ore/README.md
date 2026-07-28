@@ -16,18 +16,29 @@ children share: `Byte`, `Word16/32/64`, the unconstrained `Byte_Array`,
 self-contained abstraction; 0.1.0 provides `Ore.Byte_Buffers`. See
 [`ROADMAP.md`](ROADMAP.md) for what is planned.
 
-What a package exports is not only an implementation but the proof vocabulary
-for reasoning about it — the predicates and lemmas a client would otherwise
-have to re-derive in order to say what an operation preserved, what a value
-reads back as, or why a loop terminates in the state it claims. The proof
-clients under `tests/proof` exist to check that this vocabulary is usable from
-outside.
+Each package, in addition to the spec and implementation of a primitive and its
+operations, also contains predicates and lemmas intended to help client code
+prove their own checks. The proof clients under `tests/proof` exist to check
+that these predicates and lemmas are usable from outside.
 
-Two conventions hold throughout. Contracts are element-wise rather than slice-
-or sequence-valued, because that is what provers handle at scale. And all ghost
-entities sit at the `Static` assertion level, so an assertion-enabled build pays
-only for the cheap `Runtime` clauses and never copies a data structure to
-evaluate a `'Old`.
+Two conventions hold throughout.
+
+Contracts state facts element by element rather than as slice equalities or
+over a sequence model. Element-wise is the form a client's own checks need them
+in: nothing has to bridge a slice equality to the byte it is about, and no
+functional-sequence model sits in between — which would in any case be
+unbounded and pointer-based. What that costs is that the steps such a model
+would give for free, transitivity and carrying a fact across a later write, have
+to be supplied explicitly; the lemmas in each package are those steps.
+
+A contract that is checked at run time must not be asymptotically more
+expensive than the operation it describes. Postconditions are therefore split
+by assertion level: cursor arithmetic and single elements are `Runtime`
+clauses, while anything quantified over a buffer — and every `'Old` that would
+copy one — is a `Static` clause and is never executed. So an assertion-enabled
+build checks that an append moved the cursors, but appending in a loop stays
+linear. Where the operation is itself linear, as for `Slice`, the quantified
+postcondition does run.
 
 ## Building and proving
 
