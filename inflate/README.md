@@ -23,8 +23,9 @@ untrusted input without dynamic allocation. There is no heap, no access
 type, no OS dependency, and no package state in the library. Its one
 dependency is [Ore](../../ore), a SPARK library of proved bounded building
 blocks, which supplies the physical byte and word types, the byte array
-every layer is written against, and the checked little- and big-endian
-field access the three container formats parse their headers with. The shipping
+every layer is written against, the checked little- and big-endian field
+access the three container formats parse their headers with, and the bit
+layer the encoders' stream model and single-bit writes are stated through. The shipping
 decoder and the ordinary full-model validation path are iterative; recursive
 stored-fragment relations remain in the proof layer. Project debug builds keep
 ordinary language run-time checks but disable execution of proof contracts via
@@ -36,7 +37,7 @@ handled by raising an exception.
 
 | Package           | Contents |
 |-------------------|----------|
-| `Inflate`         | `Byte_Array` and the word types (Ore's, renamed), the word shifts, the `Status_Type` all layers report through |
+| `Inflate`         | `Byte_Array` and the word types (Ore's, renamed), `Ore.Bits` under a short name, the `Status_Type` all layers report through |
 | `Inflate.Raw`     | DEFLATE (RFC 1951): stored/fixed/dynamic blocks, canonical Huffman decoding; `Compress_Stored` |
 | `Inflate.LZ77`    | proved DEFLATE back-reference copying, including overlapping matches |
 | `Inflate.Fixed`   | fixed-Huffman literal/match encoder, iterative analyzer, and executable relation |
@@ -156,7 +157,7 @@ independently decodes every produced member back to the original bytes.
 
 ## Proof Status
 
-The most recent recorded `gnatprove --level=4` run reported **7,837 checks,
+The most recent recorded `gnatprove --level=4` run reported **7,833 checks,
 all proved, no justifications, no assumptions** (Ore is proved separately;
 `--no-subprojects` skips it). This covers run-time
 checks such as overflow, index, range, and division checks, plus
@@ -335,14 +336,19 @@ registers and uses fused tables for length, distance, and extra bits.
 gprbuild -P inflate.gpr                  # release: -O2
 gprbuild -P inflate_cli.gpr              # builds bin/inflate
 gprbuild -P inflate.gpr -XMODE=debug     # language checks on; contracts off
-gnatprove -P inflate.gpr -j0 --no-subprojects   # reproduce the proof
+gnatprove -P inflate.gpr -j16 --no-subprojects  # reproduce the proof
 cd tests && gprbuild -P tests.gpr -XMODE=debug && python3 run_tests.py
 cd bench && gprbuild -P bench.gpr && python3 run_bench.py   # needs libz.a
 ```
 
-The proof switches, including the larger prover budget `Inflate.Dynamic`
-needs for one loop invariant, are in `inflate.gpr`; `--no-subprojects`
-leaves Ore to its own proof run.
+The proof switches are in `inflate.gpr` and `--no-subprojects` leaves Ore
+to its own proof run. Bound the parallelism rather than passing `-j0`: the
+memory limit applies per prover process, so the default 2 GB times one job
+per core is more than a 32-core machine has, and the hardest checks here —
+the `Spec_Walk` loop invariants in `Inflate.Dynamic` — are exactly the ones
+that reach it. `-j16` peaks around 11 GB of provers and needs no raised
+timeout; starving those checks of their default 60 seconds is what makes
+them look unprovable.
 
 ## Command line
 

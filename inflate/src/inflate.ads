@@ -30,6 +30,7 @@
 --  type and no conversion is ever needed at the boundary.
 
 with Ore;
+with Ore.Bits;
 
 package Inflate with Pure, SPARK_Mode => On is
 
@@ -53,22 +54,23 @@ package Inflate with Pure, SPARK_Mode => On is
 
    subtype Byte_Array is Ore.Byte_Array;
 
-   --  Bit shifts on the word types. DEFLATE is a bit-oriented format and
-   --  the checksums are polynomial divisions, so the decoders need them
-   --  throughout; Ore has no bit layer yet, and these are the intrinsics
-   --  Interfaces would supply for its own types. GNATprove translates them
-   --  to bit-vector operations exactly as it does the Interfaces ones.
-   function Shift_Left (Value : Byte; Amount : Natural) return Byte
-   with Import, Convention => Intrinsic, Global => null;
+   --  Ore.Bits under a short name, for the children that reach into it by
+   --  qualified reference: the bit accessor the encoders' models are stated
+   --  with, single-bit insertion, and explicit narrowing.
+   package Bits renames Ore.Bits;
 
-   function Shift_Right (Value : Byte; Amount : Natural) return Byte
-   with Import, Convention => Intrinsic, Global => null;
-
-   function Shift_Left (Value : Word32; Amount : Natural) return Word32
-   with Import, Convention => Intrinsic, Global => null;
-
-   function Shift_Right (Value : Word32; Amount : Natural) return Word32
-   with Import, Convention => Intrinsic, Global => null;
+   --  DEFLATE is a bit-oriented format and the checksums are polynomial
+   --  divisions, so shifts appear throughout. These are Ore's machine
+   --  intrinsics rather than its checked shifts: the checked forms are
+   --  specified bit by bit, whereas the bit reader and both checksums
+   --  reason about the *value* a shift produces, which is what GNATprove
+   --  gets from the intrinsic directly. The shifts are for the children, not
+   --  for this spec, which is what the warning is about.
+   pragma Warnings
+     (Off, "use clause for package ""Intrinsics"" has no effect");
+   use Ore.Bits.Intrinsics;
+   pragma Warnings
+     (On, "use clause for package ""Intrinsics"" has no effect");
 
    --  Every way a decode can end. OK means the stream was well-formed and
    --  the output (and, for the containers, its checksum) is complete;

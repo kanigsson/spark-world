@@ -68,16 +68,12 @@ package body Inflate.Payload with SPARK_Mode => On is
                  then Fixed.Bit_Value (Output, P) =
                         Fixed.Bit_Value (Output'Old, P)))
    is
-      Offset : constant Natural := Position / 8;
-      Shift  : constant Natural := Position mod 8;
-      Mask   : constant Byte := Shift_Left (Byte (1), Shift);
-      P      : constant Buffer_Index := Output'First + Offset;
+      Offset : constant Bits.Bit_Index_8 := Position mod 8;
+      P      : constant Buffer_Index := Output'First + Position / 8;
    begin
-      if Value = 0 then
-         Output (P) := Output (P) and not Mask;
-      else
-         Output (P) := Output (P) or Mask;
-      end if;
+      --  One-bit field insertion, which carries its own frame condition:
+      --  no other bit of the byte moved, and no other byte was touched.
+      Output (P) := Bits.Insert (Output (P), Byte (Value), Offset, 1);
    end Set_Stream_Bit;
 
    procedure Write_Code

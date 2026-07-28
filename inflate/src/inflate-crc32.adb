@@ -84,7 +84,7 @@ package body Inflate.CRC32 with SPARK_Mode => On is
    --  One optimized table step.  Its contract is the bridge from the cached
    --  implementation to the direct polynomial-division specification.
    function Step (C : Word32; B : Byte) return Word32 is
-     (Table (Byte (C and 16#FF#) xor B) xor Shift_Right (C, 8))
+     (Table (Bits.Truncate_To_Byte (C) xor B) xor Shift_Right (C, 8))
    with
      Global => null,
      Post   => Step'Result = Polynomial_Byte_Step (C, B);

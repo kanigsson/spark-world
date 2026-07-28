@@ -43,13 +43,6 @@ library project Inflate is
 
    package Prove is
       for Proof_Switches ("Ada") use ("--level=4", "--report=statistics");
-
-      --  The Decompress loop invariant that carries the remaining decoded
-      --  length through Spec_Walk is the one check in the library that does
-      --  not fit the resources --level=4 allows a prover. Give that unit its
-      --  own budget rather than raising it everywhere.
-      for Proof_Switches ("inflate-dynamic.adb") use
-        ("--timeout=600", "--memlimit=0");
    end Prove;
 
 end Inflate;
