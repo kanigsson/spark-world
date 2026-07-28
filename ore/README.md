@@ -59,7 +59,12 @@ gprbuild -P tests/runtime/runtime_tests.gpr
 `tests/proof`, which must prove without reaching inside the library.
 
 Everything in 0.1.0 is proved at `--level=2` with no unproved checks and no
-justifications.
+justifications. [`PROOF_STATUS.md`](PROOF_STATUS.md) carries the per-unit
+figures; regenerate it after a proof run with
+
+```sh
+tools/proof_status.py           # or --check, to fail if it is out of date
+```
 
 ## Build modes
 

@@ -1,0 +1,8 @@
+{
+  "Ore.Byte_Buffers": {
+    "level": "gold"
+  },
+  "Ore": {
+    "note": "physical types only; no subprograms, so nothing to prove"
+  }
+}
