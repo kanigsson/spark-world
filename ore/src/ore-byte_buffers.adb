@@ -1,13 +1,14 @@
-package body Ore.Byte_Buffers with SPARK_Mode => On is
+package body Ore.Byte_Buffers
+  with SPARK_Mode => On
+is
 
    --  The loop invariants and assertions below quantify over the produced
    --  bytes. Evaluating them once per appended byte would make an
    --  assertion-enabled build quadratic in buffer length, so they are
    --  proof-only; GNATprove verifies Ignore-policy assertions normally.
-   pragma Assertion_Policy
-     (Assert         => Ignore,
-      Loop_Invariant => Ignore,
-      Ghost          => Ignore);
+   pragma
+     Assertion_Policy
+       (Assert => Ignore, Loop_Invariant => Ignore, Ghost => Ignore);
 
    ---------------------------------------------------------------------------
    --  Plain byte arrays
@@ -16,46 +17,39 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    procedure Lemma_Equal_Ranges_Trans
      (Left, Middle, Right                : Byte_Array;
       From_Left, From_Middle, From_Right : Index;
-      Count                              : Natural)
-   is
+      Count                              : Natural) is
    begin
       null;
    end Lemma_Equal_Ranges_Trans;
 
    procedure Store_16
-     (A     : in out Byte_Array;
-      From  : Index;
-      Value : Word16;
-      Order : Byte_Order)
+     (A : in out Byte_Array; From : Index; Value : Word16; Order : Byte_Order)
    is
    begin
       case Order is
          when Little_Endian =>
-            A (From)     := Byte (Value mod 2 ** 8);
+            A (From) := Byte (Value mod 2 ** 8);
             A (From + 1) := Byte (Value / 2 ** 8);
 
-         when Big_Endian =>
-            A (From)     := Byte (Value / 2 ** 8);
+         when Big_Endian    =>
+            A (From) := Byte (Value / 2 ** 8);
             A (From + 1) := Byte (Value mod 2 ** 8);
       end case;
    end Store_16;
 
    procedure Store_32
-     (A     : in out Byte_Array;
-      From  : Index;
-      Value : Word32;
-      Order : Byte_Order)
+     (A : in out Byte_Array; From : Index; Value : Word32; Order : Byte_Order)
    is
    begin
       case Order is
          when Little_Endian =>
-            A (From)     := Byte (Value mod 2 ** 8);
+            A (From) := Byte (Value mod 2 ** 8);
             A (From + 1) := Byte (Value / 2 ** 8 mod 2 ** 8);
             A (From + 2) := Byte (Value / 2 ** 16 mod 2 ** 8);
             A (From + 3) := Byte (Value / 2 ** 24);
 
-         when Big_Endian =>
-            A (From)     := Byte (Value / 2 ** 24);
+         when Big_Endian    =>
+            A (From) := Byte (Value / 2 ** 24);
             A (From + 1) := Byte (Value / 2 ** 16 mod 2 ** 8);
             A (From + 2) := Byte (Value / 2 ** 8 mod 2 ** 8);
             A (From + 3) := Byte (Value mod 2 ** 8);
@@ -63,15 +57,12 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    end Store_32;
 
    procedure Store_64
-     (A     : in out Byte_Array;
-      From  : Index;
-      Value : Word64;
-      Order : Byte_Order)
+     (A : in out Byte_Array; From : Index; Value : Word64; Order : Byte_Order)
    is
    begin
       case Order is
          when Little_Endian =>
-            A (From)     := Byte (Value mod 2 ** 8);
+            A (From) := Byte (Value mod 2 ** 8);
             A (From + 1) := Byte (Value / 2 ** 8 mod 2 ** 8);
             A (From + 2) := Byte (Value / 2 ** 16 mod 2 ** 8);
             A (From + 3) := Byte (Value / 2 ** 24 mod 2 ** 8);
@@ -80,8 +71,8 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
             A (From + 6) := Byte (Value / 2 ** 48 mod 2 ** 8);
             A (From + 7) := Byte (Value / 2 ** 56);
 
-         when Big_Endian =>
-            A (From)     := Byte (Value / 2 ** 56);
+         when Big_Endian    =>
+            A (From) := Byte (Value / 2 ** 56);
             A (From + 1) := Byte (Value / 2 ** 48 mod 2 ** 8);
             A (From + 2) := Byte (Value / 2 ** 40 mod 2 ** 8);
             A (From + 3) := Byte (Value / 2 ** 32 mod 2 ** 8);
@@ -95,8 +86,7 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    procedure Lemma_Load_16_Frame
      (Left, Right           : Byte_Array;
       From_Left, From_Right : Index;
-      Order                 : Byte_Order)
-   is
+      Order                 : Byte_Order) is
    begin
       null;
    end Lemma_Load_16_Frame;
@@ -104,8 +94,7 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    procedure Lemma_Load_32_Frame
      (Left, Right           : Byte_Array;
       From_Left, From_Right : Index;
-      Order                 : Byte_Order)
-   is
+      Order                 : Byte_Order) is
    begin
       null;
    end Lemma_Load_32_Frame;
@@ -113,8 +102,7 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    procedure Lemma_Load_64_Frame
      (Left, Right           : Byte_Array;
       From_Left, From_Right : Index;
-      Order                 : Byte_Order)
-   is
+      Order                 : Byte_Order) is
    begin
       null;
    end Lemma_Load_64_Frame;
@@ -147,11 +135,13 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
          B.Data (Base + 1 + K) := Bytes (Bytes'First + K);
 
          pragma Loop_Invariant (B.Written = Base);
-         pragma Loop_Invariant
-           (for all J in 1 .. Base => B.Data (J) = B.Data'Loop_Entry (J));
-         pragma Loop_Invariant
-           (for all J in 0 .. K =>
-              B.Data (Base + 1 + J) = Bytes (Bytes'First + J));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. Base => B.Data (J) = B.Data'Loop_Entry (J));
+         pragma
+           Loop_Invariant
+             (for all J in 0 .. K =>
+                B.Data (Base + 1 + J) = Bytes (Bytes'First + J));
       end loop;
 
       B.Written := Base + Bytes'Length;
@@ -167,8 +157,7 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
       B.Written := Base + Count;
    end Append_Fill;
 
-   procedure Append_16
-     (B : in out Buffer; Value : Word16; Order : Byte_Order)
+   procedure Append_16 (B : in out Buffer; Value : Word16; Order : Byte_Order)
    is
       Base : constant Natural := B.Written;
    begin
@@ -176,8 +165,7 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
       B.Written := Base + 2;
    end Append_16;
 
-   procedure Append_32
-     (B : in out Buffer; Value : Word32; Order : Byte_Order)
+   procedure Append_32 (B : in out Buffer; Value : Word32; Order : Byte_Order)
    is
       Base : constant Natural := B.Written;
    begin
@@ -185,8 +173,7 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
       B.Written := Base + 4;
    end Append_32;
 
-   procedure Append_64
-     (B : in out Buffer; Value : Word64; Order : Byte_Order)
+   procedure Append_64 (B : in out Buffer; Value : Word64; Order : Byte_Order)
    is
       Base : constant Natural := B.Written;
    begin
@@ -194,10 +181,7 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
       B.Written := Base + 8;
    end Append_64;
 
-   procedure Put
-     (B      : in out Buffer;
-      Bytes  : Byte_Array;
-      Result :    out Transfer)
+   procedure Put (B : in out Buffer; Bytes : Byte_Array; Result : out Transfer)
    is
       Count : constant Natural :=
         Natural'Min (Bytes'Length, B.Capacity - B.Written);
@@ -210,8 +194,8 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    --  Consuming
    ---------------------------------------------------------------------------
 
-   function Peek (B : Buffer; Offset : Natural := 0) return Byte is
-     (B.Data (B.Read_Consumed + 1 + Offset));
+   function Peek (B : Buffer; Offset : Natural := 0) return Byte
+   is (B.Data (B.Read_Consumed + 1 + Offset));
 
    procedure Consume (B : in out Buffer; Count : Natural) is
    begin
@@ -261,9 +245,7 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    end Read_64;
 
    procedure Get
-     (B      : in out Buffer;
-      Into   : in out Byte_Array;
-      Result :    out Transfer)
+     (B : in out Buffer; Into : in out Byte_Array; Result : out Transfer)
    is
       Base  : constant Natural := B.Read_Consumed;
       Count : constant Natural :=
@@ -272,12 +254,14 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
       for K in 0 .. Count - 1 loop
          Into (Into'First + K) := B.Data (Base + 1 + K);
 
-         pragma Loop_Invariant
-           (for all J in 0 .. K =>
-              Into (Into'First + J) = B.Data (Base + 1 + J));
-         pragma Loop_Invariant
-           (for all J in K + 1 .. Into'Length - 1 =>
-              Into (Into'First + J) = Into'Loop_Entry (Into'First + J));
+         pragma
+           Loop_Invariant
+             (for all J in 0 .. K =>
+                Into (Into'First + J) = B.Data (Base + 1 + J));
+         pragma
+           Loop_Invariant
+             (for all J in K + 1 .. Into'Length - 1 =>
+                Into (Into'First + J) = Into'Loop_Entry (Into'First + J));
       end loop;
 
       B.Read_Consumed := Base + Count;
@@ -285,26 +269,28 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    end Get;
 
    procedure Move
-     (Source : in out Buffer;
-      Target : in out Buffer;
-      Result :    out Transfer)
+     (Source : in out Buffer; Target : in out Buffer; Result : out Transfer)
    is
       From_Base : constant Natural := Source.Read_Consumed;
       To_Base   : constant Natural := Target.Written;
       Count     : constant Natural :=
-        Natural'Min (Source.Written - Source.Read_Consumed,
-                     Target.Capacity - Target.Written);
+        Natural'Min
+          (Source.Written - Source.Read_Consumed,
+           Target.Capacity - Target.Written);
    begin
       for K in 0 .. Count - 1 loop
          Target.Data (To_Base + 1 + K) := Source.Data (From_Base + 1 + K);
 
          pragma Loop_Invariant (Target.Written = To_Base);
-         pragma Loop_Invariant
-           (for all J in 1 .. To_Base =>
-              Target.Data (J) = Target.Data'Loop_Entry (J));
-         pragma Loop_Invariant
-           (for all J in 0 .. K =>
-              Target.Data (To_Base + 1 + J) = Source.Data (From_Base + 1 + J));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. To_Base =>
+                Target.Data (J) = Target.Data'Loop_Entry (J));
+         pragma
+           Loop_Invariant
+             (for all J in 0 .. K =>
+                Target.Data (To_Base + 1 + J)
+                = Source.Data (From_Base + 1 + J));
       end loop;
 
       Target.Written := To_Base + Count;
@@ -343,12 +329,14 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
 
          pragma Loop_Invariant (B.Written = Base + Count);
          pragma Loop_Invariant (B.Read_Consumed = Base);
-         pragma Loop_Invariant
-           (for all J in 0 .. K =>
-              B.Data (1 + J) = B.Data'Loop_Entry (Base + 1 + J));
-         pragma Loop_Invariant
-           (for all J in K + 1 .. Count - 1 =>
-              B.Data (Base + 1 + J) = B.Data'Loop_Entry (Base + 1 + J));
+         pragma
+           Loop_Invariant
+             (for all J in 0 .. K =>
+                B.Data (1 + J) = B.Data'Loop_Entry (Base + 1 + J));
+         pragma
+           Loop_Invariant
+             (for all J in K + 1 .. Count - 1 =>
+                B.Data (Base + 1 + J) = B.Data'Loop_Entry (Base + 1 + J));
       end loop;
 
       --  The read position drops first: with the write position still at its
@@ -369,9 +357,7 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    end Slice;
 
    procedure Append_Slice
-     (Target : in out Buffer;
-      Source : in     Buffer;
-      S      : in     Span)
+     (Target : in out Buffer; Source : in Buffer; S : in Span)
    is
       Base  : constant Natural := Target.Written;
       Count : constant Natural := Length (S);
@@ -380,12 +366,14 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
          Target.Data (Base + 1 + K) := Source.Data (S.First + K);
 
          pragma Loop_Invariant (Target.Written = Base);
-         pragma Loop_Invariant
-           (for all J in 1 .. Base =>
-              Target.Data (J) = Target.Data'Loop_Entry (J));
-         pragma Loop_Invariant
-           (for all J in 0 .. K =>
-              Target.Data (Base + 1 + J) = Source.Data (S.First + J));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. Base =>
+                Target.Data (J) = Target.Data'Loop_Entry (J));
+         pragma
+           Loop_Invariant
+             (for all J in 0 .. K =>
+                Target.Data (Base + 1 + J) = Source.Data (S.First + J));
       end loop;
 
       Target.Written := Base + Count;
@@ -396,12 +384,11 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    ---------------------------------------------------------------------------
 
    procedure Append_Copy
-     (B        : in out Buffer;
-      Distance : Positive;
-      Count    : Natural)
+     (B : in out Buffer; Distance : Positive; Count : Natural)
    is
       Base   : constant Natural := B.Written;
-      Before : constant Buffer := B with Ghost => Static;
+      Before : constant Buffer := B
+      with Ghost => Static;
    begin
       if Distance = 1 then
          --  The recurrence has period one: every appended byte is the byte
@@ -411,13 +398,15 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
          end if;
          B.Written := Base + Count;
 
-         pragma Assert
-           (Static =>
-              (for all K in 1 .. Base => B.Data (K) = Before.Data (K)));
-         pragma Assert
-           (Static =>
-              (for all K in 0 .. Count - 1 =>
-                 B.Data (Base + 1 + K) = Before.Data (Base)));
+         pragma
+           Assert
+             (Static =>
+                (for all K in 1 .. Base => B.Data (K) = Before.Data (K)));
+         pragma
+           Assert
+             (Static =>
+                (for all K in 0 .. Count - 1 =>
+                   B.Data (Base + 1 + K) = Before.Data (Base)));
 
       elsif Distance >= Count then
          --  The source range ends no later than the destination begins, so a
@@ -428,14 +417,16 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
          end if;
          B.Written := Base + Count;
 
-         pragma Assert
-           (Static =>
-              (for all K in 1 .. Base => B.Data (K) = Before.Data (K)));
-         pragma Assert
-           (Static =>
-              (for all K in 0 .. Count - 1 =>
-                 B.Data (Base + 1 + K) =
-                   Before.Data (Base + 1 + K - Distance)));
+         pragma
+           Assert
+             (Static =>
+                (for all K in 1 .. Base => B.Data (K) = Before.Data (K)));
+         pragma
+           Assert
+             (Static =>
+                (for all K in 0 .. Count - 1 =>
+                   B.Data (Base + 1 + K)
+                   = Before.Data (Base + 1 + K - Distance)));
 
       else
          --  Copying forward is essential: once K reaches Distance the source
@@ -443,23 +434,26 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
          --  window.
          for K in 0 .. Count - 1 loop
             pragma Loop_Invariant (B.Written = Base);
-            pragma Loop_Invariant
-              (for all J in 1 .. Base => B.Data (J) = Before.Data (J));
-            pragma Loop_Invariant
-              (for all J in 0 .. K - 1 =>
-                 B.Data (Base + 1 + J) =
-                   (if J < Distance
-                    then Before.Data (Base + 1 + J - Distance)
-                    else B.Data (Base + 1 + J - Distance)));
+            pragma
+              Loop_Invariant
+                (for all J in 1 .. Base => B.Data (J) = Before.Data (J));
+            pragma
+              Loop_Invariant
+                (for all J in 0 .. K - 1 =>
+                   B.Data (Base + 1 + J)
+                   = (if J < Distance
+                      then Before.Data (Base + 1 + J - Distance)
+                      else B.Data (Base + 1 + J - Distance)));
 
             B.Data (Base + 1 + K) := B.Data (Base + 1 + K - Distance);
 
             if K < Distance then
                pragma Assert (Base + 1 + K - Distance <= Base);
-               pragma Assert
-                 (Static =>
-                    B.Data (Base + 1 + K - Distance) =
-                      Before.Data (Base + 1 + K - Distance));
+               pragma
+                 Assert
+                   (Static =>
+                      B.Data (Base + 1 + K - Distance)
+                      = Before.Data (Base + 1 + K - Distance));
             else
                pragma Assert (Base + 1 + K - Distance > Base);
                pragma Assert (K - Distance < K);
@@ -472,26 +466,21 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
       pragma Assert (Static => Copies_Back (Before, B, Distance, Count));
    end Append_Copy;
 
-   procedure Lemma_Copies_Back_Run
-     (Before, After : Buffer;
-      Count         : Natural)
-   is
+   procedure Lemma_Copies_Back_Run (Before, After : Buffer; Count : Natural) is
       Last : constant Positive := Length (Before);
    begin
       --  Induction on the appended bytes: byte K is the byte at K - 1 (the
       --  copy distance is one), and byte 1 is the last original byte.
       for K in 1 .. Count loop
-         pragma Loop_Invariant
-           (for all J in 1 .. K =>
-              Element (After, Last + J) = Element (Before, Last));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. K =>
+                Element (After, Last + J) = Element (Before, Last));
       end loop;
    end Lemma_Copies_Back_Run;
 
    procedure Lemma_Copies_Back_Disjoint
-     (Before, After : Buffer;
-      Distance      : Positive;
-      Count         : Natural)
-   is
+     (Before, After : Buffer; Distance : Positive; Count : Natural) is
    begin
       null;
    end Lemma_Copies_Back_Disjoint;
@@ -501,9 +490,7 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
    ---------------------------------------------------------------------------
 
    procedure Lemma_Same_Prefix_Trans
-     (First, Middle, Last : Buffer;
-      Count               : Natural)
-   is
+     (First, Middle, Last : Buffer; Count : Natural) is
    begin
       null;
    end Lemma_Same_Prefix_Trans;
@@ -512,18 +499,13 @@ package body Ore.Byte_Buffers with SPARK_Mode => On is
      (Before, After : Buffer;
       From          : Positive;
       Bytes         : Byte_Array;
-      Count         : Natural)
-   is
+      Count         : Natural) is
    begin
       null;
    end Lemma_Matches_At_Frame;
 
    procedure Lemma_Matches_At_Concat
-     (B     : Buffer;
-      From  : Positive;
-      Left  : Byte_Array;
-      Right : Byte_Array)
-   is
+     (B : Buffer; From : Positive; Left : Byte_Array; Right : Byte_Array) is
    begin
       null;
    end Lemma_Matches_At_Concat;

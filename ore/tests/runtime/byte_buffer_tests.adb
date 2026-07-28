@@ -26,7 +26,8 @@ procedure Byte_Buffer_Tests is
       Value : Byte;
       Out_3 : Byte_Array (1 .. 3);
    begin
-      Check (Is_Empty (B) and then Available (B) = 16, "fresh buffer is empty");
+      Check
+        (Is_Empty (B) and then Available (B) = 16, "fresh buffer is empty");
 
       Append (B, 16#AA#);
       Append (B, Byte_Array'(16#01#, 16#02#, 16#03#));
@@ -64,26 +65,30 @@ procedure Byte_Buffer_Tests is
    ---------------------------------------------------------------------------
 
    procedure Test_Endian is
-      B    : Buffer (32);
-      W16  : Word16;
-      W32  : Word32;
-      W64  : Word64;
+      B   : Buffer (32);
+      W16 : Word16;
+      W32 : Word32;
+      W64 : Word64;
    begin
       Append_16 (B, 16#1234#, Little_Endian);
-      Check (Element (B, 1) = 16#34# and then Element (B, 2) = 16#12#,
-             "little-endian 16-bit layout");
+      Check
+        (Element (B, 1) = 16#34# and then Element (B, 2) = 16#12#,
+         "little-endian 16-bit layout");
 
       Append_16 (B, 16#1234#, Big_Endian);
-      Check (Element (B, 3) = 16#12# and then Element (B, 4) = 16#34#,
-             "big-endian 16-bit layout");
+      Check
+        (Element (B, 3) = 16#12# and then Element (B, 4) = 16#34#,
+         "big-endian 16-bit layout");
 
       Append_32 (B, 16#DEAD_BEEF#, Big_Endian);
-      Check (Element (B, 5) = 16#DE# and then Element (B, 8) = 16#EF#,
-             "big-endian 32-bit layout");
+      Check
+        (Element (B, 5) = 16#DE# and then Element (B, 8) = 16#EF#,
+         "big-endian 32-bit layout");
 
       Append_64 (B, 16#0102_0304_0506_0708#, Little_Endian);
-      Check (Element (B, 9) = 16#08# and then Element (B, 16) = 16#01#,
-             "little-endian 64-bit layout");
+      Check
+        (Element (B, 9) = 16#08# and then Element (B, 16) = 16#01#,
+         "little-endian 64-bit layout");
 
       Read_16 (B, W16, Little_Endian);
       Check (W16 = 16#1234#, "16-bit round trip, little endian");
@@ -95,8 +100,8 @@ procedure Byte_Buffer_Tests is
       Check (W32 = 16#DEAD_BEEF#, "32-bit round trip, big endian");
 
       Read_64 (B, W64, Little_Endian);
-      Check (W64 = 16#0102_0304_0506_0708#,
-             "64-bit round trip, little endian");
+      Check
+        (W64 = 16#0102_0304_0506_0708#, "64-bit round trip, little endian");
 
       Check (Unread (B) = 0, "everything read back");
    end Test_Endian;
@@ -112,8 +117,9 @@ procedure Byte_Buffer_Tests is
    begin
       --  Put stops at the capacity and reports what it took.
       Put (B, Byte_Array'(1, 2, 3, 4, 5, 6), Result);
-      Check (Result.Consumed = 4 and then Result.Produced = 4,
-             "short put reports four bytes");
+      Check
+        (Result.Consumed = 4 and then Result.Produced = 4,
+         "short put reports four bytes");
       Check (Length (B) = 4 and then Is_Full (B), "buffer filled");
 
       --  Get stops at the unread bytes and leaves the tail of Into alone.
@@ -125,8 +131,9 @@ procedure Byte_Buffer_Tests is
       Append (Source, Byte_Array'(9, 8, 7, 6, 5));
       Move (Source, Target, Result);
       Check (Result.Produced = 3, "move stops at target capacity");
-      Check (Element (Target, 1) = 9 and then Element (Target, 3) = 7,
-             "moved bytes");
+      Check
+        (Element (Target, 1) = 9 and then Element (Target, 3) = 7,
+         "moved bytes");
       Check (Unread (Source) = 2, "source advanced by what moved");
    end Test_Transfers;
 
@@ -146,12 +153,13 @@ procedure Byte_Buffer_Tests is
 
       S := (First => 2, Past_Last => 5);
       Check (Slice (B, S) = Byte_Array'(20, 30, 40), "slice of a span");
-      Check (Slice (B, (First => 3, Past_Last => 3))'Length = 0,
-             "empty slice");
+      Check
+        (Slice (B, (First => 3, Past_Last => 3))'Length = 0, "empty slice");
 
       Append_Slice (Target, B, S);
-      Check (Length (Target) = 3 and then Element (Target, 2) = 30,
-             "append a subview");
+      Check
+        (Length (Target) = 3 and then Element (Target, 2) = 30,
+         "append a subview");
    end Test_Spans;
 
    ---------------------------------------------------------------------------
@@ -163,23 +171,26 @@ procedure Byte_Buffer_Tests is
       Append (B, 16#5A#);
       Append_Copy (B, 1, 4);
       Check (Length (B) = 5, "run length");
-      Check ((for all I in 1 .. 5 => Element (B, I) = 16#5A#),
-             "distance-one copy repeats one byte");
+      Check
+        ((for all I in 1 .. 5 => Element (B, I) = 16#5A#),
+         "distance-one copy repeats one byte");
 
       --  Disjoint copy: the source range ends before the destination starts.
       Clear (B);
       Append (B, Byte_Array'(1, 2, 3, 4));
       Append_Copy (B, 4, 4);
-      Check (Slice (B, Written_Span (B)) = Byte_Array'(1, 2, 3, 4, 1, 2, 3, 4),
-             "disjoint copy duplicates the window");
+      Check
+        (Slice (B, Written_Span (B)) = Byte_Array'(1, 2, 3, 4, 1, 2, 3, 4),
+         "disjoint copy duplicates the window");
 
       --  Overlapping copy: the window repeats because the copy reads bytes it
       --  has just written.
       Clear (B);
       Append (B, Byte_Array'(7, 8));
       Append_Copy (B, 2, 5);
-      Check (Slice (B, Written_Span (B)) = Byte_Array'(7, 8, 7, 8, 7, 8, 7),
-             "overlapping copy repeats the window");
+      Check
+        (Slice (B, Written_Span (B)) = Byte_Array'(7, 8, 7, 8, 7, 8, 7),
+         "overlapping copy repeats the window");
 
       --  Zero-length copies are legal and change nothing.
       Clear (B);
@@ -200,8 +211,9 @@ procedure Byte_Buffer_Tests is
       Compact (B);
       Check (Read_Position (B) = 0, "compaction resets the read position");
       Check (Length (B) = 3 and then Available (B) = 5, "space reclaimed");
-      Check (Slice (B, Written_Span (B)) = Byte_Array'(6, 7, 8),
-             "unread bytes moved to the front");
+      Check
+        (Slice (B, Written_Span (B)) = Byte_Array'(6, 7, 8),
+         "unread bytes moved to the front");
 
       --  Compacting a buffer with nothing consumed is a no-op.
       Compact (B);
@@ -216,8 +228,9 @@ procedure Byte_Buffer_Tests is
       Result       : Transfer;
       Nothing      : Byte_Array (1 .. 0);
    begin
-      Check (Is_Empty (Empty_Buffer) and then Is_Full (Empty_Buffer),
-             "a zero-capacity buffer is both empty and full");
+      Check
+        (Is_Empty (Empty_Buffer) and then Is_Full (Empty_Buffer),
+         "a zero-capacity buffer is both empty and full");
 
       Put (Empty_Buffer, Byte_Array'(1, 2), Result);
       Check (Result.Produced = 0, "put into a zero-capacity buffer");

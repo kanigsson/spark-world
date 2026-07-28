@@ -66,6 +66,23 @@ figures; regenerate it after a proof run with
 tools/proof_status.py           # or --check, to fail if it is out of date
 ```
 
+## Formatting
+
+Sources are formatted with `gnatformat` at its defaults: 79 columns, three
+spaces of indentation. Every project has to be named in turn, since each one
+covers a different source directory:
+
+```sh
+for p in ore_lib.gpr ore.gpr tests/runtime/runtime_tests.gpr; do
+    gnatformat -P "$p" --no-subprojects --charset utf-8
+done
+```
+
+`--charset utf-8` is not optional. The comments use UTF-8 punctuation, and
+`gnatformat` decodes sources as ISO-8859-1 by default, which rewrites those
+characters into mojibake. Add `--check` to report unformatted files and exit
+non-zero instead of rewriting them.
+
 ## Build modes
 
 `ore_lib.gpr` takes an external variable `ORE_BUILD_MODE`:

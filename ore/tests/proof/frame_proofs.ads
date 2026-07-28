@@ -7,7 +7,9 @@
 with Ore;              use Ore;
 with Ore.Byte_Buffers; use Ore.Byte_Buffers;
 
-package Frame_Proofs with SPARK_Mode => On is
+package Frame_Proofs
+  with SPARK_Mode => On
+is
 
    --  A frame is a tag byte, a little-endian 16-bit payload length, then the
    --  payload.
@@ -19,10 +21,7 @@ package Frame_Proofs with SPARK_Mode => On is
    --  the buffer: the tag where it was written, the length field loadable as
    --  the payload length, and the payload itself — all of which have to survive
    --  the appends that came after them.
-   procedure Write_Frame
-     (B       : in out Buffer;
-      Tag     : Byte;
-      Payload : Byte_Array)
+   procedure Write_Frame (B : in out Buffer; Tag : Byte; Payload : Byte_Array)
    with
      Global => null,
      Pre    =>
@@ -34,12 +33,12 @@ package Frame_Proofs with SPARK_Mode => On is
           Length (B) = Length (B)'Old + Header_Size + Payload'Length
           and then Read_Position (B) = Read_Position (B)'Old
           and then Element (B, Length (B)'Old + 1) = Tag
-          and then Load_16 (B, Length (B)'Old + 2, Little_Endian) =
-                     Word16 (Payload'Length),
-        Static =>
-          Same_Prefix (B'Old, B, Length (B)'Old)
           and then
-            Matches_At (B, Length (B)'Old + Header_Size + 1, Payload));
+            Load_16 (B, Length (B)'Old + 2, Little_Endian)
+            = Word16 (Payload'Length),
+        Static  =>
+          Same_Prefix (B'Old, B, Length (B)'Old)
+          and then Matches_At (B, Length (B)'Old + Header_Size + 1, Payload));
 
    --  Read one frame back. Read_Frame is the inverse of Write_Frame: the
    --  round-trip property is that a buffer holding a written frame yields the
@@ -47,42 +46,42 @@ package Frame_Proofs with SPARK_Mode => On is
    --  caller without either subprogram mentioning the other.
    procedure Read_Frame
      (B       : in out Buffer;
-      Tag     :    out Byte;
+      Tag     : out Byte;
       Payload : in out Byte_Array;
-      Size    :    out Natural)
+      Size    : out Natural)
    with
      Global => null,
      Pre    => Unread (B) >= Header_Size,
      Post   =>
        (Runtime =>
           Length (B) = Length (B)'Old
-          and then Size =
-            Natural (Load_16 (B, Read_Position (B)'Old + 2, Little_Endian))
+          and then
+            Size
+            = Natural (Load_16 (B, Read_Position (B)'Old + 2, Little_Endian))
           and then Tag = Element (B, Read_Position (B)'Old + 1)
           and then
-            (if Size <= Natural'Min (Unread (B)'Old - Header_Size,
-                                     Payload'Length)
-             then Read_Position (B) = Read_Position (B)'Old + Header_Size + Size
+            (if Size
+               <= Natural'Min (Unread (B)'Old - Header_Size, Payload'Length)
+             then
+               Read_Position (B) = Read_Position (B)'Old + Header_Size + Size
              else Read_Position (B) = Read_Position (B)'Old + Header_Size),
-        Static =>
+        Static  =>
           Same_Prefix (B'Old, B, Length (B))
           and then
-            (if Size <= Natural'Min (Unread (B)'Old - Header_Size,
-                                     Payload'Length)
+            (if Size
+               <= Natural'Min (Unread (B)'Old - Header_Size, Payload'Length)
              then
                (for all K in 0 .. Size - 1 =>
-                  Payload (Payload'First + K) =
-                    Element (B, Read_Position (B)'Old + Header_Size + 1 + K))));
+                  Payload (Payload'First + K)
+                  = Element
+                      (B, Read_Position (B)'Old + Header_Size + 1 + K))));
 
    --  A run of Count copies of Value, produced by writing the first byte and
    --  letting a distance-one back-reference repeat it. This is the smallest
    --  interesting use of the overlapping copy: the proof obligation is that
    --  every appended byte equals Value even though all but the first were
    --  copied from a byte the same operation had just written.
-   procedure Write_Run
-     (B     : in out Buffer;
-      Value : Byte;
-      Count : Positive)
+   procedure Write_Run (B : in out Buffer; Value : Byte; Count : Positive)
    with
      Global => null,
      Pre    => Count <= Available (B) and then Count <= Max_Capacity,
@@ -90,7 +89,7 @@ package Frame_Proofs with SPARK_Mode => On is
        (Runtime =>
           Length (B) = Length (B)'Old + Count
           and then Read_Position (B) = Read_Position (B)'Old,
-        Static =>
+        Static  =>
           Same_Prefix (B'Old, B, Length (B)'Old)
           and then
             (for all K in 1 .. Count =>
@@ -101,9 +100,7 @@ package Frame_Proofs with SPARK_Mode => On is
    --  loop is here for its termination and cursor arithmetic, which is what a
    --  streaming client actually has to get right.
    procedure Drain
-     (Source : in out Buffer;
-      Target : in out Buffer;
-      Moved  :    out Natural)
+     (Source : in out Buffer; Target : in out Buffer; Moved : out Natural)
    with
      Global => null,
      Post   =>

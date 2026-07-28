@@ -22,7 +22,9 @@
 --  intrinsics. Converting to or from Interfaces types is a plain modular
 --  conversion where a client needs it.
 
-package Ore with Pure, SPARK_Mode => On is
+package Ore
+  with Pure, SPARK_Mode => On
+is
 
    type Byte is mod 2 ** 8 with Size => 8;
 

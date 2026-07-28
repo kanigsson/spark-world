@@ -1,31 +1,32 @@
-package body Frame_Proofs with SPARK_Mode => On is
+package body Frame_Proofs
+  with SPARK_Mode => On
+is
 
-   pragma Assertion_Policy
-     (Assert         => Ignore,
-      Loop_Invariant => Ignore,
-      Ghost          => Ignore);
+   pragma
+     Assertion_Policy
+       (Assert => Ignore, Loop_Invariant => Ignore, Ghost => Ignore);
 
    -----------------
    -- Write_Frame --
    -----------------
 
-   procedure Write_Frame
-     (B       : in out Buffer;
-      Tag     : Byte;
-      Payload : Byte_Array)
+   procedure Write_Frame (B : in out Buffer; Tag : Byte; Payload : Byte_Array)
    is
       Base  : constant Natural := Length (B);
-      Start : constant Buffer := B with Ghost => Static;
+      Start : constant Buffer := B
+      with Ghost => Static;
    begin
       Append (B, Tag);
 
       declare
-         After_Tag : constant Buffer := B with Ghost => Static;
+         After_Tag : constant Buffer := B
+         with Ghost => Static;
       begin
          Append_16 (B, Word16 (Payload'Length), Little_Endian);
 
          declare
-            After_Header : constant Buffer := B with Ghost => Static;
+            After_Header : constant Buffer := B
+            with Ghost => Static;
          begin
             Append (B, Payload);
 
@@ -37,14 +38,21 @@ package body Frame_Proofs with SPARK_Mode => On is
             Lemma_Same_Prefix_Trans (Start, After_Tag, After_Header, Base);
             Lemma_Same_Prefix_Trans (Start, After_Header, B, Base);
 
-            pragma Assert
-              (Static =>
-                 Equal_Ranges
-                   (Contents (After_Header), Contents (B),
-                    Base + 2, Base + 2, 2));
+            pragma
+              Assert
+                (Static =>
+                   Equal_Ranges
+                     (Contents (After_Header),
+                      Contents (B),
+                      Base + 2,
+                      Base + 2,
+                      2));
             Lemma_Load_16_Frame
-              (Contents (After_Header), Contents (B),
-               Base + 2, Base + 2, Little_Endian);
+              (Contents (After_Header),
+               Contents (B),
+               Base + 2,
+               Base + 2,
+               Little_Endian);
          end;
       end;
    end Write_Frame;
@@ -55,9 +63,9 @@ package body Frame_Proofs with SPARK_Mode => On is
 
    procedure Read_Frame
      (B       : in out Buffer;
-      Tag     :    out Byte;
+      Tag     : out Byte;
       Payload : in out Byte_Array;
-      Size    :    out Natural)
+      Size    : out Natural)
    is
       Base   : constant Natural := Read_Position (B);
       Header : Word16;
@@ -78,25 +86,21 @@ package body Frame_Proofs with SPARK_Mode => On is
    -- Write_Run --
    ---------------
 
-   procedure Write_Run
-     (B     : in out Buffer;
-      Value : Byte;
-      Count : Positive)
-   is
+   procedure Write_Run (B : in out Buffer; Value : Byte; Count : Positive) is
       Base : constant Natural := Length (B);
    begin
       Append (B, Value);
 
       declare
-         First_Byte : constant Buffer := B with Ghost => Static;
+         First_Byte : constant Buffer := B
+         with Ghost => Static;
       begin
          if Count > 1 then
             Append_Copy (B, 1, Count - 1);
             Lemma_Copies_Back_Run (First_Byte, B, Count - 1);
          end if;
 
-         pragma Assert
-           (Static => Element (First_Byte, Base + 1) = Value);
+         pragma Assert (Static => Element (First_Byte, Base + 1) = Value);
       end;
    end Write_Run;
 
@@ -105,9 +109,7 @@ package body Frame_Proofs with SPARK_Mode => On is
    -----------
 
    procedure Drain
-     (Source : in out Buffer;
-      Target : in out Buffer;
-      Moved  :    out Natural)
+     (Source : in out Buffer; Target : in out Buffer; Moved : out Natural)
    is
       Start  : constant Natural := Read_Position (Source);
       Result : Transfer;
