@@ -37,7 +37,21 @@
 --  assertion-enabled build pays for the cheap Runtime clauses only, and never
 --  copies a buffer to evaluate a 'Old.
 
-package Ore.Byte_Buffers with SPARK_Mode => On is
+--  The two configuration pragmas below are repeated here rather than left to
+--  the library's own configuration file, because a client compiling against
+--  this spec applies its own configuration, not ours.
+
+--  Postconditions are written as conjunctions of independent clauses, so most
+--  'Old prefixes sit under a short-circuit operator and are formally
+--  "potentially unevaluated".  The prefixes here are scalar queries or ghost
+--  buffer copies, both harmless to evaluate on entry.
+pragma Unevaluated_Use_Of_Old (Allow);
+
+--  Static assertions contain proof-only models and are always ignored by the
+--  compiler.  Executable contracts and assertions remain enabled by -gnata.
+pragma Assertion_Policy (Ghost => Ignore);
+
+package Ore.Byte_Buffers with Pure, SPARK_Mode => On is
 
    ---------------------------------------------------------------------------
    --  Proof vocabulary over plain byte arrays
