@@ -8,8 +8,6 @@ package body Inflate.Adler32 with SPARK_Mode => On is
       Loop_Invariant => Ignore,
       Loop_Variant   => Ignore);
 
-   use Interfaces;
-
    -------------------
    -- Initial_State --
    -------------------

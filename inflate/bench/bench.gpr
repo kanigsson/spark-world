@@ -9,6 +9,6 @@ project Bench is
 
    package Compiler is
       for Default_Switches ("Ada") use
-        ("-gnat2012", "-O2", "-gnatp", "-gnatn");
+        ("-gnat2022", "-O2", "-gnatp", "-gnatn");
    end Compiler;
 end Bench;

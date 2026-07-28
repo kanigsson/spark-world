@@ -266,7 +266,7 @@ package body Inflate.Model with SPARK_Mode => On is
          pragma Loop_Invariant (Value < Factor);
          Offset := Natural (P / 8);
          Bit := Natural
-           (Interfaces.Shift_Right
+           (Shift_Right
               (Input (Input'First + Offset), Natural (P mod 8)) and 1);
          Value := Value + Bit * Factor;
          Factor := Factor * 2;

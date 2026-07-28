@@ -30,8 +30,6 @@ with Inflate.GZip;
 
 package Inflate.Theorems with SPARK_Mode => On is
 
-   use type Interfaces.Unsigned_8;
-
    procedure GZip_Round_Trip
      (Input      : in     Byte_Array;
       Compressed : in out Byte_Array;

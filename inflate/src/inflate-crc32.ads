@@ -8,9 +8,6 @@
 
 package Inflate.CRC32 with SPARK_Mode => On is
 
-   use type Interfaces.Unsigned_8;
-   use type Interfaces.Unsigned_32;
-
    --  The specification functions below are used while the lookup table is
    --  elaborated.  Keep their contracts proof-only so assertion-enabled
    --  builds do not create elaboration-order calls through postconditions.
@@ -34,8 +31,8 @@ package Inflate.CRC32 with SPARK_Mode => On is
      Post   =>
        Polynomial_Bit_Step'Result =
          (if (Remainder and 1) /= 0
-          then Interfaces.Shift_Right (Remainder, 1) xor Reflected_Generator
-          else Interfaces.Shift_Right (Remainder, 1));
+          then Shift_Right (Remainder, 1) xor Reflected_Generator
+          else Shift_Right (Remainder, 1));
 
    function Polynomial_Bits_2 (Remainder : Word32) return Word32
    with

@@ -38,8 +38,6 @@ package body Inflate.Raw with SPARK_Mode => On is
       Loop_Invariant => Ignore,
       Loop_Variant   => Ignore);
 
-   use Interfaces;
-
    ---------------------------------------------------------------------
    --  Bit stream
    ---------------------------------------------------------------------
@@ -186,7 +184,7 @@ package body Inflate.Raw with SPARK_Mode => On is
    --  low L bits equal its reversal.
    Fast_Bits : constant := 10;
    subtype Fast_Index is Natural range 0 .. 2 ** Fast_Bits - 1;
-   type Fast_Map is array (Fast_Index) of Interfaces.Unsigned_16;
+   type Fast_Map is array (Fast_Index) of Word16;
 
    --  Counts(L) is the number of codes of length L; Symbols lists the coded
    --  symbols ordered by code value, which for a canonical code means by
@@ -248,7 +246,7 @@ package body Inflate.Raw with SPARK_Mode => On is
             J := Bit_Reverse (Code + K, Len);
             while J <= Fast_Index'Last loop
                pragma Loop_Variant (Increases => J);
-               Table.Fast (J) := Interfaces.Unsigned_16
+               Table.Fast (J) := Word16
                  (Table.Symbols (Index + K) * 16 + Len);
                J := J + Step;
             end loop;

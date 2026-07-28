@@ -14,8 +14,6 @@ with Inflate.Dynamic;
 
 package Inflate.Bodies with Pure, SPARK_Mode => On is
 
-   use type Byte;
-
    pragma Assertion_Policy (Ghost => Ignore);
 
    --  The first Consumed bytes of Input are a supported DEFLATE body decoding

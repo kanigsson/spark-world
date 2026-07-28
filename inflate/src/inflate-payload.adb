@@ -1,5 +1,3 @@
-with Interfaces;
-
 package body Inflate.Payload with SPARK_Mode => On is
 
    pragma Assertion_Policy
@@ -9,8 +7,6 @@ package body Inflate.Payload with SPARK_Mode => On is
       Assert         => Ignore,
       Loop_Invariant => Ignore,
       Loop_Variant   => Ignore);
-
-   use Interfaces;
 
    procedure Lemma_Prefix_Step
      (Input : Byte_Array; Start : Natural; Length : Positive)

@@ -1,26 +1,26 @@
+with Ore.Byte_Buffers;
+
 with Inflate.Raw;
 with Inflate.CRC32;
 
 package body Inflate.ZIP with SPARK_Mode => On is
 
-   use Interfaces;
+   use Ore.Byte_Buffers;
 
-   --  Little-endian reads at an offset from A'First. The preconditions
-   --  are what every call site has just bounds-checked.
+   --  ZIP addresses its header fields by offset from the start of the
+   --  record rather than by absolute position, so these two adapt the
+   --  checked loads to that convention; the preconditions are what every
+   --  call site has just bounds-checked.
 
    function RD16 (A : Byte_Array; Off : Natural) return Natural is
-     (Natural (A (A'First + Off))
-      + 256 * Natural (A (A'First + Off + 1)))
+     (Natural (Load_16 (A, A'First + Off, Little_Endian)))
    with
      Global => null,
      Pre    => A'Length >= 2 and then Off <= A'Length - 2,
      Post   => RD16'Result <= 16#FFFF#;
 
    function RD32 (A : Byte_Array; Off : Natural) return Word32 is
-     (Word32 (A (A'First + Off))
-      or Shift_Left (Word32 (A (A'First + Off + 1)), 8)
-      or Shift_Left (Word32 (A (A'First + Off + 2)), 16)
-      or Shift_Left (Word32 (A (A'First + Off + 3)), 24))
+     (Load_32 (A, A'First + Off, Little_Endian))
    with
      Global => null,
      Pre    => A'Length >= 4 and then Off <= A'Length - 4;

@@ -1,5 +1,3 @@
-with Interfaces;
-
 package body Inflate.Dynamic with SPARK_Mode => On is
 
    --  A constant-byte run can use its repeated literal, end-of-block, any
@@ -87,8 +85,6 @@ package body Inflate.Dynamic with SPARK_Mode => On is
          end if;
       end loop;
    end Lemma_Byte_Run_Books_Cover;
-
-   use Interfaces;
 
    --  Proof helpers are erased in the assertion-enabled focused executable,
    --  just as they are in the library's debug configuration.  Ordinary

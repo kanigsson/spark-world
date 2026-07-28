@@ -1,8 +1,4 @@
-with Interfaces;
-
 package body Inflate.LZ77 with SPARK_Mode => On is
-
-   use type Interfaces.Unsigned_8;
 
    --  The quantified assertions below expose each branch's semantic facts to
    --  GNATprove.  Evaluating them after every decoder match would make debug

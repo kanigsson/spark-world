@@ -1,9 +1,11 @@
+with Ore.Byte_Buffers;
+
 with Inflate.Raw;
 with Inflate.Adler32;
 
 package body Inflate.ZLib with SPARK_Mode => On is
 
-   use Interfaces;
+   use Ore.Byte_Buffers;
 
    procedure Decompress
      (Input    : in     Byte_Array;
@@ -53,11 +55,7 @@ package body Inflate.ZLib with SPARK_Mode => On is
          Status := Truncated_Input;
          return;
       end if;
-      Stored_Sum :=
-        Shift_Left (Word32 (Input (Input'First + Consumed)), 24)
-        or Shift_Left (Word32 (Input (Input'First + Consumed + 1)), 16)
-        or Shift_Left (Word32 (Input (Input'First + Consumed + 2)), 8)
-        or Word32 (Input (Input'First + Consumed + 3));
+      Stored_Sum := Load_32 (Input, Input'First + Consumed, Big_Endian);
       Consumed := Consumed + 4;
 
       if Stored_Sum /=

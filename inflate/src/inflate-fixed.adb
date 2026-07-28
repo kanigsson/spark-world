@@ -11,8 +11,6 @@ package body Inflate.Fixed with SPARK_Mode => On is
       Loop_Invariant => Ignore,
       Loop_Variant   => Ignore);
 
-   use Interfaces;
-
    function Small_Power_Bound
      (Value, Exponent : Natural) return Boolean
    is (Value <= 2 ** 11 - 1)

@@ -18,7 +18,9 @@ with Ada.Streams;               use Ada.Streams;
 with Ada.Streams.Stream_IO;
 with Ada.Text_IO;               use Ada.Text_IO;
 with Ada.Unchecked_Deallocation;
-with Interfaces;                 use type Interfaces.Unsigned_32;
+with Ore;
+use type Ore.Word32;
+use type Ore.Byte_Array;
 
 with Inflate;                   use Inflate;
 with Inflate.Adler32;

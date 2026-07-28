@@ -11,6 +11,8 @@
 --  reports where it ended in Consumed; Decompress_All loops members for
 --  the common "whole file" case.
 
+with Ore.Byte_Buffers;
+
 with Inflate.Raw;
 with Inflate.CRC32;
 with Inflate.Fixed;
@@ -19,18 +21,11 @@ with Inflate.Bodies;
 
 package Inflate.GZip with SPARK_Mode => On is
 
-   use type Interfaces.Unsigned_8;
-   use type Interfaces.Unsigned_32;
-
-   --  A (P .. P + 3) holds V in little-endian byte order.
-   function Stores_LE32
-     (A : Byte_Array; P : Positive; V : Word32) return Boolean
-   is
-     (A (P) = Byte (V and 16#FF#)
-      and then A (P + 1) = Byte (Interfaces.Shift_Right (V, 8) and 16#FF#)
-      and then A (P + 2) = Byte (Interfaces.Shift_Right (V, 16) and 16#FF#)
-      and then A (P + 3) = Byte (Interfaces.Shift_Right (V, 24)))
-   with Pre => P >= A'First and then P <= A'Last and then A'Last - P >= 3;
+   --  The trailer is two little-endian 32-bit fields. Load_32 is the checked
+   --  read of such a field, and the contracts below say what it must yield;
+   --  its precondition, which is the bounds check, is what the enclosing
+   --  Member and Compressed_Size conditions discharge.
+   use Ore.Byte_Buffers;
 
    --  The shape of members Compress emits, characterized without exposing
    --  whether the body used stored blocks or the bounded fixed-Huffman image.
@@ -85,13 +80,13 @@ package Inflate.GZip with SPARK_Mode => On is
                      (Input (Input'First + 10 .. Input'Last),
                       Input'Length - 18,
                       Output (Output'First .. Output'First - 1 + Produced))
-          and then (if Stores_LE32
-                        (Input, Input'Last - 7,
+          and then (if Load_32 (Input, Input'Last - 7, Little_Endian) =
                          CRC32.Compute
                            (Output (Output'First ..
-                                    Output'First - 1 + Produced)))
-                       and then Stores_LE32
-                                  (Input, Input'Last - 3, Word32 (Produced))
+                                    Output'First - 1 + Produced))
+                       and then Load_32
+                                  (Input, Input'Last - 3, Little_Endian) =
+                                    Word32 (Produced)
                     then Status = OK));
 
    --  Decompress consecutive gzip members until the input is exhausted,
@@ -119,13 +114,13 @@ package Inflate.GZip with SPARK_Mode => On is
                      (Input (Input'First + 10 .. Input'Last),
                       Input'Length - 18,
                       Output (Output'First .. Output'First - 1 + Produced))
-          and then (if Stores_LE32
-                        (Input, Input'Last - 7,
+          and then (if Load_32 (Input, Input'Last - 7, Little_Endian) =
                          CRC32.Compute
                            (Output (Output'First ..
-                                    Output'First - 1 + Produced)))
-                       and then Stores_LE32
-                                  (Input, Input'Last - 3, Word32 (Produced))
+                                    Output'First - 1 + Produced))
+                       and then Load_32
+                                  (Input, Input'Last - 3, Little_Endian) =
+                                    Word32 (Produced)
                     then Status = OK));
 
    ---------------------------------------------------------------------
@@ -195,11 +190,11 @@ package Inflate.GZip with SPARK_Mode => On is
                   (Output
                      (Output'First + 10 ..
                       Output'First + (Produced - 1))) = Input'Length
-       and then Stores_LE32
-                  (Output, Output'First + (Produced - 8),
-                   CRC32.Compute (Input))
-       and then Stores_LE32
-                  (Output, Output'First + (Produced - 4),
-                   Word32 (Input'Length));
+       and then Load_32
+                  (Output, Output'First + (Produced - 8), Little_Endian) =
+                    CRC32.Compute (Input)
+       and then Load_32
+                  (Output, Output'First + (Produced - 4), Little_Endian) =
+                    Word32 (Input'Length);
 
 end Inflate.GZip;

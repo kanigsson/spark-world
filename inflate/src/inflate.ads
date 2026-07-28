@@ -20,21 +20,55 @@
 --  is intended for bounded inputs where an upper bound on the decompressed
 --  size is known by the caller. Malformed input is reported through
 --  Status_Type instead of being handled by raising an exception.
+--
+--  The physical types are Ore's: an octet, the machine words, the
+--  1-based byte index and the unconstrained byte array every buffer and
+--  algorithm here is written against. Renaming them rather than declaring
+--  our own is what lets the decoders pass their caller-provided arrays
+--  straight to Ore.Byte_Buffers for checked endian field access. Only the
+--  names are local, so `Inflate.Byte_Array` and `Ore.Byte_Array` are one
+--  type and no conversion is ever needed at the boundary.
 
-with Interfaces;
+with Ore;
 
 package Inflate with Pure, SPARK_Mode => On is
 
-   subtype Byte   is Interfaces.Unsigned_8;
-   subtype Word32 is Interfaces.Unsigned_32;
+   --  Ore declares the operators of the word types below; a use clause in
+   --  the visible part of this package makes them directly visible in the
+   --  children as well, which is where the byte arithmetic lives. Nothing
+   --  in this spec needs them, which is what the warning is about.
+   pragma Warnings (Off, "use clause for package ""Ore"" has no effect");
+   use Ore;
+   pragma Warnings (On, "use clause for package ""Ore"" has no effect");
+
+   subtype Byte   is Ore.Byte;
+   subtype Word16 is Ore.Word16;
+   subtype Word32 is Ore.Word32;
 
    --  The index stops one short of Integer'Last so that a position one
    --  past the end of any buffer — the natural "everything consumed"
    --  cursor and empty-slice bound — is always computable without
    --  overflow. Buffers are thereby capped at Integer'Last - 1 bytes.
-   subtype Buffer_Index is Positive range 1 .. Positive'Last - 1;
+   subtype Buffer_Index is Ore.Index;
 
-   type Byte_Array is array (Buffer_Index range <>) of Byte;
+   subtype Byte_Array is Ore.Byte_Array;
+
+   --  Bit shifts on the word types. DEFLATE is a bit-oriented format and
+   --  the checksums are polynomial divisions, so the decoders need them
+   --  throughout; Ore has no bit layer yet, and these are the intrinsics
+   --  Interfaces would supply for its own types. GNATprove translates them
+   --  to bit-vector operations exactly as it does the Interfaces ones.
+   function Shift_Left (Value : Byte; Amount : Natural) return Byte
+   with Import, Convention => Intrinsic, Global => null;
+
+   function Shift_Right (Value : Byte; Amount : Natural) return Byte
+   with Import, Convention => Intrinsic, Global => null;
+
+   function Shift_Left (Value : Word32; Amount : Natural) return Word32
+   with Import, Convention => Intrinsic, Global => null;
+
+   function Shift_Right (Value : Word32; Amount : Natural) return Word32
+   with Import, Convention => Intrinsic, Global => null;
 
    --  Every way a decode can end. OK means the stream was well-formed and
    --  the output (and, for the containers, its checksum) is complete;

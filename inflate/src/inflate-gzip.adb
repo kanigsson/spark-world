@@ -13,14 +13,6 @@ package body Inflate.GZip with SPARK_Mode => On is
       Loop_Invariant => Ignore,
       Loop_Variant   => Ignore);
 
-   use Interfaces;
-
-   function LE32 (B0, B1, B2, B3 : Byte) return Word32 is
-     (Word32 (B0)
-      or Shift_Left (Word32 (B1), 8)
-      or Shift_Left (Word32 (B2), 16)
-      or Shift_Left (Word32 (B3), 24));
-
    --  Header flag bits (RFC 1952 §2.3.1)
    FHCRC    : constant Byte := 16#02#;
    FEXTRA   : constant Byte := 16#04#;
@@ -89,8 +81,7 @@ package body Inflate.GZip with SPARK_Mode => On is
          end if;
          declare
             XLen : constant Natural :=
-              Natural (Input (Input'First + P))
-              + 256 * Natural (Input (Input'First + P + 1));
+              Natural (Load_16 (Input, Input'First + P, Little_Endian));
          begin
             P := P + 2;
             if XLen > Input'Length - P then
@@ -130,8 +121,7 @@ package body Inflate.GZip with SPARK_Mode => On is
             Header_CRC : constant Word32 :=
               CRC32.Compute (Input (Input'First .. Input'First - 1 + P));
             Stored : constant Natural :=
-              Natural (Input (Input'First + P))
-              + 256 * Natural (Input (Input'First + P + 1));
+              Natural (Load_16 (Input, Input'First + P, Little_Endian));
          begin
             P := P + 2;
             if Natural (Header_CRC and 16#FFFF#) /= Stored then
@@ -160,16 +150,10 @@ package body Inflate.GZip with SPARK_Mode => On is
          Status := Truncated_Input;
          return;
       end if;
-      Stored_CRC := LE32
-        (Input (Input'First + Consumed),
-         Input (Input'First + Consumed + 1),
-         Input (Input'First + Consumed + 2),
-         Input (Input'First + Consumed + 3));
-      Stored_Size := LE32
-        (Input (Input'First + Consumed + 4),
-         Input (Input'First + Consumed + 5),
-         Input (Input'First + Consumed + 6),
-         Input (Input'First + Consumed + 7));
+      Stored_CRC  :=
+        Load_32 (Input, Input'First + Consumed, Little_Endian);
+      Stored_Size :=
+        Load_32 (Input, Input'First + Consumed + 4, Little_Endian);
       Consumed := Consumed + 8;
 
       if Stored_CRC /=
@@ -314,15 +298,18 @@ package body Inflate.GZip with SPARK_Mode => On is
       begin
          pragma Assert (Raw_Produced in 1 .. Body_Bound);
 
+         --  Carry the encoding relation onto the snapshot here, while the
+         --  proof context is still just the body encoder's. Established
+         --  after the trailer writes it is the same fact, but has to be
+         --  found among their framing hypotheses.
+         pragma Assert
+           (Bodies.Body_Encodes (Body_Before_Trailer, Raw_Produced, Input));
+
          --  Trailer: CRC-32 of the data, then its length, little-endian.
-         Output (T)     := Byte (CRC and 16#FF#);
-         Output (T + 1) := Byte (Shift_Right (CRC, 8) and 16#FF#);
-         Output (T + 2) := Byte (Shift_Right (CRC, 16) and 16#FF#);
-         Output (T + 3) := Byte (Shift_Right (CRC, 24));
-         Output (T + 4) := Byte (Word32 (N) and 16#FF#);
-         Output (T + 5) := Byte (Shift_Right (Word32 (N), 8) and 16#FF#);
-         Output (T + 6) := Byte (Shift_Right (Word32 (N), 16) and 16#FF#);
-         Output (T + 7) := Byte (Shift_Right (Word32 (N), 24));
+         --  The frame condition of Store_32 is what keeps the body bytes
+         --  before T available to the reframing lemmas below.
+         Store_32 (Output, T, CRC, Little_Endian);
+         Store_32 (Output, T + 4, Word32 (N), Little_Endian);
 
          --  Fixed header: deflate, no optional fields, MTIME unknown (0),
          --  no XFL hints, OS unknown. Writing it after the disjoint body and

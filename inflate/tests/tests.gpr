@@ -10,7 +10,7 @@ project Tests is
    --  exception as a test failure. Proof contracts are disabled by the same
    --  configuration as the imported debug library.
    package Compiler is
-      for Default_Switches ("Ada") use ("-gnat2012", "-g", "-O1");
+      for Default_Switches ("Ada") use ("-gnat2022", "-g", "-O1");
       for Local_Configuration_Pragmas use "../debug.adc";
    end Compiler;
 end Tests;

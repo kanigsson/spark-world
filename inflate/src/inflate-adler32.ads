@@ -3,8 +3,6 @@
 
 package Inflate.Adler32 with SPARK_Mode => On is
 
-   use type Interfaces.Unsigned_32;
-
    pragma Assertion_Policy (Pre => Ignore, Post => Ignore, Ghost => Ignore);
 
    --  Direct mathematical model.  Each component is reduced modulo the
@@ -26,7 +24,7 @@ package Inflate.Adler32 with SPARK_Mode => On is
        Word32 (Initial_State'Result.A) =
          (Adler and 16#FFFF#) mod Base
        and then Word32 (Initial_State'Result.B) =
-         Interfaces.Shift_Right (Adler, 16) mod Base;
+         Shift_Right (Adler, 16) mod Base;
 
    function Model_Byte_Step (S : State; Value : Byte) return State
    with
@@ -41,7 +39,7 @@ package Inflate.Adler32 with SPARK_Mode => On is
      Global => null,
      Post   =>
        Pack'Result =
-         (Interfaces.Shift_Left (Word32 (S.B), 16) or Word32 (S.A));
+         (Shift_Left (Word32 (S.B), 16) or Word32 (S.A));
 
    function Fold
      (S : State; Data : Byte_Array; From : Positive; To : Natural)

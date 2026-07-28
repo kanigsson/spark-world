@@ -6,11 +6,7 @@
 --  state both halves of that image's round trip without making any
 --  compression-optimality claim.
 
-with Interfaces;
-
 package Inflate.Fixed with Pure, SPARK_Mode => On is
-
-   use type Byte;
 
    --  Proof helpers are deliberately absent from checks-enabled builds;
    --  all executable relations below have ordinary non-ghost bodies.
@@ -228,7 +224,7 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
    function Bit_Value
      (Input : Byte_Array; Position : Natural) return Natural is
      (Natural
-        (Interfaces.Shift_Right
+        (Shift_Right
            (Input (Input'First + Position / 8), Position mod 8) and 1))
    with
      Pre  => Input'Length <= Max_Stream_Bytes

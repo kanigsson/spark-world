@@ -23,8 +23,6 @@ with Inflate.Dynamic;
 
 package Inflate.Model with Pure, SPARK_Mode => On is
 
-   use type Interfaces.Unsigned_8;
-
    ---------------------------------------------------------------------
    --  LZ77 match-copy model (M4)
    ---------------------------------------------------------------------

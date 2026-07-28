@@ -2,6 +2,12 @@
 --  DEFLATE (RFC 1951) decoder with zlib (RFC 1950), gzip (RFC 1952), and
 --  ZIP container parsing for bounded caller-provided buffers, plus a
 --  adaptive gzip compressor with a proved round-trip contract.
+--
+--  The physical byte/word types and the checked little- and big-endian
+--  field access come from Ore, a separate SPARK library of proved bounded
+--  building blocks; see src/inflate.ads.
+
+with "../../ore/ore_lib.gpr";
 
 library project Inflate is
 
@@ -20,20 +26,30 @@ library project Inflate is
    for Object_Dir use "obj/" & Mode;
    for Library_Dir use "lib/" & Mode;
 
+   --  -gnatwJ: the sources predate Ada 2022 and write array aggregates with
+   --  parentheses throughout; the dependency on Ore requires -gnat2022, which
+   --  makes that spelling obsolescent.
    package Compiler is
       case Mode is
          when "debug" =>
             for Default_Switches ("Ada") use
-              ("-gnat2012", "-gnatwa", "-g", "-O0");
+              ("-gnat2022", "-gnatwa", "-gnatwJ", "-g", "-O0");
             for Local_Configuration_Pragmas use "debug.adc";
          when "release" =>
             for Default_Switches ("Ada") use
-              ("-gnat2012", "-gnatwa", "-O2", "-gnatp");
+              ("-gnat2022", "-gnatwa", "-gnatwJ", "-O2", "-gnatp");
       end case;
    end Compiler;
 
    package Prove is
       for Proof_Switches ("Ada") use ("--level=4", "--report=statistics");
+
+      --  The Decompress loop invariant that carries the remaining decoded
+      --  length through Spec_Walk is the one check in the library that does
+      --  not fit the resources --level=4 allows a prover. Give that unit its
+      --  own budget rather than raising it everywhere.
+      for Proof_Switches ("inflate-dynamic.adb") use
+        ("--timeout=600", "--memlimit=0");
    end Prove;
 
 end Inflate;

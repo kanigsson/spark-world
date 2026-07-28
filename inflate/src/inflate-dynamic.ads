@@ -15,7 +15,6 @@ with Inflate.Payload;
 
 package Inflate.Dynamic with Pure, SPARK_Mode => On is
 
-   use type Byte;
    use type Codebooks.Codebook_Kind;
    use type Codebooks.Codebook;
    use type Codebooks.Code_Length_Array;

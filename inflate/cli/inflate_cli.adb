@@ -7,11 +7,17 @@ with Ada.Streams;                  use Ada.Streams;
 with Ada.Streams.Stream_IO;
 with Ada.Text_IO;                  use Ada.Text_IO;
 with Ada.Unchecked_Deallocation;
-with Interfaces;                   use Interfaces;
+
+with Ore;
+with Ore.Byte_Buffers;
 
 with Inflate;                      use Inflate;
 with Inflate.GZip;
 with Inflate.Raw;
+
+--  Inflate's word types are Ore's; a client that only withs Inflate does
+--  not get their operators along with the names.
+use type Ore.Word32;
 
 procedure Inflate_CLI is
 
@@ -123,13 +129,8 @@ procedure Inflate_CLI is
    end Save;
 
    function LE32_At_End (Data : Byte_Array) return Word32 is
-      P : constant Buffer_Index := Data'Last - 3;
-   begin
-      return Word32 (Data (P))
-        or Shift_Left (Word32 (Data (P + 1)), 8)
-        or Shift_Left (Word32 (Data (P + 2)), 16)
-        or Shift_Left (Word32 (Data (P + 3)), 24);
-   end LE32_At_End;
+     (Ore.Byte_Buffers.Load_32
+        (Data, Data'Last - 3, Ore.Little_Endian));
 
    procedure Compress_File (Input_Name, Output_Name : String) is
       Input : Byte_Array_Access := Load (Input_Name);
