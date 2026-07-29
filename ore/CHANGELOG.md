@@ -5,6 +5,59 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-29
+
+Client feedback on 0.3.0: a field read out of a stream is a number, and nothing
+in the library got from the bits a contract states to the number a client's own
+specifications are written in. That step is this release.
+
+### Added
+
+- `Ore.Bit_Cursors`: the arithmetic view of a field.
+  - `Field_Value`: the field as a `Natural`, with the bound the conversion needs
+    already proved, so a client whose codes and lengths are `Natural` writes no
+    conversion of its own. `Value_Count` stops at 30 bits: one bit because a
+    32-bit field can exceed `Natural'Last`, and one because the recurrence
+    doubles a field.
+  - `Lemma_Bits_At_Recursion` and `Lemma_Field_Value_Recursion`: a field is twice
+    the field without its least significant bit, plus that bit — the last bit
+    taken under `High_Bit_First`, the first under `Low_Bit_First`, which is all
+    the two orders differ by. This is the step a model that reads a field one bit
+    at a time is proved through.
+- `Ore.Bits`: the bridge between the bit view and the value view, which the
+  recurrences above rest on and which a client assembling words needs directly.
+  - `Lemma_Shift_Left_Value`, `Lemma_Shift_Right_Value`: a shift is a
+    multiplication or a division by a power of two.
+  - `Lemma_Extract_Value`: a field is a shifted remainder.
+  - `Bits_Value` and `Lemma_Bits_Value`: what the low bits of a word are worth,
+    as a recurrence, and that it agrees with the field — the value analogue of
+    `Count_Bits` and `Population_Count`.
+  - `Power_Of_Two_8/16/32/64`: one bit set, at an exponent, with the value as a
+    `Runtime` clause and the bit as a `Static` one, so a client weighing a code
+    length or sizing a table needs no table of powers.
+  - `Lemma_Low_Mask_8/16/32/64_Monotonic`: a wider mask is a bigger number. The
+    names carry the width because the parameters are counts, which would
+    otherwise make the four one profile.
+- The proof client under `tests/proof` now proves a client's own `Prefix_Value`
+  recursion equal to `Field_Value` at every width, by an induction that mentions
+  no bits. The concrete-width version of the same theorem lost its bit-level
+  proof and became two calls.
+- Runtime tests for the powers, for a field as a number, and for the recurrence
+  as arithmetic in both orders.
+
+### Changed
+
+- The spec of `Ore.Bit_Cursors` states what the package is not: every operation
+  costs a step per bit, and a throughput-oriented reader — a word-sized
+  accumulator refilled a byte at a time — is out of scope rather than slow here,
+  because the accumulator's state is not something a position in an array can
+  represent. Where the body defended the per-bit loop with a Huffman tree walk, it
+  now says that the loop around the tree walk is the case the argument does not
+  cover. `ROADMAP.md` records the decision.
+- The same spec records that positions are `Natural`, so a stream with more bit
+  positions than a `Natural` holds is out of the layer's range even where the
+  array holding it is not.
+
 ## [0.3.0] - 2026-07-28
 
 ### Added

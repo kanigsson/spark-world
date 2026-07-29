@@ -113,10 +113,48 @@ is
    --  A code, and the arithmetic view of it
    ---------------------------------------------------------------------------
 
-   --  What a model that sums the bits of a code computes: the first bit read
-   --  weighs most, because a code is read from its most significant bit. This
-   --  is the shape a client's own specification of a decoder is written in,
-   --  and it is stated with Bit_Value rather than with Bit for that reason.
+   --  A client's model of a code: the value of its first Length bits, as the
+   --  recursion over the length. A compressed format defines a code this way —
+   --  one bit at a time, the first bit read weighing most — so this is the form
+   --  a decoder's own specifications are stated and proved through, and there
+   --  are usually a great many of them.
+   function Prefix_Value
+     (Input : Byte_Array; Start : Natural; Length : Value_Count) return Natural
+   is (if Length = 0
+       then 0
+       else
+         2
+         * Prefix_Value (Input, Start, Length - 1)
+         + Bit_Value (Input, Start + Length - 1, Numbering))
+   with
+     Ghost              => Static,
+     Global             => null,
+     Pre                => Fits (Input, Start, Length),
+     Post               =>
+       Prefix_Value'Result < 2 ** Length
+       and then Prefix_Value'Result <= Natural'Last / 2,
+     Subprogram_Variant => (Decreases => Length);
+
+   --  The library's field is this model, at every width. This is the theorem a
+   --  client cannot do without and should not have to write: the induction is
+   --  one step per bit, and the step is the recurrence the library states, so
+   --  what is left here is the induction and nothing about bits at all.
+   procedure Lemma_Prefix_Value
+     (Input : Byte_Array; Start : Natural; Length : Value_Count)
+   with
+     Ghost              => Static,
+     Global             => null,
+     Pre                => Fits (Input, Start, Length),
+     Post               =>
+       Field_Value (Input, Start, Length, Numbering, High_Bit_First)
+       = Prefix_Value (Input, Start, Length),
+     Subprogram_Variant => (Decreases => Length);
+
+   --  What a model that sums the bits of a fixed-width code computes, written
+   --  out rather than as a recursion. It is the same number, which the theorem
+   --  above gives without any reasoning about bits: before the recurrence was
+   --  in the library, this needed the bits of the field, the bound of its mask
+   --  and an integer decomposition, all written here.
    function Code_Sum (A : Byte_Array; Position : Natural) return Natural
    is (4 * Bit_Value (A, Position, Numbering)
        + 2 * Bit_Value (A, Position + 1, Numbering)
@@ -126,9 +164,6 @@ is
      Pre    => Fits (A, Position, Code_Width),
      Post   => Code_Sum'Result <= 7;
 
-   --  The field the library assembles is the number the model sums. This is
-   --  the step from the bit view to the value view across a whole field, and a
-   --  client needs it exactly once, here, to connect its model to the take.
    procedure Lemma_Code_Sum (A : Byte_Array; Position : Natural)
    with
      Ghost  => Static,

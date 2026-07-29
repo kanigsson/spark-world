@@ -252,6 +252,11 @@ is
    procedure Lemma_Bound_Bits (Value : Word32; Count : Bit_Count_32) is null;
    procedure Lemma_Bound_Bits (Value : Word64; Count : Bit_Count_64) is null;
 
+   procedure Lemma_Low_Mask_8_Monotonic (Left, Right : Bit_Count_8) is null;
+   procedure Lemma_Low_Mask_16_Monotonic (Left, Right : Bit_Count_16) is null;
+   procedure Lemma_Low_Mask_32_Monotonic (Left, Right : Bit_Count_32) is null;
+   procedure Lemma_Low_Mask_64_Monotonic (Left, Right : Bit_Count_64) is null;
+
    function Field_Mask_8
      (Offset : Bit_Count_8; Count : Bit_Count_8) return Byte
    is (Shift_Left (Low_Mask_8 (Count), Offset));
@@ -267,6 +272,24 @@ is
    function Field_Mask_64
      (Offset : Bit_Count_64; Count : Bit_Count_64) return Word64
    is (Shift_Left (Low_Mask_64 (Count), Offset));
+
+   ---------------------------------------------------------------------------
+   --  Powers of two
+   ---------------------------------------------------------------------------
+
+   --  One shifted up, rather than the mask plus one: this way the bit-wise
+   --  half of the contract is the shift's own, and the value follows from it.
+   function Power_Of_Two_8 (Exponent : Bit_Index_8) return Byte
+   is (Intrinsics.Shift_Left (1, Exponent));
+
+   function Power_Of_Two_16 (Exponent : Bit_Index_16) return Word16
+   is (Intrinsics.Shift_Left (1, Exponent));
+
+   function Power_Of_Two_32 (Exponent : Bit_Index_32) return Word32
+   is (Intrinsics.Shift_Left (1, Exponent));
+
+   function Power_Of_Two_64 (Exponent : Bit_Index_64) return Word64
+   is (Intrinsics.Shift_Left (1, Exponent));
 
    ---------------------------------------------------------------------------
    --  Bit fields
@@ -567,6 +590,147 @@ is
         Assert (for all I in Bit_Index_64 => Bit (After, I) = Bit (Before, I));
       Lemma_Bits_Equal (After, Before);
    end Lemma_Insert_Frame;
+
+   ---------------------------------------------------------------------------
+   --  Bits and values
+   ---------------------------------------------------------------------------
+
+   --  The shifts need no proof here: inside this package a shift is the
+   --  intrinsic, so its arithmetic is visible and the provers close it unaided.
+   --  From outside it is not — a checked shift states only which bits it
+   --  moves — which is the whole reason these lemmas exist rather than being
+   --  left to a client.
+   procedure Lemma_Shift_Left_Value (Value : Byte; Amount : Bit_Count_8)
+   is null;
+
+   procedure Lemma_Shift_Left_Value (Value : Word16; Amount : Bit_Count_16)
+   is null;
+
+   procedure Lemma_Shift_Left_Value (Value : Word32; Amount : Bit_Count_32)
+   is null;
+
+   procedure Lemma_Shift_Left_Value (Value : Word64; Amount : Bit_Count_64)
+   is null;
+
+   procedure Lemma_Shift_Right_Value (Value : Byte; Amount : Bit_Count_8)
+   is null;
+
+   procedure Lemma_Shift_Right_Value (Value : Word16; Amount : Bit_Count_16)
+   is null;
+
+   procedure Lemma_Shift_Right_Value (Value : Word32; Amount : Bit_Count_32)
+   is null;
+
+   procedure Lemma_Shift_Right_Value (Value : Word64; Amount : Bit_Count_64)
+   is null;
+
+   --  A field is a shift and then a mask, and the two steps are named
+   --  separately here: the 64-bit goal is not closed with them left implicit,
+   --  and the narrower widths are written the same way rather than differently
+   --  for no reason a reader could see.
+   procedure Lemma_Extract_Value
+     (Value : Byte; Offset : Bit_Count_8; Count : Bit_Count_8) is
+   begin
+      Lemma_Shift_Right_Value (Value, Offset);
+      pragma
+        Assert
+          ((Shift_Right (Value, Offset) and Low_Mask_8 (Count))
+           = Shift_Right (Value, Offset) mod 2 ** Count);
+   end Lemma_Extract_Value;
+
+   procedure Lemma_Extract_Value
+     (Value : Word16; Offset : Bit_Count_16; Count : Bit_Count_16) is
+   begin
+      Lemma_Shift_Right_Value (Value, Offset);
+      pragma
+        Assert
+          ((Shift_Right (Value, Offset) and Low_Mask_16 (Count))
+           = Shift_Right (Value, Offset) mod 2 ** Count);
+   end Lemma_Extract_Value;
+
+   procedure Lemma_Extract_Value
+     (Value : Word32; Offset : Bit_Count_32; Count : Bit_Count_32) is
+   begin
+      Lemma_Shift_Right_Value (Value, Offset);
+      pragma
+        Assert
+          ((Shift_Right (Value, Offset) and Low_Mask_32 (Count))
+           = Shift_Right (Value, Offset) mod 2 ** Count);
+   end Lemma_Extract_Value;
+
+   procedure Lemma_Extract_Value
+     (Value : Word64; Offset : Bit_Count_64; Count : Bit_Count_64) is
+   begin
+      Lemma_Shift_Right_Value (Value, Offset);
+      pragma
+        Assert
+          ((Shift_Right (Value, Offset) and Low_Mask_64 (Count))
+           = Shift_Right (Value, Offset) mod 2 ** Count);
+   end Lemma_Extract_Value;
+
+   --  The recurrence against the operation, by induction on the count: one more
+   --  bit of the field is the field one bit shorter plus that bit's weight,
+   --  which is the step stated as an assertion below because it is the only
+   --  place the two views meet.
+   procedure Lemma_Bits_Value (Value : Byte; Count : Bit_Count_8) is
+   begin
+      if Count = 0 then
+         return;
+      end if;
+
+      Lemma_Bits_Value (Value, Count - 1);
+
+      pragma
+        Assert
+          (Extract (Value, 0, Count)
+           = Extract (Value, 0, Count - 1)
+             + (if Bit (Value, Count - 1) then 2 ** (Count - 1) else 0));
+   end Lemma_Bits_Value;
+
+   procedure Lemma_Bits_Value (Value : Word16; Count : Bit_Count_16) is
+   begin
+      if Count = 0 then
+         return;
+      end if;
+
+      Lemma_Bits_Value (Value, Count - 1);
+
+      pragma
+        Assert
+          (Extract (Value, 0, Count)
+           = Extract (Value, 0, Count - 1)
+             + (if Bit (Value, Count - 1) then 2 ** (Count - 1) else 0));
+   end Lemma_Bits_Value;
+
+   procedure Lemma_Bits_Value (Value : Word32; Count : Bit_Count_32) is
+   begin
+      if Count = 0 then
+         return;
+      end if;
+
+      Lemma_Bits_Value (Value, Count - 1);
+
+      pragma
+        Assert
+          (Extract (Value, 0, Count)
+           = Extract (Value, 0, Count - 1)
+             + (if Bit (Value, Count - 1) then 2 ** (Count - 1) else 0));
+   end Lemma_Bits_Value;
+
+   procedure Lemma_Bits_Value (Value : Word64; Count : Bit_Count_64) is
+   begin
+      if Count = 0 then
+         return;
+      end if;
+
+      Lemma_Bits_Value (Value, Count - 1);
+
+      pragma
+        Assert
+          (Extract (Value, 0, Count)
+           = Extract (Value, 0, Count - 1)
+             + (if Bit (Value, Count - 1) then 2 ** (Count - 1) else 0));
+   end Lemma_Bits_Value;
 
    ---------------------------------------------------------------------------
    --  Counting bits

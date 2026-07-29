@@ -93,6 +93,26 @@ procedure Bit_Tests is
          "a field mask is its low mask moved up");
    end Test_Masks;
 
+   procedure Test_Powers is
+   begin
+      Check (Power_Of_Two_8 (0) = 1, "two to the zero");
+      Check (Power_Of_Two_8 (7) = 128, "the top bit of a byte");
+      Check (Power_Of_Two_16 (15) = 16#8000#, "the top bit of a 16-bit word");
+      Check (Power_Of_Two_32 (31) = 16#8000_0000#, "the top bit of a word");
+      Check (Power_Of_Two_64 (63) = 2 ** 63, "the top bit of a 64-bit word");
+
+      --  The value clause across the whole range, which is what replaces a
+      --  table of powers beside the arithmetic that needs one.
+      for Exponent in Bit_Index_32 loop
+         Check
+           (Power_Of_Two_32 (Exponent) = 2 ** Exponent,
+            "a power of two is its exponent's power");
+         Check
+           (Power_Of_Two_32 (Exponent) = Low_Mask_32 (Exponent) + 1,
+            "a power of two is its mask plus one");
+      end loop;
+   end Test_Powers;
+
    procedure Test_Fields is
       Packed : Word32;
    begin
@@ -199,6 +219,7 @@ begin
    Test_Shifts;
    Test_Rotates;
    Test_Masks;
+   Test_Powers;
    Test_Fields;
    Test_Counting;
    Test_Bytes;

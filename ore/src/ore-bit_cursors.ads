@@ -40,6 +40,26 @@
 --  of a stream numbered from the least significant bit of each byte. Neither
 --  order is a setting made once; both are arguments of each operation.
 --
+--  WHAT THIS IS NOT. Every operation here costs one step per bit, and the
+--  contracts are what that buys: a field is specified by which position each of
+--  its bits came from, in either order, at any offset. A decoder whose
+--  throughput is measured does not read that way — it keeps a word-sized
+--  accumulator, refills it a byte at a time and takes a field with one shift and
+--  one mask — and that reader is neither here nor buildable out of what is here,
+--  because the accumulator's state is the bits already consumed from the array
+--  and not yet from the stream, which a position in the array cannot represent.
+--  Ore.Byte_Buffers.Load_32 and the shifts and masks of Ore.Bits are what such a
+--  reader is built from, and the invariant tying its accumulator to a bit
+--  position is its own. This is said here so that the next client reads it
+--  rather than benchmarks it.
+--
+--  POSITIONS ARE NATURAL. A stream with more bit positions than a Natural holds
+--  is out of the range of this layer, even where the array holding it is not:
+--  the bounds below are divisions so that no length ceiling is needed, but the
+--  position parameter is still a Natural. A client that counts bit positions in
+--  a wider type keeps its own accessors — the division-and-subtraction style is
+--  the part that generalises, the profile is the part that does not.
+--
 --  FRAMING. What a client cannot write for itself, and most wants to inherit,
 --  is the step from "one byte of the array changed, and one bit within it" to
 --  "one bit position of the array changed". Set_Bit states it as a
@@ -279,6 +299,103 @@ is
        = Bits_At (Before, Position, Count, Numbering, Order);
 
    ---------------------------------------------------------------------------
+   --  A field as a number
+   ---------------------------------------------------------------------------
+
+   --  A field is read because it is a number: a code indexes a table, a length
+   --  becomes a length, a distance becomes an offset. Bits_At states which bit
+   --  of the result each position became, which is what a write has to
+   --  establish and a frame has to preserve, but a client whose own
+   --  specifications are arithmetic cannot get from that statement to a number
+   --  without a bridge. These two operations are the bridge, and without them a
+   --  client that computes with the fields it reads has to keep its own reader.
+   --
+   --  One bit at a time is how a client's model of a field is written, because
+   --  that is how a format defines one, so the recurrence is what is stated: a
+   --  field is twice the field without its least significant bit, plus that
+   --  bit. Which bit that is is the whole content of the two orders — the last
+   --  one taken under High_Bit_First, the first one under Low_Bit_First — so
+   --  the two cases drop a bit at opposite ends and are otherwise the same
+   --  equation.
+   procedure Lemma_Bits_At_Recursion
+     (A         : Byte_Array;
+      Position  : Natural;
+      Count     : Bits.Bit_Count_32;
+      Numbering : Bit_Numbering;
+      Order     : Field_Order)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Count >= 1 and then Fits (A, Position, Count),
+     Post   =>
+       (case Order is
+          when High_Bit_First =>
+            Bits_At (A, Position, Count, Numbering, Order)
+            = 2
+              * Bits_At (A, Position, Count - 1, Numbering, Order)
+              + Word32 (Bit_Value (A, Position + Count - 1, Numbering)),
+          when Low_Bit_First  =>
+            Bits_At (A, Position, Count, Numbering, Order)
+            = 2
+              * Bits_At (A, Position + 1, Count - 1, Numbering, Order)
+              + Word32 (Bit_Value (A, Position, Numbering)));
+
+   --  A field's width stops short of a Word32's where the number is a Natural.
+   --  Two bits go: one because a 32-bit field can exceed Natural'Last, and one
+   --  because the recurrence doubles a field, and a contract that overflows
+   --  where its subject does not is a contract a client cannot use. Every field
+   --  a bit-packed format defines is inside this; what is not is a whole word,
+   --  which is what Bits_At and the endian loads are for.
+   subtype Value_Count is Natural range 0 .. 30;
+
+   --  The field as a number. A client whose codes, lengths and symbols are all
+   --  Natural would otherwise write a conversion at every use, and each one
+   --  carries a range check that needs the bound of the mask — provable, but it
+   --  is noise at the boundary of a package whose job is that boundary.
+   --
+   --  The last clause is what the recurrence rests on: a field of this width
+   --  can be doubled without leaving Natural, so an induction over the width
+   --  never has to bound the arithmetic of the step it is proving.
+   function Field_Value
+     (A         : Byte_Array;
+      Position  : Natural;
+      Count     : Value_Count;
+      Numbering : Bit_Numbering;
+      Order     : Field_Order) return Natural
+   with
+     Global => null,
+     Pre    => Fits (A, Position, Count),
+     Post   =>
+       Field_Value'Result
+       = Natural (Bits_At (A, Position, Count, Numbering, Order))
+       and then Field_Value'Result <= Natural (Bits.Low_Mask_32 (Count))
+       and then Field_Value'Result <= Natural'Last / 2;
+
+   --  The same recurrence in the arithmetic a client's model is written in.
+   procedure Lemma_Field_Value_Recursion
+     (A         : Byte_Array;
+      Position  : Natural;
+      Count     : Value_Count;
+      Numbering : Bit_Numbering;
+      Order     : Field_Order)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Count >= 1 and then Fits (A, Position, Count),
+     Post   =>
+       (case Order is
+          when High_Bit_First =>
+            Field_Value (A, Position, Count, Numbering, Order)
+            = 2
+              * Field_Value (A, Position, Count - 1, Numbering, Order)
+              + Bit_Value (A, Position + Count - 1, Numbering),
+          when Low_Bit_First  =>
+            Field_Value (A, Position, Count, Numbering, Order)
+            = 2
+              * Field_Value (A, Position + 1, Count - 1, Numbering, Order)
+              + Bit_Value (A, Position, Numbering));
+
+   ---------------------------------------------------------------------------
    --  Writing
    ---------------------------------------------------------------------------
 
@@ -310,6 +427,10 @@ is
    --  does not hold them and move nothing. Running out of bits is an answer
    --  rather than an error: a decoder asks for the next field of a stream it
    --  does not control the end of, and has to be able to ask.
+   --
+   --  A take costs a step per bit, as everything here does. Where that is the
+   --  wrong trade the reader wanted is the accumulator one, which this package
+   --  does not provide; see the head of this spec.
    --
    --  Unchanged on failure is the guarantee that makes a refill loop
    --  writable — the caller retries the same take once more bytes have

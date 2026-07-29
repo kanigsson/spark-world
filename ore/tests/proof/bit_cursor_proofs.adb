@@ -118,29 +118,30 @@ is
    --  A code, and the arithmetic view of it
    ---------------------------------------------------------------------------
 
-   procedure Lemma_Code_Sum (A : Byte_Array; Position : Natural) is
-      Field : constant Word32 :=
-        Bits_At (A, Position, Code_Width, Numbering, High_Bit_First);
-
-      Sum : constant Word32 :=
-        4 * Word32 (Bit_Value (A, Position, Numbering))
-        + 2 * Word32 (Bit_Value (A, Position + 1, Numbering))
-        + Word32 (Bit_Value (A, Position + 2, Numbering));
+   procedure Lemma_Prefix_Value
+     (Input : Byte_Array; Start : Natural; Length : Value_Count) is
    begin
-      --  The field is under its mask, so it is the weighted sum of three bits
-      --  and the weights are constants. It is the variable exponent, not the
-      --  sum, that a step from bits to a value founders on.
-      pragma Assert (Field <= Low_Mask_32 (Code_Width));
-      pragma Assert (Field <= 7);
+      if Length = 0 then
+         --  An empty field is zero, and the model of no bits is zero.
+         return;
+      end if;
+
+      Lemma_Prefix_Value (Input, Start, Length - 1);
+      Lemma_Field_Value_Recursion
+        (Input, Start, Length, Numbering, High_Bit_First);
+   end Lemma_Prefix_Value;
+
+   procedure Lemma_Code_Sum (A : Byte_Array; Position : Natural) is
+   begin
+      --  The recursion at this width, and then the recursion written out: the
+      --  client's own model of a fixed-width code, with nothing about bits in
+      --  the proof of it.
+      Lemma_Prefix_Value (A, Position, Code_Width);
+
       pragma
         Assert
-          (Natural (Field)
-           = 4 * (if Bit (Field, 2) then 1 else 0)
-             + 2 * (if Bit (Field, 1) then 1 else 0)
-             + (if Bit (Field, 0) then 1 else 0));
-
-      pragma Assert (Static => Natural (Field) = Code_Sum (A, Position));
-      pragma Assert (Static => Field = Sum);
+          (Static =>
+             Prefix_Value (A, Position, Code_Width) = Code_Sum (A, Position));
    end Lemma_Code_Sum;
 
    ---------------------------------------------------------------------------

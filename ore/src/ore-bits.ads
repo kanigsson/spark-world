@@ -606,6 +606,42 @@ is
      Pre    => Value <= Low_Mask_64 (Count),
      Post   => (for all I in Count .. 63 => not Bit (Value, I));
 
+   --  A wider mask is a bigger number. Masks come out of a count a client
+   --  computed, and a bound written against one of them has to be usable
+   --  against another: this is the step from "the count is no larger" to "the
+   --  mask is no larger", which the value clause gives only once the two
+   --  powers are compared, and comparing two powers of a variable exponent is
+   --  what a prover does not do on its own. The name carries the width, as the
+   --  masks themselves do: the parameters are counts, so the four would
+   --  otherwise be one profile.
+   procedure Lemma_Low_Mask_8_Monotonic (Left, Right : Bit_Count_8)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Left <= Right,
+     Post   => Low_Mask_8 (Left) <= Low_Mask_8 (Right);
+
+   procedure Lemma_Low_Mask_16_Monotonic (Left, Right : Bit_Count_16)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Left <= Right,
+     Post   => Low_Mask_16 (Left) <= Low_Mask_16 (Right);
+
+   procedure Lemma_Low_Mask_32_Monotonic (Left, Right : Bit_Count_32)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Left <= Right,
+     Post   => Low_Mask_32 (Left) <= Low_Mask_32 (Right);
+
+   procedure Lemma_Low_Mask_64_Monotonic (Left, Right : Bit_Count_64)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Left <= Right,
+     Post   => Low_Mask_64 (Left) <= Low_Mask_64 (Right);
+
    --  Count bits set, starting at Offset: the mask of one field. The bound is
    --  in subtraction form, so the sum Offset + Count is never formed where it
    --  could leave the width.
@@ -678,6 +714,59 @@ is
           and then
             (for all I in Offset + Count .. 63 =>
                not Bit (Field_Mask_64'Result, I)));
+
+   ---------------------------------------------------------------------------
+   --  Powers of two
+   ---------------------------------------------------------------------------
+
+   --  One bit set, at Exponent: the weight of that bit position. A mask plus
+   --  one is the same number, but a client that needs the weight is not
+   --  masking anything — it is weighing a code length, summing a series, or
+   --  sizing a table — and writing it as a mask says the wrong thing about
+   --  what the value is for. The exponent stops one short of the width, which
+   --  is where the value stops being representable rather than a restriction
+   --  of its own.
+   --
+   --  Naming the operation is what keeps a client from tabulating it. A
+   --  concrete array of powers is what a client writes when a symbolic
+   --  exponent is proof risk; here the exponent is symbolic, the value is a
+   --  postcondition, and the bit is one too, so neither view has to be
+   --  recovered from the other.
+   function Power_Of_Two_8 (Exponent : Bit_Index_8) return Byte
+   with
+     Global => null,
+     Post   =>
+       (Runtime => Power_Of_Two_8'Result = 2 ** Exponent,
+        Static  =>
+          (for all I in Bit_Index_8 =>
+             Bit (Power_Of_Two_8'Result, I) = (I = Exponent)));
+
+   function Power_Of_Two_16 (Exponent : Bit_Index_16) return Word16
+   with
+     Global => null,
+     Post   =>
+       (Runtime => Power_Of_Two_16'Result = 2 ** Exponent,
+        Static  =>
+          (for all I in Bit_Index_16 =>
+             Bit (Power_Of_Two_16'Result, I) = (I = Exponent)));
+
+   function Power_Of_Two_32 (Exponent : Bit_Index_32) return Word32
+   with
+     Global => null,
+     Post   =>
+       (Runtime => Power_Of_Two_32'Result = 2 ** Exponent,
+        Static  =>
+          (for all I in Bit_Index_32 =>
+             Bit (Power_Of_Two_32'Result, I) = (I = Exponent)));
+
+   function Power_Of_Two_64 (Exponent : Bit_Index_64) return Word64
+   with
+     Global => null,
+     Post   =>
+       (Runtime => Power_Of_Two_64'Result = 2 ** Exponent,
+        Static  =>
+          (for all I in Bit_Index_64 =>
+             Bit (Power_Of_Two_64'Result, I) = (I = Exponent)));
 
    ---------------------------------------------------------------------------
    --  Bit fields
@@ -912,6 +1001,201 @@ is
        Extract
          (Insert (Value, Field, Offset, Count), Other_Offset, Other_Count)
        = Extract (Value, Other_Offset, Other_Count);
+
+   ---------------------------------------------------------------------------
+   --  Bits and values
+   ---------------------------------------------------------------------------
+
+   --  Everything above states which bits a result has. A client reads a
+   --  bit-packed field because the field is a number — a code indexes a table,
+   --  a length becomes a length — so its own specifications are arithmetic,
+   --  and it needs the step between the two views. Lemma_Bound_Bits goes from a
+   --  bound to bits; these go the other way, and they are the direction the
+   --  contracts here cannot supply as postconditions, because an arithmetic
+   --  postcondition on a shift would be the thing this layer exists not to
+   --  make a client write.
+   --
+   --  A shift is a multiplication or a division by a power of two, and a field
+   --  at the bottom of a word is a remainder. Those three are the whole bridge:
+   --  every arithmetic fact about a bit operation of this package follows from
+   --  them and ordinary integer reasoning, which is what a prover is good at.
+   --  A shift left needs no restriction, because a shift that leaves the word
+   --  and a multiplication that wraps agree; a shift right and a field do,
+   --  because the divisor or the modulus has to be a number the type holds.
+   procedure Lemma_Shift_Left_Value (Value : Byte; Amount : Bit_Count_8)
+   with
+     Ghost  => Static,
+     Global => null,
+     Post   => Shift_Left (Value, Amount) = Value * 2 ** Amount;
+
+   procedure Lemma_Shift_Left_Value (Value : Word16; Amount : Bit_Count_16)
+   with
+     Ghost  => Static,
+     Global => null,
+     Post   => Shift_Left (Value, Amount) = Value * 2 ** Amount;
+
+   procedure Lemma_Shift_Left_Value (Value : Word32; Amount : Bit_Count_32)
+   with
+     Ghost  => Static,
+     Global => null,
+     Post   => Shift_Left (Value, Amount) = Value * 2 ** Amount;
+
+   procedure Lemma_Shift_Left_Value (Value : Word64; Amount : Bit_Count_64)
+   with
+     Ghost  => Static,
+     Global => null,
+     Post   => Shift_Left (Value, Amount) = Value * 2 ** Amount;
+
+   procedure Lemma_Shift_Right_Value (Value : Byte; Amount : Bit_Count_8)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Amount < 8,
+     Post   => Shift_Right (Value, Amount) = Value / 2 ** Amount;
+
+   procedure Lemma_Shift_Right_Value (Value : Word16; Amount : Bit_Count_16)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Amount < 16,
+     Post   => Shift_Right (Value, Amount) = Value / 2 ** Amount;
+
+   procedure Lemma_Shift_Right_Value (Value : Word32; Amount : Bit_Count_32)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Amount < 32,
+     Post   => Shift_Right (Value, Amount) = Value / 2 ** Amount;
+
+   procedure Lemma_Shift_Right_Value (Value : Word64; Amount : Bit_Count_64)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Amount < 64,
+     Post   => Shift_Right (Value, Amount) = Value / 2 ** Amount;
+
+   procedure Lemma_Extract_Value
+     (Value : Byte; Offset : Bit_Count_8; Count : Bit_Count_8)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Offset < 8 and then Count < 8 and then Count <= 8 - Offset,
+     Post   =>
+       Extract (Value, Offset, Count) = (Value / 2 ** Offset) mod 2 ** Count;
+
+   procedure Lemma_Extract_Value
+     (Value : Word16; Offset : Bit_Count_16; Count : Bit_Count_16)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Offset < 16 and then Count < 16 and then Count <= 16 - Offset,
+     Post   =>
+       Extract (Value, Offset, Count) = (Value / 2 ** Offset) mod 2 ** Count;
+
+   procedure Lemma_Extract_Value
+     (Value : Word32; Offset : Bit_Count_32; Count : Bit_Count_32)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Offset < 32 and then Count < 32 and then Count <= 32 - Offset,
+     Post   =>
+       Extract (Value, Offset, Count) = (Value / 2 ** Offset) mod 2 ** Count;
+
+   procedure Lemma_Extract_Value
+     (Value : Word64; Offset : Bit_Count_64; Count : Bit_Count_64)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Offset < 64 and then Count < 64 and then Count <= 64 - Offset,
+     Post   =>
+       Extract (Value, Offset, Count) = (Value / 2 ** Offset) mod 2 ** Count;
+
+   --  What the low Upto bits are worth, as a recurrence: each bit adds its own
+   --  weight. This is to a value what Count_Bits is to a count — the form a
+   --  client's own induction is written against, and the shape a model of a
+   --  code arrives at when it reads a field one bit at a time.
+   function Bits_Value (Value : Byte; Upto : Bit_Count_8) return Byte
+   is (if Upto = 0
+       then 0
+       else
+         Bits_Value (Value, Upto - 1)
+         + (if Bit (Value, Upto - 1) then 2 ** (Upto - 1) else 0))
+   with
+     Ghost              => Static,
+     Global             => null,
+     Post               => Bits_Value'Result <= Low_Mask_8 (Upto),
+     Subprogram_Variant => (Decreases => Upto);
+
+   function Bits_Value (Value : Word16; Upto : Bit_Count_16) return Word16
+   is (if Upto = 0
+       then 0
+       else
+         Bits_Value (Value, Upto - 1)
+         + (if Bit (Value, Upto - 1) then 2 ** (Upto - 1) else 0))
+   with
+     Ghost              => Static,
+     Global             => null,
+     Post               => Bits_Value'Result <= Low_Mask_16 (Upto),
+     Subprogram_Variant => (Decreases => Upto);
+
+   function Bits_Value (Value : Word32; Upto : Bit_Count_32) return Word32
+   is (if Upto = 0
+       then 0
+       else
+         Bits_Value (Value, Upto - 1)
+         + (if Bit (Value, Upto - 1) then 2 ** (Upto - 1) else 0))
+   with
+     Ghost              => Static,
+     Global             => null,
+     Post               => Bits_Value'Result <= Low_Mask_32 (Upto),
+     Subprogram_Variant => (Decreases => Upto);
+
+   function Bits_Value (Value : Word64; Upto : Bit_Count_64) return Word64
+   is (if Upto = 0
+       then 0
+       else
+         Bits_Value (Value, Upto - 1)
+         + (if Bit (Value, Upto - 1) then 2 ** (Upto - 1) else 0))
+   with
+     Ghost              => Static,
+     Global             => null,
+     Post               => Bits_Value'Result <= Low_Mask_64 (Upto),
+     Subprogram_Variant => (Decreases => Upto);
+
+   --  The bits of a field are worth the field: the recurrence and the operation
+   --  agree, so a client that specified its reader as a recurrence can use
+   --  either and needs no induction of its own.
+   procedure Lemma_Bits_Value (Value : Byte; Count : Bit_Count_8)
+   with
+     Ghost              => Static,
+     Global             => null,
+     Post               =>
+       Bits_Value (Value, Count) = Extract (Value, 0, Count),
+     Subprogram_Variant => (Decreases => Count);
+
+   procedure Lemma_Bits_Value (Value : Word16; Count : Bit_Count_16)
+   with
+     Ghost              => Static,
+     Global             => null,
+     Post               =>
+       Bits_Value (Value, Count) = Extract (Value, 0, Count),
+     Subprogram_Variant => (Decreases => Count);
+
+   procedure Lemma_Bits_Value (Value : Word32; Count : Bit_Count_32)
+   with
+     Ghost              => Static,
+     Global             => null,
+     Post               =>
+       Bits_Value (Value, Count) = Extract (Value, 0, Count),
+     Subprogram_Variant => (Decreases => Count);
+
+   procedure Lemma_Bits_Value (Value : Word64; Count : Bit_Count_64)
+   with
+     Ghost              => Static,
+     Global             => null,
+     Post               =>
+       Bits_Value (Value, Count) = Extract (Value, 0, Count),
+     Subprogram_Variant => (Decreases => Count);
 
    ---------------------------------------------------------------------------
    --  Counting bits

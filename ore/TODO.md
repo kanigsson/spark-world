@@ -16,6 +16,10 @@ on `Word64` with a variable shift amount, which are bit-vector problems, and
 `Ore.Bits.Extract` for `Word64` is the one that failed first. Nothing else in
 either project has come close to the limit.
 
+The value-view lemmas added in 0.4.0 are the same shape at the same width, and
+`Lemma_Extract_Value` for `Word64` needed its two steps named in the body rather
+than more time — which is the cheaper fix and the one to reach for first.
+
 Worth trying, roughly in order of how much they would tell us:
 
 * Measure it first — `gnatprove --report=statistics` per unit, to name the

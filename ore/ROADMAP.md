@@ -52,14 +52,28 @@ and its capacity ceiling is not the ceiling of an input a caller mapped or
 read. There is no bit-addressed container type, and none is planned. Reading
 the bits of a `Buffer` means reading the bits of a `Slice` of it.
 
+0.4.0 added the arithmetic view of a field, which is what a client that computes
+with what it reads needs: `Field_Value`, the recurrence lemmas, and the
+bits-to-value bridge they rest on in `Ore.Bits`.
+
 What is not there yet:
 
-* A field wider than 32 bits in one take or put
+* A field wider than 32 bits in one take or put, or wider than 30 as a `Natural`
 * A take that reports how many bits it could supply, rather than only that it
   could not supply all of them
 * A frame lemma for a whole span written by hand. `Put_Bits` states the span
   frame for its own write and `Lemma_Bit_Frame` states it for one bit; a client
   that writes a span with its own byte stores has to compose the two
+
+Decided against, so that it is not proposed again: a throughput-oriented reader,
+the kind that keeps a word-sized accumulator, refills it a byte at a time and
+takes a field with one shift and one mask. Every operation here costs a step per
+bit, and that is not an implementation to improve — the accumulator's state is
+the bits consumed from the array but not yet from the stream, which a position in
+an array cannot represent, so such a reader is a different interface and its own
+invariant. `Load_32` and the shifts and masks of `Ore.Bits` are what it is built
+from. The spec of `Ore.Bit_Cursors` says this too, where a reader looking for
+throughput will see it.
 
 ## Simpler containers for small systems
 

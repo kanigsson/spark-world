@@ -46,5 +46,14 @@ begin
              3,
              Ore.Bit_Cursors.Lsb_First,
              Ore.Bit_Cursors.Low_Bit_First)
-          = 2#101#);
+          = 2#101#
+        and then
+          Ore.Bit_Cursors.Field_Value
+            (Bits_Out,
+             0,
+             3,
+             Ore.Bit_Cursors.Lsb_First,
+             Ore.Bit_Cursors.Low_Bit_First)
+          = 5
+        and then Ore.Bits.Power_Of_Two_32 (4) = 16);
 end Restriction_Smoke;

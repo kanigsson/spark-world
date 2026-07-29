@@ -132,6 +132,42 @@ procedure Bit_Cursor_Tests is
 
    ---------------------------------------------------------------------------
 
+   procedure Test_Values is
+   begin
+      --  The same fields as numbers rather than as words: what a client that
+      --  computes with what it reads gets without writing a conversion.
+      Check
+        (Field_Value (Sample, 0, 4, Lsb_First, Low_Bit_First) = 12,
+         "four bits as a number, low bit first");
+      Check
+        (Field_Value (Sample, 0, 4, Lsb_First, High_Bit_First) = 3,
+         "four bits as a number, high bit first");
+      Check
+        (Field_Value (Sample, 0, 0, Lsb_First, Low_Bit_First) = 0,
+         "an empty field is zero");
+
+      --  The recurrence the lemmas state, as arithmetic on values: a field is
+      --  twice the field without its least significant bit, plus that bit. That
+      --  bit is the last one taken under one order and the first under the
+      --  other, which is the only difference between them.
+      for Count in 1 .. 12 loop
+         Check
+           (Field_Value (Sample, 0, Count, Lsb_First, High_Bit_First)
+            = 2
+              * Field_Value (Sample, 0, Count - 1, Lsb_First, High_Bit_First)
+              + Bit_Value (Sample, Count - 1, Lsb_First),
+            "the recurrence, high bit first");
+         Check
+           (Field_Value (Sample, 0, Count, Lsb_First, Low_Bit_First)
+            = 2
+              * Field_Value (Sample, 1, Count - 1, Lsb_First, Low_Bit_First)
+              + Bit_Value (Sample, 0, Lsb_First),
+            "the recurrence, low bit first");
+      end loop;
+   end Test_Values;
+
+   ---------------------------------------------------------------------------
+
    procedure Test_Take is
       Position : Natural;
       Value    : Word32;
@@ -242,6 +278,7 @@ begin
    Test_Positions;
    Test_Bits;
    Test_Fields;
+   Test_Values;
    Test_Take;
    Test_Put;
 
