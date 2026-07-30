@@ -1,5 +1,37 @@
 package body Inflate.Codebooks with SPARK_Mode => On is
 
+   ---------------------
+   -- Lemma_Pow2_Mask --
+   ---------------------
+
+   procedure Lemma_Pow2_Mask (Length : Natural) is
+   begin
+      --  One branch per width, because what each branch supplies is a concrete
+      --  exponent: the mask's value clause is then an equality between two
+      --  numbers and the table entry is a literal. A disjunction of widths in
+      --  one branch would leave the exponent variable, which is the case the
+      --  provers do not take.
+      case Length is
+         when 0 => null;
+         when 1 => null;
+         when 2 => null;
+         when 3 => null;
+         when 4 => null;
+         when 5 => null;
+         when 6 => null;
+         when 7 => null;
+         when 8 => null;
+         when 9 => null;
+         when 10 => null;
+         when 11 => null;
+         when 12 => null;
+         when 13 => null;
+         when 14 => null;
+         when 15 => null;
+         when others => null;   --  excluded by the precondition
+      end case;
+   end Lemma_Pow2_Mask;
+
    procedure Lemma_Count_Step
      (Lengths : Code_Length_Array;
       Length  : Code_Length_Pos;

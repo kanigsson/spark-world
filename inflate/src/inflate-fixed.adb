@@ -11,12 +11,6 @@ package body Inflate.Fixed with SPARK_Mode => On is
       Loop_Invariant => Ignore,
       Loop_Variant   => Ignore);
 
-   function Small_Power_Bound
-     (Value, Exponent : Natural) return Boolean
-   is (Value <= 2 ** 11 - 1)
-   with Ghost,
-        Pre => Exponent <= 11 and then Value < 2 ** Exponent;
-
    ---------------------
    -- Matching_Length --
    ---------------------
@@ -123,6 +117,38 @@ package body Inflate.Fixed with SPARK_Mode => On is
       return Result;
    end Encoded_Bit_Count;
 
+   ----------------------
+   -- Lemma_Mask_Power --
+   ----------------------
+
+   procedure Lemma_Mask_Power (Length : Natural) is
+   begin
+      --  One branch per width, because the point of the branch is that the
+      --  exponent is concrete inside it: the mask's value clause is then an
+      --  equality between two numbers and the conversion out of the word type
+      --  is a literal. A disjunction of widths in one branch would leave the
+      --  exponent variable, which is the case the provers do not take.
+      case Length is
+         when 0 => null;
+         when 1 => null;
+         when 2 => null;
+         when 3 => null;
+         when 4 => null;
+         when 5 => null;
+         when 6 => null;
+         when 7 => null;
+         when 8 => null;
+         when 9 => null;
+         when 10 => null;
+         when 11 => null;
+         when 12 => null;
+         when 13 => null;
+         when 14 => null;
+         when 15 => null;
+         when others => null;   --  excluded by the precondition
+      end case;
+   end Lemma_Mask_Power;
+
    ------------------
    -- Prefix_Value --
    ------------------
@@ -133,18 +159,28 @@ package body Inflate.Fixed with SPARK_Mode => On is
       Length : Natural) return Natural
    is
    begin
+      --  Ore bounds a field by the mask of its width, and the bound stated
+      --  here is the power of two: the same number, and needed in both the
+      --  empty case, where the mask is zero, and the recursive one.
+      Lemma_Mask_Power (Length);
+
       if Length = 0 then
          return 0;
-      else
-         declare
-            Prefix : constant Natural :=
-              Prefix_Value (Input, Start, Length - 1);
-         begin
-            pragma Assert (Length - 1 <= 11);
-            pragma Assert (Small_Power_Bound (Prefix, Length - 1));
-            return 2 * Prefix + Bit_Value (Input, Start + Length - 1);
-         end;
       end if;
+
+      declare
+         Prefix : constant Natural := Prefix_Value (Input, Start, Length - 1);
+      begin
+         --  The recursion is the value the encoders' contracts are written
+         --  in; Ore's is the same equation about its own field. Taking both
+         --  steps here is what proves the two are one function, and it is the
+         --  step no client can take from a bit-wise specification alone.
+         Bit_Cursors.Lemma_Field_Value_Recursion
+           (Input, Start, Length,
+            Bit_Cursors.Lsb_First, Bit_Cursors.High_Bit_First);
+
+         return Prefix * 2 + Bit_Value (Input, Start + Length - 1);
+      end;
    end Prefix_Value;
 
    -----------------

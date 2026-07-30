@@ -8,21 +8,6 @@ package body Inflate.Payload with SPARK_Mode => On is
       Loop_Invariant => Ignore,
       Loop_Variant   => Ignore);
 
-   procedure Lemma_Prefix_Step
-     (Input : Byte_Array; Start : Natural; Length : Positive)
-   with
-     Ghost,
-     Pre  => Input'Length <= Fixed.Max_Stream_Bytes
-               and then Length <= 9
-               and then Start <= 8 * Input'Length
-               and then Length <= 8 * Input'Length - Start,
-     Post => Fixed.Prefix_Value (Input, Start, Length) =
-               2 * Fixed.Prefix_Value (Input, Start, Length - 1)
-                 + Fixed.Bit_Value (Input, Start + Length - 1);
-
-   procedure Lemma_Prefix_Step
-     (Input : Byte_Array; Start : Natural; Length : Positive) is null;
-
    procedure Lemma_Prefix_Frame
      (Before, After : Byte_Array;
       Start, Length : Natural)
@@ -53,30 +38,6 @@ package body Inflate.Payload with SPARK_Mode => On is
       end if;
    end Lemma_Prefix_Frame;
 
-   procedure Set_Stream_Bit
-     (Output   : in out Byte_Array;
-      Position : Natural;
-      Value    : Natural)
-   with
-     Pre  => Output'Length <= Fixed.Max_Stream_Bytes
-               and then Position < 8 * Output'Length
-               and then Value <= 1,
-     Post => Fixed.Bit_Value (Output, Position) = Value
-               and then
-             (for all P in 0 .. 8 * Output'Length - 1 =>
-                (if P /= Position
-                 then Fixed.Bit_Value (Output, P) =
-                        Fixed.Bit_Value (Output'Old, P)))
-   is
-   begin
-      --  Ore's single-bit store, in the numbering DEFLATE reads its stream
-      --  in. Its postcondition is the bit that changed together with the
-      --  frame over every other bit position of the array, which is the
-      --  frame stated above.
-      Bit_Cursors.Set_Bit
-        (Output, Position, Value = 1, Bit_Cursors.Lsb_First);
-   end Set_Stream_Bit;
-
    procedure Write_Code
      (Output : in out Byte_Array;
       Start  : Natural;
@@ -93,27 +54,26 @@ package body Inflate.Payload with SPARK_Mode => On is
              (for all Position in 0 .. 8 * Output'Length - 1 =>
                 (if Position < Start or else Position >= Start + Length
                  then Fixed.Bit_Value (Output, Position) =
-                        Fixed.Bit_Value (Output'Old, Position))),
-     Subprogram_Variant => (Decreases => Length)
+                        Fixed.Bit_Value (Output'Old, Position)))
    is
+      Position : Natural := Start;
+      Written  : Boolean;
    begin
-      if Length = 1 then
-         Set_Stream_Bit (Output, Start, Value);
-      else
-         Write_Code (Output, Start, Length - 1, Value / 2);
-         declare
-            Before : constant Byte_Array := Output with Ghost;
-         begin
-            Set_Stream_Bit (Output, Start + Length - 1, Value mod 2);
-            pragma Assert
-              (for all Position in Start .. Start + Length - 2 =>
-                 Fixed.Bit_Value (Output, Position) =
-                   Fixed.Bit_Value (Before, Position));
-            Lemma_Prefix_Frame (Before, Output, Start, Length - 1);
-            Lemma_Prefix_Step (Output, Start, Length);
-            pragma Assert (2 * (Value / 2) + Value mod 2 = Value);
-         end;
-      end if;
+      --  A code is a field of the stream, written high bit first, which is
+      --  what a Huffman code is: Ore places it in one call, and the bit-wise
+      --  frame it reports is the frame stated above. What this procedure used
+      --  to do instead was walk the code a bit at a time and re-prove, at
+      --  every step, that the bits already placed had not moved.
+      Codebooks.Lemma_Pow2_Mask (Length);
+      Bit_Cursors.Put_Bits
+        (Output, Position, Length,
+         Bit_Cursors.Lsb_First, Bit_Cursors.High_Bit_First,
+         Word32 (Value), Written);
+
+      --  The caller's precondition is that the field fits, which is the
+      --  condition Ore reports rather than assumes.
+      pragma Assert (Written);
+      pragma Assert (Position = Start + Length);
    end Write_Code;
 
    procedure Lemma_Data_Bits_Next

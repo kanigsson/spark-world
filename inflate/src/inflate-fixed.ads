@@ -234,6 +234,25 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                and then Position < 8 * Input'Length,
      Post => Bit_Value'Result <= 1;
 
+   --  Ore bounds a field it reads by the mask of that width, and the contracts
+   --  here bound their codes by a power of two, which is the form a code length
+   --  is written in. The two are the same number, and the step between them is
+   --  the one the provers do not take on their own: a mask is a word and a code
+   --  is a Natural, and the exponent is a length computed at run time. Stated
+   --  once here, by enumeration over the widths a DEFLATE code can have, rather
+   --  than at every place a field's bound meets a code's.
+   procedure Lemma_Mask_Power (Length : Natural)
+   with
+     Ghost,
+     Pre  => Length <= 15,
+     Post => Natural (Bits.Low_Mask_32 (Length)) = 2 ** Length - 1;
+
+   --  The Length stream bits from Start as the number they encode. This is
+   --  Ore's field in the stream's numbering and the order a Huffman code is
+   --  transmitted in, and the first clause of the postcondition says so; what
+   --  the clauses after it add is the recurrence over the field width, which
+   --  is the form every contract here is proved through, and the bound the
+   --  contracts state their codes with.
    pragma Assertion_Policy (Post => Ignore);
    function Prefix_Value
      (Input : Byte_Array;
@@ -244,7 +263,11 @@ package Inflate.Fixed with Pure, SPARK_Mode => On is
                and then Length <= 12
                and then Start <= 8 * Input'Length
                and then Length <= 8 * Input'Length - Start,
-     Post => Prefix_Value'Result < 2 ** Length
+     Post => Prefix_Value'Result =
+               Bit_Cursors.Field_Value
+                 (Input, Start, Length,
+                  Bit_Cursors.Lsb_First, Bit_Cursors.High_Bit_First)
+               and then Prefix_Value'Result < 2 ** Length
                and then
              (if Length = 0
               then Prefix_Value'Result = 0
