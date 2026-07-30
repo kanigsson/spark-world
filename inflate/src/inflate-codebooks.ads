@@ -21,17 +21,18 @@ package Inflate.Codebooks with Pure, SPARK_Mode => On is
      (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1_024, 2_048,
       4_096, 8_192, 16_384, 32_768);
 
-   --  The table above and the mask of the same width are one number apart, and
-   --  a code bounded by the one has to be passed where the other is required.
-   --  Neither form is avoidable: the codes are bounded by a power of two
-   --  because that is what a code length means, and Ore bounds a field by the
-   --  mask because that is what a field write takes. The step is stated once
-   --  here, beside the table, rather than at each place the two meet.
-   procedure Lemma_Pow2_Mask (Length : Natural)
+   --  The table above is the power it tabulates. The table is what the Kraft
+   --  sums are proved with, because a concrete array is what lets the provers
+   --  case-split where the exponent is a code length computed at run time, and
+   --  a bound written against it has to reach the contracts of anything stated
+   --  as a power — Ore's field operations among them. Enumerating the widths is
+   --  the only way to say it, and saying it here beside the table is what keeps
+   --  the enumeration to one place.
+   procedure Lemma_Pow2_Power (Length : Natural)
    with
      Ghost,
      Pre  => Length <= 15,
-     Post => Natural (Bits.Low_Mask_32 (Length)) = Pow2 (Length) - 1;
+     Post => Pow2 (Length) = 2 ** Length;
 
    type Codebook_Kind is
      (Fixed_Literal_Length, Fixed_Distance, Canonical);

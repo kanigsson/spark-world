@@ -64,7 +64,12 @@ package body Inflate.Payload with SPARK_Mode => On is
       --  frame it reports is the frame stated above. What this procedure used
       --  to do instead was walk the code a bit at a time and re-prove, at
       --  every step, that the bits already placed had not moved.
-      Codebooks.Lemma_Pow2_Mask (Length);
+      --  The code's bound is written against the codebook's table and Ore's
+      --  is written against the mask of the same width. Ore crosses from the
+      --  mask to the power; what is left is the table, which is the client's
+      --  own and stays enumerated where it is declared.
+      Codebooks.Lemma_Pow2_Power (Length);
+      Bits.Lemma_Low_Mask_32_Natural (Length);
       Bit_Cursors.Put_Bits
         (Output, Position, Length,
          Bit_Cursors.Lsb_First, Bit_Cursors.High_Bit_First,

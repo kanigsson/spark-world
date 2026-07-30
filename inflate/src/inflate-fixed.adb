@@ -117,38 +117,6 @@ package body Inflate.Fixed with SPARK_Mode => On is
       return Result;
    end Encoded_Bit_Count;
 
-   ----------------------
-   -- Lemma_Mask_Power --
-   ----------------------
-
-   procedure Lemma_Mask_Power (Length : Natural) is
-   begin
-      --  One branch per width, because the point of the branch is that the
-      --  exponent is concrete inside it: the mask's value clause is then an
-      --  equality between two numbers and the conversion out of the word type
-      --  is a literal. A disjunction of widths in one branch would leave the
-      --  exponent variable, which is the case the provers do not take.
-      case Length is
-         when 0 => null;
-         when 1 => null;
-         when 2 => null;
-         when 3 => null;
-         when 4 => null;
-         when 5 => null;
-         when 6 => null;
-         when 7 => null;
-         when 8 => null;
-         when 9 => null;
-         when 10 => null;
-         when 11 => null;
-         when 12 => null;
-         when 13 => null;
-         when 14 => null;
-         when 15 => null;
-         when others => null;   --  excluded by the precondition
-      end case;
-   end Lemma_Mask_Power;
-
    ------------------
    -- Prefix_Value --
    ------------------
@@ -159,11 +127,9 @@ package body Inflate.Fixed with SPARK_Mode => On is
       Length : Natural) return Natural
    is
    begin
-      --  Ore bounds a field by the mask of its width, and the bound stated
-      --  here is the power of two: the same number, and needed in both the
-      --  empty case, where the mask is zero, and the recursive one.
-      Lemma_Mask_Power (Length);
-
+      --  The bound this function states is the bound Ore states on its field,
+      --  in the same arithmetic: nothing has to be carried across the word
+      --  type to get it.
       if Length = 0 then
          return 0;
       end if;
