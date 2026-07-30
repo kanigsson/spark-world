@@ -53,4 +53,26 @@ is
          (if Significant_Bits'Result > 0
           then Bit (Value, Significant_Bits'Result - 1));
 
+   --  A code read out of a word, bounded the way a client's own contracts bound
+   --  it: a code of Length bits is below 2 ** Length, in the arithmetic a code
+   --  length is counted in. Extract gives the bound as a mask, in the arithmetic
+   --  of the word; this is the crossing between the two, and the point of the
+   --  test is the body — one call, where a client wrote a case with one branch
+   --  per width because a concrete exponent was the only thing that closed it.
+   procedure Lemma_Code_Bound (Value : Word32; Length : Natural)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Length <= 30,
+     Post   => Natural (Extract (Value, 0, Length)) < 2 ** Length;
+
+   --  The same crossing for a weight rather than a code: what a Kraft sum over
+   --  code lengths adds, taken from the operation that produces it as a word.
+   procedure Lemma_Weight_Value (Length : Natural)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Length <= 30,
+     Post   => Natural (Power_Of_Two_32 (Length)) = 2 ** Length;
+
 end Bit_Proofs;

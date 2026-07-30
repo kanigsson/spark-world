@@ -56,6 +56,11 @@ the bits of a `Buffer` means reading the bits of a `Slice` of it.
 with what it reads needs: `Field_Value`, the recurrence lemmas, and the
 bits-to-value bridge they rest on in `Ore.Bits`.
 
+0.5.0 put the bounds of that view in the arithmetic a client's contracts are
+written in: `Field_Value` bounds its result by `2 ** Count` in `Natural`, and the
+crossing from a word-typed mask or weight to the same number as a `Natural` is a
+lemma per width rather than something a client enumerates.
+
 What is not there yet:
 
 * A field wider than 32 bits in one take or put, or wider than 30 as a `Natural`

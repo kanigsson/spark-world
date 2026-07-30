@@ -7,7 +7,7 @@ In an assertion-enabled build, violating a precondition can still raise
 `Assertion_Error`; that is a debugging check, not an operation's way of
 reporting an expected full or empty buffer.
 
-The current version is `0.4.0`. Releases follow
+The current version is `0.5.0`. Releases follow
 [Semantic Versioning](https://semver.org/); see [`VERSION`](VERSION) and
 [`CHANGELOG.md`](CHANGELOG.md). The planned scope is listed in
 [`ROADMAP.md`](ROADMAP.md).
@@ -75,7 +75,7 @@ gprbuild -P tests/restrictions/restriction_smoke.gpr \
 `ore_lib.gpr` is the production project; `ore.gpr` adds the proof clients under
 `tests/proof`, which must prove without reaching inside the library.
 
-Everything in 0.4.0 is proved at `--level=2` with no unproved checks and no
+Everything in 0.5.0 is proved at `--level=2` with no unproved checks and no
 justifications. The one thing GNATprove is not shown a body of is the shift
 and rotate intrinsics `Ore.Bits` imports, which it models natively.
 [`PROOF_STATUS.md`](PROOF_STATUS.md) carries the per-unit figures; regenerate

@@ -642,6 +642,45 @@ is
      Pre    => Left <= Right,
      Post   => Low_Mask_64 (Left) <= Low_Mask_64 (Right);
 
+   --  The mask as a number of the arithmetic a client's own contracts are
+   --  written in. The value clause above is an equality in the word type, so the
+   --  power in it is a modular one; a client bounds a code by 2 ** N in Natural,
+   --  because that is what a code length means, and with the exponent computed
+   --  at run time nothing crosses between the two. So the crossing is stated
+   --  here, once per width, rather than enumerated per width in a client — which
+   --  is what a client does write when it needs it, since a concrete exponent is
+   --  the only thing that makes the equality trivial.
+   --
+   --  The wider two stop at thirty bits: the mask itself is a Natural up to
+   --  thirty-one, but the power on the right is not, and a contract that
+   --  overflows where its subject does not is a contract that cannot be used.
+   --  Above that width the value is a word and stays one.
+   procedure Lemma_Low_Mask_8_Natural (Count : Bit_Count_8)
+   with
+     Ghost  => Static,
+     Global => null,
+     Post   => Natural (Low_Mask_8 (Count)) = 2 ** Count - 1;
+
+   procedure Lemma_Low_Mask_16_Natural (Count : Bit_Count_16)
+   with
+     Ghost  => Static,
+     Global => null,
+     Post   => Natural (Low_Mask_16 (Count)) = 2 ** Count - 1;
+
+   procedure Lemma_Low_Mask_32_Natural (Count : Bit_Count_32)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Count <= 30,
+     Post   => Natural (Low_Mask_32 (Count)) = 2 ** Count - 1;
+
+   procedure Lemma_Low_Mask_64_Natural (Count : Bit_Count_64)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Count <= 30,
+     Post   => Natural (Low_Mask_64 (Count)) = 2 ** Count - 1;
+
    --  Count bits set, starting at Offset: the mask of one field. The bound is
    --  in subtraction form, so the sum Offset + Count is never formed where it
    --  could leave the width.
@@ -767,6 +806,39 @@ is
         Static  =>
           (for all I in Bit_Index_64 =>
              Bit (Power_Of_Two_64'Result, I) = (I = Exponent)));
+
+   --  The weight as a number of the arithmetic that weighs with it, for the
+   --  reason the masks have the same lemma: a Kraft sum over code lengths, or a
+   --  table size, is a Natural, and the value clause above is an equality in the
+   --  word type. A client whose powers are Naturals throughout needs no
+   --  operation from here — 2 ** N is that value — but one that has a word from
+   --  a shift or a mask and a bound to meet in Natural needs the step between,
+   --  and it is the step a symbolic exponent denies it.
+   procedure Lemma_Power_Of_Two_8_Natural (Exponent : Bit_Index_8)
+   with
+     Ghost  => Static,
+     Global => null,
+     Post   => Natural (Power_Of_Two_8 (Exponent)) = 2 ** Exponent;
+
+   procedure Lemma_Power_Of_Two_16_Natural (Exponent : Bit_Index_16)
+   with
+     Ghost  => Static,
+     Global => null,
+     Post   => Natural (Power_Of_Two_16 (Exponent)) = 2 ** Exponent;
+
+   procedure Lemma_Power_Of_Two_32_Natural (Exponent : Bit_Index_32)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Exponent <= 30,
+     Post   => Natural (Power_Of_Two_32 (Exponent)) = 2 ** Exponent;
+
+   procedure Lemma_Power_Of_Two_64_Natural (Exponent : Bit_Index_64)
+   with
+     Ghost  => Static,
+     Global => null,
+     Pre    => Exponent <= 30,
+     Post   => Natural (Power_Of_Two_64 (Exponent)) = 2 ** Exponent;
 
    ---------------------------------------------------------------------------
    --  Bit fields

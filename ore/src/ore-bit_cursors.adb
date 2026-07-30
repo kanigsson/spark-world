@@ -292,6 +292,11 @@ is
       pragma Assert (Bits.Low_Mask_32 (30) = 2 ** 30 - 1);
       pragma Assert (Bits.Low_Mask_32 (Count) = 2 ** Count - 1);
 
+      --  And the same bound in the arithmetic the result is in, which is a
+      --  different statement from the one above: the power in the mask's own
+      --  contract is a modular one.
+      Bits.Lemma_Low_Mask_32_Natural (Count);
+
       return Natural (Field);
    end Field_Value;
 

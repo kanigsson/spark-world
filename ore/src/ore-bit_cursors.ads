@@ -277,6 +277,15 @@ is
    --  to an equality of values. A client proving that one write left another
    --  field alone shows the positions of that field are outside the window it
    --  wrote, which is arithmetic, and then calls this.
+   --
+   --  The two arrays must have the same bounds, and that is not a strictness
+   --  that could be dropped: a field is a function of the array, so its frame
+   --  cannot be weaker than its subject. A client whose own frame is stated over
+   --  bit positions holds between arrays of equal length whatever their bounds,
+   --  because a position is counted from 'First; adopting this one then means
+   --  threading equal-bounds hypotheses up through the callers that have no
+   --  reason to carry them, and a client for which that costs more than its own
+   --  induction is right to keep the induction.
    procedure Lemma_Bits_At_Frame
      (Before, After : Byte_Array;
       Position      : Natural;
@@ -309,6 +318,20 @@ is
    --  specifications are arithmetic cannot get from that statement to a number
    --  without a bridge. These two operations are the bridge, and without them a
    --  client that computes with the fields it reads has to keep its own reader.
+   --
+   --  ADOPTING THE VALUE VIEW MEANS PROVING YOUR READER EQUAL TO IT, not
+   --  replacing it. A client's reader usually cannot be defined as Field_Value:
+   --  its postcondition names the recurrence its consumers are proved through,
+   --  and inside its own body the shorter field is not available from its own
+   --  contract, so the recursive clause stops being provable the moment the body
+   --  stops recursing. What the equality buys is everything downstream of it —
+   --  in the client this was written for, the whole write side — while the reader
+   --  stays. That shape is what tests/proof demonstrates.
+   --
+   --  What the value view does not give is the direction back: from a field's
+   --  value to which bits of the array its digits are. A contract that has to
+   --  establish individual bit equations, because the format defines those bits
+   --  and its decoder reads them as bits, is Set_Bit's and stays so.
    --
    --  One bit at a time is how a client's model of a field is written, because
    --  that is how a format defines one, so the recurrence is what is stated: a
@@ -353,6 +376,15 @@ is
    --  carries a range check that needs the bound of the mask — provable, but it
    --  is noise at the boundary of a package whose job is that boundary.
    --
+   --  The bound is stated twice, and the second form is the one a client's own
+   --  contracts are written in: a code of Count bits is below 2 ** Count, in
+   --  Natural, because that is what a code length means. The mask form is the
+   --  same fact in the arithmetic of the word the field came out of, where the
+   --  power is a modular one — a client that has the mask form and needs the
+   --  other crosses between them with Bits.Lemma_Low_Mask_32_Natural, and a
+   --  client that only reads fields needs neither, because the bound it wants is
+   --  here.
+   --
    --  The last clause is what the recurrence rests on: a field of this width
    --  can be doubled without leaving Natural, so an induction over the width
    --  never has to bound the arithmetic of the step it is proving.
@@ -369,6 +401,7 @@ is
        Field_Value'Result
        = Natural (Bits_At (A, Position, Count, Numbering, Order))
        and then Field_Value'Result <= Natural (Bits.Low_Mask_32 (Count))
+       and then Field_Value'Result < 2 ** Count
        and then Field_Value'Result <= Natural'Last / 2;
 
    --  The same recurrence in the arithmetic a client's model is written in.

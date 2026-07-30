@@ -15,9 +15,9 @@ the SPARK column either.
 
 | Unit | SPARK | Level | Proved | Checks |
 | --- | --- | --- | --- | --- |
-| `Ore.Bit_Cursors` | 100% (18/18 entities) | gold | `██████████` 100% | 289/289 checks |
-| `Ore.Bits` | 89% (134/150 entities) | gold | `██████████` 100% | 935/935 checks — the 16 entities outside SPARK are the shift and rotate intrinsics, which have no body for GNATprove to analyse and are modelled natively by it |
+| `Ore.Bit_Cursors` | 100% (18/18 entities) | gold | `██████████` 100% | 290/290 checks |
+| `Ore.Bits` | 90% (142/158 entities) | gold | `██████████` 100% | 966/966 checks — the 16 entities outside SPARK are the shift and rotate intrinsics, which have no body for GNATprove to analyse and are modelled natively by it |
 | `Ore.Byte_Buffers` | 100% (63/63 entities) | gold | `██████████` 100% | 813/813 checks |
 | `Ore` | 100% (1/1 entities) | — | — | physical types only; no subprograms, so nothing to prove |
 
-Total: 2037 of 2037 checks proved.
+Total: 2069 of 2069 checks proved.

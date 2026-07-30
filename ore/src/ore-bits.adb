@@ -257,6 +257,11 @@ is
    procedure Lemma_Low_Mask_32_Monotonic (Left, Right : Bit_Count_32) is null;
    procedure Lemma_Low_Mask_64_Monotonic (Left, Right : Bit_Count_64) is null;
 
+   procedure Lemma_Low_Mask_8_Natural (Count : Bit_Count_8) is null;
+   procedure Lemma_Low_Mask_16_Natural (Count : Bit_Count_16) is null;
+   procedure Lemma_Low_Mask_32_Natural (Count : Bit_Count_32) is null;
+   procedure Lemma_Low_Mask_64_Natural (Count : Bit_Count_64) is null;
+
    function Field_Mask_8
      (Offset : Bit_Count_8; Count : Bit_Count_8) return Byte
    is (Shift_Left (Low_Mask_8 (Count), Offset));
@@ -290,6 +295,34 @@ is
 
    function Power_Of_Two_64 (Exponent : Bit_Index_64) return Word64
    is (Intrinsics.Shift_Left (1, Exponent));
+
+   --  A weight is a mask plus one, and that is the step: the crossing is already
+   --  proved for the mask, so the power's own crossing is an addition on either
+   --  side of it rather than a second exponent for a prover to reason about. The
+   --  narrower widths are written the same way, although they close without it.
+   procedure Lemma_Power_Of_Two_8_Natural (Exponent : Bit_Index_8) is
+   begin
+      Lemma_Low_Mask_8_Natural (Exponent);
+      pragma Assert (Power_Of_Two_8 (Exponent) = Low_Mask_8 (Exponent) + 1);
+   end Lemma_Power_Of_Two_8_Natural;
+
+   procedure Lemma_Power_Of_Two_16_Natural (Exponent : Bit_Index_16) is
+   begin
+      Lemma_Low_Mask_16_Natural (Exponent);
+      pragma Assert (Power_Of_Two_16 (Exponent) = Low_Mask_16 (Exponent) + 1);
+   end Lemma_Power_Of_Two_16_Natural;
+
+   procedure Lemma_Power_Of_Two_32_Natural (Exponent : Bit_Index_32) is
+   begin
+      Lemma_Low_Mask_32_Natural (Exponent);
+      pragma Assert (Power_Of_Two_32 (Exponent) = Low_Mask_32 (Exponent) + 1);
+   end Lemma_Power_Of_Two_32_Natural;
+
+   procedure Lemma_Power_Of_Two_64_Natural (Exponent : Bit_Index_64) is
+   begin
+      Lemma_Low_Mask_64_Natural (Exponent);
+      pragma Assert (Power_Of_Two_64 (Exponent) = Low_Mask_64 (Exponent) + 1);
+   end Lemma_Power_Of_Two_64_Natural;
 
    ---------------------------------------------------------------------------
    --  Bit fields

@@ -82,4 +82,14 @@ is
       return Width;
    end Significant_Bits;
 
+   procedure Lemma_Code_Bound (Value : Word32; Length : Natural) is
+   begin
+      Lemma_Low_Mask_32_Natural (Length);
+   end Lemma_Code_Bound;
+
+   procedure Lemma_Weight_Value (Length : Natural) is
+   begin
+      Lemma_Power_Of_Two_32_Natural (Length);
+   end Lemma_Weight_Value;
+
 end Bit_Proofs;

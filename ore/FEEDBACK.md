@@ -11,6 +11,128 @@ better than leaving it to be rediscovered.
 
 ---
 
+## `pager/inflate` against 0.4.0 — 2026-07-30
+
+The same client as the entry below, taking up what 0.4.0 added in answer to it.
+Result first: the value view worked, the write side moved onto `Put_Bits`, and
+the client's reader is now proved to be Ore's field — but it is still there, and
+two lemmas had to be written to carry a bound across the word/`Natural` boundary.
+The whole project re-proved at `--level=4` with 7,770 checks, down from 7,833.
+
+### Adopted, and it did what it claimed
+
+* **`Field_Value` and `Lemma_Field_Value_Recursion`.** The client's field reader
+  now carries `Result = Field_Value (…, Lsb_First, High_Bit_First)` in its
+  postcondition, proved from the recurrence lemma. This is exactly the step the
+  entry below asked for, and the `High_Bit_First` form matched the client's
+  recurrence without restating it.
+* **`Put_Bits`.** With that equality available, the code writer — a bit-at-a-time
+  recursion that re-proved at every step that the bits already placed had not
+  moved — became one call. Two helpers went with it: the recurrence lemma it
+  needed, and a copy of the single-bit write. The unit lost 46 checks and gained
+  nothing to prove by hand. This is the largest single simplification any Ore
+  release has produced in this client.
+* **The field bound.** The reader's `< 2 ** Length` clause used to need a local
+  trick that turned a symbolic exponent into a concrete bound. It now comes from
+  the bound Ore states on the field — modulo the new gap below.
+
+### Gap 1 — the bounds are in word arithmetic, and clients' contracts are not
+
+This is the one thing to fix, and it is the same shape as the mask table 0.3.0
+retired, one type boundary over.
+
+`Field_Value` returns a `Natural` and bounds it by
+`Natural (Low_Mask_32 (Count))`. The value clauses of `Low_Mask_*` and of the new
+`Power_Of_Two_*` are equalities in the *word* type, so `2 ** Count` there is
+modular exponentiation. A client's own contracts bound a code by `2 ** N` or by a
+`Pow2` table in `Natural`, because that is what a code length means. With the
+exponent computed at run time, no prover crosses between the two — so the client
+wrote two lemmas, each a `case` with one branch per width and `null` in every
+branch, because a concrete exponent is the only thing that makes the equality
+trivial:
+
+```ada
+procedure Lemma_Mask_Power (Length : Natural)     --  in the client
+with Pre  => Length <= 15,
+     Post => Natural (Bits.Low_Mask_32 (Length)) = 2 ** Length - 1;
+
+procedure Lemma_Pow2_Mask (Length : Natural)      --  and again, for its table
+with Pre  => Length <= 15,
+     Post => Natural (Bits.Low_Mask_32 (Length)) = Pow2 (Length) - 1;
+```
+
+Sixteen `null` branches each, sitting beside operations whose purpose is to
+remove exactly that kind of boilerplate. Two ways to close it, either enough:
+
+* state `Field_Value`'s bound in the arithmetic of its own result —
+  `Field_Value'Result < 2 ** Count`, a `Natural` power, no word type involved;
+* or add the crossing as a lemma —
+  `Natural (Low_Mask_32 (Count)) = 2 ** Count - 1`, once per width, so no client
+  enumerates it.
+
+The first is better: it puts the bound in the type the operation already returns.
+`Power_Of_Two_*` has the same issue seen from the other side — it was added so
+clients stop tabulating powers, but a client tabulates powers to use them as
+`Natural`s, and the operation gives a word.
+
+**Closed in 0.5.0, both ways.** `Field_Value` states
+`Field_Value'Result < 2 ** Count` as well as the mask bound, so a client that
+reads fields needs no lemma of its own; and the crossing itself is
+`Lemma_Low_Mask_*_Natural` and `Lemma_Power_Of_Two_*_Natural`, one per width, for
+a client holding a mask or a weight that has to meet a bound in `Natural`. The
+wider two of each group stop at an exponent of thirty, because it is the power on
+the right of the equality that leaves `Natural` first, not the mask on the left.
+The acceptance test is in `tests/proof`: the two case-per-width lemmas this entry
+shows, each now a body of one call.
+
+### Gap 2 — a field frame requires identical bounds
+
+`Lemma_Bits_At_Frame` was not adopted. It requires `Before'First = After'First`
+and `Before'Last = After'Last`, while a bit position is counted from `'First`, so
+a client's own frame lemma over bit positions holds between two arrays of equal
+length whatever their bounds — and the client's is stated and proved that way,
+with the equal-bounds facts nowhere in the preconditions of the lemmas that call
+it. Adopting Ore's would mean threading equal-bounds preconditions up through
+several proved units to replace an eight-line induction, so the induction stayed.
+
+Not a defect: `Bits_At` is a function of the array, and its frame cannot be
+weaker than its subject. Worth knowing that the array-identity requirement is
+what kept the frame vocabulary out, when the accessor and the writes went in
+without friction.
+
+**Recorded in 0.5.0**, in the spec beside the lemma, including that a client for
+which threading the hypotheses costs more than its own induction is right to keep
+the induction. No change to the contract, for the reason this entry gives.
+
+### Note — a field's value does not give a field's bits
+
+One four-bit header field stayed on `Set_Bit`, because the contract it has to
+establish is four individual bit equations rather than a value: the format
+defines those bits, and the client's decoder reads them as bits. Going from
+`Bits_At (…) = V` back to which bits of the array `V`'s digits are is the
+direction nothing provides, and the operation is four calls, so this is a note
+rather than a request.
+
+**Recorded in 0.5.0**, in the spec: the direction back is not provided, and a
+contract stated as bit equations is `Set_Bit`'s.
+
+### Note — adopting the value view means proving your reader equal to it
+
+Worth saying in the spec, because it is the difference between what the entry
+below asked for and what it got. The client's reader could not be *defined* as
+`Field_Value`: its postcondition names itself — the recurrence its consumers are
+proved through — and inside its own body the shorter field is not available from
+its own contract, so the recursive clause becomes unprovable the moment the body
+stops recursing. Keeping the recurrence and proving the equality is the shape
+that works, and it is the shape `tests/proof` already demonstrates. So the reader
+stays, about thirty lines of it; what the value view actually buys is everything
+downstream of the equality, which in this client was the whole write side.
+
+**Said in the spec in 0.5.0**, in the words of this entry, next to the recurrence
+a client's model is proved through.
+
+---
+
 ## `pager/inflate` against 0.3.0 — 2026-07-28
 
 A one-shot DEFLATE/zlib/gzip/ZIP codec in SPARK, proved at `--level=4`, with a

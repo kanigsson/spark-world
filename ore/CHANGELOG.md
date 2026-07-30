@@ -5,6 +5,54 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-30
+
+Client feedback on 0.4.0: the value view was adopted and did what it claimed,
+but the bounds it comes with are equalities in the word type, and a client's own
+contracts bound a code by `2 ** N` in `Natural`, because that is what a code
+length means. With the exponent computed at run time nothing crosses between the
+two, so the client wrote the crossing itself — twice, as a case with one branch
+per width, beside operations whose purpose is to remove exactly that. This
+release is that crossing.
+
+### Added
+
+- `Ore.Bit_Cursors.Field_Value` bounds its result by `2 ** Count` in `Natural`,
+  in addition to the mask bound it already stated. A client that only reads
+  fields now needs neither crossing lemma of its own: the bound is in the
+  arithmetic of the type the operation returns.
+- `Ore.Bits`: the crossing between a word-typed value clause and the same value
+  as a `Natural`, stated once per width so no client enumerates it.
+  - `Lemma_Low_Mask_8/16/32/64_Natural`: `Natural (Low_Mask_N (Count))` is
+    `2 ** Count - 1`.
+  - `Lemma_Power_Of_Two_8/16/32/64_Natural`: `Natural (Power_Of_Two_N (E))` is
+    `2 ** E`, for the client that weighs code lengths or sizes a table with a
+    power it got as a word.
+
+  The wider two of each group stop at an exponent of thirty. The mask itself is
+  a `Natural` up to thirty-one, but the power on the right of the equality is
+  not, and a contract that overflows where its subject does not is a contract a
+  client cannot use. Above that width the value is a word and stays one.
+- The proof client under `tests/proof` bounds a code taken out of a word by
+  `2 ** Length` in `Natural`, and evaluates a weight the same way. Both bodies
+  are one call, which is the acceptance test: it is the case-per-width lemma the
+  client had written, deleted.
+
+### Changed
+
+- The spec of `Ore.Bit_Cursors` says that adopting the value view means proving
+  your own reader equal to `Field_Value`, not defining it as `Field_Value` — a
+  reader whose postcondition is the recurrence its consumers are proved through
+  cannot be defined by the field, and the equality is what the release before
+  this one was for. It also says what the view does not give: the direction from
+  a field's value back to which bits of the array its digits are, so a contract
+  stated as bit equations stays `Set_Bit`'s.
+- The same spec records why `Lemma_Bits_At_Frame` requires the two arrays to have
+  identical bounds — a field is a function of the array, so its frame cannot be
+  weaker than its subject — and that a client whose own frame is over bit
+  positions, and for which threading equal-bounds hypotheses costs more than its
+  own induction, is right to keep the induction. No change to the contract.
+
 ## [0.4.0] - 2026-07-29
 
 Client feedback on 0.3.0: a field read out of a stream is a number, and nothing
