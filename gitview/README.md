@@ -71,6 +71,11 @@ terminal.
 In the diff pane, `[`/`]` jump between hunk headers and `{`/`}` jump between
 changed-file headers. These structural jumps preserve the current `/` search.
 
+The commit list decorates commits with short ref names, including `HEAD`, local
+and remote branches, and tags. Decorations are supplied by `git log` but
+defensively located and coloured by proved code; the commit ID remains the
+first token used to open a diff.
+
 Inside unified-diff hunks, a proved dependency-free lexer adds keyword,
 string, comment, and number colours. File extensions select Ada; C, C++,
 Rust, Go, Java, JavaScript/TypeScript, Swift and Kotlin; Python and Ruby;
@@ -150,6 +155,7 @@ src/
   git_view_list.ads/adb       selection/viewport coupling               [proved]
   git_view_selection.ads/adb  mouse selection ordering                  [proved]
   git_view_navigation.ads/adb structural file/hunk scanning             [proved]
+  git_view_refs.ads/adb       commit-list ref decoration span            [proved]
   git_view_clipboard.ads/adb  bounded extraction + OSC 52 encoding      [proved]
   git_view_sha.ads/adb        commit-list line -> commit id             [proved]
   git_view_theme.ads/adb      colour scheme + diff-line classifier      [proved]

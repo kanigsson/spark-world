@@ -75,7 +75,8 @@ package body Git_View_Source with SPARK_Mode => On is
          OS.Capture
            (Args       => (Arg ("log"),
                            Arg ("--date=short"),
-                           Arg ("--pretty=format:%h %ad %an %s")),
+                           Arg ("--decorate=short"),
+                           Arg ("--pretty=format:%h %ad%(decorate:prefix= [,suffix=],separator=%x2C ) %an %s")),
             Err_To_Out => False,
             Doc        => Doc,
             Code       => Code);
@@ -84,7 +85,8 @@ package body Git_View_Source with SPARK_Mode => On is
          OS.Capture
            (Args       => (Arg ("log"),
                            Arg ("--date=short"),
-                           Arg ("--pretty=format:%h %ad %an %s"),
+                           Arg ("--decorate=short"),
+                           Arg ("--pretty=format:%h %ad%(decorate:prefix= [,suffix=],separator=%x2C ) %an %s"),
                            Arg (Image (From)),
                            Arg ("--")),
             Err_To_Out => False,

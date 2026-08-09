@@ -67,6 +67,7 @@ def make_repo(repo):
         f.write("    return name\n")
     git("add", "00_sample.adb", "01_sample.py")
     git("commit", "-q", "-m", "c59-syntax")
+    git("tag", "v-syntax")
 
     # Newest commit: a numbered file makes wheel scrolling observable.
     with open(os.path.join(repo, "big.txt"), "w") as f:
@@ -141,6 +142,9 @@ try:
     check(b"\x1b[?1002h" in first and b"\x1b[?1006h" in first,
           "startup emits drag-mouse enable (?1002h ?1006h)")
     check(b"[commits] 1/60" in first, "initial status: [commits] 1/60")
+    check(b"HEAD ->" in first and b"tag: v-syntax" in first,
+          "commit list shows HEAD and tag decorations")
+    check(b"38;5;5" in first, "ref decorations receive their own colour")
 
     # Click row 6 of the list pane (col 5): selection jumps to commit 6.
     s.send(b"\x1b[<0;5;6M\x1b[<0;5;6m")
@@ -156,12 +160,13 @@ try:
     frame = s.full_frame()
     check(frame.count(b"38;5;5") >= 2,
           "Ada and Python keywords receive syntax-token colour")
+    syntax_color_count = frame.count(b"38;5;5")
 
     # Syntax is optional, while the green/red diff gutter remains independent.
     s.send(b"s")
     time.sleep(INTERACTION_SETTLE)
     frame = s.full_frame()
-    check(b"38;5;5" not in frame,
+    check(frame.count(b"38;5;5") < syntax_color_count,
           "s toggles source syntax colours off")
     check(b"38;5;2" in frame and b"38;5;1" in frame,
           "syntax-off keeps green/red diff gutter cues")

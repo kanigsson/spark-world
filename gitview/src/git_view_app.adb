@@ -11,6 +11,7 @@ with Git_View_Syntax;
 with Git_View_Selection;
 with Git_View_Clipboard;
 with Git_View_Navigation;
+with Git_View_Refs;
 with Tui.App_Kit.Search_Input;
 
 package body Git_View_App with
@@ -32,6 +33,7 @@ is
    package Syn renames Git_View_Syntax;
    package Sel renames Git_View_Selection;
    package Nav renames Git_View_Navigation;
+   package Refs renames Git_View_Refs;
    use type Eng_Pkg.Effect;
    use type Pol.Pane;
    use type Pol.Region;
@@ -463,6 +465,20 @@ is
                --  The date is the fixed-width (YYYY-MM-DD) token after the
                --  id; the log format guarantees its position.
                Tint_Cells (LS, R, Id.Len + 2, Id.Len + 11, Thm.Date_Color);
+               declare
+                  Line : constant Tui.Text.Buffer :=
+                    Tui.Text.Line
+                      (List_Doc.all.Idx, List_Doc.all.Bytes, LN);
+                  Found    : Boolean;
+                  From, To : Tui.Text.Byte_Count;
+               begin
+                  Refs.Decoration_Span (Line, Id.Len, Found, From, To);
+                  if Found then
+                     Tint_Byte_Span
+                       (LS, R, Line, Line'First + From, Line'First + To,
+                        Eng_Pkg.Left_Col (List_Eng), Thm.Ref_Color);
+                  end if;
+               end;
             end if;
          end;
       end loop;

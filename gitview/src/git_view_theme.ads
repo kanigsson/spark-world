@@ -47,6 +47,7 @@ package Git_View_Theme with SPARK_Mode => On is
    --  Commit list: the leading abbreviated id and the date column.
    Sha_Color  : constant Color := Palette (Yellow);
    Date_Color : constant Color := Palette (Cyan);
+   Ref_Color  : constant Color := Palette (Magenta);
 
    --  Chrome. The status bar keeps its Inverse attribute and adds a
    --  foreground ACCENT: under inverse video the accent shows as the bar's
