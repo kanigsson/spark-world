@@ -33,7 +33,8 @@ package Tui.Term.Mode is
    --  there is nothing to drive, so a host should skip painting.
    function Active (S : Session) return Boolean;
 
-   --  Ask the terminal to report mouse activity (presses, releases, wheel) as
+   --  Ask the terminal to report mouse activity (presses, releases, button
+   --  motion and wheel) as
    --  SGR escape sequences on stdin, which the input decoder turns into mouse
    --  events. Opt-in, because it has a price: the terminal stops doing native
    --  text selection while reporting is on (users hold Shift to get it back).

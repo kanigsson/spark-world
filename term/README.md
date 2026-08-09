@@ -36,6 +36,8 @@ Tui.Term.Event_Loop.Run (Paint => My_Paint'Access, On_Key => My_Key'Access);
 **diffing** against the previous frame and emitting only changed cells), and
 rebuilding on resize — until the key handler asks to quit, a `SIGTERM` arrives,
 or stdin closes. The terminal is restored unconditionally on the way out.
+When requested, button-event mouse tracking includes drag motion as well as
+presses, releases, and wheel notches.
 
 A host that wants to own its own loop ignores `Event_Loop` and wires `Mode`,
 `Output`, `Input` and `Signals` directly — exactly what the standalone `pager`

@@ -116,7 +116,7 @@ package body Tui.Term.Mode is
          return;
       end if;
       S.Mouse_On := True;
-      Output.Put (ESC & "[?1000h");   --  report button presses and releases
+      Output.Put (ESC & "[?1002h");   --  report buttons, releases and drags
       Output.Put (ESC & "[?1006h");   --  ... encoded as SGR sequences
    end Enable_Mouse;
 
@@ -131,7 +131,7 @@ package body Tui.Term.Mode is
       if S.Mouse_On then
          S.Mouse_On := False;
          Output.Put (ESC & "[?1006l");
-         Output.Put (ESC & "[?1000l");
+         Output.Put (ESC & "[?1002l");
       end if;
       Output.Reset_Style;
       Output.Show_Cursor;
