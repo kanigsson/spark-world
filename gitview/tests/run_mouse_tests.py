@@ -50,6 +50,7 @@ def make_repo(repo):
             f.write(f"DIFFLINE_{i:02d}\n")
     git("add", "big.txt")
     git("commit", "-q", "-m", "c60-big")
+    git("branch", "old", "HEAD~10")
 
 class Session:
     def __init__(self, repo, *args):
@@ -180,11 +181,28 @@ try:
     check(b"\x1b[?1006l" not in tail and b"\x1b[?1002l" not in tail,
           "--no-mouse: no mouse-disable on the way out either")
 
-    # ---- run 3: unknown option --------------------------------------------
+    # ---- run 3: an explicit branch/revision -------------------------------
+    s = Session(repo, "--no-mouse", "old")
+    first = s.read_for(2.0)
+    check(b"[commits] 1/50" in first,
+          "branch argument limits the displayed history")
+    s.finish()
+
+    # ---- non-interactive command-line diagnostics -------------------------
+    r = subprocess.run([GV, "--help"], cwd=repo,
+                       capture_output=True, text=True)
+    check(r.returncode == 0 and "usage: git_view" in r.stdout,
+          "--help prints usage and succeeds")
+
     r = subprocess.run([GV, "--bogus"], cwd=repo,
                        capture_output=True, text=True)
     check(r.returncode != 0 and "unknown option" in r.stderr,
           "--bogus is rejected with a message")
+
+    r = subprocess.run([GV, "old", "main"], cwd=repo,
+                       capture_output=True, text=True)
+    check(r.returncode != 0 and "extra argument" in r.stderr,
+          "a second revision is rejected")
 finally:
     shutil.rmtree(repo, ignore_errors=True)
 

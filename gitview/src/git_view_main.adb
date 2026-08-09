@@ -6,7 +6,7 @@
 --  spec; all state and policy live in the proved Git_View_App.
 --
 --  Usage:
---    git_view [--no-mouse]    browse the history of the repository at $PWD
+--    git_view [--no-mouse] [REVISION]
 --
 --  Keys: j/k move the selection, Enter shows the commit's diff, Tab moves
 --  the keyboard between panes, / ? n N search within the focused pane,
@@ -66,19 +66,57 @@ is
 
    procedure Fail_Usage (Arg : String) with SPARK_Mode => Off is
    begin
-      Fail ("unknown option """ & Arg & """ (the only option is --no-mouse)");
+      Fail ("unknown option or extra argument """ & Arg & """");
+      Ada.Text_IO.Put_Line
+        (Ada.Text_IO.Standard_Error,
+         "usage: git_view [--no-mouse] [REVISION]");
    end Fail_Usage;
 
-   Ok        : Boolean;
-   Use_Mouse : Boolean := True;
+   procedure Print_Help with Global => null;
+
+   procedure Print_Help with SPARK_Mode => Off is
+   begin
+      Ada.Text_IO.Put_Line ("usage: git_view [--no-mouse] [REVISION]");
+      Ada.Text_IO.Put_Line ("Browse git history at REVISION (default: HEAD).");
+   end Print_Help;
+
+   Ok            : Boolean;
+   Use_Mouse     : Boolean := True;
+   From          : Git_View_Source.Revision;
+   Have_From     : Boolean := False;
+   Options_Ended : Boolean := False;
 
 begin
    for I in 1 .. Argument_Count loop
-      if Argument (I) = "--no-mouse" then
+      if not Options_Ended and then Argument (I) = "--no-mouse" then
          Use_Mouse := False;
-      else
+      elsif not Options_Ended
+        and then (Argument (I) = "--help" or else Argument (I) = "-h")
+      then
+         Print_Help;
+         return;
+      elsif not Options_Ended and then Argument (I) = "--" then
+         Options_Ended := True;
+      elsif not Options_Ended
+        and then Argument (I)'Length > 0
+        and then Argument (I) (Argument (I)'First) = '-'
+      then
          Fail_Usage (Argument (I));
          return;
+      elsif Have_From then
+         Fail_Usage (Argument (I));
+         return;
+      else
+         declare
+            Valid : Boolean;
+         begin
+            Git_View_Source.Make_Revision (Argument (I), From, Valid);
+            if not Valid then
+               Fail ("revision must contain 1 to 255 characters");
+               return;
+            end if;
+            Have_From := True;
+         end;
       end if;
    end loop;
 
@@ -90,7 +128,7 @@ begin
    --  Load the commit list (and the first diff). On failure git has already
    --  written its own message ("fatal: not a git repository ...") to
    --  standard error, which is still the terminal at this point.
-   Git_View_App.Init (Ok);
+   Git_View_App.Init (From, Ok);
    if not Ok then
       Fail ("cannot read the git log");
       return;

@@ -5,7 +5,6 @@ with Tui.Pager.Engine;
 with Git_View_Policy;
 with Git_View_List;
 with Git_View_Sha;
-with Git_View_Source;
 with Git_View_Status;
 with Git_View_Theme;
 with Git_View_Selection;
@@ -126,10 +125,10 @@ is
    -- Init --
    ----------
 
-   procedure Init (Ok : out Boolean) is
+   procedure Init (From : Git_View_Source.Revision; Ok : out Boolean) is
       Log_Ok : Boolean;
    begin
-      Git_View_Source.Load_Log (List_Doc, Log_Ok);
+      Git_View_Source.Load_Log (From, List_Doc, Log_Ok);
       Ok := Log_Ok;
       if not Log_Ok then
          return;

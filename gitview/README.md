@@ -11,6 +11,7 @@ stay proved SPARK.
 
 ```sh
 git_view              # browse the history of the repository at $PWD
+git_view main         # browse a branch, tag, object, or revision expression
 git_view --no-mouse   # ... without claiming the mouse from the terminal
 ```
 

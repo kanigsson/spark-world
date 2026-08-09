@@ -20,6 +20,7 @@
 
 with Tui.Surface;
 with Tui.Input;
+with Git_View_Source;
 
 package Git_View_App with
   SPARK_Mode        => On,
@@ -41,7 +42,7 @@ is
    --  subprocess edge. Ok is False when the log could not be loaded (then
    --  nothing is held and the host should exit with a message); a diff
    --  failure is not fatal — the pane shows the error and a note is posted.
-   procedure Init (Ok : out Boolean)
+   procedure Init (From : Git_View_Source.Revision; Ok : out Boolean)
    with Global => (In_Out => State),
         Pre    => Uninitialized,
         Post   => Ok = Has_Documents;

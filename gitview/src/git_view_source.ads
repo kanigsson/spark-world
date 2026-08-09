@@ -25,6 +25,30 @@ package Git_View_Source with SPARK_Mode => On is
 
    use type Tui.Text.Doc_Ref;
 
+   --  One optional git revision (branch, tag, object name or revision
+   --  expression). The bounded representation crosses the proved source
+   --  policy without heap ownership.
+   Max_Revision_Length : constant := 255;
+   subtype Revision_Length is Natural range 0 .. Max_Revision_Length;
+
+   type Revision is record
+      Text : String (1 .. Max_Revision_Length) := (others => ' ');
+      Len  : Revision_Length := 0;  --  zero means git's default HEAD history
+   end record;
+
+   procedure Make_Revision
+     (Text  : String;
+      Value : out Revision;
+      Ok    : out Boolean)
+   with Global => null,
+        Post   => Ok = (Text'Length in 1 .. Max_Revision_Length)
+                  and then (if Ok then Value.Len = Text'Length);
+
+   function Image (Value : Revision) return String is
+     (Value.Text (1 .. Value.Len))
+   with Post => Image'Result'First = 1
+                and then Image'Result'Length = Value.Len;
+
    --  True when a git executable can be found on PATH. A host checks this
    --  once at startup to fail with a clear message instead of a dead screen.
    function Available return Boolean with Global => null;
@@ -34,7 +58,10 @@ package Git_View_Source with SPARK_Mode => On is
    --  and Doc null — when git could not run or reported failure (typically:
    --  not inside a repository); git's own message goes to standard error,
    --  which is still the terminal at startup.
-   procedure Load_Log (Doc : out Tui.Text.Doc_Ref; Ok : out Boolean)
+   procedure Load_Log
+     (From : Revision;
+      Doc  : out Tui.Text.Doc_Ref;
+      Ok   : out Boolean)
    with Global => null,
         Post   => Ok = (Doc /= null);
 

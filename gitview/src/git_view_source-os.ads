@@ -13,7 +13,7 @@
 
 private package Git_View_Source.OS with SPARK_Mode => On is
 
-   Max_Argument_Length : constant := 64;
+   Max_Argument_Length : constant := 255;
 
    subtype Argument_Length is Natural range 0 .. Max_Argument_Length;
 

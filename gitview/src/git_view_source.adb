@@ -39,23 +39,58 @@ package body Git_View_Source with SPARK_Mode => On is
 
    function Available return Boolean is (OS.Find_Git);
 
+   -------------------
+   -- Make_Revision --
+   -------------------
+
+   procedure Make_Revision
+     (Text  : String;
+      Value : out Revision;
+      Ok    : out Boolean)
+   is
+   begin
+      Value := (Text => (others => ' '), Len => 0);
+      Ok := Text'Length in 1 .. Max_Revision_Length;
+      if Ok then
+         Value.Text (1 .. Text'Length) := Text;
+         Value.Len := Text'Length;
+      end if;
+   end Make_Revision;
+
    --------------
    -- Load_Log --
    --------------
 
-   procedure Load_Log (Doc : out Tui.Text.Doc_Ref; Ok : out Boolean) is
+   procedure Load_Log
+     (From : Revision;
+      Doc  : out Tui.Text.Doc_Ref;
+      Ok   : out Boolean)
+   is
       Code : Integer;
    begin
       --  The abbreviated id must stay the first space-terminated token of
       --  every line: the proved commit-id parser depends on it. No --graph
       --  for the same reason — its continuation lines carry no commit.
-      OS.Capture
-        (Args       => (Arg ("log"),
-                        Arg ("--date=short"),
-                        Arg ("--pretty=format:%h %ad %an %s")),
-         Err_To_Out => False,
-         Doc        => Doc,
-         Code       => Code);
+      if From.Len = 0 then
+         OS.Capture
+           (Args       => (Arg ("log"),
+                           Arg ("--date=short"),
+                           Arg ("--pretty=format:%h %ad %an %s")),
+            Err_To_Out => False,
+            Doc        => Doc,
+            Code       => Code);
+      else
+         --  The final -- makes the value a revision, never a pathspec.
+         OS.Capture
+           (Args       => (Arg ("log"),
+                           Arg ("--date=short"),
+                           Arg ("--pretty=format:%h %ad %an %s"),
+                           Arg (Image (From)),
+                           Arg ("--")),
+            Err_To_Out => False,
+            Doc        => Doc,
+            Code       => Code);
+      end if;
       if Code /= 0 and then Doc /= null then
          Tui.Text.Free (Doc);
       end if;
