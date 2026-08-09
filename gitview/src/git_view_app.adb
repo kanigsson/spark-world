@@ -715,12 +715,13 @@ is
    --  deliberately without moving the keyboard focus, so hovering to scroll
    --  never changes what the keys do.
    procedure Handle_Mouse (Event : Key_Event; Changed : out Boolean)
-   with Global => (In_Out => (List_Eng, Diff_Eng, Selected, Focused, Note, Selecting,
+   with Global => (In_Out => (List_Eng, Diff_Eng, Diff_Doc, Diff_Id,
+                              Selected, Focused, Note, Selecting,
                               Selection_Shown, Selection_Pane,
                               Selection_Start, Selection_End),
-                   Input  => (List_Doc, Diff_Doc,
-                              List_Width, Diff_Width, View_Rows)),
-        Pre    => List_Doc /= null and then Diff_Doc /= null
+                   Input  => (List_Doc, List_Width, Diff_Width, View_Rows)),
+        Pre    => List_Doc /= null and then Diff_Doc /= null,
+        Post   => Diff_Doc /= null
    is
       Where : constant Pol.Region :=
         Pol.Locate (Event.Col, Event.Row, List_Width, Diff_Width, View_Rows);
@@ -751,7 +752,7 @@ is
                   end if;
                end;
                if Where = Pol.List_Region then
-                  --  Select the line under the cursor, when one is there.
+                  --  Select and immediately load the line under the cursor.
                   declare
                      Total : constant Tui.Text.Line_Total :=
                        Tui.Text.Line_Count (List_Doc.all.Idx);
@@ -761,10 +762,15 @@ is
                   begin
                      if Total > 0 and then Top <= Total
                        and then Off <= Total - Top
-                       and then Selected /= Top + Off
                      then
                         Selected := Top + Off;
                         Changed  := True;
+                        declare
+                           Opened : Boolean;
+                        begin
+                           Open_Selected (Opened);
+                           Changed := Changed or else Opened;
+                        end;
                      end if;
                   end;
                   if Focused /= Pol.List_Pane then

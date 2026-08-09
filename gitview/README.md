@@ -36,8 +36,9 @@ git_view --no-mouse   # ... without claiming the mouse from the terminal
 
 ## Mouse
 
-A left click selects the commit under the cursor and gives the clicked pane
-the keyboard; the scroll wheel scrolls the pane **under the cursor** — without
+A left click in the list selects and immediately opens the commit under the
+cursor; clicking either pane gives it the keyboard. The scroll wheel scrolls
+the pane **under the cursor** — without
 moving the keyboard focus, so hovering to scroll never changes what the keys
 do. Wheel-scrolling the list drags the selection along, exactly like paging.
 

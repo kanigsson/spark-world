@@ -122,6 +122,15 @@ try:
     time.sleep(0.3)
     frame = s.full_frame()
     check(b"[commits] 6/60" in frame, "left click on list row 6 -> status 6/60")
+    check(b"line 55" in frame and b"DIFFLINE_60" not in frame,
+          "left click immediately loads the clicked commit's diff")
+
+    # Return to the newest, deliberately long diff for scrolling checks.
+    s.send(b"\x1b[<0;5;1M\x1b[<0;5;1m")
+    time.sleep(0.3)
+    frame = s.full_frame()
+    check(b"[commits] 1/60" in frame and b"DIFFLINE_01" in frame,
+          "click row 1 restores the newest long diff")
 
     # Wheel down twice over the DIFF pane (col 60) without focusing it:
     # new DIFFLINE_NN rows must appear, focus must stay on the list.

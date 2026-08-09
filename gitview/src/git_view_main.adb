@@ -12,8 +12,9 @@
 --  the keyboard between panes, / ? n N search within the focused pane,
 --  q quits.
 --
---  Mouse: a left click selects the commit under the cursor (and gives the
---  clicked pane the keyboard); the wheel scrolls the pane under the cursor.
+--  Mouse: a left click opens the commit under the cursor (and gives the
+--  clicked pane the keyboard); a drag selects text; the wheel scrolls the
+--  pane under the cursor.
 --  --no-mouse leaves the mouse to the terminal, so its native text
 --  selection works without holding Shift.
 
