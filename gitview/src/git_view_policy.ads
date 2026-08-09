@@ -31,6 +31,7 @@ package Git_View_Policy with SPARK_Mode => On is
    type Action_Kind is
      (Quit,             --  leave the viewer        (q / Q / Ctrl-C)
       Switch_Focus,     --  move the keyboard to the other pane    (Tab)
+      Toggle_Syntax,    --  enable/disable source token colours       (s)
       Open_Diff,        --  show the selected commit's diff        (Enter)
       Move_Selection,   --  move the list selection   (see Move)
       Navigate,         --  move the focused viewport (see Command)

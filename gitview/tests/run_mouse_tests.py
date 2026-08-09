@@ -42,7 +42,12 @@ def make_repo(repo):
     for i in range(1, 59):
         with open(os.path.join(repo, "f.txt"), "a") as f:
             f.write(f"line {i}\n")
-        git("add", "f.txt")
+        if i == 1:
+            with open(os.path.join(repo, "00_sample.adb"), "w") as f:
+                f.write("procedure Sample is\nbegin\n   raise Program_Error;\nend Sample;\n")
+            git("add", "f.txt", "00_sample.adb")
+        else:
+            git("add", "f.txt")
         git("commit", "-q", "-m", f"c{i:02d}")
     # A penultimate source commit exercises language-aware token colours.
     with open(os.path.join(repo, "00_sample.adb"), "w") as f:
@@ -140,6 +145,20 @@ try:
     frame = s.full_frame()
     check(frame.count(b"38;5;5") >= 2,
           "Ada and Python keywords receive syntax-token colour")
+
+    # Syntax is optional, while the green/red diff gutter remains independent.
+    s.send(b"s")
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(b"38;5;5" not in frame,
+          "s toggles source syntax colours off")
+    check(b"38;5;2" in frame and b"38;5;1" in frame,
+          "syntax-off keeps green/red diff gutter cues")
+    s.send(b"s")
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(frame.count(b"38;5;5") >= 2,
+          "s toggles source syntax colours back on")
 
     # Return to the newest, deliberately long diff for scrolling checks.
     s.send(b"\x1b[<0;5;1M\x1b[<0;5;1m")

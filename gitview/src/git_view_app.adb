@@ -17,7 +17,8 @@ package body Git_View_App with
   Refined_State =>
     (State =>
        (List_Doc, Diff_Doc, List_Eng, Diff_Eng, Selected, Diff_Id,
-        Focused, Searching, Forward, Pattern, Note,
+       Focused, Searching, Forward, Pattern, Note,
+        Syntax_Enabled,
         List_Width, Diff_Width, View_Rows,
         Selecting, Selection_Shown, Selection_Pane,
         Selection_Start, Selection_End))
@@ -72,6 +73,10 @@ is
    Forward   : Boolean := True;
    Pattern   : Edit.Editor;
    Note      : Git_View_Status.Note := Git_View_Status.No_Note;
+
+   --  Source-token foreground colours are optional. Diff polarity never
+   --  depends on them: additions and removals retain a coloured gutter.
+   Syntax_Enabled : Boolean := True;
 
    --  The pane split as last painted. The key handler has no surface, so the
    --  painter leaves the geometry behind for mouse hit-testing; before the
@@ -371,7 +376,7 @@ is
    --  independent of any horizontal scroll, and whole rows are tinted the
    --  way git's own porcelain colours diff output.
    procedure Colorize_Diff (DS : in out Surface)
-   with Global => (Input => (Diff_Doc, Diff_Eng)),
+   with Global => (Input => (Diff_Doc, Diff_Eng, Syntax_Enabled)),
         Pre    => Diff_Doc /= null
    is
       Total : constant Tui.Text.Line_Total :=
@@ -403,9 +408,13 @@ is
                   when Thm.Plain_Line =>
                      null;
                   when Thm.Added =>
-                     Tint_Row (DS, R, Thm.Added_Color);
+                     if Eng_Pkg.Left_Col (Diff_Eng) = 0 then
+                        Tint_Cells (DS, R, 1, 1, Thm.Added_Color);
+                     end if;
                   when Thm.Removed =>
-                     Tint_Row (DS, R, Thm.Removed_Color);
+                     if Eng_Pkg.Left_Col (Diff_Eng) = 0 then
+                        Tint_Cells (DS, R, 1, 1, Thm.Removed_Color);
+                     end if;
                   when Thm.Hunk =>
                      Tint_Row (DS, R, Thm.Hunk_Color);
                   when Thm.File_Meta =>
@@ -413,7 +422,9 @@ is
                   when Thm.Commit_Head =>
                      Tint_Row (DS, R, Thm.Commit_Color);
                end case;
-               if Kind in Thm.Plain_Line | Thm.Added | Thm.Removed then
+               if Syntax_Enabled
+                 and then Kind in Thm.Plain_Line | Thm.Added | Thm.Removed
+               then
                   Colorize_Source_Line
                     (DS, R, Line, Lang, Eng_Pkg.Left_Col (Diff_Eng));
                end if;
@@ -1107,6 +1118,10 @@ is
             when Pol.Switch_Focus =>
                Focused := (if Focused = Pol.List_Pane
                            then Pol.Diff_Pane else Pol.List_Pane);
+               Dirty := True;
+
+            when Pol.Toggle_Syntax =>
+               Syntax_Enabled := not Syntax_Enabled;
                Dirty := True;
 
             when Pol.Open_Diff =>

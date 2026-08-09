@@ -30,6 +30,7 @@ git_view --no-mouse   # ... without claiming the mouse from the terminal
  Enter           show this commit's diff        line down
 
  Tab             move the keyboard to the other pane
+ s               toggle source syntax colours
  / text ⏎        search forward in the focused pane     n  repeat
  ? text ⏎        search backward in the focused pane    N  repeat reversed
  q / Ctrl-C      quit
@@ -55,8 +56,9 @@ transient notes (`Pattern not found`, `No commit on this line`). Resize the
 window and the split re-layouts; a too-narrow window degrades to the list
 alone; quit and the terminal is restored.
 
-The interface is coloured the way git's own porcelain colours it: added and
-removed diff lines green and red, hunk headers cyan, file-level metadata
+Diff polarity and source syntax use separate visual channels: the leading
+`+`/`-` gutter is green/red while source foregrounds carry syntax colours.
+Press `s` to toggle syntax without losing the diff cue. Hunk headers are cyan, file-level metadata
 bold, the `commit` line — and the commit list's abbreviated ids — yellow,
 dates cyan. The status bar's accent tracks what it is saying (blue position,
 yellow search prompt, red note). Everything is drawn from the base-16

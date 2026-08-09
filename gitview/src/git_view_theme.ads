@@ -37,7 +37,8 @@ package Git_View_Theme with SPARK_Mode => On is
    Hunk_Color    : constant Color := Palette (Cyan);
    Commit_Color  : constant Color := Palette (Yellow);
 
-   --  Source tokens layered over the diff's add/remove base colour.
+   --  Diff polarity is confined to the leading +/- gutter. Source-token
+   --  foregrounds can therefore carry syntax without erasing that meaning.
    Keyword_Color : constant Color := Palette (Magenta);
    String_Color  : constant Color := Palette (Yellow);
    Comment_Color : constant Color := Palette (Gray);

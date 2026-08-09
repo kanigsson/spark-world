@@ -97,6 +97,12 @@ package body Git_View_Policy with SPARK_Mode => On is
          return (Kind => Switch_Focus);
       end if;
 
+      --  Syntax colour is a viewer-wide display option, whichever pane has
+      --  the keyboard. Diff polarity remains visible in the coloured gutter.
+      if Event.Kind = Char and then Event.Code = Character'Pos ('s') then
+         return (Kind => Toggle_Syntax);
+      end if;
+
       --  Enter search-input mode; the pattern targets the focused pane.
       if Event.Kind = Char and then Event.Code = Character'Pos ('/') then
          return (Kind => Search, Forward => True);
