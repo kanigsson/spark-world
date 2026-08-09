@@ -31,6 +31,8 @@ git_view --no-mouse   # ... without claiming the mouse from the terminal
 
  Tab             move the keyboard to the other pane
  s               toggle source syntax colours
+ [ / ]           previous / next diff hunk
+ { / }           previous / next changed file
  / text ⏎        search forward in the focused pane     n  repeat
  ? text ⏎        search backward in the focused pane    N  repeat reversed
  q / Ctrl-C      quit
@@ -65,6 +67,9 @@ yellow search prompt, red note). Everything is drawn from the base-16
 palette, so the colours follow the terminal's theme and survive any
 colour-depth downgrade — down to a plain inverse bar on a monochrome
 terminal.
+
+In the diff pane, `[`/`]` jump between hunk headers and `{`/`}` jump between
+changed-file headers. These structural jumps preserve the current `/` search.
 
 Inside unified-diff hunks, a proved dependency-free lexer adds keyword,
 string, comment, and number colours. File extensions select Ada; C, C++,
@@ -144,6 +149,7 @@ src/
   git_view_policy.ads/adb     focus-aware keymap                        [proved]
   git_view_list.ads/adb       selection/viewport coupling               [proved]
   git_view_selection.ads/adb  mouse selection ordering                  [proved]
+  git_view_navigation.ads/adb structural file/hunk scanning             [proved]
   git_view_clipboard.ads/adb  bounded extraction + OSC 52 encoding      [proved]
   git_view_sha.ads/adb        commit-list line -> commit id             [proved]
   git_view_theme.ads/adb      colour scheme + diff-line classifier      [proved]

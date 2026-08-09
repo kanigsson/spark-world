@@ -31,6 +31,11 @@ def check(cond, label):
     if not cond:
         failures.append(label)
 
+def diff_top(frame):
+    plain = re.sub(rb"\x1b\[[0-9;?]*[ -/]*[@-~]", b"", frame)
+    match = re.search(rb"\[diff\] [0-9a-f]+ +(\d+)-", plain)
+    return int(match.group(1)) if match else 0
+
 def make_repo(repo):
     env = dict(os.environ,
                GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
@@ -51,9 +56,15 @@ def make_repo(repo):
         git("commit", "-q", "-m", f"c{i:02d}")
     # A penultimate source commit exercises language-aware token colours.
     with open(os.path.join(repo, "00_sample.adb"), "w") as f:
-        f.write("procedure Sample is -- Ada comment\nbegin\n   null;\nend Sample;\n")
+        f.write("procedure Sample is -- Ada comment\n   Value : Integer := 0;\nbegin\n")
+        for _ in range(24):
+            f.write("   Value := Value + 1;\n")
+        f.write("   null;\nend Sample;\n")
     with open(os.path.join(repo, "01_sample.py"), "w") as f:
-        f.write("def greet(name):\n    return \"hello \" + name  # Python comment\n")
+        f.write("def greet(name):\n")
+        for _ in range(24):
+            f.write("    name = \"hello \" + name  # Python comment\n")
+        f.write("    return name\n")
     git("add", "00_sample.adb", "01_sample.py")
     git("commit", "-q", "-m", "c59-syntax")
 
@@ -160,6 +171,29 @@ try:
     check(frame.count(b"38;5;5") >= 2,
           "s toggles source syntax colours back on")
 
+    # Structural navigation works independently of literal search state.
+    s.send(b"\t}")
+    time.sleep(INTERACTION_SETTLE)
+    first_file = diff_top(s.full_frame())
+    s.send(b"}")
+    time.sleep(INTERACTION_SETTLE)
+    second_file = diff_top(s.full_frame())
+    s.send(b"]")
+    time.sleep(INTERACTION_SETTLE)
+    second_hunk = diff_top(s.full_frame())
+    s.send(b"[")
+    time.sleep(INTERACTION_SETTLE)
+    previous_hunk = diff_top(s.full_frame())
+    s.send(b"{")
+    time.sleep(INTERACTION_SETTLE)
+    previous_file = diff_top(s.full_frame())
+    check(first_file > 1 and second_file > first_file,
+          f"}} jumps forward through changed files ({first_file} -> {second_file})")
+    check(second_hunk > second_file and previous_hunk < second_hunk,
+          f"]/[ jump between diff hunks ({previous_hunk} < {second_hunk})")
+    check(previous_file < previous_hunk,
+          f"{{ jumps back to the previous changed file ({previous_file} < {previous_hunk})")
+
     # Return to the newest, deliberately long diff for scrolling checks.
     s.send(b"\x1b[<0;5;1M\x1b[<0;5;1m")
     time.sleep(INTERACTION_SETTLE)
@@ -170,13 +204,15 @@ try:
     # Wheel down twice over the DIFF pane (col 60) without focusing it:
     # new DIFFLINE_NN rows must appear, focus must stay on the list.
     high = max(int(m) for m in re.findall(rb"DIFFLINE_(\d\d)", s.capture))
+    before_wheel = len(s.capture)
     s.send(b"\x1b[<65;60;10M" * 2)
     time.sleep(INTERACTION_SETTLE)
     frame = s.full_frame()
     new = [int(m) for m in re.findall(rb"DIFFLINE_(\d\d)", frame)]
     check(bool(new) and max(new) > high,
           f"wheel down over diff pane reveals new lines (>{high:02d})")
-    check(b"[diff]" not in s.capture, "wheel over diff pane does NOT move focus")
+    check(b"[diff]" not in s.capture[before_wheel:],
+          "wheel over diff pane does NOT move focus")
 
     # Wheel down over the LIST pane (col 5): viewport scrolls, selection
     # clamps along (3 notches = 9 lines: top -> 10, selection 6 -> 10).

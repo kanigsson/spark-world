@@ -151,6 +151,28 @@ package body Git_View_Policy with SPARK_Mode => On is
             end;
 
          when Diff_Pane =>
+            if Event.Kind = Char then
+               case Event.Code is
+                  when Character'Pos (']') =>
+                     return (Kind => Jump_Diff,
+                             Target => Git_View_Navigation.Hunk_Header,
+                             Jump_Forward => True);
+                  when Character'Pos ('[') =>
+                     return (Kind => Jump_Diff,
+                             Target => Git_View_Navigation.Hunk_Header,
+                             Jump_Forward => False);
+                  when Character'Pos ('}') =>
+                     return (Kind => Jump_Diff,
+                             Target => Git_View_Navigation.File_Header,
+                             Jump_Forward => True);
+                  when Character'Pos ('{') =>
+                     return (Kind => Jump_Diff,
+                             Target => Git_View_Navigation.File_Header,
+                             Jump_Forward => False);
+                  when others =>
+                     null;
+               end case;
+            end if;
             declare
                Found : Boolean;
                Cmd   : Eng.Command;

@@ -11,6 +11,7 @@
 
 with Tui.Input;
 with Tui.Pager.Engine;
+with Git_View_Navigation;
 
 package Git_View_Policy with SPARK_Mode => On is
 
@@ -32,6 +33,7 @@ package Git_View_Policy with SPARK_Mode => On is
      (Quit,             --  leave the viewer        (q / Q / Ctrl-C)
       Switch_Focus,     --  move the keyboard to the other pane    (Tab)
       Toggle_Syntax,    --  enable/disable source token colours       (s)
+      Jump_Diff,        --  next/previous file or hunk            ([ ] { })
       Open_Diff,        --  show the selected commit's diff        (Enter)
       Move_Selection,   --  move the list selection   (see Move)
       Navigate,         --  move the focused viewport (see Command)
@@ -43,6 +45,9 @@ package Git_View_Policy with SPARK_Mode => On is
       case Kind is
          when Move_Selection => Move     : Sel_Move;
          when Navigate       => Command  : Eng.Command;
+         when Jump_Diff      =>
+            Target   : Git_View_Navigation.Landmark;
+            Jump_Forward : Boolean;
          when Search         => Forward  : Boolean;
          when Repeat_Search  => Reversed : Boolean;
          when others         => null;

@@ -10,6 +10,7 @@ with Git_View_Theme;
 with Git_View_Syntax;
 with Git_View_Selection;
 with Git_View_Clipboard;
+with Git_View_Navigation;
 with Tui.App_Kit.Search_Input;
 
 package body Git_View_App with
@@ -30,6 +31,7 @@ is
    package Thm renames Git_View_Theme;
    package Syn renames Git_View_Syntax;
    package Sel renames Git_View_Selection;
+   package Nav renames Git_View_Navigation;
    use type Eng_Pkg.Effect;
    use type Pol.Pane;
    use type Pol.Region;
@@ -728,6 +730,33 @@ is
       Changed := True;   --  always repaint: viewport moved or note changed
    end Do_Find;
 
+   --  Jump to a structural diff landmark without touching pager search state.
+   procedure Jump_Diff
+     (Target : Nav.Landmark;
+      Forward_Jump : Boolean;
+      Changed : out Boolean)
+   with Global => (In_Out => Diff_Eng, Input => Diff_Doc),
+        Pre    => Diff_Doc /= null
+   is
+      Total : constant Tui.Text.Line_Total :=
+        Tui.Text.Line_Count (Diff_Doc.all.Idx);
+      Found : Boolean;
+      Line  : Tui.Text.Line_Number;
+   begin
+      Changed := False;
+      if Total = 0 then
+         return;
+      end if;
+      Nav.Find
+        (Diff_Doc.all.Bytes, Diff_Doc.all.Idx,
+         Tui.Text.Line_Number'Min (Eng_Pkg.Top_Line (Diff_Eng), Total),
+         Forward_Jump, Target, Found, Line);
+      if Found then
+         Eng_Pkg.Go_To_Line (Diff_Eng, Line, Total);
+         Changed := True;
+      end if;
+   end Jump_Diff;
+
    --  Show the selected commit's diff: free the old document, load the new
    --  one (never null, by the source's contract) and reset the diff view.
    procedure Open_Selected (Changed : out Boolean)
@@ -1123,6 +1152,9 @@ is
             when Pol.Toggle_Syntax =>
                Syntax_Enabled := not Syntax_Enabled;
                Dirty := True;
+
+            when Pol.Jump_Diff =>
+               Jump_Diff (D.Target, D.Jump_Forward, Dirty);
 
             when Pol.Open_Diff =>
                Open_Selected (Dirty);
