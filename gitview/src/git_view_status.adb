@@ -14,6 +14,9 @@ package body Git_View_Status with SPARK_Mode => On is
          when No_Pattern        => Put (L, "No pattern");
          when No_Commit_On_Line => Put (L, "No commit on this line");
          when Git_Show_Failed   => Put (L, "git show failed");
+         when Selection_Copied  => Put (L, "Selection copied");
+         when Selection_Copy_Truncated =>
+            Put (L, "Selection copied (first 65536 bytes)");
          when No_Note           => null;   --  excluded by the precondition
       end case;
    end Format_Note;

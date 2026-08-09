@@ -68,6 +68,11 @@ package Git_View_Policy with SPARK_Mode => On is
       return Region
    with Global => null,
         Post   => (if Locate'Result /= Outside
-                   then Col >= 1 and Row in 1 .. Content_Rows);
+                   then Col >= 1 and Row in 1 .. Content_Rows)
+                  and then (if Locate'Result = List_Region
+                            then Col <= List_Cols)
+                  and then (if Locate'Result = Diff_Region
+                            then Col > List_Cols
+                              and then Col - List_Cols > 1);
 
 end Git_View_Policy;

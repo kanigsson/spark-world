@@ -41,9 +41,11 @@ the keyboard; the scroll wheel scrolls the pane **under the cursor** — without
 moving the keyboard focus, so hovering to scroll never changes what the keys
 do. Wheel-scrolling the list drags the selection along, exactly like paging.
 
-While the viewer owns the mouse, the terminal's native text selection needs
-Shift held down (the usual TUI trade-off); start with `--no-mouse` to leave
-the mouse entirely to the terminal.
+Drag with the left button in either pane to retain a text selection and copy
+it to the clipboard through OSC 52 (copies are capped at 65,536 bytes, with a
+status note if truncated). Shift-drag still asks the terminal for its native
+selection; start with `--no-mouse` to leave the mouse entirely to the
+terminal.
 
 The bottom row is a status bar for the focused pane: `[commits] 3/14 a2b8ad2`
 or `[diff] a2b8ad2 1-39/1033 3%`, the search prompt while one is typed, and
@@ -93,7 +95,8 @@ exercises two things the standalone pager does not:
 
 All app logic is proved (`SPARK_Mode => On`, free of run-time errors): the
 state and callbacks (`Git_View_App`), the keymap (`Git_View_Policy`), the
-selection rules (`Git_View_List`), the commit-id parser (`Git_View_Sha`), the
+selection rules (`Git_View_List`, `Git_View_Selection`), clipboard extraction
+and encoding (`Git_View_Clipboard`), the commit-id parser (`Git_View_Sha`), the
 colour scheme and diff-line classifier (`Git_View_Theme`), and the
 app-specific status texts (`Git_View_Status`). The search-pattern editor and
 the status `Line` buffer come from the shared
@@ -128,6 +131,8 @@ src/
   git_view_app.ads/adb        state + Paint/On_Key callbacks            [proved]
   git_view_policy.ads/adb     focus-aware keymap                        [proved]
   git_view_list.ads/adb       selection/viewport coupling               [proved]
+  git_view_selection.ads/adb  mouse selection ordering                  [proved]
+  git_view_clipboard.ads/adb  bounded extraction + OSC 52 encoding      [proved]
   git_view_sha.ads/adb        commit-list line -> commit id             [proved]
   git_view_theme.ads/adb      colour scheme + diff-line classifier      [proved]
   git_view_status.ads/adb     status-line texts (notes, read-outs)      [proved]

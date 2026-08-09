@@ -113,8 +113,8 @@ try:
     # ---- run 1: mouse on (default) -----------------------------------------
     s = Session(repo)
     first = s.read_for(2.0)
-    check(b"\x1b[?1000h" in first and b"\x1b[?1006h" in first,
-          "startup emits mouse-enable (?1000h ?1006h)")
+    check(b"\x1b[?1002h" in first and b"\x1b[?1006h" in first,
+          "startup emits drag-mouse enable (?1002h ?1006h)")
     check(b"[commits] 1/60" in first, "initial status: [commits] 1/60")
 
     # Click row 6 of the list pane (col 5): selection jumps to commit 6.
@@ -148,21 +148,30 @@ try:
     frame = s.full_frame()
     check(b"[diff]" in frame, "left click in diff pane -> [diff] focus")
 
+    # Drag within the diff: motion is decoded, the range is retained on screen,
+    # and release copies it through OSC 52 without leaving the TUI.
+    before = len(s.capture)
+    s.send(b"\x1b[<0;48;10M\x1b[<32;57;10M\x1b[<0;57;10m")
+    time.sleep(0.3)
+    copied = s.capture[before:] + s.full_frame()
+    check(b"\x1b]52;c;" in copied, "drag release emits an OSC 52 clipboard copy")
+    check(b"Selection copied" in copied, "drag selection reports copied status")
+
     tail = s.finish()
-    check(b"\x1b[?1006l" in tail and b"\x1b[?1000l" in tail,
-          "quit emits mouse-disable (?1006l ?1000l)")
+    check(b"\x1b[?1006l" in tail and b"\x1b[?1002l" in tail,
+          "quit emits mouse-disable (?1006l ?1002l)")
 
     # ---- run 2: --no-mouse --------------------------------------------------
     s = Session(repo, "--no-mouse")
     first = s.read_for(2.0)
-    check(b"\x1b[?1000h" not in first and b"\x1b[?1006h" not in first,
+    check(b"\x1b[?1002h" not in first and b"\x1b[?1006h" not in first,
           "--no-mouse: no mouse-enable emitted")
     check(b"[commits] 1/60" in first, "--no-mouse: app still paints")
     tail = s.finish()
-    check(b"\x1b[?1006l" not in tail and b"\x1b[?1000l" not in tail,
+    check(b"\x1b[?1006l" not in tail and b"\x1b[?1002l" not in tail,
           "--no-mouse: no mouse-disable on the way out either")
 
-    # ---- run 3: unknown option ----------------------------------------------
+    # ---- run 3: unknown option --------------------------------------------
     r = subprocess.run([GV, "--bogus"], cwd=repo,
                        capture_output=True, text=True)
     check(r.returncode != 0 and "unknown option" in r.stderr,
