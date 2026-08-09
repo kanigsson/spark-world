@@ -41,8 +41,8 @@ def make_repo(repo):
                GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
                GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
     def git(*args):
-        subprocess.run(["git", "-C", repo] + list(args), env=env,
-                       check=True, capture_output=True)
+        return subprocess.run(["git", "-C", repo] + list(args), env=env,
+                              check=True, capture_output=True, text=True)
     git("init", "-q")
     for i in range(1, 59):
         with open(os.path.join(repo, "f.txt"), "a") as f:
@@ -76,6 +76,13 @@ def make_repo(repo):
     git("add", "big.txt")
     git("commit", "-q", "-m", "c60-big")
     git("branch", "old", "HEAD~10")
+    main_branch = git("branch", "--show-current").stdout.strip()
+    git("switch", "-q", "-c", "side", "HEAD~5")
+    with open(os.path.join(repo, "side.txt"), "w") as f:
+        f.write("side history\n")
+    git("add", "side.txt")
+    git("commit", "-q", "-m", "side-only")
+    git("switch", "-q", main_branch)
 
 class Session:
     def __init__(self, repo, *args):
@@ -263,6 +270,32 @@ try:
           "branch argument limits the displayed history")
     s.finish()
 
+    # ---- runs 4-7: history filters ----------------------------------------
+    s = Session(repo, "--no-mouse", "--author", "t", "--since", "2000-01-01",
+                "--until", "2030-01-01", "--first-parent")
+    first = s.read_for(2.0)
+    check(b"[commits] 1/60" in first,
+          "author/date/first-parent filters combine")
+    s.finish()
+
+    s = Session(repo, "--no-mouse", "--grep", "c59-syntax")
+    first = s.read_for(2.0)
+    check(b"[commits] 1/1" in first,
+          "message filter limits history")
+    s.finish()
+
+    s = Session(repo, "--no-mouse", "--", "big.txt")
+    first = s.read_for(2.0)
+    check(b"[commits] 1/1" in first,
+          "path filter limits history")
+    s.finish()
+
+    s = Session(repo, "--no-mouse", "--all")
+    first = s.read_for(2.0)
+    check(b"[commits] 1/61" in first,
+          "--all includes side-branch history")
+    s.finish()
+
     # ---- non-interactive command-line diagnostics -------------------------
     r = subprocess.run([GV, "--help"], cwd=repo,
                        capture_output=True, text=True)
@@ -273,6 +306,11 @@ try:
                        capture_output=True, text=True)
     check(r.returncode != 0 and "unknown option" in r.stderr,
           "--bogus is rejected with a message")
+
+    r = subprocess.run([GV, "--author"], cwd=repo,
+                       capture_output=True, text=True)
+    check(r.returncode != 0 and "requires a value" in r.stderr,
+          "a filter missing its value is rejected")
 
     r = subprocess.run([GV, "old", "main"], cwd=repo,
                        capture_output=True, text=True)

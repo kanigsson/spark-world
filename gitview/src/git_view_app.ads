@@ -42,7 +42,10 @@ is
    --  subprocess edge. Ok is False when the log could not be loaded (then
    --  nothing is held and the host should exit with a message); a diff
    --  failure is not fatal — the pane shows the error and a note is posted.
-   procedure Init (From : Git_View_Source.Revision; Ok : out Boolean)
+   procedure Init
+     (From   : Git_View_Source.Revision;
+      Filter : Git_View_Source.Filters;
+      Ok     : out Boolean)
    with Global => (In_Out => State),
         Pre    => Uninitialized,
         Post   => Ok = Has_Documents;

@@ -13,7 +13,15 @@ stay proved SPARK.
 git_view              # browse the history of the repository at $PWD
 git_view main         # browse a branch, tag, object, or revision expression
 git_view --no-mouse   # ... without claiming the mouse from the terminal
+git_view --author AdaCore --since 2026-01-01
+git_view --grep parser --first-parent main
+git_view main -- src/   # only commits touching this path
 ```
+
+History filters are passed as separate Git arguments: `--author VALUE`,
+`--since DATE`, `--until DATE`, and `--grep TEXT`. `--all` includes every ref,
+`--first-parent` follows the mainline of merges, and the optional path after
+`--` restricts history to that path. Filters can be combined with a revision.
 
 ## Keys
 

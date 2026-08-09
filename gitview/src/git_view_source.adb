@@ -57,42 +57,95 @@ package body Git_View_Source with SPARK_Mode => On is
       end if;
    end Make_Revision;
 
+   -----------------
+   -- Make_Filter --
+   -----------------
+
+   procedure Make_Filter
+     (Text  : String;
+      Value : out Filter_Value;
+      Ok    : out Boolean)
+   is
+   begin
+      Value := (Text => (others => ' '), Len => 0);
+      Ok := Text'Length in 1 .. Max_Filter_Length;
+      if Ok then
+         Value.Text (1 .. Text'Length) := Text;
+         Value.Len := Text'Length;
+      end if;
+   end Make_Filter;
+
    --------------
    -- Load_Log --
    --------------
 
    procedure Load_Log
-     (From : Revision;
-      Doc  : out Tui.Text.Doc_Ref;
-      Ok   : out Boolean)
+     (From    : Revision;
+      Filter  : Filters;
+      Doc     : out Tui.Text.Doc_Ref;
+      Ok      : out Boolean)
    is
+      Max_Log_Args : constant := 17;
+      Args : OS.Argument_Vector (1 .. Max_Log_Args);
+      Last : Natural range 0 .. Max_Log_Args := 0;
       Code : Integer;
+
+      procedure Add (S : String)
+      with Pre  => Last < Max_Log_Args and then S'Length <= 255,
+           Post => Last = Last'Old + 1;
+
+      procedure Add (S : String) is
+      begin
+         Last := Last + 1;
+         Args (Last) := Arg (S);
+      end Add;
    begin
       --  The abbreviated id must stay the first space-terminated token of
       --  every line: the proved commit-id parser depends on it. No --graph
       --  for the same reason — its continuation lines carry no commit.
-      if From.Len = 0 then
-         OS.Capture
-           (Args       => (Arg ("log"),
-                           Arg ("--date=short"),
-                           Arg ("--decorate=short"),
-                           Arg ("--pretty=format:%h %ad%(decorate:prefix= [,suffix=],separator=%x2C ) %an %s")),
-            Err_To_Out => False,
-            Doc        => Doc,
-            Code       => Code);
-      else
-         --  The final -- makes the value a revision, never a pathspec.
-         OS.Capture
-           (Args       => (Arg ("log"),
-                           Arg ("--date=short"),
-                           Arg ("--decorate=short"),
-                           Arg ("--pretty=format:%h %ad%(decorate:prefix= [,suffix=],separator=%x2C ) %an %s"),
-                           Arg (Image (From)),
-                           Arg ("--")),
-            Err_To_Out => False,
-            Doc        => Doc,
-            Code       => Code);
+      Add ("log");
+      Add ("--date=short");
+      Add ("--decorate=short");
+      Add ("--pretty=format:%h %ad%(decorate:prefix= [,suffix=],separator=%x2C ) %an %s");
+      if Filter.All_Refs then
+         Add ("--all");
       end if;
+      if Filter.First_Parent then
+         Add ("--first-parent");
+      end if;
+      if Filter.Author.Len > 0 then
+         Add ("--author");
+         Add (Image (Filter.Author));
+      end if;
+      if Filter.Since.Len > 0 then
+         Add ("--since");
+         Add (Image (Filter.Since));
+      end if;
+      if Filter.Until_Date.Len > 0 then
+         Add ("--until");
+         Add (Image (Filter.Until_Date));
+      end if;
+      if Filter.Message.Len > 0 then
+         Add ("--grep");
+         Add (Image (Filter.Message));
+      end if;
+      if From.Len > 0 then
+         Add (Image (From));
+      end if;
+      if From.Len > 0 or else Filter.Path.Len > 0 then
+         --  Everything after -- is a pathspec; a revision before it can never
+         --  be mistaken for a path, preserving the previous CLI boundary.
+         Add ("--");
+      end if;
+      if Filter.Path.Len > 0 then
+         Add (Image (Filter.Path));
+      end if;
+
+      OS.Capture
+        (Args       => Args (1 .. Last),
+         Err_To_Out => False,
+         Doc        => Doc,
+         Code       => Code);
       if Code /= 0 and then Doc /= null then
          Tui.Text.Free (Doc);
       end if;

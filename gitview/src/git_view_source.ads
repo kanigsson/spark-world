@@ -49,6 +49,40 @@ package Git_View_Source with SPARK_Mode => On is
    with Post => Image'Result'First = 1
                 and then Image'Result'Length = Value.Len;
 
+   --  Read-only git-log filters. Bounded strings keep the command policy in
+   --  SPARK and cross the OS edge as individual argv entries, never a shell
+   --  command. A zero-length value means that filter is absent.
+   Max_Filter_Length : constant := 255;
+   subtype Filter_Length is Natural range 0 .. Max_Filter_Length;
+
+   type Filter_Value is record
+      Text : String (1 .. Max_Filter_Length) := (others => ' ');
+      Len  : Filter_Length := 0;
+   end record;
+
+   procedure Make_Filter
+     (Text  : String;
+      Value : out Filter_Value;
+      Ok    : out Boolean)
+   with Global => null,
+        Post   => Ok = (Text'Length in 1 .. Max_Filter_Length)
+                  and then (if Ok then Value.Len = Text'Length);
+
+   function Image (Value : Filter_Value) return String is
+     (Value.Text (1 .. Value.Len))
+   with Post => Image'Result'First = 1
+                and then Image'Result'Length = Value.Len;
+
+   type Filters is record
+      Author       : Filter_Value;
+      Since        : Filter_Value;
+      Until_Date   : Filter_Value;
+      Message      : Filter_Value;
+      Path         : Filter_Value;
+      All_Refs     : Boolean := False;
+      First_Parent : Boolean := False;
+   end record;
+
    --  True when a git executable can be found on PATH. A host checks this
    --  once at startup to fail with a clear message instead of a dead screen.
    function Available return Boolean with Global => null;
@@ -59,9 +93,10 @@ package Git_View_Source with SPARK_Mode => On is
    --  not inside a repository); git's own message goes to standard error,
    --  which is still the terminal at startup.
    procedure Load_Log
-     (From : Revision;
-      Doc  : out Tui.Text.Doc_Ref;
-      Ok   : out Boolean)
+     (From    : Revision;
+      Filter  : Filters;
+      Doc     : out Tui.Text.Doc_Ref;
+      Ok      : out Boolean)
    with Global => null,
         Post   => Ok = (Doc /= null);
 

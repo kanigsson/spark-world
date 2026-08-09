@@ -6,7 +6,7 @@
 --  spec; all state and policy live in the proved Git_View_App.
 --
 --  Usage:
---    git_view [--no-mouse] [REVISION]
+--    git_view [OPTIONS] [REVISION] [-- PATH]
 --
 --  Keys: j/k move the selection, Enter shows the commit's diff, Tab moves
 --  the keyboard between panes, / ? n N search within the focused pane,
@@ -69,36 +69,89 @@ is
       Fail ("unknown option or extra argument """ & Arg & """");
       Ada.Text_IO.Put_Line
         (Ada.Text_IO.Standard_Error,
-         "usage: git_view [--no-mouse] [REVISION]");
+         "usage: git_view [OPTIONS] [REVISION] [-- PATH]");
    end Fail_Usage;
 
    procedure Print_Help with Global => null;
 
    procedure Print_Help with SPARK_Mode => Off is
    begin
-      Ada.Text_IO.Put_Line ("usage: git_view [--no-mouse] [REVISION]");
+      Ada.Text_IO.Put_Line ("usage: git_view [OPTIONS] [REVISION] [-- PATH]");
       Ada.Text_IO.Put_Line ("Browse git history at REVISION (default: HEAD).");
+      Ada.Text_IO.Put_Line
+        ("Filters: --author VALUE  --since DATE  --until DATE  --grep TEXT");
+      Ada.Text_IO.Put_Line ("         --all  --first-parent  -- PATH");
+      Ada.Text_IO.Put_Line ("Display: --no-mouse");
    end Print_Help;
+
+   type Pending_Filter is
+     (No_Filter, Need_Author, Need_Since, Need_Until, Need_Message);
 
    Ok            : Boolean;
    Use_Mouse     : Boolean := True;
    From          : Git_View_Source.Revision;
+   History_Filter : Git_View_Source.Filters;
    Have_From     : Boolean := False;
-   Options_Ended : Boolean := False;
+   Path_Mode     : Boolean := False;
+   Pending       : Pending_Filter := No_Filter;
 
 begin
    for I in 1 .. Argument_Count loop
-      if not Options_Ended and then Argument (I) = "--no-mouse" then
+      if Pending /= No_Filter then
+         declare
+            Value : Git_View_Source.Filter_Value;
+            Valid : Boolean;
+         begin
+            Git_View_Source.Make_Filter (Argument (I), Value, Valid);
+            if not Valid then
+               Fail ("filter value must contain 1 to 255 characters");
+               return;
+            end if;
+            case Pending is
+               when Need_Author  => History_Filter.Author := Value;
+               when Need_Since   => History_Filter.Since := Value;
+               when Need_Until   => History_Filter.Until_Date := Value;
+               when Need_Message => History_Filter.Message := Value;
+               when No_Filter    => null;
+            end case;
+            Pending := No_Filter;
+         end;
+      elsif Path_Mode then
+         if History_Filter.Path.Len > 0 then
+            Fail_Usage (Argument (I));
+            return;
+         end if;
+         declare
+            Valid : Boolean;
+         begin
+            Git_View_Source.Make_Filter
+              (Argument (I), History_Filter.Path, Valid);
+            if not Valid then
+               Fail ("path must contain 1 to 255 characters");
+               return;
+            end if;
+         end;
+      elsif Argument (I) = "--no-mouse" then
          Use_Mouse := False;
-      elsif not Options_Ended
-        and then (Argument (I) = "--help" or else Argument (I) = "-h")
+      elsif Argument (I) = "--help" or else Argument (I) = "-h"
       then
          Print_Help;
          return;
-      elsif not Options_Ended and then Argument (I) = "--" then
-         Options_Ended := True;
-      elsif not Options_Ended
-        and then Argument (I)'Length > 0
+      elsif Argument (I) = "--all" then
+         History_Filter.All_Refs := True;
+      elsif Argument (I) = "--first-parent" then
+         History_Filter.First_Parent := True;
+      elsif Argument (I) = "--author" then
+         Pending := Need_Author;
+      elsif Argument (I) = "--since" then
+         Pending := Need_Since;
+      elsif Argument (I) = "--until" then
+         Pending := Need_Until;
+      elsif Argument (I) = "--grep" then
+         Pending := Need_Message;
+      elsif Argument (I) = "--" then
+         Path_Mode := True;
+      elsif Argument (I)'Length > 0
         and then Argument (I) (Argument (I)'First) = '-'
       then
          Fail_Usage (Argument (I));
@@ -120,6 +173,11 @@ begin
       end if;
    end loop;
 
+   if Pending /= No_Filter then
+      Fail ("filter option requires a value");
+      return;
+   end if;
+
    if not Git_View_Source.Available then
       Fail ("git not found on PATH");
       return;
@@ -128,7 +186,7 @@ begin
    --  Load the commit list (and the first diff). On failure git has already
    --  written its own message ("fatal: not a git repository ...") to
    --  standard error, which is still the terminal at this point.
-   Git_View_App.Init (From, Ok);
+   Git_View_App.Init (From, History_Filter, Ok);
    if not Ok then
       Fail ("cannot read the git log");
       return;

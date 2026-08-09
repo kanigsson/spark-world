@@ -138,10 +138,14 @@ is
    -- Init --
    ----------
 
-   procedure Init (From : Git_View_Source.Revision; Ok : out Boolean) is
+   procedure Init
+     (From   : Git_View_Source.Revision;
+      Filter : Git_View_Source.Filters;
+      Ok     : out Boolean)
+   is
       Log_Ok : Boolean;
    begin
-      Git_View_Source.Load_Log (From, List_Doc, Log_Ok);
+      Git_View_Source.Load_Log (From, Filter, List_Doc, Log_Ok);
       Ok := Log_Ok;
       if not Log_Ok then
          return;
