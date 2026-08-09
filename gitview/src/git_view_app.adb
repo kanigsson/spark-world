@@ -7,6 +7,7 @@ with Git_View_List;
 with Git_View_Sha;
 with Git_View_Status;
 with Git_View_Theme;
+with Git_View_Syntax;
 with Git_View_Selection;
 with Git_View_Clipboard;
 with Tui.App_Kit.Search_Input;
@@ -26,6 +27,7 @@ is
    package Edit renames Tui.App_Kit.Search_Input;
    package Pol renames Git_View_Policy;
    package Thm renames Git_View_Theme;
+   package Syn renames Git_View_Syntax;
    package Sel renames Git_View_Selection;
    use type Eng_Pkg.Effect;
    use type Pol.Pane;
@@ -33,6 +35,8 @@ is
    use type Git_View_Status.Note;
    use type Tui.Text.Doc_Ref;
    use type Sel.Position;
+   use type Syn.Language;
+   use type Tui.Text.Byte;
 
    ---------------------------------------------------------------------------
    --  State (set by Init, then driven by the callbacks)
@@ -235,6 +239,133 @@ is
       Tint_Cells (S, R, 1, Natural (S.Cols), Fg, Bold);
    end Tint_Row;
 
+   --  Tint a source-byte span after translating it through UTF-8/tab display
+   --  columns and the diff viewport's horizontal offset.
+   procedure Tint_Byte_Span
+     (S    : in out Surface;
+      R    : Row_Index;
+      Line : Tui.Text.Buffer;
+      From : Tui.Text.Byte_Index;
+      To   : Tui.Text.Byte_Index;
+      Left : Tui.Pager.Dimension;
+      Fg   : Color)
+   with Global => null,
+        Pre    => R <= S.Rows
+                  and then From in Line'Range
+                  and then To in From .. Line'Last
+   is
+      First_Col : constant Natural :=
+        Syn.Display_Column (Line, From - Line'First);
+      After_Col : constant Natural :=
+        Syn.Display_Column (Line, To - Line'First + 1);
+      Right     : constant Natural := Left + Natural (S.Cols);
+   begin
+      if After_Col <= Left or else First_Col >= Right
+        or else After_Col <= First_Col
+      then
+         return;
+      end if;
+      Tint_Cells
+        (S, R,
+         Natural'Max (First_Col, Left) - Left + 1,
+         Natural'Min (After_Col, Right) - Left,
+         Fg);
+   end Tint_Byte_Span;
+
+   procedure Colorize_Source_Line
+     (S    : in out Surface;
+      R    : Row_Index;
+      Line : Tui.Text.Buffer;
+      Lang : Syn.Language;
+      Left : Tui.Pager.Dimension)
+   with Global => null,
+        Pre    => R <= S.Rows
+   is
+   begin
+      --  Unified-diff source lines carry one leading marker (+, -, or space).
+      if Lang = Syn.Plain or else Line'Length <= 1 then
+         return;
+      end if;
+      declare
+         subtype Scan_Index is
+           Natural range 1 .. Tui.Text.Max_Bytes + 1;
+         Last : constant Tui.Text.Byte_Index := Line'Last;
+         Pos  : Scan_Index := Line'First + 1;
+      begin
+         while Pos <= Last loop
+            pragma Loop_Invariant
+              (Pos in Line'First + 1 .. Line'Last + 1);
+            pragma Loop_Invariant (R <= S.Rows);
+            pragma Loop_Variant (Decreases => Last + 1 - Pos);
+            if Syn.Starts_Comment (Line, Pos, Lang) then
+               Tint_Byte_Span
+                 (S, R, Line, Pos, Last, Left, Thm.Comment_Color);
+               return;
+            elsif Line (Pos) = 34 or else Line (Pos) = 39
+              or else Line (Pos) = 96
+            then
+               declare
+                  Quote   : constant Tui.Text.Byte := Line (Pos);
+                  Finish  : Tui.Text.Byte_Index := Pos;
+                  Escaped : Boolean := False;
+               begin
+                  while Finish < Last loop
+                     pragma Loop_Invariant (Finish in Pos .. Last);
+                     pragma Loop_Variant (Decreases => Last - Finish);
+                     Finish := Finish + 1;
+                     if not Escaped and then Line (Finish) = Quote then
+                        exit;
+                     end if;
+                     if not Escaped and then Line (Finish) = 92 then
+                        Escaped := True;
+                     else
+                        Escaped := False;
+                     end if;
+                  end loop;
+                  Tint_Byte_Span
+                    (S, R, Line, Pos, Finish, Left, Thm.String_Color);
+                  Pos := Finish + 1;
+               end;
+            elsif Syn.Is_Identifier_Start (Line (Pos)) then
+               declare
+                  Finish : Tui.Text.Byte_Index := Pos;
+               begin
+                  while Finish < Last
+                    and then Syn.Is_Identifier (Line (Finish + 1))
+                  loop
+                     pragma Loop_Invariant (Finish in Pos .. Last);
+                     pragma Loop_Variant (Decreases => Last - Finish);
+                     Finish := Finish + 1;
+                  end loop;
+                  if Syn.Is_Keyword (Line, Pos, Finish, Lang) then
+                     Tint_Byte_Span
+                       (S, R, Line, Pos, Finish, Left, Thm.Keyword_Color);
+                  end if;
+                  Pos := Finish + 1;
+               end;
+            elsif Syn.Is_Digit (Line (Pos)) then
+               declare
+                  Finish : Tui.Text.Byte_Index := Pos;
+               begin
+                  while Finish < Last
+                    and then (Syn.Is_Identifier (Line (Finish + 1))
+                              or else Line (Finish + 1) = Character'Pos ('.'))
+                  loop
+                     pragma Loop_Invariant (Finish in Pos .. Last);
+                     pragma Loop_Variant (Decreases => Last - Finish);
+                     Finish := Finish + 1;
+                  end loop;
+                  Tint_Byte_Span
+                    (S, R, Line, Pos, Finish, Left, Thm.Number_Color);
+                  Pos := Finish + 1;
+               end;
+            else
+               Pos := Pos + 1;
+            end if;
+         end loop;
+      end;
+   end Colorize_Source_Line;
+
    --  Colour the rendered diff rows by what their content lines are: the
    --  classification reads the document (not the surface), so it is
    --  independent of any horizontal scroll, and whole rows are tinted the
@@ -246,28 +377,47 @@ is
       Total : constant Tui.Text.Line_Total :=
         Tui.Text.Line_Count (Diff_Doc.all.Idx);
       Top   : constant Tui.Text.Line_Number := Eng_Pkg.Top_Line (Diff_Eng);
+      Lang  : Syn.Language :=
+        (if Total > 0 and then Top <= Total
+         then Syn.Language_At
+           (Diff_Doc.all.Bytes, Diff_Doc.all.Idx, Top)
+         else Syn.Plain);
+      Found       : Boolean;
+      Header_Lang : Syn.Language;
    begin
       for R in Row_Index range 1 .. DS.Rows loop
          declare
             LN : constant Natural := Top + (Natural (R) - 1);
          begin
             exit when LN > Total;
-            case Thm.Classify
-              (Tui.Text.Line (Diff_Doc.all.Idx, Diff_Doc.all.Bytes, LN))
-            is
-               when Thm.Plain_Line =>
-                  null;
-               when Thm.Added =>
-                  Tint_Row (DS, R, Thm.Added_Color);
-               when Thm.Removed =>
-                  Tint_Row (DS, R, Thm.Removed_Color);
-               when Thm.Hunk =>
-                  Tint_Row (DS, R, Thm.Hunk_Color);
-               when Thm.File_Meta =>
-                  Tint_Row (DS, R, Default_Color, Bold => True);
-               when Thm.Commit_Head =>
-                  Tint_Row (DS, R, Thm.Commit_Color);
-            end case;
+            declare
+               Line : constant Tui.Text.Buffer :=
+                 Tui.Text.Line (Diff_Doc.all.Idx, Diff_Doc.all.Bytes, LN);
+               Kind : constant Thm.Line_Kind := Thm.Classify (Line);
+            begin
+               Syn.Header_Language (Line, Found, Header_Lang);
+               if Found then
+                  Lang := Header_Lang;
+               end if;
+               case Kind is
+                  when Thm.Plain_Line =>
+                     null;
+                  when Thm.Added =>
+                     Tint_Row (DS, R, Thm.Added_Color);
+                  when Thm.Removed =>
+                     Tint_Row (DS, R, Thm.Removed_Color);
+                  when Thm.Hunk =>
+                     Tint_Row (DS, R, Thm.Hunk_Color);
+                  when Thm.File_Meta =>
+                     Tint_Row (DS, R, Default_Color, Bold => True);
+                  when Thm.Commit_Head =>
+                     Tint_Row (DS, R, Thm.Commit_Color);
+               end case;
+               if Kind in Thm.Plain_Line | Thm.Added | Thm.Removed then
+                  Colorize_Source_Line
+                    (DS, R, Line, Lang, Eng_Pkg.Left_Col (Diff_Eng));
+               end if;
+            end;
          end;
       end loop;
    end Colorize_Diff;

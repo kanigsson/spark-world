@@ -64,6 +64,13 @@ palette, so the colours follow the terminal's theme and survive any
 colour-depth downgrade — down to a plain inverse bar on a monochrome
 terminal.
 
+Inside unified-diff hunks, a proved dependency-free lexer adds keyword,
+string, comment, and number colours. File extensions select Ada; C, C++,
+Rust, Go, Java, JavaScript/TypeScript, Swift and Kotlin; Python and Ruby;
+shell; or JSON/TOML/YAML rules. This is lexical highlighting rather than a
+full parser, which keeps the executable self-contained and the highlighting
+policy inside the Silver proof boundary.
+
 ## How it fits together
 
 ```
@@ -99,7 +106,8 @@ All app logic is proved (`SPARK_Mode => On`, free of run-time errors): the
 state and callbacks (`Git_View_App`), the keymap (`Git_View_Policy`), the
 selection rules (`Git_View_List`, `Git_View_Selection`), clipboard extraction
 and encoding (`Git_View_Clipboard`), the commit-id parser (`Git_View_Sha`), the
-colour scheme and diff-line classifier (`Git_View_Theme`), and the
+colour scheme and diff-line classifier (`Git_View_Theme`), the multi-language
+lexer (`Git_View_Syntax`), and the
 app-specific status texts (`Git_View_Status`). The search-pattern editor and
 the status `Line` buffer come from the shared
 [`tui_app_kit`](../appkit/README.md) crate — this app was their second
@@ -137,6 +145,7 @@ src/
   git_view_clipboard.ads/adb  bounded extraction + OSC 52 encoding      [proved]
   git_view_sha.ads/adb        commit-list line -> commit id             [proved]
   git_view_theme.ads/adb      colour scheme + diff-line classifier      [proved]
+  git_view_syntax.ads/adb     source language + lexical highlighting    [proved]
   git_view_status.ads/adb     status-line texts (notes, read-outs)      [proved]
 ```
 

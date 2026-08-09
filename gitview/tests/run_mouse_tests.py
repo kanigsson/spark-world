@@ -22,6 +22,7 @@ import shutil, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 GV = os.path.join(HERE, "..", "git_view")
 COLS = 100
+INTERACTION_SETTLE = 0.75
 
 failures = []
 
@@ -38,13 +39,20 @@ def make_repo(repo):
         subprocess.run(["git", "-C", repo] + list(args), env=env,
                        check=True, capture_output=True)
     git("init", "-q")
-    for i in range(1, 60):
+    for i in range(1, 59):
         with open(os.path.join(repo, "f.txt"), "a") as f:
             f.write(f"line {i}\n")
         git("add", "f.txt")
         git("commit", "-q", "-m", f"c{i:02d}")
-    # Newest commit: a fresh file with numbered lines, so wheel-scrolling
-    # the diff pane reveals provably-new content.
+    # A penultimate source commit exercises language-aware token colours.
+    with open(os.path.join(repo, "00_sample.adb"), "w") as f:
+        f.write("procedure Sample is -- Ada comment\nbegin\n   null;\nend Sample;\n")
+    with open(os.path.join(repo, "01_sample.py"), "w") as f:
+        f.write("def greet(name):\n    return \"hello \" + name  # Python comment\n")
+    git("add", "00_sample.adb", "01_sample.py")
+    git("commit", "-q", "-m", "c59-syntax")
+
+    # Newest commit: a numbered file makes wheel scrolling observable.
     with open(os.path.join(repo, "big.txt"), "w") as f:
         for i in range(1, 61):
             f.write(f"DIFFLINE_{i:02d}\n")
@@ -120,15 +128,22 @@ try:
 
     # Click row 6 of the list pane (col 5): selection jumps to commit 6.
     s.send(b"\x1b[<0;5;6M\x1b[<0;5;6m")
-    time.sleep(0.3)
+    time.sleep(INTERACTION_SETTLE)
     frame = s.full_frame()
     check(b"[commits] 6/60" in frame, "left click on list row 6 -> status 6/60")
     check(b"line 55" in frame and b"DIFFLINE_60" not in frame,
           "left click immediately loads the clicked commit's diff")
 
+    # The second commit contains two source languages and their keywords.
+    s.send(b"\x1b[<0;5;2M\x1b[<0;5;2m")
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(frame.count(b"38;5;5") >= 2,
+          "Ada and Python keywords receive syntax-token colour")
+
     # Return to the newest, deliberately long diff for scrolling checks.
     s.send(b"\x1b[<0;5;1M\x1b[<0;5;1m")
-    time.sleep(0.3)
+    time.sleep(INTERACTION_SETTLE)
     frame = s.full_frame()
     check(b"[commits] 1/60" in frame and b"DIFFLINE_01" in frame,
           "click row 1 restores the newest long diff")
@@ -137,7 +152,7 @@ try:
     # new DIFFLINE_NN rows must appear, focus must stay on the list.
     high = max(int(m) for m in re.findall(rb"DIFFLINE_(\d\d)", s.capture))
     s.send(b"\x1b[<65;60;10M" * 2)
-    time.sleep(0.3)
+    time.sleep(INTERACTION_SETTLE)
     frame = s.full_frame()
     new = [int(m) for m in re.findall(rb"DIFFLINE_(\d\d)", frame)]
     check(bool(new) and max(new) > high,
@@ -147,14 +162,14 @@ try:
     # Wheel down over the LIST pane (col 5): viewport scrolls, selection
     # clamps along (3 notches = 9 lines: top -> 10, selection 6 -> 10).
     s.send(b"\x1b[<65;5;10M" * 3)
-    time.sleep(0.3)
+    time.sleep(INTERACTION_SETTLE)
     frame = s.full_frame()
     check(b"[commits] 10/60" in frame,
           "wheel down over list drags selection (10/60)")
 
     # Click in the diff pane: focus moves there.
     s.send(b"\x1b[<0;60;10M\x1b[<0;60;10m")
-    time.sleep(0.3)
+    time.sleep(INTERACTION_SETTLE)
     frame = s.full_frame()
     check(b"[diff]" in frame, "left click in diff pane -> [diff] focus")
 
@@ -162,7 +177,7 @@ try:
     # and release copies it through OSC 52 without leaving the TUI.
     before = len(s.capture)
     s.send(b"\x1b[<0;48;10M\x1b[<32;57;10M\x1b[<0;57;10m")
-    time.sleep(0.3)
+    time.sleep(INTERACTION_SETTLE)
     copied = s.capture[before:] + s.full_frame()
     check(b"\x1b]52;c;" in copied, "drag release emits an OSC 52 clipboard copy")
     check(b"Selection copied" in copied, "drag selection reports copied status")

@@ -22,6 +22,7 @@ package Git_View_Theme with SPARK_Mode => On is
    Green  : constant := 2;
    Yellow : constant := 3;
    Blue   : constant := 4;
+   Magenta : constant := 5;
    Cyan   : constant := 6;
    Gray   : constant := 8;   --  "bright black"
 
@@ -35,6 +36,12 @@ package Git_View_Theme with SPARK_Mode => On is
    Removed_Color : constant Color := Palette (Red);
    Hunk_Color    : constant Color := Palette (Cyan);
    Commit_Color  : constant Color := Palette (Yellow);
+
+   --  Source tokens layered over the diff's add/remove base colour.
+   Keyword_Color : constant Color := Palette (Magenta);
+   String_Color  : constant Color := Palette (Yellow);
+   Comment_Color : constant Color := Palette (Gray);
+   Number_Color  : constant Color := Palette (Cyan);
 
    --  Commit list: the leading abbreviated id and the date column.
    Sha_Color  : constant Color := Palette (Yellow);
