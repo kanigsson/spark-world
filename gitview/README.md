@@ -67,7 +67,7 @@ window and the split re-layouts; a too-narrow window degrades to the list
 alone; quit and the terminal is restored.
 
 Diff polarity and source syntax use separate visual channels: added and removed
-rows have dark green/red backgrounds and matching `+`/`-` gutter markers,
+rows have pale green/red backgrounds and matching `+`/`-` gutter markers,
 while source foregrounds carry syntax colours. Press `s` to toggle syntax
 without losing the diff cue. Hunk headers are cyan, file-level metadata
 bold, the `commit` line — and the commit list's abbreviated ids — yellow,

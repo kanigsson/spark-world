@@ -177,8 +177,8 @@ try:
           "s toggles source syntax colours off")
     check(b"38;5;2" in frame and b"38;5;1" in frame,
           "syntax-off keeps green/red diff gutter cues")
-    check(b"48;5;22" in frame and b"48;5;52" in frame,
-          "added/removed rows carry pronounced background tints")
+    check(b"48;2;230;255;236" in frame and b"48;2;255;235;233" in frame,
+          "added/removed rows carry pale background tints")
     s.send(b"s")
     time.sleep(INTERACTION_SETTLE)
     frame = s.full_frame()

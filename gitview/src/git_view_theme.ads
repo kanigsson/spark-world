@@ -34,11 +34,13 @@ package Git_View_Theme with SPARK_Mode => On is
    --  to light and dark terminal themes alike.
    Added_Color   : constant Color := Palette (Green);
    Removed_Color : constant Color := Palette (Red);
-   --  Dark 256-colour shades make polarity visible across the complete row
-   --  without competing with syntax foregrounds. The terminal driver maps
-   --  them to the closest available colour at lower colour depths.
-   Added_Background   : constant Color := Palette (22);
-   Removed_Background : constant Color := Palette (52);
+   --  Very pale truecolour washes keep polarity visible across the complete
+   --  row without turning it into a solid colour block. The terminal driver
+   --  maps them to the closest available colour at lower colour depths.
+   Added_Background : constant Color :=
+     (Kind => Tui.Surface.RGB, R => 230, G => 255, B => 236);
+   Removed_Background : constant Color :=
+     (Kind => Tui.Surface.RGB, R => 255, G => 235, B => 233);
    Hunk_Color    : constant Color := Palette (Cyan);
    Commit_Color  : constant Color := Palette (Yellow);
 
