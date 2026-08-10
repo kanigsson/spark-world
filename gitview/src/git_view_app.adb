@@ -19,9 +19,10 @@ package body Git_View_App with
   Refined_State =>
     (State =>
        (List_Doc, Diff_Doc, List_Eng, Diff_Eng, Selected, Diff_Id,
-       Focused, Searching, Forward, Pattern, Note,
+        Focused, Searching, Forward, Pattern, Note,
         Syntax_Enabled,
-        List_Width, Diff_Width, View_Rows,
+        Maximized, Split, Resizing_Split,
+        List_Width, Diff_Width, View_Rows, Screen_Width,
         Selecting, Selection_Shown, Selection_Pane,
         Selection_Start, Selection_End))
 is
@@ -82,12 +83,19 @@ is
    --  depends on them: additions and removals retain a coloured gutter.
    Syntax_Enabled : Boolean := True;
 
+   --  Layout preference. In a maximized layout Focused identifies the one
+   --  visible pane. Split is retained while maximized and restored by `z`.
+   Maximized      : Boolean := False;
+   Split          : Pol.Split_Percentage := Pol.Default_Split;
+   Resizing_Split : Boolean := False;
+
    --  The pane split as last painted. The key handler has no surface, so the
    --  painter leaves the geometry behind for mouse hit-testing; before the
    --  first frame everything is 0 and every position falls Outside.
-   List_Width : Natural := 0;
-   Diff_Width : Natural := 0;
-   View_Rows  : Natural := 0;
+   List_Width   : Natural := 0;
+   Diff_Width   : Natural := 0;
+   View_Rows    : Natural := 0;
+   Screen_Width : Col_Count := 0;
 
    --  A drag is stored in document/display coordinates, not screen
    --  coordinates, so repainting and horizontal scrolling do not corrupt it.
@@ -153,6 +161,9 @@ is
 
       Selected := 1;
       Focused  := Pol.List_Pane;
+      Maximized      := False;
+      Split          := Pol.Default_Split;
+      Resizing_Split := False;
 
       --  Open the newest commit's diff so the right pane starts populated.
       declare
@@ -667,66 +678,85 @@ is
       Content_Rows : constant Row_Count :=
         (if S.Rows >= 1 then S.Rows - 1 else 0);
 
-      --  Split the width: list left (45%, at least 1 column), one separator
-      --  column, diff right. Too narrow for three parts: list only.
-      NC        : constant Natural := Natural (S.Cols);
-      List_Cols : constant Natural :=
-        (if NC >= 3
-         then Natural'Max (1, Natural'Min (NC - 2, NC * 45 / 100))
-         else NC);
-      Diff_Cols : constant Natural :=
-        (if NC >= 3 then NC - List_Cols - 1 else 0);
+      --  A narrow normal layout shows the list alone. If the diff had focus
+      --  before the resize, move focus to the pane that remains visible.
+      Narrow : constant Boolean :=
+        not Maximized and then Natural (S.Cols) < Pol.Min_Split_Width;
    begin
-      Eng_Pkg.Resize (List_Eng, Rows => Natural (Content_Rows),
-                      Cols => List_Cols, Total => List_Total);
-      Eng_Pkg.Resize (Diff_Eng, Rows => Natural (Content_Rows),
-                      Cols => Diff_Cols, Total => Diff_Total);
-
-      --  Leave the geometry behind for mouse hit-testing.
-      List_Width := List_Cols;
-      Diff_Width := Diff_Cols;
-      View_Rows  := Natural (Content_Rows);
-
-      --  A resize can shrink the list viewport from under the selection.
-      if List_Total > 0 then
-         Git_View_List.Clamp (List_Eng, List_Total, Selected);
+      if Narrow and then Focused = Pol.Diff_Pane then
+         Focused := Pol.List_Pane;
       end if;
-
-      --  Each pane renders into its own surface; the region copy composites
-      --  them into the screen.
       declare
-         LS : Surface := Blank (Content_Rows, Col_Count (List_Cols));
+         L : constant Pol.Layout :=
+           Pol.Compute_Layout (S.Cols, Focused, Maximized, Split);
+         List_Cols : constant Natural := L.List_Cols;
+         Diff_Cols : constant Natural := L.Diff_Cols;
+         Is_Split  : constant Boolean := List_Cols > 0 and Diff_Cols > 0;
+         Diff_At   : constant Col_Index :=
+           (if Is_Split then Col_Index (List_Cols + 2) else 1);
       begin
-         Eng_Pkg.Render (List_Eng, LS, List_Doc.all.Bytes, List_Doc.all.Idx);
-         Colorize_List (LS);
-         Highlight_Selection (LS, List_Total);
-         Highlight_Text_Selection (LS, Pol.List_Pane, List_Eng);
-         Copy (LS, S, At_Row => 1, At_Col => 1);
+         Eng_Pkg.Resize (List_Eng, Rows => Natural (Content_Rows),
+                         Cols => List_Cols, Total => List_Total);
+         Eng_Pkg.Resize (Diff_Eng, Rows => Natural (Content_Rows),
+                         Cols => Diff_Cols, Total => Diff_Total);
+
+         --  Leave the geometry behind for mouse hit-testing.
+         List_Width  := List_Cols;
+         Diff_Width  := Diff_Cols;
+         View_Rows   := Natural (Content_Rows);
+         Screen_Width := S.Cols;
+
+         --  A resize can shrink the list viewport from under the selection.
+         if List_Total > 0 then
+            Git_View_List.Clamp (List_Eng, List_Total, Selected);
+         end if;
+
+         --  Each pane renders into its own surface; the region copy composites
+         --  them into the screen.
+         if List_Cols > 0 then
+            declare
+               LS : Surface := Blank (Content_Rows, Col_Count (List_Cols));
+            begin
+               Eng_Pkg.Render
+                 (List_Eng, LS, List_Doc.all.Bytes, List_Doc.all.Idx);
+               Colorize_List (LS);
+               Highlight_Selection (LS, List_Total);
+               Highlight_Text_Selection (LS, Pol.List_Pane, List_Eng);
+               Copy (LS, S, At_Row => 1, At_Col => 1);
+            end;
+         end if;
+
+         if Is_Split then
+            declare
+               Sep : constant Col_Index := Col_Index (List_Cols + 1);
+               Focus_Glyph : constant Wide_Wide_Character :=
+                 (if Focused = Pol.List_Pane
+                  then Wide_Wide_Character'Val (16#258C#)  --  left half block
+                  else Wide_Wide_Character'Val (16#2590#)); -- right half block
+            begin
+               for R in Row_Index range 1 .. Content_Rows loop
+                  Set (S, R, Sep,
+                       (Glyph      => Focus_Glyph,
+                        Foreground => Thm.Bar_Accent,
+                        Attributes => (Bold => True, others => False),
+                        others     => <>));
+               end loop;
+            end;
+         end if;
+         if Diff_Cols > 0 then
+            declare
+               DS : Surface := Blank (Content_Rows, Col_Count (Diff_Cols));
+            begin
+               Eng_Pkg.Render (Diff_Eng, DS, Diff_Doc.all.Bytes,
+                               Diff_Doc.all.Idx);
+               Colorize_Diff (DS);
+               Highlight_Text_Selection (DS, Pol.Diff_Pane, Diff_Eng);
+               Copy (DS, S, At_Row => 1, At_Col => Diff_At);
+            end;
+         end if;
+
+         Draw_Status (S);
       end;
-
-      if Diff_Cols > 0 then
-         declare
-            Sep : constant Col_Index := Col_Index (List_Cols + 1);
-         begin
-            for R in Row_Index range 1 .. Content_Rows loop
-               Set (S, R, Sep,
-                    (Glyph      => Wide_Wide_Character'Val (16#2502#),
-                     Foreground => Thm.Separator_Color,
-                     others     => <>));
-            end loop;
-         end;
-         declare
-            DS : Surface := Blank (Content_Rows, Col_Count (Diff_Cols));
-         begin
-            Eng_Pkg.Render (Diff_Eng, DS, Diff_Doc.all.Bytes,
-                            Diff_Doc.all.Idx);
-            Colorize_Diff (DS);
-            Highlight_Text_Selection (DS, Pol.Diff_Pane, Diff_Eng);
-            Copy (DS, S, At_Row => 1, At_Col => Col_Index (List_Cols + 2));
-         end;
-      end if;
-
-      Draw_Status (S);
    end Paint;
 
    ---------------------------------------------------------------------------
@@ -910,9 +940,11 @@ is
         Pre    => List_Doc /= null and then Diff_Doc /= null
                   and then (if Where = Pol.List_Region then Event.Col >= 1)
                   and then (if Where = Pol.Diff_Region
-                            then Event.Col > List_Width
-                              and then Event.Col - List_Width > 1)
-                  and then (if Where /= Pol.Outside then Event.Row >= 1)
+                            then (if List_Width = 0 then Event.Col >= 1
+                                  else Event.Col > List_Width
+                                    and then Event.Col - List_Width > 1))
+                  and then (if Where in Pol.List_Region | Pol.Diff_Region
+                            then Event.Row >= 1)
    is
       Top, Left, Local_Col, Total : Natural;
    begin
@@ -926,7 +958,9 @@ is
       elsif Where = Pol.Diff_Region then
          Top       := Eng_Pkg.Top_Line (Diff_Eng);
          Left      := Eng_Pkg.Left_Col (Diff_Eng);
-         Local_Col := Event.Col - List_Width - 2;
+         Local_Col :=
+           (if List_Width = 0 then Event.Col - 1
+            else Event.Col - List_Width - 2);
          Total     := Tui.Text.Line_Count (Diff_Doc.all.Idx);
       else
          return;
@@ -949,8 +983,10 @@ is
    with Global => (In_Out => (List_Eng, Diff_Eng, Diff_Doc, Diff_Id,
                               Selected, Focused, Note, Selecting,
                               Selection_Shown, Selection_Pane,
-                              Selection_Start, Selection_End),
-                   Input  => (List_Doc, List_Width, Diff_Width, View_Rows)),
+                              Selection_Start, Selection_End, Split,
+                              Resizing_Split),
+                   Input  => (List_Doc, List_Width, Diff_Width, View_Rows,
+                              Screen_Width)),
         Pre    => List_Doc /= null and then Diff_Doc /= null,
         Post   => Diff_Doc /= null
    is
@@ -958,6 +994,30 @@ is
         Pol.Locate (Event.Col, Event.Row, List_Width, Diff_Width, View_Rows);
    begin
       Changed := False;
+      if Resizing_Split then
+         if Event.Kind = Mouse_Motion and then Event.Button = Left_Button
+           and then List_Width > 0 and then Diff_Width > 0
+           and then Natural (Screen_Width) > 0
+         then
+            Split := Pol.Split_At (Event.Col, Screen_Width);
+            Changed := True;
+         elsif Event.Kind = Mouse_Release then
+            Resizing_Split := False;
+            Changed := True;
+         end if;
+         return;
+      end if;
+
+      if Where = Pol.Separator_Region then
+         if Event.Kind = Mouse_Press and then Event.Button = Left_Button then
+            Resizing_Split := True;
+            Selecting := False;
+            Selection_Shown := False;
+            Changed := True;
+         end if;
+         return;
+      end if;
+
       if Where = Pol.Outside then
          if Event.Kind = Mouse_Release then
             Selecting := False;
@@ -1189,7 +1249,22 @@ is
             when Pol.Switch_Focus =>
                Focused := (if Focused = Pol.List_Pane
                            then Pol.Diff_Pane else Pol.List_Pane);
+               --  In the responsive list-only layout, Tab remains a way to
+               --  reach the diff: it opens the newly focused pane maximized.
+               if Diff_Width = 0 and then Focused = Pol.Diff_Pane then
+                  Maximized := True;
+               end if;
                Dirty := True;
+
+            when Pol.Toggle_Maximize =>
+               Maximized := not Maximized;
+               Dirty := True;
+
+            when Pol.Resize_Split =>
+               if not Maximized then
+                  Split := Pol.Adjust_Split (Split, D.Grow_List);
+                  Dirty := True;
+               end if;
 
             when Pol.Toggle_Syntax =>
                Syntax_Enabled := not Syntax_Enabled;

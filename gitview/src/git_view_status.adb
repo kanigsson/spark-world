@@ -41,7 +41,7 @@ package body Git_View_Status with SPARK_Mode => On is
          Put (L, "  ");
          Put (L, Id);
       end if;
-      Put (L, "   (Enter diff  Tab pane  / search  q quit)");
+      Put (L, "   (Enter diff  Tab pane  z zoom  / search  q quit)");
    end Format_List_Position;
 
    --------------------------
@@ -75,7 +75,7 @@ package body Git_View_Status with SPARK_Mode => On is
       Put_Nat (L, Total);
       Put (L, "  ");
       Put_Nat (L, Pct);
-      Put (L, "%   (Tab pane  / search  q quit)");
+      Put (L, "%   (Tab pane  z zoom  / search  q quit)");
    end Format_Diff_Position;
 
 end Git_View_Status;

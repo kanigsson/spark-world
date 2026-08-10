@@ -87,6 +87,7 @@ def make_repo(repo):
 class Session:
     def __init__(self, repo, *args):
         self.rows = 30
+        self.cols = COLS
         self.master, slave = pty.openpty()
         self._winsz(self.rows)
         def child_setup(s=slave):
@@ -101,7 +102,11 @@ class Session:
 
     def _winsz(self, rows):
         fcntl.ioctl(self.master, termios.TIOCSWINSZ,
-                    struct.pack("HHHH", rows, COLS, 0, 0))
+                    struct.pack("HHHH", rows, self.cols, 0, 0))
+
+    def resize_width(self, cols):
+        self.cols = cols
+        self._winsz(self.rows)
 
     def read_for(self, secs):
         start = len(self.capture)
@@ -255,7 +260,87 @@ try:
     check(b"\x1b[?1006l" in tail and b"\x1b[?1002l" in tail,
           "quit emits mouse-disable (?1006l ?1002l)")
 
-    # ---- run 2: --no-mouse --------------------------------------------------
+    # ---- run 2: responsive and controllable panes -------------------------
+    s = Session(repo)
+    first = s.read_for(2.0)
+    check(b"\xe2\x96\x8c" in first,
+          "focused list is marked by the separator's left half-block")
+
+    # z maximizes and restores the focused list.
+    s.send(b"z")
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(b"[commits] 1/60" in frame and b"DIFFLINE_" not in frame,
+          "z maximizes the focused commit list")
+    s.send(b"z")
+    time.sleep(INTERACTION_SETTLE)
+    s.full_frame()
+
+    # Focus chrome follows Tab; z can maximize the diff in turn.
+    s.send(b"\t")
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(b"\xe2\x96\x90" in frame and b"[diff]" in frame,
+          "Tab moves the focus marker to the diff pane")
+    s.send(b"z")
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(b"[diff]" in frame and b"c59-syntax" not in frame,
+          "z maximizes the focused diff pane")
+    s.send(b"z")
+    time.sleep(INTERACTION_SETTLE)
+    s.full_frame()
+
+    # Below the 57-column breakpoint the ordinary layout keeps only the list
+    # and corrects focus. Tab still reaches the diff by maximizing it.
+    s.resize_width(50)
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(b"[commits] 1/60" in frame and b"DIFFLINE_" not in frame,
+          "narrow resize collapses to the list and corrects focus")
+    s.send(b"\t")
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(b"[diff]" in frame and b"DIFFLINE_" in frame,
+          "Tab opens the diff maximized in narrow mode")
+    s.send(b"z")
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(b"[commits] 1/60" in frame,
+          "restoring a narrow layout returns to the visible list")
+
+    # At 100 columns, '.' grows the default 45-column list to 50 columns:
+    # column 49 therefore selects list row 2 rather than focusing the diff.
+    s.resize_width(COLS)
+    time.sleep(INTERACTION_SETTLE)
+    s.full_frame()
+    s.send(b".")
+    time.sleep(INTERACTION_SETTLE)
+    s.send(b"\x1b[<0;49;2M\x1b[<0;49;2m")
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(b"[commits] 2/60" in frame,
+          "'.' grows the commit-list side of the split")
+
+    # Restore 45%, then drag the separator from column 46 to 65. A click at
+    # column 60 must now land on list row 3.
+    s.send(b",")
+    time.sleep(INTERACTION_SETTLE)
+    s.full_frame()
+    s.send(b"\x1b[<0;46;5M")
+    time.sleep(0.2)
+    s.send(b"\x1b[<32;65;5M")
+    time.sleep(INTERACTION_SETTLE)
+    s.send(b"\x1b[<0;65;5m")
+    time.sleep(0.2)
+    s.send(b"\x1b[<0;60;3M\x1b[<0;60;3m")
+    time.sleep(INTERACTION_SETTLE)
+    frame = s.full_frame()
+    check(b"[commits] 3/60" in frame,
+          "dragging the separator resizes the split")
+    s.finish()
+
+    # ---- run 3: --no-mouse --------------------------------------------------
     s = Session(repo, "--no-mouse")
     first = s.read_for(2.0)
     check(b"\x1b[?1002h" not in first and b"\x1b[?1006h" not in first,
@@ -265,14 +350,14 @@ try:
     check(b"\x1b[?1006l" not in tail and b"\x1b[?1002l" not in tail,
           "--no-mouse: no mouse-disable on the way out either")
 
-    # ---- run 3: an explicit branch/revision -------------------------------
+    # ---- run 4: an explicit branch/revision -------------------------------
     s = Session(repo, "--no-mouse", "old")
     first = s.read_for(2.0)
     check(b"[commits] 1/50" in first,
           "branch argument limits the displayed history")
     s.finish()
 
-    # ---- runs 4-7: history filters ----------------------------------------
+    # ---- runs 5-8: history filters ----------------------------------------
     s = Session(repo, "--no-mouse", "--author", "t", "--since", "2000-01-01",
                 "--until", "2030-01-01", "--first-parent")
     first = s.read_for(2.0)

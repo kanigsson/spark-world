@@ -38,6 +38,8 @@ History filters are passed as separate Git arguments: `--author VALUE`,
  Enter           show this commit's diff        line down
 
  Tab             move the keyboard to the other pane
+ z               maximize / restore the focused pane
+ , / .           shrink / grow the commit-list side of the split
  s               toggle source syntax colours
  [ / ]           previous / next diff hunk
  { / }           previous / next changed file
@@ -60,11 +62,17 @@ status note if truncated). Shift-drag still asks the terminal for its native
 selection; start with `--no-mouse` to leave the mouse entirely to the
 terminal.
 
+Drag the separator between the panes to resize the split. Its blue half-block
+leans into the pane that currently has the keyboard, making focus visible
+without consuming a content row.
+
 The bottom row is a status bar for the focused pane: `[commits] 3/14 a2b8ad2`
 or `[diff] a2b8ad2 1-39/1033 3%`, the search prompt while one is typed, and
 transient notes (`Pattern not found`, `No commit on this line`). Resize the
-window and the split re-layouts; a too-narrow window degrades to the list
-alone; quit and the terminal is restored.
+window and the split re-layouts. Below 57 columns the normal layout degrades to
+the list alone and moves focus back to it; Tab still reaches the diff by opening
+it maximized. Press `z` to maximize or restore either focused pane. Quit and the
+terminal is restored.
 
 Diff polarity and source syntax use separate visual channels: added and removed
 rows have pale green/red backgrounds and matching `+`/`-` gutter markers,

@@ -48,7 +48,7 @@ package Git_View_Status with SPARK_Mode => On is
    with Pre => N /= No_Note;
 
    --  Position read-out while the commit list has the keyboard:
-   --    [commits] SELECTED/TOTAL  ID   (Enter diff  Tab pane  / search  q quit)
+   --    [commits] SELECTED/TOTAL  ID
    --  Id is the selected commit's abbreviated object name ("" when the line
    --  carries none).
    procedure Format_List_Position
@@ -60,7 +60,7 @@ package Git_View_Status with SPARK_Mode => On is
                and then Total <= Tui.Text.Max_Lines;
 
    --  Position read-out while the diff pane has the keyboard:
-   --    [diff] ID  TOP-LAST/TOTAL  PCT%   (Tab pane  / search  q quit)
+   --    [diff] ID  TOP-LAST/TOTAL  PCT%
    procedure Format_Diff_Position
      (L     : out Line;
       Id    : String;

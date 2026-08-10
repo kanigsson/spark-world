@@ -11,6 +11,7 @@
 
 with Tui.Input;
 with Tui.Pager.Engine;
+with Tui.Surface;
 with Git_View_Navigation;
 
 package Git_View_Policy with SPARK_Mode => On is
@@ -29,9 +30,52 @@ package Git_View_Policy with SPARK_Mode => On is
       Sel_Page_Up, Sel_Page_Down,  --  a page of entries
       Sel_Top, Sel_Bottom);        --  ends of the list
 
+   --  The normal two-pane layout keeps both panes useful. Split is the share
+   --  of the terminal width assigned to the commit list; the painter clamps
+   --  the actual columns further when either pane reaches its minimum.
+   Min_Pane_Width  : constant := 28;
+   Min_Split_Width : constant := Min_Pane_Width * 2 + 1;
+
+   subtype Split_Percentage is Natural range 25 .. 75;
+   Default_Split : constant Split_Percentage := 45;
+   Split_Step    : constant                  := 5;
+
+   type Layout is record
+      List_Cols : Natural := 0;
+      Diff_Cols : Natural := 0;
+   end record;
+
+   function Compute_Layout
+     (Cols      : Tui.Surface.Col_Count;
+      Focused   : Pane;
+      Maximized : Boolean;
+      Split     : Split_Percentage) return Layout
+   with Global => null,
+        Post   => Compute_Layout'Result.List_Cols
+                    + Compute_Layout'Result.Diff_Cols
+                    + (if Compute_Layout'Result.List_Cols > 0
+                         and then Compute_Layout'Result.Diff_Cols > 0
+                       then 1 else 0) = Natural (Cols);
+
+   function Adjust_Split
+     (Current   : Split_Percentage;
+      Grow_List : Boolean) return Split_Percentage
+   with Global => null;
+
+   --  Convert a dragged separator column to a bounded percentage. Column is a
+   --  screen coordinate and may lie beyond Total in a malformed mouse report;
+   --  clamping makes that harmless.
+   function Split_At
+     (Column : Natural;
+      Total  : Tui.Surface.Col_Count) return Split_Percentage
+   with Global => null,
+        Pre    => Natural (Total) > 0;
+
    type Action_Kind is
      (Quit,             --  leave the viewer        (q / Q / Ctrl-C)
       Switch_Focus,     --  move the keyboard to the other pane    (Tab)
+      Toggle_Maximize,  --  maximize/restore the focused pane         (z)
+      Resize_Split,     --  shrink/grow the commit-list pane        (, .)
       Toggle_Syntax,    --  enable/disable source token colours       (s)
       Jump_Diff,        --  next/previous file or hunk            ([ ] { })
       Open_Diff,        --  show the selected commit's diff        (Enter)
@@ -45,6 +89,7 @@ package Git_View_Policy with SPARK_Mode => On is
       case Kind is
          when Move_Selection => Move     : Sel_Move;
          when Navigate       => Command  : Eng.Command;
+         when Resize_Split   => Grow_List : Boolean;
          when Jump_Diff      =>
             Target   : Git_View_Navigation.Landmark;
             Jump_Forward : Boolean;
@@ -64,7 +109,7 @@ package Git_View_Policy with SPARK_Mode => On is
    --  or neither (the separator column, the status row, past the content).
    --  Pure geometry over the split the painter recorded; the postcondition
    --  hands the position's lower bounds to the app's row/column arithmetic.
-   type Region is (List_Region, Diff_Region, Outside);
+   type Region is (List_Region, Separator_Region, Diff_Region, Outside);
 
    function Locate
      (Col, Row     : Natural;    --  1-based screen position (0: no position)
@@ -78,7 +123,12 @@ package Git_View_Policy with SPARK_Mode => On is
                   and then (if Locate'Result = List_Region
                             then Col <= List_Cols)
                   and then (if Locate'Result = Diff_Region
-                            then Col > List_Cols
-                              and then Col - List_Cols > 1);
+                            then (if List_Cols = 0
+                                  then Col <= Diff_Cols
+                                  else Col > List_Cols
+                                    and then Col - List_Cols > 1))
+                  and then (if Locate'Result = Separator_Region
+                            then List_Cols > 0 and then Diff_Cols > 0
+                              and then Col = List_Cols + 1);
 
 end Git_View_Policy;

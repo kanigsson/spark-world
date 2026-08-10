@@ -2,6 +2,74 @@ package body Git_View_Policy with SPARK_Mode => On is
 
    use Tui.Input;
 
+   --------------------
+   -- Compute_Layout --
+   --------------------
+
+   function Compute_Layout
+     (Cols      : Tui.Surface.Col_Count;
+      Focused   : Pane;
+      Maximized : Boolean;
+      Split     : Split_Percentage) return Layout
+   is
+      NC : constant Natural := Natural (Cols);
+   begin
+      if Maximized then
+         return (if Focused = List_Pane
+                 then (List_Cols => NC, Diff_Cols => 0)
+                 else (List_Cols => 0, Diff_Cols => NC));
+      elsif NC < Min_Split_Width then
+         return (List_Cols => NC, Diff_Cols => 0);
+      else
+         declare
+            Wanted : constant Natural := NC * Split / 100;
+            List_Width : constant Natural :=
+              Natural'Max
+                (Min_Pane_Width,
+                 Natural'Min (NC - Min_Pane_Width - 1, Wanted));
+         begin
+            return (List_Cols => List_Width,
+                    Diff_Cols => NC - List_Width - 1);
+         end;
+      end if;
+   end Compute_Layout;
+
+   ------------------
+   -- Adjust_Split --
+   ------------------
+
+   function Adjust_Split
+     (Current   : Split_Percentage;
+      Grow_List : Boolean) return Split_Percentage
+   is
+   begin
+      if Grow_List then
+         return Split_Percentage'Min
+           (Split_Percentage'Last, Current + Split_Step);
+      else
+         return Split_Percentage'Max
+           (Split_Percentage'First, Current - Split_Step);
+      end if;
+   end Adjust_Split;
+
+   --------------
+   -- Split_At --
+   --------------
+
+   function Split_At
+     (Column : Natural;
+      Total  : Tui.Surface.Col_Count) return Split_Percentage
+   is
+      Raw : constant Natural :=
+        Natural'Min
+          (100, (Natural'Min (Column, Natural (Total)) * 100)
+                / Natural (Total));
+   begin
+      return Split_Percentage'Max
+        (Split_Percentage'First,
+         Split_Percentage'Min (Split_Percentage'Last, Raw));
+   end Split_At;
+
    --  Map a movement key to a viewport command, the diff pane's vocabulary.
    --  This mirrors the standalone pager's table so the diff pane feels like
    --  the pager it embeds. Found = False if the key is not a movement.
@@ -95,6 +163,17 @@ package body Git_View_Policy with SPARK_Mode => On is
       --  Tab moves the keyboard to the other pane.
       if Event.Kind = Tab then
          return (Kind => Switch_Focus);
+      end if;
+
+      if Event.Kind = Char and then Event.Code = Character'Pos ('z') then
+         return (Kind => Toggle_Maximize);
+      end if;
+
+      if Event.Kind = Char and then Event.Code = Character'Pos (',') then
+         return (Kind => Resize_Split, Grow_List => False);
+      end if;
+      if Event.Kind = Char and then Event.Code = Character'Pos ('.') then
+         return (Kind => Resize_Split, Grow_List => True);
       end if;
 
       --  Syntax colour is a viewer-wide display option, whichever pane has
@@ -202,9 +281,15 @@ package body Git_View_Policy with SPARK_Mode => On is
       --  in range whatever widths the caller hands in.
       if Row = 0 or else Row > Content_Rows or else Col = 0 then
          return Outside;
-      elsif Col <= List_Cols then
+      elsif List_Cols > 0 and then Col <= List_Cols then
          return List_Region;
-      elsif Diff_Cols > 0
+      elsif List_Cols = 0 and then Diff_Cols > 0 and then Col <= Diff_Cols then
+         return Diff_Region;
+      elsif List_Cols > 0 and then Diff_Cols > 0
+        and then Col = List_Cols + 1
+      then
+         return Separator_Region;
+      elsif List_Cols > 0 and then Diff_Cols > 0
         and then Col - List_Cols > 1            --  past the separator column
         and then Col - List_Cols - 1 <= Diff_Cols
       then
