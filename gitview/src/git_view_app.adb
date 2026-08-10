@@ -252,6 +252,26 @@ is
       Tint_Cells (S, R, 1, Natural (S.Cols), Fg, Bold);
    end Tint_Row;
 
+   --  Set a row background while retaining glyphs, syntax foregrounds, and
+   --  attributes. This gives diff polarity its own visual channel.
+   procedure Shade_Row
+     (S  : in out Surface;
+      R  : Row_Index;
+      Bg : Color)
+   with Global => null,
+        Pre    => R <= S.Rows
+   is
+   begin
+      for C in Col_Index range 1 .. S.Cols loop
+         declare
+            Cl : Cell := Get (S, R, C);
+         begin
+            Cl.Background := Bg;
+            Set (S, R, C, Cl);
+         end;
+      end loop;
+   end Shade_Row;
+
    --  Tint a source-byte span after translating it through UTF-8/tab display
    --  columns and the diff viewport's horizontal offset.
    procedure Tint_Byte_Span
@@ -416,10 +436,12 @@ is
                   when Thm.Plain_Line =>
                      null;
                   when Thm.Added =>
+                     Shade_Row (DS, R, Thm.Added_Background);
                      if Eng_Pkg.Left_Col (Diff_Eng) = 0 then
                         Tint_Cells (DS, R, 1, 1, Thm.Added_Color);
                      end if;
                   when Thm.Removed =>
+                     Shade_Row (DS, R, Thm.Removed_Background);
                      if Eng_Pkg.Left_Col (Diff_Eng) = 0 then
                         Tint_Cells (DS, R, 1, 1, Thm.Removed_Color);
                      end if;

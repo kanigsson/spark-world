@@ -66,9 +66,10 @@ transient notes (`Pattern not found`, `No commit on this line`). Resize the
 window and the split re-layouts; a too-narrow window degrades to the list
 alone; quit and the terminal is restored.
 
-Diff polarity and source syntax use separate visual channels: the leading
-`+`/`-` gutter is green/red while source foregrounds carry syntax colours.
-Press `s` to toggle syntax without losing the diff cue. Hunk headers are cyan, file-level metadata
+Diff polarity and source syntax use separate visual channels: added and removed
+rows have dark green/red backgrounds and matching `+`/`-` gutter markers,
+while source foregrounds carry syntax colours. Press `s` to toggle syntax
+without losing the diff cue. Hunk headers are cyan, file-level metadata
 bold, the `commit` line — and the commit list's abbreviated ids — yellow,
 dates cyan. The status bar's accent tracks what it is saying (blue position,
 yellow search prompt, red note). Everything is drawn from the base-16
