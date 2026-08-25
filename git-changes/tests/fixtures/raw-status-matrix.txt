@@ -1,0 +1,17 @@
+# Binary-safe raw fixture matrix
+#
+# Encoding: `\\0`, `\\t`, `\\n`, and `\\xNN` denote one byte.  A40/B40
+# denote forty lowercase `a`/`b` hex digits; A64/B64 denote sixty-four.
+# The Ada core test expands and exercises these records, including every
+# truncation of the M record.
+
+A  :000000 100644 A40 B40 A\0added name\0
+C  :100644 100644 A40 B40 C087\0source\0copy\0
+D  :100644 000000 A40 B40 D\0deleted\0
+M  :100644 100755 A40 B40 M\0space tab\tquote".txt\0
+R  :100644 100644 A40 B40 R100\0old\tname\0new\nname\xFF\0
+T  :100644 120000 A40 B40 T\0type-change\0
+U  :100644 100644 A40 B40 U\0unmerged\0
+X  :100644 100644 A40 B40 X\0unknown\0
+B  :100644 100644 A40 B40 B\0broken-pair\0
+A256 :000000 100644 A64 B64 A\0sha256\0

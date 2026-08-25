@@ -1,0 +1,10 @@
+/alire/
+/bin/
+/config/
+/lib/
+/obj/
+/proof/
+/tests/obj/
+/tests/bin/
+/env.sh
+*.tmp

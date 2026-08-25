@@ -1,0 +1,21 @@
+name = "git_changes"
+description = "Typed, source-neutral Git change sets for Ada clients"
+version = "0.1.0-dev"
+licenses = "MIT"
+authors = ["Johannes Kanig <kanig@adacore.com>"]
+maintainers = ["Johannes Kanig <kanig@adacore.com>"]
+maintainers-logins = ["kanig"]
+project-files = ["git_changes.gpr", "git_changes_cli.gpr"]
+executables = ["git-changes"]
+tags = ["git", "diff", "spark", "review"]
+
+[[depends-on]]
+gnat_native = "^16"
+gprbuild = "^26"
+
+[build-switches]
+"*".ada_version = "Ada2022"
+Development.compile_checks = "warnings"
+Development.contracts = "yes"
+Release.optimization = "performance"
+Release.runtime_checks = "everything"
