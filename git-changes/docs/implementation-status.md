@@ -14,6 +14,8 @@ and the milestone-5 standalone inspection consumer:
 - deterministic SHA-256 `File_Id` and `Span_Id` values independent of
   enumeration order;
 - explicit output/content limits and typed limit failures.
+- a schema-v1 byte-preserving JSON protocol with optional contents for the
+  concrete `semdiff` and XPL non-Ada consumers.
 
 Public values own their containers and strings; clients receive a normal Ada
 value whose mutation surface is private.  Paths remain raw Ada byte strings.
@@ -27,7 +29,8 @@ content.  Git output is captured through a binary temporary file before bounded
 parsing; a future pipe-backed streaming implementation can replace this inside
 `Git_Changes.Backends` without changing the API.
 
-Milestone 4 belongs in the separate `ada_review` repository and is not coupled
-into this crate.  The libgit2 measurement in milestone 6 is intentionally not
+Milestone 4 is implemented in the separate `ada_review` repository through a
+normal GPR dependency; its compatibility patch renderer remains outside this
+crate. The libgit2 measurement in milestone 6 is intentionally not
 performed before a consumer demonstrates a latency problem.  Neither item is
 required for this library release, and neither changes its public model.

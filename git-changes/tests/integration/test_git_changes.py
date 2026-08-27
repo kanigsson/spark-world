@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import json
 import re
 import stat
 import subprocess
@@ -53,6 +54,12 @@ def capture(repo: Path, *mode: str, check: bool = True) -> subprocess.CompletedP
 
 def text(result: subprocess.CompletedProcess[bytes]) -> str:
     return result.stdout.decode("latin-1")
+
+
+def protocol_bytes(value: str) -> bytes:
+    """Invert schema-v1's one-JSON-code-point-per-input-byte encoding."""
+    assert all(ord(character) <= 255 for character in value)
+    return bytes(ord(character) for character in value)
 
 
 def file_lines(output: str) -> list[str]:
@@ -254,6 +261,41 @@ def main() -> None:
         assert "no-final.txt" in combined
         assert "copy-new.txt" in combined
         checks += 4
+
+        machine = run(
+            CLI,
+            "--format=json",
+            "--include-contents",
+            repo,
+            "tree-worktree",
+            "HEAD",
+        )
+        document = json.loads(machine.stdout)
+        assert document["schema_version"] == 1
+        assert document["byte_encoding"] == "json-code-point-u00xx"
+        assert document["comparison"]["kind"] == "tree-to-worktree-comparison"
+        assert document["repository"]["root"] == str(repo)
+        protocol_files = {
+            protocol_bytes(side["path"]): item
+            for item in document["files"]
+            for side in [item["new"] or item["old"]]
+        }
+        assert non_utf8.rsplit(b"/", 1)[1] in protocol_files
+        assert protocol_bytes(protocol_files[b"mod.txt"]["new"]["content"]) == (
+            b"one\nchanged\nthree\nadded\n"
+        )
+        assert protocol_files[b"delete.txt"]["new"] is None
+        assert protocol_files[b"rename-new.txt"]["kind"] == "renamed"
+        assert protocol_bytes(protocol_files[b"rename-new.txt"]["old"]["path"]) == (
+            b"rename-old.txt"
+        )
+        assert all(len(item["id"]) == 64 for item in document["files"])
+        assert all(
+            len(span["id"]) == 64
+            for item in document["files"]
+            for span in item["spans"]
+        )
+        checks += 10
 
         assert cli_inventory(combined) == raw_inventory(repo, "HEAD")
         canonical_patch = git(

@@ -40,3 +40,14 @@ alr run --args="/path/to/repository index-worktree"
 
 Paths are byte strings.  The diagnostic display escapes non-printing and
 non-ASCII bytes; it is not a canonical serialization format.
+
+Non-Ada consumers use the versioned machine protocol:
+
+```sh
+git-changes --format=json /path/to/repository tree-worktree HEAD
+git-changes --format=json --include-contents /path/to/repository tree-tree OLD NEW
+```
+
+See [`docs/machine-protocol.md`](docs/machine-protocol.md). The JSON boundary
+was added for the concrete `semdiff` and XPL migrations; the Ada API remains the
+canonical in-memory representation.

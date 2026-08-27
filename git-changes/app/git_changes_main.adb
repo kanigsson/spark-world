@@ -2,6 +2,7 @@ with Ada.Command_Line;
 with Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with Git_Changes;
+with Git_Changes.JSON;
 with Git_Changes.Repositories;
 
 procedure Git_Changes_Main is
@@ -51,8 +52,9 @@ procedure Git_Changes_Main is
    procedure Usage is
    begin
       Put_Line (Standard_Error,
-        "usage: git-changes [REPOSITORY [tree-tree OLD NEW|tree-index TREE|"
-        & "index-worktree|tree-worktree TREE]]");
+        "usage: git-changes [--format=text|json] [--include-contents] "
+        & "[REPOSITORY [tree-tree OLD NEW|tree-index TREE|index-worktree|"
+        & "tree-worktree TREE]]");
    end Usage;
 
    Repo       : Repository;
@@ -60,19 +62,54 @@ procedure Git_Changes_Main is
    Changes    : Change_Set;
    Error      : Error_Info;
    Repo_Path  : Unbounded_String := To_Unbounded_String (".");
+   First_Arg  : Positive := 1;
+   JSON_Output : Boolean := False;
+   Include_Contents : Boolean := False;
 begin
-   if Argument_Count >= 1 then
-      Repo_Path := To_Unbounded_String (Argument (1));
+   while First_Arg <= Argument_Count
+     and then Argument (First_Arg)'Length >= 2
+     and then Argument (First_Arg) (1 .. 2) = "--"
+   loop
+      if Argument (First_Arg) = "--format=json" then
+         JSON_Output := True;
+      elsif Argument (First_Arg) = "--format=text" then
+         JSON_Output := False;
+      elsif Argument (First_Arg) = "--include-contents" then
+         Include_Contents := True;
+      else
+         Usage;
+         Set_Exit_Status (Failure);
+         return;
+      end if;
+      First_Arg := First_Arg + 1;
+   end loop;
+   if Include_Contents and then not JSON_Output then
+      Usage;
+      Set_Exit_Status (Failure);
+      return;
    end if;
-   if Argument_Count >= 2 then
-      if Argument (2) = "tree-tree" and then Argument_Count = 4 then
-         Compared := Tree_To_Tree (Argument (3), Argument (4));
-      elsif Argument (2) = "tree-index" and then Argument_Count = 3 then
-         Compared := Tree_To_Index (Argument (3));
-      elsif Argument (2) = "index-worktree" and then Argument_Count = 2 then
+
+   if First_Arg <= Argument_Count then
+      Repo_Path := To_Unbounded_String (Argument (First_Arg));
+   end if;
+   if First_Arg + 1 <= Argument_Count then
+      if Argument (First_Arg + 1) = "tree-tree"
+        and then Argument_Count = First_Arg + 3
+      then
+         Compared := Tree_To_Tree
+           (Argument (First_Arg + 2), Argument (First_Arg + 3));
+      elsif Argument (First_Arg + 1) = "tree-index"
+        and then Argument_Count = First_Arg + 2
+      then
+         Compared := Tree_To_Index (Argument (First_Arg + 2));
+      elsif Argument (First_Arg + 1) = "index-worktree"
+        and then Argument_Count = First_Arg + 1
+      then
          Compared := Index_To_Worktree;
-      elsif Argument (2) = "tree-worktree" and then Argument_Count = 3 then
-         Compared := Tree_To_Worktree (Argument (3));
+      elsif Argument (First_Arg + 1) = "tree-worktree"
+        and then Argument_Count = First_Arg + 2
+      then
+         Compared := Tree_To_Worktree (Argument (First_Arg + 2));
       else
          Usage;
          Set_Exit_Status (Failure);
@@ -94,6 +131,12 @@ begin
         (Standard_Error, Error_Code'Image (Code (Error)) & " during "
          & Operation (Error) & ": " & Detail (Error));
       Set_Exit_Status (Failure);
+      return;
+   end if;
+
+   if JSON_Output then
+      Git_Changes.JSON.Write
+        (Repo, Changes, Include_Contents => Include_Contents);
       return;
    end if;
 

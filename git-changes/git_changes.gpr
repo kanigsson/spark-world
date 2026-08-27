@@ -14,6 +14,7 @@ library project Git_Changes is
       "Git_Changes.Repositories",
       "Git_Changes.Comparisons",
       "Git_Changes.Contents",
+      "Git_Changes.JSON",
       "Git_Changes.Core",
       "Git_Changes.Core.Raw",
       "Git_Changes.Core.Hunks",
