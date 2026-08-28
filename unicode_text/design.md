@@ -599,6 +599,22 @@ A zero-copy constant view can be added later using a scoped SPARK borrowing
 pattern after its lifetime and mutation restrictions have been validated in
 real client code.
 
+The ownership/view spike under `tests/spikes`, run on 2026-08-28, established
+the following boundary with the current toolchain:
+
+- a local anonymous access-to-constant observer can read an owning allocation;
+- mutation of the owner while that observer is live is rejected by the SPARK
+  ownership rules;
+- mutation is accepted again after the observer leaves scope;
+- the anonymous observer cannot be converted to a named access value and
+  embedded in a record accepted by SPARK.
+
+Consequently, a Rust-like first-class `str` value containing a stored pointer,
+offset, and length is not the assumed SPARK view representation. Source-plus-
+span operations remain the canonical value-level interface. Scoped anonymous
+observers may supplement them where an API can consume the observer within its
+lexical lifetime.
+
 ## 14. Possible owned unbounded strings
 
 An owning resizable representation can use the same model. Capacity and
@@ -613,6 +629,18 @@ The difficult part is allocator ownership, alias exclusion, reclamation, and
 the boundary around any operation not supported in SPARK. These difficulties
 do not require a different text model. An owning representation should be
 deferred until the bounded API and client proof suite are stable.
+
+The 2026-08-28 ownership spike proved 95 checks for a direct pool-specific
+owner, including allocation, reallocation, clone, clear, deallocation, scoped
+observation, and reclamation on every tested exit. It also proved all 108 checks
+in a limited-private wrapper implementation. However, modular clients of that
+wrapper retained unproved end-of-scope reclamation VCs after calling its public
+destruction operation: two checks in the ownership client and one in the view
+client timed out under the ordinary settings and still timed out with a
+120-second limit. This makes the public ownership representation and its
+modular reclamation contract an explicit feasibility gate, not an API detail to
+settle after implementation. The reproducible sources and exact expected
+results are recorded in `tests/spikes`.
 
 ## 15. Operations
 
@@ -1221,8 +1249,19 @@ threshold.
 - Evaluate a more advanced substring-search algorithm if runtime evidence
   requires it.
 - Evaluate native SMT-string lowering with the same client benchmarks.
-- Prototype scoped constant views.
-- Reconsider an owning resizable string without changing the common model.
+- Retain source-plus-span values as the canonical SPARK view. Add scoped
+  anonymous constant observers only for APIs whose complete use remains inside
+  the borrow lifetime; do not plan a record-stored pointer view.
+- Select an owning representation by a focused proof experiment. Acceptance
+  requires modular client proofs of reclamation, not only proof of allocation,
+  resize, and destruction inside the implementation. Compare at least a direct
+  pool-specific owner with a private wrapper or a justified ownership boundary.
+- Once that gate passes, add the smallest resizable UTF-8 owner without changing
+  the common model: reserve, scalar/string append, capacity-preserving clear,
+  procedure-based clone, and explicit destruction.
+- Add a limited controlled Full Ada facade only after the SPARK owner's
+  destruction contract proves modularly. Keep COW and non-limited `Adjust`
+  semantics out of this milestone unless runtime evidence justifies them.
 
 ## 23. Open design questions
 
