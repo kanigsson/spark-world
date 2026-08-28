@@ -4,7 +4,7 @@
 The complete design and implementation milestones are described in
 [`design.md`](design.md).
 
-Milestones 1 through 5 provide the Unicode scalar types, the shared ghost text
+Milestones 1 through 6 provide the Unicode scalar types, the shared ghost text
 model, strict UTF-8 validation, single-scalar encoding and decoding, validation
 error offsets, code-point length and indexed access, forward cursors, plain
 prefix/suffix/comparison operations, compositional byte-range and
@@ -13,9 +13,11 @@ They also provide generic fixed-byte-capacity bounded strings with construction,
 conversion, clearing, append, equality, indexed access, and forward iteration.
 Milestone 5 adds byte spans, code-point slices, forward and reverse scalar
 search, substring search, containment, bounded wrappers, and model-level
-first/last-occurrence contracts.
+first/last-occurrence contracts. Milestone 6 adds allocation-free scalar and
+substring split iterators returning byte spans, including model-level
+reconstruction and delimiter-absence contracts.
 
-The current version is `0.5.0`. Releases follow Semantic Versioning; the
+The current version is `0.6.0`. Releases follow Semantic Versioning; the
 repository's version and compatibility policy are described in
 [`VERSION`](VERSION), [`CHANGELOG.md`](CHANGELOG.md), and the versioning section
 of [`design.md`](design.md#20-versioning-and-compatibility).

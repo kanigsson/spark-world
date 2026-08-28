@@ -5,6 +5,26 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-28
+
+### Added
+
+- Allocation-free scalar and nonempty-substring split iterators returning
+  source-relative byte spans.
+- Leading, trailing, and adjacent delimiter handling with explicit empty
+  segments and non-overlapping substring matches.
+- Public delimiter-free and split-step model relations that specify exact
+  source reconstruction without exposing UTF-8 byte arithmetic.
+- Arbitrary-source proof clients for scalar and substring reconstruction,
+  delimiter absence, progress, and termination.
+- Runtime coverage for empty, missing, repeated, overlapping, shifted-bound,
+  and mixed-width split cases.
+
+### Changed
+
+- Retained the existing level-2, 30-second ordinary proof budget after all
+  2,595 checks proved without split-specific exceptions.
+
 ## [0.5.0] - 2026-07-22
 
 ### Added

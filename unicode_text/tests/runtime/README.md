@@ -13,6 +13,9 @@ non-default Ada string bounds. Its Milestone 5 cases cover byte spans,
 code-point slices, scalar and substring search, reverse search, containment,
 empty needles, and search offsets. It also confirms that executable API
 preconditions remain enabled while static ghost-model contracts are erased.
+Its Milestone 6 cases cover scalar and substring split reconstruction,
+delimiter absence, leading, trailing, adjacent, missing, overlapping, and
+multibyte delimiters, relative byte spans, and non-default Ada string bounds.
 
 `bounded_string_tests.adb` covers Milestone 4 zero and exact capacities,
 construction and copying, all append forms, clearing, equality independent of

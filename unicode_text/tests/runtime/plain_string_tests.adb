@@ -1,4 +1,5 @@
 with Ada.Assertions;
+with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;        use Ada.Text_IO;
 with Unicode_Text;       use Unicode_Text;
 with Unicode_Text.UTF_8; use Unicode_Text.UTF_8;
@@ -34,6 +35,84 @@ procedure Plain_String_Tests is
       end;
       Check (Raised, "invalid UTF-8 precondition is checked");
    end Check_Executable_Precondition;
+
+   procedure Check_Empty_Split_Separator is
+      Raised    : Boolean := False;
+      State     : Split_State := Start_Split;
+      Segment   : Byte_Span;
+      Has_Value : Boolean;
+   begin
+      begin
+         Next ("text", "", State, Segment, Has_Value);
+      exception
+         when Ada.Assertions.Assertion_Error =>
+            Raised := True;
+      end;
+      Check (Raised, "empty split separator is rejected");
+   end Check_Empty_Split_Separator;
+
+   procedure Check_Substring_Split
+     (Source : String; Separator : String; Expected_Count : Positive)
+   is
+      State         : Split_State := Start_Split;
+      Segment       : Byte_Span;
+      Has_Value     : Boolean;
+      Count         : Natural := 0;
+      Reconstructed : Unbounded_String;
+   begin
+      loop
+         Next (Source, Separator, State, Segment, Has_Value);
+         exit when not Has_Value;
+         if Count > 0 then
+            Append (Reconstructed, Separator);
+         end if;
+         declare
+            Part : constant String := Slice (Source, Segment);
+         begin
+            Check (not Contains (Part, Separator), "split delimiter absence");
+            Append (Reconstructed, Part);
+         end;
+         Count := Count + 1;
+      end loop;
+      Check (Count = Expected_Count, "substring split segment count");
+      Check (To_String (Reconstructed) = Source, "substring split reconstructs");
+      Check (Split_Complete (State), "substring split completes");
+      Check
+        (Split_Model_Index (State)
+         = (if Code_Point_Length (Source) = 0
+            then 1
+            else Cursor_Index (Code_Point_Length (Source)) + 1),
+         "substring split reaches model end");
+   end Check_Substring_Split;
+
+   procedure Check_Scalar_Split
+     (Source : String; Separator : Scalar_Value; Expected_Count : Positive)
+   is
+      State         : Split_State := Start_Split;
+      Segment       : Byte_Span;
+      Has_Value     : Boolean;
+      Count         : Natural := 0;
+      Reconstructed : Unbounded_String;
+      Encoded       : constant String := Encode_One (Separator);
+   begin
+      loop
+         Next (Source, Separator, State, Segment, Has_Value);
+         exit when not Has_Value;
+         if Count > 0 then
+            Append (Reconstructed, Encoded);
+         end if;
+         declare
+            Part : constant String := Slice (Source, Segment);
+         begin
+            Check (Find (Part, Separator) = 0, "scalar split delimiter absence");
+            Append (Reconstructed, Part);
+         end;
+         Count := Count + 1;
+      end loop;
+      Check (Count = Expected_Count, "scalar split segment count");
+      Check (To_String (Reconstructed) = Source, "scalar split reconstructs");
+      Check (Split_Complete (State), "scalar split completes");
+   end Check_Scalar_Split;
 
    A       : constant String := "A";
    U_0080  : constant String := [C (16#C2#), C (16#80#)];
@@ -130,7 +209,35 @@ begin
    Check (Find ("aaa", "aa") = 1, "overlapping first substring");
    Check (Find ("aaa", "aa", From => 2) = 2, "overlapping search from");
 
+   Check_Substring_Split ("", ",", 1);
+   Check_Substring_Split ("abc", ",", 1);
+   Check_Substring_Split (",a,,b,", ",", 5);
+   Check_Substring_Split ("aaa", "aa", 2);
+   Check_Substring_Split
+     (A & U_0080 & U_0800 & U_0080, U_0080, 3);
+   Check_Scalar_Split (",a,,b,", Character'Pos (','), 5);
+   Check_Scalar_Split
+     (A & U_0080 & U_0800 & U_0080, 16#80#, 3);
+
+   declare
+      State     : Split_State := Start_Split;
+      Segment   : Byte_Span;
+      Has_Value : Boolean;
+      Source    : constant String := ",a,,b,";
+      Expected  : constant array (Positive range 1 .. 5) of Byte_Span :=
+        [(0, 0), (1, 2), (3, 3), (4, 5), (6, 6)];
+   begin
+      for Index in Expected'Range loop
+         Next (Source, ",", State, Segment, Has_Value);
+         Check (Has_Value, "split has expected segment");
+         Check (Segment = Expected (Index), "split span coordinates");
+      end loop;
+      Next (Source, ",", State, Segment, Has_Value);
+      Check (not Has_Value, "completed split remains exhausted");
+   end;
+
    Check_Executable_Precondition;
+   Check_Empty_Split_Separator;
 
    declare
       Shifted : String (10 .. 19) := Mixed;
@@ -147,6 +254,7 @@ begin
       Check
         (Find (Shifted, U_0080 & U_0800) = 2,
          "shifted substring search");
+      Check_Substring_Split (Shifted, U_0800, 2);
    end;
 
    Put_Line ("Plain-string runtime tests passed:" & Checks'Image & " checks");

@@ -1,6 +1,6 @@
 # Unicode Text Library Design
 
-Status: Milestone 5 complete; Milestone 6 planned
+Status: Milestone 6 complete; Milestone 7 planned
 
 This document defines a proposed SPARK-compatible string library whose only
 concrete encoding is UTF-8. The library is intended to support ordinary Ada
@@ -1123,6 +1123,7 @@ A `1.0.0` release requires:
 - append, concatenation, slicing, equality, prefix, and suffix;
 - scalar search and substring search;
 - split by a scalar value;
+- split by a nonempty substring;
 - complete internal proofs;
 - exhaustive single-scalar encode/decode testing;
 - systematic malformed-input testing;
@@ -1134,6 +1135,17 @@ Substring split is the final candidate validation feature before describing the
 library as broadly useful. It composes validation, search, spans, cursor
 progress, empty-segment behavior, and reconstruction. If its clients prove
 reliably, the abstraction and lemma surface are likely adequate.
+
+Milestone 6 confirmed that boundary.  Split clients use two public model
+relations: `Is_Delimiter_Free` states absence in source-model coordinates, and
+`Is_Split_Step` states exact segment slicing plus advancement over one
+separator or to the final boundary.  Chaining the old and new model indices
+reconstructs the source without byte arithmetic.  No split-specific public
+lemma procedures or larger proof budget were needed.  On 2026-08-28 the full
+ordinary project proved all 2,595 checks at level 2 with the existing
+30-second per-attempt timeout; the focused plain-string client proved its 146
+checks under the same settings.  These relations are therefore retained for
+the first stable-API candidate, while the numeric budget remains unchanged.
 
 ## 22. Implementation sequence
 
@@ -1238,11 +1250,14 @@ threshold.
 
 ### Milestone 6: split
 
-- Add scalar split iteration.
-- Add substring split iteration.
-- Prove reconstruction and delimiter-absence properties.
-- Reassess the public model relations and proof budgets before freezing the
-  first stable API.
+- Added allocation-free scalar and nonempty-substring split iteration returning
+  byte spans, with non-overlapping matches and explicit empty edge segments.
+- Proved exact slice progress, reconstruction, and delimiter absence for
+  arbitrary valid sources through the public model specification.
+- Retained `Is_Delimiter_Free` and `Is_Split_Step` as the complete public split
+  model surface; no operation-specific lemma procedures were required.
+- Kept the ordinary level-2, 30-second proof budget after the complete suite and
+  focused split clients proved without exceptions.
 
 ### Milestone 7: optional optimizations and ownership
 

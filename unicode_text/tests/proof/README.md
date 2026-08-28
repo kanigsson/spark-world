@@ -19,7 +19,10 @@ using only the public `Unicode_Text.UTF_8` specification. Its loop invariants
 mention cursor positions and model indices, never UTF-8 continuation-byte
 arithmetic. The active-prefix and append cases are the representative bounded
 storage obligations required by Milestone 3.1. Its Milestone 5 clients prove
-slice and first-occurrence contracts through the public scalar model.
+slice and first-occurrence contracts through the public scalar model. Its
+Milestone 6 clients iterate scalar and substring splits over arbitrary valid
+sources, proving exact model-slice progress, delimiter absence, termination,
+and reconstruction to the final source boundary.
 
 `Bounded_String_Proofs` instantiates the Milestone 4 generic and proves an
 append at exact byte capacity plus repeated scalar appends whose final model is
@@ -44,3 +47,7 @@ gnatprove -P unicode_text.gpr
 The proof project uses all available provers with a 30-second per-attempt
 timeout. Numeric performance thresholds will be set only after the API and
 toolchain reach a stable pilot, as specified in `design.md`.
+
+The Milestone 6 reassessment kept these ordinary settings unchanged: the full
+project proved 2,595 checks, including 146 in the focused plain-string client,
+without split-specific lemma calls or exceptional timeouts.

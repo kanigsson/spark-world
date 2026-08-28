@@ -593,6 +593,120 @@ is
       return Result /= 0;
    end Contains;
 
+   function Start_Split return Split_State
+   is (Index => 1, Done => False);
+
+   procedure Next
+     (Source    : String;
+      Separator : String;
+      State     : in out Split_State;
+      Segment   : out Byte_Span;
+      Has_Value : out Boolean)
+   is
+      Source_Length    : constant Natural := Code_Point_Length (Source);
+      Separator_Length : constant Natural := Code_Point_Length (Separator);
+   begin
+      if State.Done then
+         Segment := (First => 0, Past_Last => 0);
+         Has_Value := False;
+         return;
+      end if;
+
+      Has_Value := True;
+
+      if Source_Length = 0
+        or else State.Index > Cursor_Index (Source_Length)
+      then
+         pragma Assert
+           (Static =>
+              Big_Split_Model_Index (State)
+              = To_Big_Integer (Source_Length) + 1);
+         Segment := (First => Source'Length, Past_Last => Source'Length);
+         State.Done := True;
+         return;
+      end if;
+
+      pragma Assert (State.Index <= Cursor_Index (Positive'Last));
+      declare
+         From  : constant Positive := Positive (State.Index);
+         Found : constant Natural := Find (Source, Separator, From);
+      begin
+         if Found = 0 then
+            Segment :=
+              To_Byte_Span
+                (Source,
+                 First => From,
+                 Count => Source_Length - (From - 1));
+            State.Index := Cursor_Index (Source_Length) + 1;
+            State.Done := True;
+         else
+            pragma Assert (Found >= From);
+            pragma Assert
+              (Found - 1 + Separator_Length <= Source_Length);
+            Segment :=
+              To_Byte_Span
+                (Source,
+                 First => From,
+                 Count => Found - From);
+            State.Index := Cursor_Index (Found) + Cursor_Index (Separator_Length);
+         end if;
+      end;
+   end Next;
+
+   procedure Next
+     (Source    : String;
+      Separator : Scalar_Value;
+      State     : in out Split_State;
+      Segment   : out Byte_Span;
+      Has_Value : out Boolean)
+   is
+      Source_Length : constant Natural := Code_Point_Length (Source);
+   begin
+      if State.Done then
+         Segment := (First => 0, Past_Last => 0);
+         Has_Value := False;
+         return;
+      end if;
+
+      Has_Value := True;
+
+      if Source_Length = 0
+        or else State.Index > Cursor_Index (Source_Length)
+      then
+         pragma Assert
+           (Static =>
+              Big_Split_Model_Index (State)
+              = To_Big_Integer (Source_Length) + 1);
+         Segment := (First => Source'Length, Past_Last => Source'Length);
+         State.Done := True;
+         return;
+      end if;
+
+      pragma Assert (State.Index <= Cursor_Index (Positive'Last));
+      declare
+         From  : constant Positive := Positive (State.Index);
+         Found : constant Natural := Find (Source, Separator, From);
+      begin
+         if Found = 0 then
+            Segment :=
+              To_Byte_Span
+                (Source,
+                 First => From,
+                 Count => Source_Length - (From - 1));
+            State.Index := Cursor_Index (Source_Length) + 1;
+            State.Done := True;
+         else
+            pragma Assert (Found >= From);
+            Segment :=
+              To_Byte_Span
+                (Source,
+                 First => From,
+                 Count => Found - From);
+            State.Index := Cursor_Index (Found) + 1;
+         end if;
+      end;
+   end Next;
+
    function First (S : String) return Cursor_Type
    is ((Offset => 0, Index => 1));
 

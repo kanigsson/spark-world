@@ -106,4 +106,20 @@ is
    procedure Search_Witnesses
    with Ghost => Static, Global => null;
 
+   procedure Split_By_Substring (Source, Separator : String)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    =>
+       Unicode_Text.UTF_8.Is_Valid_UTF_8 (Source)
+       and then Unicode_Text.UTF_8.Is_Valid_UTF_8 (Separator)
+       and then Separator'Length > 0;
+
+   procedure Split_By_Scalar
+     (Source : String; Separator : Unicode_Text.Scalar_Value)
+   with
+     Ghost => Static,
+     Global => null,
+     Pre    => Unicode_Text.UTF_8.Is_Valid_UTF_8 (Source);
+
 end Plain_String_Proofs;

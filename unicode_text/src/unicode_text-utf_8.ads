@@ -540,9 +540,96 @@ is
           Contains'Result
           = Unicode_Text.Models.Contains (Model (Haystack), Model (Needle)));
 
-   type Cursor_Type is private;
-
    type Cursor_Index is range 1 .. Long_Long_Integer'Last;
+
+   type Split_State is private;
+
+   function Split_Complete (State : Split_State) return Boolean;
+
+   function Split_Model_Index (State : Split_State) return Cursor_Index;
+
+   function Big_Split_Model_Index (State : Split_State) return Big_Positive
+   with Ghost => Static;
+
+   function Is_Valid_Split_State
+     (Source : String; State : Split_State) return Boolean
+   is (Is_Valid_UTF_8 (Source)
+       and then
+         Big_Split_Model_Index (State)
+         <= Scalar_Sequences.Length (Model (Source)) + 1
+       and then
+         (if Split_Complete (State)
+          then
+            Big_Split_Model_Index (State)
+            = Scalar_Sequences.Length (Model (Source)) + 1))
+   with Ghost => Static;
+
+   function Start_Split return Split_State
+   with
+     Post =>
+       not Split_Complete (Start_Split'Result)
+       and then Split_Model_Index (Start_Split'Result) = 1;
+
+   procedure Next
+     (Source    : String;
+      Separator : String;
+      State     : in out Split_State;
+      Segment   : out Byte_Span;
+      Has_Value : out Boolean)
+   with
+     Pre  =>
+       (Runtime =>
+          Is_Valid_UTF_8 (Source)
+          and then Is_Valid_UTF_8 (Separator)
+          and then Separator'Length > 0,
+        Static => Is_Valid_Split_State (Source, State)),
+     Post =>
+       (Runtime =>
+          Has_Value = not Split_Complete (State'Old)
+          and then
+            (if Has_Value then Is_Valid_Byte_Span (Source, Segment)),
+        Static =>
+          Is_Valid_Split_State (Source, State)
+          and then
+            (if Has_Value
+             then
+               Is_Split_Step
+                 (Source     => Model (Source),
+                  Separator  => Model (Separator),
+                  Segment    => Model (Source, Segment),
+                  First      => Big_Split_Model_Index (State'Old),
+                  Next_First => Big_Split_Model_Index (State),
+                  Final      => Split_Complete (State))));
+
+   procedure Next
+     (Source    : String;
+      Separator : Scalar_Value;
+      State     : in out Split_State;
+      Segment   : out Byte_Span;
+      Has_Value : out Boolean)
+   with
+     Pre  =>
+       (Runtime => Is_Valid_UTF_8 (Source),
+        Static  => Is_Valid_Split_State (Source, State)),
+     Post =>
+       (Runtime =>
+          Has_Value = not Split_Complete (State'Old)
+          and then
+            (if Has_Value then Is_Valid_Byte_Span (Source, Segment)),
+        Static =>
+          Is_Valid_Split_State (Source, State)
+          and then
+            (if Has_Value
+             then
+               Is_Split_Step
+                 (Source     => Model (Source),
+                  Separator  => Separator,
+                  Segment    => Model (Source, Segment),
+                  First      => Big_Split_Model_Index (State'Old),
+                  Next_First => Big_Split_Model_Index (State),
+                  Final      => Split_Complete (State))));
+
+   type Cursor_Type is private;
 
    function Byte_Offset (Cursor : Cursor_Type) return Natural;
 
@@ -710,6 +797,20 @@ private
       Offset : Natural := 0;
       Index  : Cursor_Index := 1;
    end record;
+
+   type Split_State is record
+      Index : Cursor_Index := 1;
+      Done  : Boolean := False;
+   end record;
+
+   function Split_Complete (State : Split_State) return Boolean
+   is (State.Done);
+
+   function Split_Model_Index (State : Split_State) return Cursor_Index
+   is (State.Index);
+
+   function Big_Split_Model_Index (State : Split_State) return Big_Positive
+   is (Cursor_Index_Conversions.To_Big_Integer (State.Index));
 
    function Byte_Offset (Cursor : Cursor_Type) return Natural
    is (Cursor.Offset);

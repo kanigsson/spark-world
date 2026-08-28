@@ -1,6 +1,6 @@
 name = "unicode_text"
 description = "SPARK-compatible UTF-8 text operations and bounded strings"
-version = "0.5.0"
+version = "0.6.0"
 
 authors = ["kanig"]
 maintainers = ["kanig <kanig@adacore.com>"]

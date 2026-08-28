@@ -164,6 +164,112 @@ is
                then Scalar_Sequences.Get (Source, I) /= Value)))
    with Ghost => Static;
 
+   function Is_Delimiter_Free
+     (Source    : Text;
+      Separator : Text;
+      First     : Big_Positive;
+      Count     : Big_Natural) return Boolean
+   is (First <= Scalar_Sequences.Length (Source) + 1
+       and then Count <= Scalar_Sequences.Length (Source) - (First - 1)
+       and then
+         (for all I in Source =>
+            (if I >= First and then I < First + Count
+             then not Matches_At (Source, Separator, I))))
+   with Ghost => Static;
+   --  States delimiter absence in source coordinates.  This form composes
+   --  directly with first-occurrence search and avoids exposing UTF-8 byte
+   --  positions to split clients.
+
+   function Is_Delimiter_Free
+     (Source    : Text;
+      Separator : Scalar_Value;
+      First     : Big_Positive;
+      Count     : Big_Natural) return Boolean
+   is (First <= Scalar_Sequences.Length (Source) + 1
+       and then Count <= Scalar_Sequences.Length (Source) - (First - 1)
+       and then
+         (for all I in Source =>
+            (if I >= First and then I < First + Count
+             then Scalar_Sequences.Get (Source, I) /= Separator)))
+   with Ghost => Static;
+
+   function Is_Split_Step
+     (Source     : Text;
+      Separator  : Text;
+      Segment    : Text;
+      First      : Big_Positive;
+      Next_First : Big_Positive;
+      Final      : Boolean) return Boolean
+   is (Scalar_Sequences.Length (Separator) > 0
+       and then
+         Is_Slice
+           (Source => Source,
+            First  => First,
+            Count  => Scalar_Sequences.Length (Segment),
+            Result => Segment)
+       and then
+         Is_Delimiter_Free
+           (Source,
+            Separator,
+            First,
+            Scalar_Sequences.Length (Segment))
+       and then
+         (if Final
+          then
+            Next_First = Scalar_Sequences.Length (Source) + 1
+            and then
+              First + Scalar_Sequences.Length (Segment) = Next_First
+          else
+            Matches_At
+              (Source,
+               Separator,
+               First + Scalar_Sequences.Length (Segment))
+            and then
+              Next_First
+              = First + Scalar_Sequences.Length (Segment)
+                + Scalar_Sequences.Length (Separator)))
+   with Ghost => Static;
+   --  One allocation-free split step.  Segment is the exact source slice at
+   --  First, contains no delimiter start, and is followed either by one
+   --  separator or by the end of Source.  Chaining First/Next_First therefore
+   --  reconstructs the source from the returned segments and separators.
+
+   function Is_Split_Step
+     (Source     : Text;
+      Separator  : Scalar_Value;
+      Segment    : Text;
+      First      : Big_Positive;
+      Next_First : Big_Positive;
+      Final      : Boolean) return Boolean
+   is (Is_Slice
+         (Source => Source,
+          First  => First,
+          Count  => Scalar_Sequences.Length (Segment),
+          Result => Segment)
+       and then
+         Is_Delimiter_Free
+           (Source,
+            Separator,
+            First,
+            Scalar_Sequences.Length (Segment))
+       and then
+         (if Final
+          then
+            Next_First = Scalar_Sequences.Length (Source) + 1
+            and then
+              First + Scalar_Sequences.Length (Segment) = Next_First
+          else
+            First + Scalar_Sequences.Length (Segment)
+              <= Scalar_Sequences.Length (Source)
+            and then
+              Scalar_Sequences.Get
+                (Source, First + Scalar_Sequences.Length (Segment))
+              = Separator
+            and then
+              Next_First
+              = First + Scalar_Sequences.Length (Segment) + 1))
+   with Ghost => Static;
+
    procedure Lemma_Extend_Slice
      (Source : Text;
       First  : Big_Positive;

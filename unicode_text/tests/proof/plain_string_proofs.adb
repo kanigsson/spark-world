@@ -136,4 +136,76 @@ is
       end;
    end Search_Witnesses;
 
+   procedure Split_By_Substring (Source, Separator : String) is
+      State     : Split_State := Start_Split;
+      Segment   : Byte_Span;
+      Has_Value : Boolean;
+   begin
+      while not Split_Complete (State) loop
+         pragma Loop_Invariant
+           (Static => Is_Valid_Split_State (Source, State));
+         pragma Loop_Variant
+           (Decreases =>
+              Long_Long_Integer (Code_Point_Length (Source)) + 2
+              - Long_Long_Integer (Split_Model_Index (State)));
+         declare
+            First : constant Big_Positive := Big_Split_Model_Index (State)
+            with Ghost => Static;
+         begin
+            Next (Source, Separator, State, Segment, Has_Value);
+            pragma Assert (Has_Value);
+            pragma Assert
+              (Static =>
+                 Is_Split_Step
+                   (Source     => Model (Source),
+                    Separator  => Model (Separator),
+                    Segment    => Model (Source, Segment),
+                    First      => First,
+                    Next_First => Big_Split_Model_Index (State),
+                    Final      => Split_Complete (State)));
+         end;
+      end loop;
+      pragma Assert
+        (Static =>
+           Big_Split_Model_Index (State)
+           = Scalar_Sequences.Length (Model (Source)) + 1);
+   end Split_By_Substring;
+
+   procedure Split_By_Scalar
+     (Source : String; Separator : Scalar_Value)
+   is
+      State     : Split_State := Start_Split;
+      Segment   : Byte_Span;
+      Has_Value : Boolean;
+   begin
+      while not Split_Complete (State) loop
+         pragma Loop_Invariant
+           (Static => Is_Valid_Split_State (Source, State));
+         pragma Loop_Variant
+           (Decreases =>
+              Long_Long_Integer (Code_Point_Length (Source)) + 2
+              - Long_Long_Integer (Split_Model_Index (State)));
+         declare
+            First : constant Big_Positive := Big_Split_Model_Index (State)
+            with Ghost => Static;
+         begin
+            Next (Source, Separator, State, Segment, Has_Value);
+            pragma Assert (Has_Value);
+            pragma Assert
+              (Static =>
+                 Is_Split_Step
+                   (Source     => Model (Source),
+                    Separator  => Separator,
+                    Segment    => Model (Source, Segment),
+                    First      => First,
+                    Next_First => Big_Split_Model_Index (State),
+                    Final      => Split_Complete (State)));
+         end;
+      end loop;
+      pragma Assert
+        (Static =>
+           Big_Split_Model_Index (State)
+           = Scalar_Sequences.Length (Model (Source)) + 1);
+   end Split_By_Scalar;
+
 end Plain_String_Proofs;
