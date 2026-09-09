@@ -1,5 +1,5 @@
 name = "git_view"
-description = "Git-history viewer: two embedded tui_pager engines (commit list + diff) on the tui_term driver"
+description = "Read-only Git project, source, comparison and history explorer"
 version = "0.1.0-dev"
 
 authors = ["kanig"]
@@ -18,6 +18,8 @@ tui_term = "*"
 tui_text = "*"
 [[depends-on]]
 tui_app_kit = "*"
+[[depends-on]]
+git_changes = "*"
 
 # No Alire index in this workspace; pin the sibling crates by path.
 [[pins]]
@@ -36,3 +38,5 @@ tui_pager = { path = "../pager" }
 tui_term = { path = "../term" }
 [[pins]]
 tui_app_kit = { path = "../appkit" }
+[[pins]]
+git_changes = { path = "../../git-changes" }

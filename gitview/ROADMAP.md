@@ -1,5 +1,18 @@
 # git_view roadmap
 
+## Temporal explorer MVP
+
+Implemented as the default frontend: snapshot tree and full-file change lenses,
+first-parent/root/index/worktree comparisons, scoped history and pins, complete
+back/forward locations, snapshot search, and asynchronous repository loading.
+The original viewer remains available through `--legacy`.
+
+Follow-ups: incremental history loading and a lane graph; cancellation of active
+Git subprocesses; rename-following pins; split-pane resizing and clipboard
+selection in the explorer; semantic adapters after the text/Git workflow.
+
+The entries below describe the original two-pane viewer.
+
 This roadmap collects improvements beyond the follow-ups already recorded in
 the parent TUI ecosystem roadmap: asynchronous diff loading and load-on-move,
 `--graph` support, richer Git features, and preserving search patterns across

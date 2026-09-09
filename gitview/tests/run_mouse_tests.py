@@ -94,7 +94,7 @@ class Session:
             os.setsid()
             fcntl.ioctl(s, termios.TIOCSCTTY, 0)
         self.proc = subprocess.Popen(
-            [GV] + list(args), cwd=repo,
+            [GV, "--legacy"] + list(args), cwd=repo,
             stdin=slave, stdout=slave, stderr=slave,
             preexec_fn=child_setup)
         os.close(slave)

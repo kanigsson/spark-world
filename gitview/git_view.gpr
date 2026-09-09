@@ -9,6 +9,7 @@ with "../pager/tui_pager.gpr";
 with "../term/tui_term.gpr";
 with "../text/tui_text.gpr";
 with "../appkit/tui_app_kit.gpr";
+with "../../git-changes/git_changes.gpr";
 
 project Git_View is
 
@@ -22,9 +23,9 @@ project Git_View is
    package Compiler is
       case Tui_Core.Mode is
          when "debug" =>
-            for Default_Switches ("Ada") use ("-gnat2012", "-gnatwa", "-g", "-O0");
+            for Default_Switches ("Ada") use ("-gnat2022", "-gnatwa", "-g", "-O0");
          when "release" =>
-            for Default_Switches ("Ada") use ("-gnat2012", "-gnatwa", "-O2");
+            for Default_Switches ("Ada") use ("-gnat2022", "-gnatwa", "-O2");
       end case;
    end Compiler;
 

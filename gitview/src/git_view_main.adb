@@ -23,6 +23,10 @@ with Ada.Text_IO;
 with Tui.Term.Event_Loop;
 with Git_View_App;
 with Git_View_Source;
+with Git_View_Model;
+with Git_View_Explorer;
+with Git_View_Loop;
+with Git_View_Repository;
 
 --  The precondition restates the app package's initial condition: the tools
 --  check it at program start against that package's elaboration, and assume
@@ -48,6 +52,13 @@ is
          On_Key => Git_View_App.On_Key'Access,
          Mouse  => Mouse);
    end Run;
+
+   procedure Run_Explorer (Mouse : Boolean)
+     with Global => (In_Out => (Git_View_Explorer.State, Git_View_Repository.State));
+   procedure Run_Explorer (Mouse : Boolean) with SPARK_Mode => Off is
+   begin
+      Git_View_Loop.Run (Mouse);
+   end Run_Explorer;
 
    --  Message output sits outside SPARK only because the standard-error
    --  handle is not a SPARK-visible entity in this runtime.
@@ -82,6 +93,8 @@ is
         ("Filters: --author VALUE  --since DATE  --until DATE  --grep TEXT");
       Ada.Text_IO.Put_Line ("         --all  --first-parent  -- PATH");
       Ada.Text_IO.Put_Line ("Display: --no-mouse");
+      Ada.Text_IO.Put_Line ("Explorer: --worktree  --index  --base REVISION");
+      Ada.Text_IO.Put_Line ("          --legacy (original two-pane diff viewer)");
    end Print_Help;
 
    type Pending_Filter is
@@ -94,10 +107,18 @@ is
    Have_From     : Boolean := False;
    Path_Mode     : Boolean := False;
    Pending       : Pending_Filter := No_Filter;
+   Legacy        : Boolean := False;
+   Kind          : Git_View_Model.Snapshot_Kind := Git_View_Model.Commit;
+   Base          : Git_View_Source.Revision;
+   Need_Base     : Boolean := False;
 
 begin
    for I in 1 .. Argument_Count loop
-      if Pending /= No_Filter then
+      if Need_Base then
+         Git_View_Source.Make_Revision (Argument (I), Base, Ok);
+         if not Ok then Fail ("base must contain 1 to 255 characters"); return; end if;
+         Need_Base := False;
+      elsif Pending /= No_Filter then
          declare
             Value : Git_View_Source.Filter_Value;
             Valid : Boolean;
@@ -133,6 +154,14 @@ begin
          end;
       elsif Argument (I) = "--no-mouse" then
          Use_Mouse := False;
+      elsif Argument (I) = "--legacy" then
+         Legacy := True;
+      elsif Argument (I) = "--worktree" then
+         Kind := Git_View_Model.Worktree;
+      elsif Argument (I) = "--index" then
+         Kind := Git_View_Model.Staging;
+      elsif Argument (I) = "--base" then
+         Need_Base := True;
       elsif Argument (I) = "--help" or else Argument (I) = "-h"
       then
          Print_Help;
@@ -173,8 +202,14 @@ begin
       end if;
    end loop;
 
-   if Pending /= No_Filter then
+   if Pending /= No_Filter or else Need_Base then
       Fail ("filter option requires a value");
+      return;
+   end if;
+
+   if not Legacy then
+      Git_View_Explorer.Init (From, History_Filter, Kind, Base);
+      Run_Explorer (Use_Mouse);
       return;
    end if;
 

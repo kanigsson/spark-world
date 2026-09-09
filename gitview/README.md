@@ -1,184 +1,119 @@
 # git_view
 
-A **git-history viewer** — and the proof-of-ecosystem application (Phase 5 of
-the parent `ROADMAP.md`): it embeds the proved `tui_pager` engine **twice**,
-as a commit-list pane and a diff pane composited into one surface, on the
-`tui_term` driver. The engine knows nothing about git; this host supplies
-content from git subprocesses at a trusted edge while all state and policy
-stay proved SPARK.
-
-## Use
+A read-only project, source, diff, and history explorer. Select a snapshot,
+browse its complete tree, and overlay a comparison without checking anything
+out. History, tree, and source share one navigation state.
 
 ```sh
-git_view              # browse the history of the repository at $PWD
-git_view main         # browse a branch, tag, object, or revision expression
-git_view --no-mouse   # ... without claiming the mouse from the terminal
-git_view --author AdaCore --since 2026-01-01
-git_view --grep parser --first-parent main
-git_view main -- src/   # only commits touching this path
+./git_view                            # HEAD, compared with its first parent
+./git_view feature                    # any commit, branch, or tag
+./git_view --base v1.0 v2.0            # arbitrary comparison
+./git_view --worktree                 # HEAD -> working tree
+./git_view --index                    # HEAD -> index
+./git_view --all --author NAME        # history across refs, filtered by author
+./git_view main -- src/               # directory-scoped history
 ```
 
-History filters are passed as separate Git arguments: `--author VALUE`,
-`--since DATE`, `--until DATE`, and `--grep TEXT`. `--all` includes every ref,
-`--first-parent` follows the mainline of merges, and the optional path after
-`--` restricts history to that path. Filters can be combined with a revision.
+`--since`, `--until`, `--grep`, and `--first-parent` filter history. Start from
+any directory in the repository. Paths inside the explorer are repository
+relative. `--no-mouse` leaves mouse handling to the terminal.
 
-## Keys
+## Navigation
 
-```
-                 commit list (left pane)        diff (right pane)
- j / ↓           select next commit             line down
- k / ↑           select previous commit         line up
- space / f       page of commits down           page down
- b               page of commits up             page up
- g / Home        first commit                   top
- G / End         last commit                    bottom
- h / ←  l / →    scroll long subjects           scroll left / right
- d / u           —                              half page down / up
- Enter           show this commit's diff        line down
+| Key | Action |
+| --- | --- |
+| Tab | Cycle history, tree, source focus |
+| j/k, arrows | Move selected row or scroll source |
+| Enter, left click | Follow a commit, file, or search result |
+| PageUp/PageDown, Space, Home/End | Page or jump within the focused pane |
+| h/l, left/right | Horizontal scrolling |
+| z | Maximize/restore; below 90 columns only the focused pane is shown |
+| a | Tree: changed and ancestors → changed only → all files |
+| d | Lens: gutter → changed lines → hunks → before/after → plain |
+| [ / ] | Previous/next hunk |
+| { / } | Previous/next changed file |
+| f / F | Filter history to scope / clear path and repository-search filters |
+| p | Pin/unpin the current path across snapshots |
+| Backspace / Alt-Left | Back |
+| Alt-Right | Forward |
+| /, n/N | Literal search in the focused pane; next/previous match |
+| S | Literal search throughout the snapshot; Enter opens a result |
+| c | Select snapshot and history root by revision |
+| b | Set comparison base; empty input restores the automatic base |
+| w / i | Working tree / index snapshot |
+| r | Refresh repository data |
+| q | Quit |
 
- Tab             move the keyboard to the other pane
- z               maximize / restore the focused pane
- , / .           shrink / grow the commit-list side of the split
- s               toggle source syntax colours
- [ / ]           previous / next diff hunk
- { / }           previous / next changed file
- / text ⏎        search forward in the focused pane     n  repeat
- ? text ⏎        search backward in the focused pane    N  repeat reversed
- q / Ctrl-C      quit
-```
+Enter a prompt value and press Enter; Escape cancels. Selecting a directory
+filters history to that directory. File history uses Git path history;
+renames are marked in comparisons but pins do not heuristically follow them.
+An absent pinned file stays selected and is explicitly reported as absent.
 
-## Mouse
+Commits compare with their first parent; roots compare with the empty tree.
+History marks ordinary commits with `*` and merges with `M`, and includes
+parent IDs and ref decorations. Selecting a historical commit does not
+restrict the history list to that commit's ancestors: you can move both
+backward and forward through the original history scope.
 
-A left click in the list selects and immediately opens the commit under the
-cursor; clicking either pane gives it the keyboard. The scroll wheel scrolls
-the pane **under the cursor** — without
-moving the keyboard focus, so hovering to scroll never changes what the keys
-do. Wheel-scrolling the list drags the selection along, exactly like paging.
+The source always comes from the selected snapshot. Changing the base changes
+annotations. Removed lines use italic, pale red `- [base]` ghost rows;
+deleted files are labeled base-only. Gutter and changed-lines lenses retain
+the full file. Hunk lenses retain nearby context. Binary files and changed
+submodules have placeholders. Untracked, nonignored files are available in
+the working-tree view.
 
-Drag with the left button in either pane to retain a text selection and copy
-it to the clipboard through OSC 52 (copies are capped at 65,536 bytes, with a
-status note if truncated). Shift-drag still asks the terminal for its native
-selection; start with `--no-mouse` to leave the mouse entirely to the
-terminal.
+Back/forward restores the snapshot, comparison, path, pin, filters, tree
+visibility, lens, focus, selections, search patterns, and pane scroll offsets.
+The stack retains 128 locations in each direction; a new navigation discards
+the forward branch.
 
-Drag the separator between the panes to resize the split. Its blue half-block
-leans into the pane that currently has the keyboard, making focus visible
-without consuming a content row.
+## Implementation and verification
 
-The bottom row is a status bar for the focused pane: `[commits] 3/14 a2b8ad2`
-or `[diff] a2b8ad2 1-39/1033 3%`, the search prompt while one is typed, and
-transient notes (`Pattern not found`, `No commit on this line`). Resize the
-window and the split re-layouts. Below 57 columns the normal layout degrades to
-the list alone and moves focus back to it; Tab still reaches the diff by opening
-it maximized. Press `z` to maximize or restore either focused pane. Quit and the
-terminal is restored.
+`Git_View_Model` holds frontend-independent navigation values and transitions.
+`Git_View_Explorer` derives three pager panes from those values. Both are
+SPARK, with Silver verification of runtime safety. The existing proved pager,
+input, layout, search, and legacy viewer remain in use.
 
-Diff polarity and source syntax use separate visual channels: added and removed
-rows have pale green/red backgrounds and matching `+`/`-` gutter markers,
-while source foregrounds carry syntax colours. Press `s` to toggle syntax
-without losing the diff cue. Hunk headers are cyan, file-level metadata
-bold, the `commit` line — and the commit list's abbreviated ids — yellow,
-dates cyan. The status bar's accent tracks what it is saying (blue position,
-yellow search prompt, red note). Everything is drawn from the base-16
-palette, so the colours follow the terminal's theme and survive any
-colour-depth downgrade — down to a plain inverse bar on a monochrome
-terminal.
+`Git_View_Repository` is a trusted Git/OS adapter. It uses the sibling
+[`git-changes`](../../git-changes) Ada library for canonical change kinds,
+old/new paths, metadata, contents, and changed spans. Its existing SPARK
+parsers are included in the full proof run. No library source changes were
+needed. Git enumeration, capture, document assembly, caching, and the worker
+mailbox are outside SPARK and covered by integration tests. Silver does not
+establish Git's behavior or the semantic correctness of the rendered diff.
 
-In the diff pane, `[`/`]` jump between hunk headers and `{`/`}` jump between
-changed-file headers. These structural jumps preserve the current `/` search.
-
-The commit list decorates commits with short ref names, including `HEAD`, local
-and remote branches, and tags. Decorations are supplied by `git log` but
-defensively located and coloured by proved code; the commit ID remains the
-first token used to open a diff.
-
-Inside unified-diff hunks, a proved dependency-free lexer adds keyword,
-string, comment, and number colours. File extensions select Ada; C, C++,
-Rust, Go, Java, JavaScript/TypeScript, Swift and Kotlin; Python and Ruby;
-shell; or JSON/TOML/YAML rules. This is lexical highlighting rather than a
-full parser, which keeps the executable self-contained and the highlighting
-policy inside the Silver proof boundary.
-
-## How it fits together
-
-```
- git log ──▶ Tui.Text Document (commit list; loaded once)
- git show ──▶ Tui.Text Document (diff; swapped per commit)
-                  │                          │
- Git_View_App ───▶│ Tui.Pager.Engine (list)  │ Tui.Pager.Engine (diff)
- (selection, keymap,        │                          │
-  status, search)           ▼                          ▼
-                    pane Surface ──┐          ┌── pane Surface
-                                   ▼          ▼
-                          Tui.Surface.Copy composites both
-                          (plus separator + status row)
-                                       │
-                          Tui.Term.Event_Loop / Output / Input
-```
-
-This is the multi-pane case the engine's component model exists for, and it
-exercises two things the standalone pager does not:
-
-- **Two independent engine instances** over two documents, one of which is
-  **swapped at run time** (Enter frees the old diff document and loads the
-  new one through the subprocess edge — the document predicate keeps the
-  engines' content contracts discharged across the swap).
-- **A selection.** The engine is a pure viewport; the highlighted "current
-  commit" is app state, kept inside the visible slice by proved coupling
-  rules (moving the selection drags the viewport only at the screen edges;
-  viewport jumps pull the selection back into view).
-
-## SPARK
-
-All app logic is proved (`SPARK_Mode => On`, free of run-time errors): the
-state and callbacks (`Git_View_App`), the keymap (`Git_View_Policy`), the
-selection rules (`Git_View_List`, `Git_View_Selection`), clipboard extraction
-and encoding (`Git_View_Clipboard`), the commit-id parser (`Git_View_Sha`), the
-colour scheme and diff-line classifier (`Git_View_Theme`), the multi-language
-lexer (`Git_View_Syntax`), and the
-app-specific status texts (`Git_View_Status`). The search-pattern editor and
-the status `Line` buffer come from the shared
-[`tui_app_kit`](../appkit/README.md) crate — this app was their second
-consumer, which by the ecosystem's rule triggered the extraction — and are
-proved there. Only the OS edges are trusted
-(`SPARK_Mode => Off` bodies): the entry point (`Git_View_Main`) and the git
-subprocess glue behind the proved `Git_View_Source` spec, which captures
-output through a temporary file and never hands back a null diff document.
-
-One contract is prose, not machine-checked: the log format the source uses
-keeps the abbreviated commit id as the first space-terminated token of every
-line, which is exactly what the proved parser expects.
-
-## Build & prove
+Repository requests run on a worker. Results carry a generation and obsolete
+results are discarded. Commit content, tree listings, history, and comparisons
+are cached separately. The terminal keeps processing input while loading.
+The worker finishes an active Git command before stopping; terminal state is
+restored when the UI exits.
 
 ```sh
-gprbuild -P git_view.gpr                 # builds ./git_view
-gprbuild -P git_view.gpr -XMODE=debug    # contracts run
-gnatprove -P git_view.gpr --level=2      # the proofs
+gprbuild -P git_view.gpr -j4
+gnatprove -P git_view.gpr --level=2 -j4
+gprbuild -P tests/explorer_tests.gpr -j4
+obj/tests/model_tests
+python3 tests/run_explorer_tests.py
+python3 tests/run_explorer_pty_tests.py
+python3 tests/run_mouse_tests.py        # legacy regression suite
 ```
 
-## Layout
+Use one matching GNAT/GNATprove toolchain for the application and dependencies.
+The project uses Ada 2022. Alire pins the sibling TUI crates and git-changes.
+`-XMODE=debug` builds the TUI without optimization; release is the default.
 
-```
-alire.toml      crate manifest (depends on tui_pager, tui_term, tui_text,
-                tui_app_kit)
-git_view.gpr    executable project (Main renamed to `git_view`)
-src/
-  git_view_main.adb           entry point: startup checks + Event_Loop   [Off]
-  git_view_source.ads/adb     git subprocess edge (spec proved, body Off)
-  git_view_app.ads/adb        state + Paint/On_Key callbacks            [proved]
-  git_view_policy.ads/adb     focus-aware keymap                        [proved]
-  git_view_list.ads/adb       selection/viewport coupling               [proved]
-  git_view_selection.ads/adb  mouse selection ordering                  [proved]
-  git_view_navigation.ads/adb structural file/hunk scanning             [proved]
-  git_view_refs.ads/adb       commit-list ref decoration span            [proved]
-  git_view_clipboard.ads/adb  bounded extraction + OSC 52 encoding      [proved]
-  git_view_sha.ads/adb        commit-list line -> commit id             [proved]
-  git_view_theme.ads/adb      colour scheme + diff-line classifier      [proved]
-  git_view_syntax.ads/adb     source language + lexical highlighting    [proved]
-  git_view_status.ads/adb     status-line texts (notes, read-outs)      [proved]
-```
+The two compiler-crash reproductions encountered during implementation are
+isolated under [gnatprove-repro](gnatprove-repro), with commands, captured
+diagnostics, and toolchain details. They are excluded from the normal build.
 
-The search-pattern editor and the status `Line` buffer come from the
-shared `tui_app_kit` crate.
+This implements the text/Git MVP from
+[temporal_code_explorer_design.md](temporal_code_explorer_design.md). Semantic
+analysis, review annotations, combined merge views, and side-by-side rendering
+remain deferred. History is loaded in full, within the capture limit; files
+and command captures are limited to 64 MiB and path identities to 4096 bytes.
+Unborn repositories are not yet supported. Repository search uses `git grep`
+over tracked files; untracked files can be opened and searched individually.
+
+The original two-pane diff viewer is available with `--legacy`; see
+[LEGACY.md](LEGACY.md) for its mouse selection, clipboard, syntax highlighting,
+and pane resizing controls.

@@ -1,0 +1,10 @@
+with "../git_view.gpr";
+project Explorer_Tests is
+   for Source_Dirs use (".");
+   for Object_Dir use "../obj/tests";
+   for Exec_Dir use "../obj/tests";
+   for Main use ("explorer_probe.adb", "model_tests.adb");
+   package Compiler is
+      for Default_Switches ("Ada") use ("-gnat2022", "-gnata", "-g", "-O1");
+   end Compiler;
+end Explorer_Tests;
