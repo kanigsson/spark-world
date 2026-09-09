@@ -1,4 +1,5 @@
 with Ada.Containers.Indefinite_Ordered_Sets;
+with Ada.Environment_Variables;
 with Ada.Containers.Indefinite_Ordered_Maps;
 with Ada.Containers.Vectors;
 with Ada.Exceptions;
@@ -41,6 +42,8 @@ package body Git_View_Repository with SPARK_Mode => Off is
    package Marks is new Ada.Containers.Vectors (Positive, Mark);
    package Paths is new Ada.Containers.Indefinite_Ordered_Sets (String);
    package Change_Maps is new Ada.Containers.Indefinite_Ordered_Maps (String, Natural);
+   type Buffer_Ref is access Tui.Text.Buffer;
+   procedure Release is new Ada.Unchecked_Deallocation (Tui.Text.Buffer, Buffer_Ref);
    procedure Release is new Ada.Unchecked_Deallocation (Target_Array, Target_Ref);
    procedure Release is new Ada.Unchecked_Deallocation (Mark_Array, Mark_Ref);
 
@@ -52,28 +55,36 @@ package body Git_View_Repository with SPARK_Mode => Off is
       return M.To_Text (S);
    end Bounded;
 
+   --  Read in chunks and accumulate on the heap: a whole file's worth of
+   --  stack would overflow the loader task on large sources or long logs.
    function Read_File (Path : String) return String is
       use Ada.Streams;
       package IO renames Ada.Streams.Stream_IO;
       F : IO.File_Type;
+      Result : Unbounded_String;
+      Chunk : Stream_Element_Array (1 .. 64 * 1024);
+      Last : Stream_Element_Offset;
    begin
       IO.Open (F, IO.In_File, Path);
       if IO.Size (F) > IO.Count (Limit) then
          IO.Close (F);
          raise Constraint_Error with "content exceeds 64 MiB limit";
       end if;
-      declare
-         Data : Stream_Element_Array (1 .. Stream_Element_Offset (IO.Size (F)));
-         Last : Stream_Element_Offset;
-         S : String (1 .. Data'Length);
-      begin
-         IO.Read (F, Data, Last);
-         IO.Close (F);
-         for I in S'Range loop
-            S (I) := Character'Val (Data (Stream_Element_Offset (I)));
-         end loop;
-         return S (1 .. Natural (Last));
-      end;
+      loop
+         IO.Read (F, Chunk, Last);
+         exit when Last < Chunk'First;
+         declare
+            Text : String (1 .. Natural (Last));
+         begin
+            for I in Text'Range loop
+               Text (I) := Character'Val (Chunk (Stream_Element_Offset (I)));
+            end loop;
+            Append (Result, Text);
+         end;
+         exit when Last < Chunk'Last;
+      end loop;
+      IO.Close (F);
+      return To_String (Result);
    exception
       when others =>
          if IO.Is_Open (F) then IO.Close (F); end if;
@@ -93,10 +104,46 @@ package body Git_View_Repository with SPARK_Mode => Off is
       return R;
    end "+";
 
+   --  Capture files live in the temporary directory, never in the working
+   --  tree: the checkout under inspection must not gain untracked files,
+   --  which would show up in the very tree this adapter draws.
+   Capture_Serial : Natural := 0;
+   procedure Create_Capture
+     (FD : out GNAT.OS_Lib.File_Descriptor; Name : out Unbounded_String)
+   is
+      use GNAT.OS_Lib;
+      Dir : constant String :=
+        (if Ada.Environment_Variables.Exists ("TMPDIR")
+         then Ada.Environment_Variables.Value ("TMPDIR") else "/tmp");
+      Pid : constant Integer := Pid_To_Integer (Current_Process_Id);
+   begin
+      for Attempt in 1 .. 1_000 loop
+         Capture_Serial := Capture_Serial + 1;
+         declare
+            Candidate : constant String :=
+              Dir & "/git_view-"
+              & Ada.Strings.Fixed.Trim (Integer'Image (Pid), Ada.Strings.Both)
+              & "-"
+              & Ada.Strings.Fixed.Trim
+                  (Natural'Image (Capture_Serial), Ada.Strings.Both)
+              & ".tmp";
+         begin
+            --  Exclusive creation: a name already taken is simply skipped.
+            FD := Create_New_File (Candidate, Binary);
+            if FD /= Invalid_FD then
+               Name := To_Unbounded_String (Candidate);
+               return;
+            end if;
+         end;
+      end loop;
+      FD := Invalid_FD;
+      Name := Null_Unbounded_String;
+   end Create_Capture;
+
    function Git (A : Strings.Vector; Allow_One : Boolean := False) return String is
       use GNAT.OS_Lib;
       Exe : GNAT.OS_Lib.String_Access := Locate_Exec_On_Path ("git");
-      Name : GNAT.OS_Lib.String_Access;
+      Name : Unbounded_String;
       FD : File_Descriptor;
       Code : Integer;
       Deleted : Boolean;
@@ -118,8 +165,8 @@ package body Git_View_Repository with SPARK_Mode => Off is
          for I in 1 .. Natural (A.Length) loop
             Full (I + 6) := new String'(To_String (A (I)));
          end loop;
-         Create_Temp_File (FD, Name);
-         if FD = Invalid_FD or else Name = null then
+         Create_Capture (FD, Name);
+         if FD = Invalid_FD then
             raise Program_Error with "cannot create git capture";
          end if;
          Spawn (Exe.all, Full, FD, Code, True);
@@ -128,10 +175,9 @@ package body Git_View_Repository with SPARK_Mode => Off is
       end;
       Free (Exe);
       declare
-         S : constant String := Read_File (Name.all);
+         S : constant String := Read_File (To_String (Name));
       begin
-         Delete_File (Name.all, Deleted);
-         Free (Name);
+         Delete_File (To_String (Name), Deleted);
          if Code /= 0 and then not (Allow_One and then Code = 1) then
             raise Program_Error with S;
          end if;
@@ -180,11 +226,16 @@ package body Git_View_Repository with SPARK_Mode => Off is
       return To_String (R);
    end Label;
 
+   --  The staging buffer is heap allocated: a document-sized stack object
+   --  overflows the loader task on large sources and long histories.
    function Doc (S : String) return Tui.Text.Doc_Ref is
-      B : Tui.Text.Buffer (1 .. S'Length);
+      B : Buffer_Ref := new Tui.Text.Buffer (1 .. S'Length);
+      R : Tui.Text.Doc_Ref;
    begin
-      for I in B'Range loop B (I) := Character'Pos (S (S'First + I - 1)); end loop;
-      return Tui.Text.New_Document (B);
+      for I in B.all'Range loop B (I) := Character'Pos (S (S'First + I - 1)); end loop;
+      R := Tui.Text.New_Document (B.all);
+      Release (B);
+      return R;
    end Doc;
 
    procedure Free (F : in out Frame) is
