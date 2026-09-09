@@ -1,4 +1,6 @@
 with Ada.Directories;
+with Ada.Environment_Variables;
+with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
 with Ada.Streams;
 with Ada.Streams.Stream_IO;
@@ -38,7 +40,12 @@ package body Git_Changes.Backends is
       IO.Open (File, IO.In_File, Name);
       declare
          Current_Size : constant IO.Count := IO.Size (File);
-         Length : Natural;
+         --  Read in chunks and accumulate on the heap: holding the whole
+         --  file in stack objects overflows the caller's task stack on
+         --  outputs and sources of a few megabytes.
+         Chunk : Stream_Element_Array (1 .. 64 * 1024);
+         Last  : Stream_Element_Offset;
+         Total : IO.Count := 0;
       begin
          if Current_Size > IO.Count (Max_Content_Bytes) then
             IO.Close (File);
@@ -47,25 +54,26 @@ package body Git_Changes.Backends is
                "content grew beyond configured limit: " & Name);
             return;
          end if;
-         Length := Natural (Current_Size);
-         declare
-         Bytes  : Stream_Element_Array (1 .. Stream_Element_Offset (Length));
-         Last   : Stream_Element_Offset;
-         Text   : String (1 .. Length);
-         begin
-         if Length > 0 then
-            IO.Read (File, Bytes, Last);
-            if Last /= Bytes'Last then
-               IO.Close (File);
-               Set_Error (Error, Filesystem_Error, "read", "short read: " & Name);
-               return;
-            end if;
-            for J in Text'Range loop
-               Text (J) := Character'Val (Bytes (Stream_Element_Offset (J)));
-            end loop;
+         loop
+            IO.Read (File, Chunk, Last);
+            exit when Last < Chunk'First;
+            declare
+               Text : String (1 .. Natural (Last));
+            begin
+               for J in Text'Range loop
+                  Text (J) := Character'Val (Chunk (Stream_Element_Offset (J)));
+               end loop;
+               Append (Content, Text);
+            end;
+            Total := Total + IO.Count (Last);
+            exit when Last < Chunk'Last;
+         end loop;
+         if Total < Current_Size then
+            IO.Close (File);
+            Content := Null_Unbounded_String;
+            Set_Error (Error, Filesystem_Error, "read", "short read: " & Name);
+            return;
          end if;
-         Content := To_Unbounded_String (Text);
-         end;
       end;
       IO.Close (File);
    exception
@@ -75,6 +83,42 @@ package body Git_Changes.Backends is
          end if;
          Set_Error (Error, Filesystem_Error, "read", "cannot read: " & Name);
    end Read_File;
+
+   --  Capture files live in the temporary directory, never in the working
+   --  tree: a repository under inspection must not gain untracked files
+   --  just because it was queried.
+   Capture_Serial : Natural := 0;
+   procedure Create_Capture
+     (FD : out GNAT.OS_Lib.File_Descriptor; Name : out Unbounded_String)
+   is
+      use GNAT.OS_Lib;
+      Dir : constant String :=
+        (if Ada.Environment_Variables.Exists ("TMPDIR")
+         then Ada.Environment_Variables.Value ("TMPDIR") else "/tmp");
+      Pid : constant Integer := Pid_To_Integer (Current_Process_Id);
+   begin
+      for Attempt in 1 .. 1_000 loop
+         Capture_Serial := Capture_Serial + 1;
+         declare
+            Candidate : constant String :=
+              Dir & "/git_changes-"
+              & Ada.Strings.Fixed.Trim (Integer'Image (Pid), Ada.Strings.Both)
+              & "-"
+              & Ada.Strings.Fixed.Trim
+                  (Natural'Image (Capture_Serial), Ada.Strings.Both)
+              & ".tmp";
+         begin
+            --  Exclusive creation: a name already taken is simply skipped.
+            FD := Create_New_File (Candidate, Binary);
+            if FD /= Invalid_FD then
+               Name := To_Unbounded_String (Candidate);
+               return;
+            end if;
+         end;
+      end loop;
+      FD := Invalid_FD;
+      Name := Null_Unbounded_String;
+   end Create_Capture;
 
    procedure Run_Git
      (Working_Directory : String;
@@ -88,7 +132,7 @@ package body Git_Changes.Backends is
       Prefix_Count : constant Positive := 7;
       Args : Argument_List (1 .. Prefix_Count + Arguments'Length);
       FD   : File_Descriptor;
-      Temp : GNAT.OS_Lib.String_Access;
+      Temp : Unbounded_String;
       Git  : GNAT.OS_Lib.String_Access := Locate_Exec_On_Path ("git");
       Spawned : Boolean;
       Status  : Integer := -1;
@@ -122,8 +166,8 @@ package body Git_Changes.Backends is
            new String'(To_String (Arguments (J)));
       end loop;
 
-      Create_Temp_File (FD, Temp);
-      if FD = Invalid_FD or else Temp = null then
+      Create_Capture (FD, Temp);
+      if FD = Invalid_FD then
          Release;
          Set_Error (Error, Filesystem_Error, Operation, "cannot create temporary output");
          return;
@@ -132,22 +176,20 @@ package body Git_Changes.Backends is
       Spawn
         (Program_Name => Git.all,
          Args         => Args,
-         Output_File  => Temp.all,
+         Output_File  => To_String (Temp),
          Success      => Spawned,
          Return_Code  => Status,
          Err_To_Out   => True);
       Release;
 
       if not Spawned then
-         Delete_File (Temp.all, Deleted);
-         Free (Temp);
+         Delete_File (To_String (Temp), Deleted);
          Set_Error (Error, Git_Command_Failed, Operation, "could not execute git", -1);
          return;
       end if;
 
-      Read_File (Temp.all, Max_Output_Bytes, Output, Read_Error);
-      Delete_File (Temp.all, Deleted);
-      Free (Temp);
+      Read_File (To_String (Temp), Max_Output_Bytes, Output, Read_Error);
+      Delete_File (To_String (Temp), Deleted);
       if not Success (Read_Error) then
          Error := Read_Error;
          return;
