@@ -1,9 +1,22 @@
 with Ada.Directories;
 with Ada.Strings.Unbounded;
+with GNAT.OS_Lib;
 with Git_Changes.Backends;
 
 package body Git_Changes.Repositories is
    use Ada.Strings.Unbounded;
+
+   function Available return Boolean is
+      Found : GNAT.OS_Lib.String_Access :=
+        GNAT.OS_Lib.Locate_Exec_On_Path ("git");
+      use type GNAT.OS_Lib.String_Access;
+   begin
+      if Found = null then
+         return False;
+      end if;
+      GNAT.OS_Lib.Free (Found);
+      return True;
+   end Available;
 
    procedure Query
      (Path      : String;

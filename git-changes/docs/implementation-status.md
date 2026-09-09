@@ -15,7 +15,15 @@ and the milestone-5 standalone inspection consumer:
   enumeration order;
 - explicit output/content limits and typed limit failures.
 - a schema-v1 byte-preserving JSON protocol with optional contents for the
-  concrete `semdiff` and XPL non-Ada consumers.
+  concrete `semdiff` and XPL non-Ada consumers;
+- whole-snapshot access — tree/index/worktree inventories including
+  untracked paths, content of any path in a snapshot, and fixed-string
+  snapshot search — with symbolic links read as their targets;
+- revision resolution (expressions, first parents, the empty tree) and
+  filtered commit history with single-commit patch text.
+
+Those last two groups were added so that a reviewing client needs no Git
+invocation of its own; `git_view` uses them for everything it draws.
 
 Public values own their containers and strings; clients receive a normal Ada
 value whose mutation surface is private.  Paths remain raw Ada byte strings.

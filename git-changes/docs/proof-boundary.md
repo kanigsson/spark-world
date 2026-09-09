@@ -9,10 +9,13 @@ foreign code.
 
 The following are deliberately outside the claim:
 
-- process creation, temporary files, filesystem and environment access;
+- process creation, temporary files, filesystem and environment access,
+  including symbolic-link resolution in the working tree;
 - owned `Ada.Containers` and `Unbounded_String` values;
 - GNAT's SHA-256 implementation used for stable join keys;
-- Git's diff algorithm and the correctness of Git output;
+- Git's diff algorithm and the correctness of Git output, including the
+  listing, history, and search output the snapshot and history surfaces
+  parse;
 - resource exhaustion and `Storage_Error`;
 - atomicity of a concurrently changing index or working tree.
 

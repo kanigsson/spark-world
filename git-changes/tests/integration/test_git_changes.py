@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / "bin" / "git-changes"
 PROBE = ROOT / "tests" / "bin" / "api_probe"
 STALE_PROBE = ROOT / "tests" / "bin" / "stale_content_probe"
+SNAPSHOT_PROBE = ROOT / "tests" / "bin" / "snapshot_probe"
 
 
 def run(*args: str | bytes | Path, cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess[bytes]:
@@ -173,6 +174,54 @@ def make_child(repo: Path) -> tuple[str, str]:
     git(repo, "commit", "-qam", "child two")
     new = git(repo, "rev-parse", "HEAD").stdout.strip().decode()
     return old, new
+
+
+def snapshot_scenario(tmp: Path) -> int:
+    """Snapshot inventory, content, search, and history over a small repo."""
+    repo = tmp / "snapshot"
+    repo.mkdir()
+    init(repo)
+    write(repo, "sub/a.txt", b"alpha\nneedle here\n")
+    write(repo, "b.txt", b"plain\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "first commit")
+    write(repo, "sub/a.txt", b"alpha\nneedle here\nmore\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "second commit")
+    write(repo, "untracked.txt", b"untracked\n")
+    os.symlink("b.txt", repo / "link.txt")
+
+    out = text(run(SNAPSHOT_PROBE, repo, "sub/a.txt"))
+    head = git(repo, "rev-parse", "HEAD").stdout.strip().decode()
+    parent = git(repo, "rev-parse", "HEAD^").stdout.strip().decode()
+    assert f"head={head}" in out and f"parent={parent}" in out
+    assert "empty-tree=4b825dc642cb6eb9a060e54bf8d69288fbee4904" in out
+    #  Two tracked files in the tree and the index; the working tree adds the
+    #  untracked file and the symbolic link.
+    assert "TREE_ENDPOINT paths= 2 untracked= 0" in out
+    assert "WORKTREE_ENDPOINT paths= 4 untracked= 2" in out
+    assert out.count("content= 23") == 3
+    #  Search results carry the path alone, with no snapshot prefix.
+    assert out.count("  match sub/a.txt: 2:needle here") == 3
+    assert "commits= 2" in out and "scoped-commits= 2" in out
+    assert "subject=second commit" in out and "parents=[]" in out
+    assert "refs=[HEAD -> main]" in out or "refs=[HEAD -> master]" in out
+
+    #  A symbolic link reads as its target text, never as the file it names.
+    link = text(run(SNAPSHOT_PROBE, repo, "link.txt"))
+    assert "WORKTREE_ENDPOINT content= 5" in link
+    assert "TREE_ENDPOINT content-error=CONTENT_UNAVAILABLE" in link
+
+    #  A root commit has no first parent, and that is an answer, not a failure.
+    root = tmp / "root-only"
+    root.mkdir()
+    init(root)
+    write(root, "only.txt", b"only\n")
+    git(root, "add", "-A")
+    git(root, "commit", "-qm", "root")
+    alone = text(run(SNAPSHOT_PROBE, root, "only.txt"))
+    assert "parent=none" in alone and "matches= 0" in alone
+    return 12
 
 
 def main() -> None:
@@ -363,6 +412,8 @@ def main() -> None:
         failure = capture(unborn, check=False)
         assert failure.returncode != 0 and b"UNRESOLVED_REVISION" in failure.stderr
         checks += 1
+
+        checks += snapshot_scenario(tmp)
 
     print(f"integration tests: {checks} scenario checks passed")
 

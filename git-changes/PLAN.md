@@ -105,6 +105,10 @@ functional contracts and be backed by differential tests against Git.
 - configurable rename and copy detection;
 - side-aware changed line spans with zero context;
 - exact old/new content access where available;
+- whole-snapshot access: the paths of a tree, index, or working tree, the
+  content of any one of them, and content search over a snapshot;
+- revision resolution: expressions, first parents, and the empty tree;
+- filtered commit history and the patch text of a single commit;
 - binary, symlink, executable-bit, type-change, and submodule classification;
 - arbitrary Git path bytes except NUL, without assuming UTF-8;
 - SHA-1 and SHA-256 object IDs without a hard-coded 40-character subtype;
@@ -115,8 +119,15 @@ functional contracts and be backed by differential tests against Git.
 
 ### Explicit non-goals
 
-- a complete Git client;
+The boundary is writing, not breadth.  A client that reviews a repository
+needs to read more of it than the change set alone — unchanged files, the
+history a comparison sits in, the names a user typed — and every one of those
+reads belongs here rather than being reinvented, with its own process
+spawning and its own quoting mistakes, in each consumer.  Reads are therefore
+in scope as they are needed.  Writes never are:
+
 - clone, fetch, push, commit, checkout, merge, or index mutation;
+- anything that changes a repository, its index, or its working tree;
 - GitHub, GitLab, or Gerrit APIs;
 - semantic or AST differencing;
 - review-document rendering or terminal interaction;
@@ -214,6 +225,9 @@ src/
   git_changes-repositories.ads        repository handle and discovery
   git_changes-comparisons.ads         safe endpoint constructors
   git_changes-contents.ads            lazy old/new content access
+  git_changes-snapshots.ads           snapshot inventory, content, search
+  git_changes-history.ads             filtered commit walk and patch text
+  git_changes-revisions.ads           revision, parent, empty-tree resolution
 
   git_changes-core.ads                SPARK root
   git_changes-core-raw.ads            raw -z record parser
