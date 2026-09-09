@@ -173,12 +173,17 @@ is
       if S.Rows < 5 or else S.Cols < 1 then return; end if;
       Rows := S.Rows - 4;
       if S.Cols >= 90 and then not V.Maximized then
-         Widths (M.History_Pane) := S.Cols / 4;
+         --  History lines carry the longest text of the three panes while the
+         --  source pane needs no more than ordinary code width, so the left
+         --  column takes the larger share of a wide terminal.
+         Widths (M.History_Pane) := S.Cols / 10 * 3;
          Widths (M.Tree_Pane) := S.Cols / 4;
-         Widths (M.Source_Pane) := S.Cols - 2 * (S.Cols / 4) - 2;
+         Widths (M.Source_Pane) :=
+           S.Cols - Widths (M.History_Pane) - Widths (M.Tree_Pane) - 2;
          Starts (M.History_Pane) := 1;
-         Starts (M.Tree_Pane) := S.Cols / 4 + 2;
-         Starts (M.Source_Pane) := 2 * (S.Cols / 4) + 3;
+         Starts (M.Tree_Pane) := Widths (M.History_Pane) + 2;
+         Starts (M.Source_Pane) :=
+           Widths (M.History_Pane) + Widths (M.Tree_Pane) + 3;
       else
          Widths (V.Focus) := S.Cols;
          Starts (V.Focus) := 1;

@@ -1,2 +1,3 @@
 obj/
 git_view
+__pycache__/

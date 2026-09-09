@@ -1,3 +1,4 @@
+with Ada.Calendar;
 with Ada.Containers.Indefinite_Ordered_Sets;
 with Ada.Containers.Indefinite_Ordered_Maps;
 with Ada.Containers.Vectors;
@@ -91,6 +92,34 @@ package body Git_View_Repository with SPARK_Mode => Off is
       end loop;
       return To_String (R);
    end Label;
+
+   --  Commit dates occupy a fixed six columns so that the subject always
+   --  starts at the same place: day and month within the current year, month
+   --  and abbreviated year before it. An unexpected shape is passed through.
+   Current_Year : constant Natural :=
+     Natural (Ada.Calendar.Year (Ada.Calendar.Clock));
+   Month_Names : constant array (1 .. 12) of String (1 .. 3) :=
+     ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec");
+   function Compact_Date (S : String) return String is
+      F : constant Natural := S'First;
+      Year, Month : Natural;
+   begin
+      if S'Length /= 10 or else S (F + 4) /= '-' or else S (F + 7) /= '-' then
+         return S;
+      end if;
+      Year := Natural'Value (S (F .. F + 3));
+      Month := Natural'Value (S (F + 5 .. F + 6));
+      if Month not in Month_Names'Range then
+         return S;
+      elsif Year = Current_Year then
+         return Month_Names (Month) & " " & S (F + 8 .. F + 9);
+      else
+         return Month_Names (Month) & "'" & S (F + 2 .. F + 3);
+      end if;
+   exception
+      when others => return S;
+   end Compact_Date;
 
    --  The staging buffer is heap allocated: a document-sized stack object
    --  overflows the loader task on large sources and long histories.
@@ -414,11 +443,15 @@ package body Git_View_Repository with SPARK_Mode => Off is
             begin
                History_Rows.Append
                  (Row_Target'(Bounded (G.History.Commit_Id (Cached_Log, I)), 1, False));
-               Append (H, (if G.History.Is_Merge (Cached_Log, I) then "M " else "* ")
+               --  The subject is the field the reader scans for, so it comes
+               --  before the decorations: refs are long, rare, and repeated on
+               --  the status line, and are the right thing to lose first when
+               --  the pane is narrow.
+               Append (H, (if G.History.Is_Merge (Cached_Log, I) then "M " else "  ")
                  & Label (G.History.Abbreviated (Cached_Log, I) & " "
-                          & G.History.Commit_Date (Cached_Log, I)
-                          & (if Refs'Length = 0 then "" else " (" & Refs & ")")
-                          & " " & G.History.Subject (Cached_Log, I))
+                          & Compact_Date (G.History.Commit_Date (Cached_Log, I))
+                          & " " & G.History.Subject (Cached_Log, I)
+                          & (if Refs'Length = 0 then "" else " (" & Refs & ")"))
                  & " [parents: " & G.History.Parents (Cached_Log, I) & "]" & LF);
             end;
          end loop;

@@ -118,7 +118,8 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
         f = s.send(b"F")
         f = s.send(b"c" + second.encode() + b"\r")
         # Open later.txt using a tree click (first row in canonical ordering).
-        f = s.send(b"\x1b[<0;44;2M")
+        # The tree pane starts after the history pane's 30% of the 160 columns.
+        f = s.send(b"\x1b[<0;52;2M")
         check("scope: later.txt" in f, "tree mouse selection opens file", f)
         f = s.send(b"p")
         check("pin: later.txt" in f, "pin is visible", f)
@@ -132,7 +133,7 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
         check("initial" in f, "clear file history filter", f)
         f = s.send(b"p")
         # main.txt is second tree row in the all-files tree.
-        f = s.send(b"\x1b[<0;44;3M")
+        f = s.send(b"\x1b[<0;52;3M")
         check("scope: main.txt" in f, "open another file without changing snapshot", f)
         f = s.send(b"/line 080\r")
         check("line 080" in f and "line 001" not in f, "search within source", f)
