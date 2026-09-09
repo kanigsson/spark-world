@@ -2,7 +2,7 @@
 --  embedded pager engines: commit list + diff) to the Tui.Term driver. The
 --  orchestration is itself SPARK: that the event loop only ever starts after
 --  a successful Init is proved here against the app's contracts rather than
---  trusted. All git subprocess work lives behind the proved Git_View_Source
+--  trusted. All repository access lives behind the proved Git_View_Source
 --  spec; all state and policy live in the proved Git_View_App.
 --
 --  Usage:
@@ -218,9 +218,10 @@ begin
       return;
    end if;
 
-   --  Load the commit list (and the first diff). On failure git has already
-   --  written its own message ("fatal: not a git repository ...") to
-   --  standard error, which is still the terminal at this point.
+   --  Load the commit list (and the first diff). On failure the repository
+   --  adapter has already written the backend's own message ("fatal: not a
+   --  git repository ...") to standard error, which is still the terminal
+   --  at this point.
    Git_View_App.Init (From, History_Filter, Ok);
    if not Ok then
       Fail ("cannot read the git log");

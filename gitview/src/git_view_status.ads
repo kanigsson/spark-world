@@ -31,7 +31,7 @@ package Git_View_Status with SPARK_Mode => On is
       Pattern_Not_Found,   --  a search or repeat found nothing
       No_Pattern,          --  repeat requested with no pattern installed
       No_Commit_On_Line,   --  Enter on a line that carries no commit id
-      Git_Show_Failed,     --  the diff subprocess reported an error
+      Git_Show_Failed,     --  the commit's patch text could not be loaded
       Selection_Copied,
       Selection_Copy_Truncated);
 

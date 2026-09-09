@@ -1,124 +1,170 @@
---  NOT SPARK: subprocess and file-system glue, trusted behind the spec's
---  contracts.
+--  NOT SPARK: repository access, trusted behind the spec's contracts.
 
-with Ada.Streams;
-with Ada.Streams.Stream_IO;
+with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada.Text_IO;
 with Ada.Unchecked_Deallocation;
-with GNAT.OS_Lib;
+with Git_Changes;
+with Git_Changes.History;
+with Git_Changes.Repositories;
 
 package body Git_View_Source.OS with SPARK_Mode => Off is
 
-   use GNAT.OS_Lib;
+   package G renames Git_Changes;
 
    type Content_Buffer is access Tui.Text.Buffer;
 
    procedure Free is
      new Ada.Unchecked_Deallocation (Tui.Text.Buffer, Content_Buffer);
 
-   --------------------------------------------------------------------------
-   --  Read an entire regular file straight into one heap buffer: Stream_IO
-   --  reads into a Stream_Element_Array overlaid on the buffer, in place.
-   --  Null if the file cannot be read.
-   --------------------------------------------------------------------------
-   function Read_File (Path : String) return Content_Buffer is
-      use Ada.Streams;
-      use Ada.Streams.Stream_IO;
-      F : File_Type;
+   --  The staging buffer is heap allocated: a document-sized stack object
+   --  overflows on long histories and large diffs.
+   function Document (Value : String) return Tui.Text.Doc_Ref is
+      Raw : Content_Buffer := new Tui.Text.Buffer (1 .. Value'Length);
+      Result : Tui.Text.Doc_Ref;
    begin
-      Open (F, In_File, Path);
-      declare
-         Len  : constant Natural := Natural (Size (F));
-         Buf  : constant Content_Buffer := new Tui.Text.Buffer (1 .. Len);
-         SEA  : Stream_Element_Array (1 .. Stream_Element_Offset (Len))
-           with Import, Address => Buf.all'Address;
-         Last : Stream_Element_Offset;
-      begin
-         if Len > 0 then
-            Read (F, SEA, Last);
-         end if;
-         Close (F);
-         return Buf;
-      end;
-   exception
-      when others =>
-         return null;
-   end Read_File;
+      for K in Raw.all'Range loop
+         Raw (K) := Character'Pos (Value (Value'First + (K - 1)));
+      end loop;
+      Result := Tui.Text.New_Document (Raw.all);
+      Free (Raw);
+      return Result;
+   end Document;
 
    --------------
    -- Find_Git --
    --------------
 
-   function Find_Git return Boolean is
-      Git : String_Access := Locate_Exec_On_Path ("git");
+   function Find_Git return Boolean is (G.Repositories.Available);
+
+   --  The history walk runs before the alternate screen goes up, so its
+   --  failure is worth explaining where the user can still read it — the
+   --  backend's own words, as they used to reach the terminal directly.
+   procedure Report (Error : G.Error_Info) is
    begin
-      if Git = null then
-         return False;
+      Ada.Text_IO.Put_Line
+        (Ada.Text_IO.Standard_Error, "git_view: " & G.Detail (Error));
+   exception
+      when others => null;
+   end Report;
+
+   --  Open the repository the process was started in. Every query needs it,
+   --  and none of them may change the process working directory.
+   procedure Open (Repo : out G.Repository; Ok : out Boolean) is
+      Error : G.Error_Info;
+   begin
+      G.Repositories.Open (".", Repo, Error);
+      Ok := G.Success (Error);
+      if not Ok then
+         Report (Error);
       end if;
-      Free (Git);
-      return True;
-   end Find_Git;
+   end Open;
 
-   -------------
-   -- Capture --
-   -------------
+   ------------------
+   -- Load_History --
+   ------------------
 
-   procedure Capture
-     (Args       : Argument_Vector;
-      Err_To_Out : Boolean;
-      Doc        : out Tui.Text.Doc_Ref;
-      Code       : out Integer)
+   procedure Load_History
+     (From   : Revision;
+      Filter : Filters;
+      Doc    : out Tui.Text.Doc_Ref;
+      Ok     : out Boolean)
    is
-      Git  : String_Access := Locate_Exec_On_Path ("git");
-      FD   : File_Descriptor;
-      Name : String_Access;
-      Heap : Argument_List (1 .. Args'Length);
+      Repo    : G.Repository;
+      Error   : G.Error_Info;
+      Walk    : G.History.Log;
+      Query   : G.History.Filter;
+      Opened  : Boolean;
+      Text    : Unbounded_String;
    begin
-      Doc  := null;
-      Code := -1;
-      if Git = null then
+      Doc := null;
+      Open (Repo, Opened);
+      if not Opened then
+         Ok := False;
          return;
       end if;
+      Query.All_Refs := Filter.All_Refs;
+      Query.First_Parent := Filter.First_Parent;
+      if From.Len > 0 then
+         Query.Start := To_Unbounded_String (Image (From));
+      end if;
+      if Filter.Author.Len > 0 then
+         Query.Author := To_Unbounded_String (Image (Filter.Author));
+      end if;
+      if Filter.Since.Len > 0 then
+         Query.Since := To_Unbounded_String (Image (Filter.Since));
+      end if;
+      if Filter.Until_Date.Len > 0 then
+         Query.Until_Date := To_Unbounded_String (Image (Filter.Until_Date));
+      end if;
+      if Filter.Message.Len > 0 then
+         Query.Message := To_Unbounded_String (Image (Filter.Message));
+      end if;
+      if Filter.Path.Len > 0 then
+         Query.Pathspec := To_Unbounded_String (Image (Filter.Path));
+      end if;
 
-      --  The bounded arguments become the heap strings the spawn API wants.
-      for I in Heap'Range loop
+      G.History.Load (Repo, Query, Result => Walk, Error => Error);
+      if not G.Success (Error) then
+         Report (Error);
+         Ok := False;
+         return;
+      end if;
+      --  The abbreviated id stays the first space-terminated token of every
+      --  line, and no line is ever a continuation: the proved commit-id
+      --  parser reads exactly one commit per line.
+      for I in 1 .. G.History.Count (Walk) loop
          declare
-            A : Argument renames Args (Args'First + (I - 1));
+            Refs : constant String := G.History.References (Walk, I);
          begin
-            Heap (I) := new String'(A.Text (1 .. A.Len));
+            Append (Text, G.History.Abbreviated (Walk, I) & " "
+                    & G.History.Commit_Date (Walk, I)
+                    & (if Refs'Length = 0 then "" else " [" & Refs & "]")
+                    & " " & G.History.Author (Walk, I)
+                    & " " & G.History.Subject (Walk, I) & ASCII.LF);
          end;
       end loop;
+      Doc := Document (To_String (Text));
+      Ok := Doc /= null;
+   exception
+      when others =>
+         Doc := null;
+         Ok := False;
+   end Load_History;
 
-      Create_Temp_File (FD, Name);
-      if FD = Invalid_FD or else Name = null then
-         for H of Heap loop
-            Free (H);
-         end loop;
-         Free (Git);
+   -----------------
+   -- Load_Commit --
+   -----------------
+
+   procedure Load_Commit
+     (Id  : String;
+      Doc : out Tui.Text.Doc_Ref;
+      Ok  : out Boolean)
+   is
+      Repo   : G.Repository;
+      Error  : G.Error_Info;
+      Text   : Unbounded_String;
+      Opened : Boolean;
+   begin
+      Doc := null;
+      Ok := False;
+      Open (Repo, Opened);
+      if not Opened then
          return;
       end if;
-
-      Spawn (Git.all, Heap, FD, Code, Err_To_Out);
-      Close (FD);
-      Free (Git);
-      for H of Heap loop
-         Free (H);
-      end loop;
-
-      declare
-         Raw : Content_Buffer := Read_File (Name.all);
-      begin
-         if Raw /= null then
-            Doc := Tui.Text.New_Document (Raw.all);
-            Free (Raw);
-         end if;
-      end;
-
-      declare
-         Deleted : Boolean;
-      begin
-         Delete_File (Name.all, Deleted);
-      end;
-      Free (Name);
-   end Capture;
+      G.History.Show_Commit (Repo, Id, Text => Text, Error => Error);
+      Ok := G.Success (Error);
+      --  Whatever the backend printed belongs in the pane: its own message
+      --  beats a blank diff, and the alternate screen is already up.
+      if not Ok and then Length (Text) = 0 then
+         Text := To_Unbounded_String (G.Detail (Error));
+      end if;
+      if Length (Text) > 0 then
+         Doc := Document (To_String (Text));
+      end if;
+   exception
+      when others =>
+         Doc := null;
+         Ok := False;
+   end Load_Commit;
 
 end Git_View_Source.OS;

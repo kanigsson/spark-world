@@ -74,19 +74,20 @@ the forward branch.
 SPARK, with Silver verification of runtime safety. The existing proved pager,
 input, layout, search, and legacy viewer remain in use.
 
-`Git_View_Repository` is a trusted Git/OS adapter. It uses the sibling
-[`git-changes`](../../git-changes) Ada library for canonical change kinds,
-old/new paths, metadata, contents, and changed spans. Its existing SPARK
-parsers are included in the full proof run. No library source changes were
-needed. Git enumeration, capture, document assembly, caching, and the worker
-mailbox are outside SPARK and covered by integration tests. Silver does not
-establish Git's behavior or the semantic correctness of the rendered diff.
+`Git_View_Repository` is a trusted repository adapter. Every Git query it
+makes goes through the sibling [`git-changes`](../../git-changes) Ada
+library: change kinds, old/new paths, metadata, changed spans, snapshot
+inventories and contents, snapshot search, revision resolution, and history.
+No Git process is started in this project, and no repository path is read
+directly. Document assembly, caching, and the worker mailbox are outside
+SPARK and covered by integration tests. Silver does not establish Git's
+behavior or the semantic correctness of the rendered diff.
 
 Repository requests run on a worker. Results carry a generation and obsolete
 results are discarded. Commit content, tree listings, history, and comparisons
 are cached separately. The terminal keeps processing input while loading.
-The worker finishes an active Git command before stopping; terminal state is
-restored when the UI exits.
+The worker finishes an active repository query before stopping; terminal
+state is restored when the UI exits.
 
 ```sh
 gprbuild -P git_view.gpr -j4
@@ -111,8 +112,9 @@ This implements the text/Git MVP from
 analysis, review annotations, combined merge views, and side-by-side rendering
 remain deferred. History is loaded in full, within the capture limit; files
 and command captures are limited to 64 MiB and path identities to 4096 bytes.
-Unborn repositories are not yet supported. Repository search uses `git grep`
-over tracked files; untracked files can be opened and searched individually.
+Unborn repositories are not yet supported. Repository search is the
+library's fixed-string snapshot search over tracked files; untracked files
+can be opened and searched individually.
 
 The original two-pane diff viewer is available with `--legacy`; see
 [LEGACY.md](LEGACY.md) for its mouse selection, clipboard, syntax highlighting,

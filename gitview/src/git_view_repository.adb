@@ -1,18 +1,17 @@
 with Ada.Containers.Indefinite_Ordered_Sets;
-with Ada.Environment_Variables;
 with Ada.Containers.Indefinite_Ordered_Maps;
 with Ada.Containers.Vectors;
 with Ada.Exceptions;
-with Ada.Streams.Stream_IO;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Unchecked_Deallocation;
-with GNAT.OS_Lib;
 with Git_Changes;
-with Git_Changes.Repositories;
 with Git_Changes.Contents;
+with Git_Changes.History;
+with Git_Changes.Repositories;
+with Git_Changes.Revisions;
+with Git_Changes.Snapshots;
 with Git_View_Source;
-with Interfaces.C;
 
 package body Git_View_Repository with SPARK_Mode => Off is
    package G renames Git_Changes;
@@ -21,22 +20,13 @@ package body Git_View_Repository with SPARK_Mode => Off is
    use type M.Change_Lens;
    use type M.Tree_Visibility;
    use type Ada.Containers.Count_Type;
-   use type Ada.Streams.Stream_IO.Count;
    LF : constant Character := ASCII.LF;
    NUL : constant Character := ASCII.NUL;
-   Limit : constant := 64 * 1024 * 1024;
    Repository_Root : Unbounded_String;
-   function Read_Link (Path : String) return String is
-      use Interfaces.C;
-      function C_Readlink (Name : char_array; Buffer : out char_array;
-                           Size : size_t) return long
-        with Import, Convention => C, External_Name => "readlink";
-      Buffer : char_array (1 .. M.Max_Text);
-      Count : constant long := C_Readlink (To_C (Path), Buffer, Buffer'Length);
-   begin
-      if Count < 0 then raise Program_Error with "cannot read symlink"; end if;
-      return To_Ada (Buffer (1 .. size_t (Count)), Trim_Nul => False);
-   end Read_Link;
+   --  Listings, histories, and search results of a large repository run well
+   --  past the library's default output limit; content keeps its default.
+   Query_Options : constant G.Capture_Options :=
+     (Max_Output_Bytes => 64 * 1024 * 1024, others => <>);
    package Strings is new Ada.Containers.Vectors (Positive, Unbounded_String);
    package Targets is new Ada.Containers.Vectors (Positive, Row_Target);
    package Marks is new Ada.Containers.Vectors (Positive, Mark);
@@ -47,6 +37,15 @@ package body Git_View_Repository with SPARK_Mode => Off is
    procedure Release is new Ada.Unchecked_Deallocation (Target_Array, Target_Ref);
    procedure Release is new Ada.Unchecked_Deallocation (Mark_Array, Mark_Ref);
 
+   --  Every repository query reports failure the same way; the frame builder
+   --  turns the exception into a notice rather than checking each call.
+   procedure Check (Error : G.Error_Info) is
+   begin
+      if not G.Success (Error) then
+         raise Program_Error with G.Detail (Error);
+      end if;
+   end Check;
+
    function Bounded (S : String) return M.Text is
    begin
       if S'Length > M.Max_Text then
@@ -55,141 +54,8 @@ package body Git_View_Repository with SPARK_Mode => Off is
       return M.To_Text (S);
    end Bounded;
 
-   --  Read in chunks and accumulate on the heap: a whole file's worth of
-   --  stack would overflow the loader task on large sources or long logs.
-   function Read_File (Path : String) return String is
-      use Ada.Streams;
-      package IO renames Ada.Streams.Stream_IO;
-      F : IO.File_Type;
-      Result : Unbounded_String;
-      Chunk : Stream_Element_Array (1 .. 64 * 1024);
-      Last : Stream_Element_Offset;
-   begin
-      IO.Open (F, IO.In_File, Path);
-      if IO.Size (F) > IO.Count (Limit) then
-         IO.Close (F);
-         raise Constraint_Error with "content exceeds 64 MiB limit";
-      end if;
-      loop
-         IO.Read (F, Chunk, Last);
-         exit when Last < Chunk'First;
-         declare
-            Text : String (1 .. Natural (Last));
-         begin
-            for I in Text'Range loop
-               Text (I) := Character'Val (Chunk (Stream_Element_Offset (I)));
-            end loop;
-            Append (Result, Text);
-         end;
-         exit when Last < Chunk'Last;
-      end loop;
-      IO.Close (F);
-      return To_String (Result);
-   exception
-      when others =>
-         if IO.Is_Open (F) then IO.Close (F); end if;
-         raise;
-   end Read_File;
-
-   function Args (A : String) return Strings.Vector is
-      V : Strings.Vector;
-   begin
-      V.Append (To_Unbounded_String (A));
-      return V;
-   end Args;
-   function "+" (V : Strings.Vector; S : String) return Strings.Vector is
-      R : Strings.Vector := V;
-   begin
-      R.Append (To_Unbounded_String (S));
-      return R;
-   end "+";
-
-   --  Capture files live in the temporary directory, never in the working
-   --  tree: the checkout under inspection must not gain untracked files,
-   --  which would show up in the very tree this adapter draws.
-   Capture_Serial : Natural := 0;
-   procedure Create_Capture
-     (FD : out GNAT.OS_Lib.File_Descriptor; Name : out Unbounded_String)
-   is
-      use GNAT.OS_Lib;
-      Dir : constant String :=
-        (if Ada.Environment_Variables.Exists ("TMPDIR")
-         then Ada.Environment_Variables.Value ("TMPDIR") else "/tmp");
-      Pid : constant Integer := Pid_To_Integer (Current_Process_Id);
-   begin
-      for Attempt in 1 .. 1_000 loop
-         Capture_Serial := Capture_Serial + 1;
-         declare
-            Candidate : constant String :=
-              Dir & "/git_view-"
-              & Ada.Strings.Fixed.Trim (Integer'Image (Pid), Ada.Strings.Both)
-              & "-"
-              & Ada.Strings.Fixed.Trim
-                  (Natural'Image (Capture_Serial), Ada.Strings.Both)
-              & ".tmp";
-         begin
-            --  Exclusive creation: a name already taken is simply skipped.
-            FD := Create_New_File (Candidate, Binary);
-            if FD /= Invalid_FD then
-               Name := To_Unbounded_String (Candidate);
-               return;
-            end if;
-         end;
-      end loop;
-      FD := Invalid_FD;
-      Name := Null_Unbounded_String;
-   end Create_Capture;
-
-   function Git (A : Strings.Vector; Allow_One : Boolean := False) return String is
-      use GNAT.OS_Lib;
-      Exe : GNAT.OS_Lib.String_Access := Locate_Exec_On_Path ("git");
-      Name : Unbounded_String;
-      FD : File_Descriptor;
-      Code : Integer;
-      Deleted : Boolean;
-      Av : Argument_List (1 .. Natural (A.Length) + 5);
-   begin
-      if Exe = null then raise Program_Error with "git not found"; end if;
-      Av (1) := new String'("--no-pager");
-      Av (2) := new String'("--literal-pathspecs");
-      Av (3) := new String'("-c");
-      --  Disable terminal escapes in output even when the user's config
-      --  enables colors. Repository commands still use separate argv entries.
-      declare
-         Full : Argument_List (1 .. Av'Length + 1);
-      begin
-         for I in 1 .. 3 loop Full (I) := Av (I); end loop;
-         Full (4) := new String'("color.ui=false");
-         Full (5) := new String'("-C");
-         Full (6) := new String'((if Length (Repository_Root) = 0 then "." else To_String (Repository_Root)));
-         for I in 1 .. Natural (A.Length) loop
-            Full (I + 6) := new String'(To_String (A (I)));
-         end loop;
-         Create_Capture (FD, Name);
-         if FD = Invalid_FD then
-            raise Program_Error with "cannot create git capture";
-         end if;
-         Spawn (Exe.all, Full, FD, Code, True);
-         Close (FD);
-         for Item of Full loop Free (Item); end loop;
-      end;
-      Free (Exe);
-      declare
-         S : constant String := Read_File (To_String (Name));
-      begin
-         Delete_File (To_String (Name), Deleted);
-         if Code /= 0 and then not (Allow_One and then Code = 1) then
-            raise Program_Error with S;
-         end if;
-         return S;
-      end;
-   end Git;
-
    function Trim (S : String) return String is
      (Ada.Strings.Fixed.Trim (S, Ada.Strings.Both));
-   function One_Line (S : String) return String is
-     (if S'Length > 0 and then S (S'Last) = LF
-      then S (S'First .. S'Last - 1) else S);
 
    function Split (S : String; Separator : Character) return Strings.Vector is
       R : Strings.Vector;
@@ -247,14 +113,19 @@ package body Git_View_Repository with SPARK_Mode => Off is
    Cached_Changes : G.Change_Set;
    Cached_Base, Cached_Target : Unbounded_String;
    Cache_Valid : Boolean := False;
-   Cached_Log_Key, Cached_Log : Unbounded_String;
-   Cached_Tree_Key, Cached_Tree : Unbounded_String;
+   Cached_Log_Key : Unbounded_String;
+   Cached_Log : G.History.Log;
+   Cached_Tree_Key : Unbounded_String;
+   Cached_Tree : G.Snapshots.Inventory;
    Cached_Content_Key, Cached_Content : Unbounded_String;
 
    procedure Load (V : M.View_State; F : in out Frame) is
       Repo : G.Repository;
       Error : G.Error_Info;
       Target, Base, Root : Unbounded_String;
+      --  Which state of the repository every path and content query is
+      --  about; the comparison endpoints are derived from the same choice.
+      Shot : G.Snapshots.Snapshot;
       Inventory : Paths.Set;
       Untracked_Paths : Paths.Set;
       Changes_By_Path : Change_Maps.Map;
@@ -276,27 +147,29 @@ package body Git_View_Repository with SPARK_Mode => Off is
       end Add_Row;
 
       function Content (Path : String) return String is
+         Value : Unbounded_String;
+         Local : G.Error_Info;
       begin
-         case V.Kind is
-            when M.Commit =>
-               declare
-                  Key : constant Unbounded_String := Target & ":" & Path;
-               begin
-                  if Cached_Content_Key /= Key then
-                     Cached_Content := To_Unbounded_String (Git (Args ("show") + To_String (Key)));
-                     Cached_Content_Key := Key;
-                  end if;
-                  return To_String (Cached_Content);
-               end;
-            when M.Staging => return Git (Args ("show") + (":" & Path));
-            when M.Worktree =>
-               --  Never follow a symlink into a different file or outside the
-               --  repository. Git's no-index reader returns symlink contents.
-               if GNAT.OS_Lib.Is_Symbolic_Link (To_String (Root) & "/" & Path) then
-                  return Read_Link (To_String (Root) & "/" & Path);
+         --  A commit snapshot never changes under the reader, so the file
+         --  last drawn is worth keeping: scrolling one file re-asks for it.
+         if V.Kind = M.Commit then
+            declare
+               Key : constant Unbounded_String := Target & ":" & Path;
+            begin
+               if Cached_Content_Key /= Key then
+                  G.Snapshots.Load (Repo, Shot, Path, Query_Options,
+                                    Content => Value, Error => Local);
+                  Check (Local);
+                  Cached_Content := Value;
+                  Cached_Content_Key := Key;
                end if;
-               return Read_File (To_String (Root) & "/" & Path);
-         end case;
+               return To_String (Cached_Content);
+            end;
+         end if;
+         G.Snapshots.Load (Repo, Shot, Path, Query_Options, Content => Value,
+                           Error => Local);
+         Check (Local);
+         return To_String (Value);
       end Content;
 
       procedure Emit (Value : String; Kind : Mark := Normal) is
@@ -338,7 +211,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
             Base_Only := G.File_Kind (Cached_Changes, File) = G.Deleted;
             if G.Content_Available (Cached_Changes, File, G.Old_Side) then
                G.Contents.Load (Cached_Changes, File, G.Old_Side, Old_Content, Error);
-               if not G.Success (Error) then raise Program_Error with G.Detail (Error); end if;
+               Check (Error);
             end if;
             Span_Total := G.Span_Count (Cached_Changes, File);
          end if;
@@ -422,7 +295,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
    begin
       Free (F);
       G.Repositories.Open (".", Repo, Error);
-      if not G.Success (Error) then raise Program_Error with G.Detail (Error); end if;
+      Check (Error);
       Root := To_Unbounded_String (G.Root_Path (Repo));
       if Root /= Repository_Root then
          Cache_Valid := False;
@@ -431,23 +304,35 @@ package body Git_View_Repository with SPARK_Mode => Off is
          Cached_Content_Key := Null_Unbounded_String;
       end if;
       Repository_Root := Root;
-      --  Run relative to the repository root, even when launched in a subdir.
-      --  This is worker-local policy: never change the process working dir.
+      --  Every query runs relative to the repository root, even when the
+      --  program was launched in a subdirectory: the handle carries the
+      --  root, so the process working directory is never changed.
       if V.Kind = M.Commit then
-         Target := To_Unbounded_String (One_Line (Git (Args ("rev-parse") + "--verify"
-           + "--end-of-options" + ((if V.Snapshot.Last = 0 then "HEAD"
-                                    else M.Image (V.Snapshot)) & "^{commit}"))));
-      else Target := To_Unbounded_String ((if V.Kind = M.Worktree then "worktree" else "index"));
+         G.Revisions.Resolve_Commit
+           (Repo, (if V.Snapshot.Last = 0 then "HEAD" else M.Image (V.Snapshot)),
+            Target, Error);
+         Check (Error);
+         Shot := G.Snapshots.Tree (To_String (Target));
+      elsif V.Kind = M.Worktree then
+         Target := To_Unbounded_String ("worktree");
+         Shot := G.Snapshots.Worktree;
+      else
+         Target := To_Unbounded_String ("index");
+         Shot := G.Snapshots.Index;
       end if;
       if not V.Automatic_Base then Base := To_Unbounded_String (M.Image (V.Base));
       elsif V.Kind /= M.Commit then Base := To_Unbounded_String ("HEAD");
       else
+         --  A root commit has no parent to compare against; the empty tree
+         --  makes its own content the whole change.
          declare
-            Parents : constant Strings.Vector := Split
-              (One_Line (Git (Args ("rev-list") + "--parents" + "-n" + "1" + To_String (Target))), ' ');
+            Found : Boolean;
          begin
-            if Parents.Length > 1 then Base := Parents (2);
-            else Base := To_Unbounded_String (One_Line (Git (Args ("hash-object") + "-t" + "tree" + "/dev/null")));
+            G.Revisions.First_Parent (Repo, To_String (Target), Base, Found, Error);
+            Check (Error);
+            if not Found then
+               G.Revisions.Empty_Tree (Repo, Base, Error);
+               Check (Error);
             end if;
          end;
       end if;
@@ -463,7 +348,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
          begin
             Cache_Valid := False;
             G.Capture (Repo, Comparison, Changes => Cached_Changes, Error => Error);
-            if not G.Success (Error) then raise Program_Error with G.Detail (Error); end if;
+            Check (Error);
             Cached_Base := Base; Cached_Target := Target; Cache_Valid := True;
          end;
       end if;
@@ -475,70 +360,91 @@ package body Git_View_Repository with SPARK_Mode => Off is
          end loop;
       end loop;
       F.Resolved_Snapshot := Bounded (To_String (Target));
-      F.Resolved_Base := Bounded (One_Line (Git (Args ("rev-parse") + "--verify"
-                                               + "--end-of-options" + To_String (Base))));
+      declare
+         Identity : Unbounded_String;
+      begin
+         G.Revisions.Resolve (Repo, To_String (Base), Identity, Error);
+         Check (Error);
+         F.Resolved_Base := Bounded (To_String (Identity));
+      end;
       if G.Is_Stale (Cached_Changes) then F.Notice := Bounded ("comparison changed during capture; press r to refresh");
       else F.Notice := Bounded (""); end if;
       declare
-         A : Strings.Vector := Args ("log") + "--topo-order" + "--date=short"
-           + "--format=%H%x09%p%x09%h %ad %d %s";
+         Filter : G.History.Filter;
+         Source : Git_View_Source.Filters renames V.History_Filter;
          Key : Unbounded_String;
-         Filter : Git_View_Source.Filters renames V.History_Filter;
       begin
-         if Filter.All_Refs then A := A + "--all"; end if;
-         if Filter.First_Parent then A := A + "--first-parent"; end if;
-         if Filter.Author.Len > 0 then A := A + ("--author=" & Git_View_Source.Image (Filter.Author)); end if;
-         if Filter.Since.Len > 0 then A := A + ("--since=" & Git_View_Source.Image (Filter.Since)); end if;
-         if Filter.Until_Date.Len > 0 then A := A + ("--until=" & Git_View_Source.Image (Filter.Until_Date)); end if;
-         if Filter.Message.Len > 0 then A := A + ("--grep=" & Git_View_Source.Image (Filter.Message)); end if;
-         A := A + "--end-of-options";
-         if V.History_Root.Len > 0 then A := A + Git_View_Source.Image (V.History_Root); end if;
-         A := A + "--";
-         if V.Path_Filter.Last > 0 then A := A + M.Image (V.Path_Filter);
-         elsif Filter.Path.Len > 0 then A := A + Git_View_Source.Image (Filter.Path); end if;
-         for Arg of A loop Append (Key, Arg & NUL); end loop;
-         if Key /= Cached_Log_Key or else V.Kind /= M.Commit then
-            Cached_Log := To_Unbounded_String (Git (A)); Cached_Log_Key := Key;
+         Filter.Topological := True;
+         Filter.All_Refs := Source.All_Refs;
+         Filter.First_Parent := Source.First_Parent;
+         if Source.Author.Len > 0 then
+            Filter.Author := To_Unbounded_String (Git_View_Source.Image (Source.Author));
          end if;
-         for Line of Split (To_String (Cached_Log), LF) loop
+         if Source.Since.Len > 0 then
+            Filter.Since := To_Unbounded_String (Git_View_Source.Image (Source.Since));
+         end if;
+         if Source.Until_Date.Len > 0 then
+            Filter.Until_Date := To_Unbounded_String (Git_View_Source.Image (Source.Until_Date));
+         end if;
+         if Source.Message.Len > 0 then
+            Filter.Message := To_Unbounded_String (Git_View_Source.Image (Source.Message));
+         end if;
+         if V.History_Root.Len > 0 then
+            Filter.Start := To_Unbounded_String (Git_View_Source.Image (V.History_Root));
+         end if;
+         if V.Path_Filter.Last > 0 then
+            Filter.Pathspec := To_Unbounded_String (M.Image (V.Path_Filter));
+         elsif Source.Path.Len > 0 then
+            Filter.Pathspec := To_Unbounded_String (Git_View_Source.Image (Source.Path));
+         end if;
+         --  A walk is worth reusing only while every input to it is the one
+         --  it was made with; NUL cannot occur in any of them.
+         Key := Filter.Start & NUL & Filter.Author & NUL & Filter.Since & NUL
+           & Filter.Until_Date & NUL & Filter.Message & NUL & Filter.Pathspec
+           & NUL & Filter.All_Refs'Image & Filter.First_Parent'Image;
+         if Key /= Cached_Log_Key or else V.Kind /= M.Commit then
+            G.History.Load (Repo, Filter, Query_Options,
+                            Result => Cached_Log, Error => Error);
+            Check (Error);
+            Cached_Log_Key := Key;
+         end if;
+         for I in 1 .. G.History.Count (Cached_Log) loop
             declare
-               Value : constant String := To_String (Line);
-               Tab : constant Natural := Ada.Strings.Fixed.Index (Value, "" & ASCII.HT);
-               Second_Tab : constant Natural := (if Tab > 0 then
-                 Ada.Strings.Fixed.Index (Value, "" & ASCII.HT, Tab + 1) else 0);
+               Refs : constant String := G.History.References (Cached_Log, I);
             begin
-               if Second_Tab > 0 then
-                  History_Rows.Append (Row_Target'(Bounded (Value (1 .. Tab - 1)), 1, False));
-                  Append (H, (if Ada.Strings.Fixed.Index (Value (Tab + 1 .. Second_Tab - 1), " ") > 0
-                              then "M " else "* ")
-                    & Label (Value (Second_Tab + 1 .. Value'Last))
-                    & " [parents: " & Value (Tab + 1 .. Second_Tab - 1) & "]" & LF);
-               end if;
+               History_Rows.Append
+                 (Row_Target'(Bounded (G.History.Commit_Id (Cached_Log, I)), 1, False));
+               Append (H, (if G.History.Is_Merge (Cached_Log, I) then "M " else "* ")
+                 & Label (G.History.Abbreviated (Cached_Log, I) & " "
+                          & G.History.Commit_Date (Cached_Log, I)
+                          & (if Refs'Length = 0 then "" else " (" & Refs & ")")
+                          & " " & G.History.Subject (Cached_Log, I))
+                 & " [parents: " & G.History.Parents (Cached_Log, I) & "]" & LF);
             end;
          end loop;
       end;
       declare
-         Raw : Unbounded_String;
+         Listing : G.Snapshots.Inventory;
       begin
          if V.Kind = M.Commit then
             if Target /= Cached_Tree_Key then
-               Cached_Tree := To_Unbounded_String (Git (Args ("ls-tree") + "-r" + "--name-only" + "-z" + To_String (Target)));
+               G.Snapshots.List (Repo, Shot, Options => Query_Options,
+                                 Result => Cached_Tree, Error => Error);
+               Check (Error);
                Cached_Tree_Key := Target;
             end if;
-            Raw := Cached_Tree;
+            Listing := Cached_Tree;
          else
-            Raw := To_Unbounded_String (Git (Args ("ls-files") + "--cached" + "--full-name" + "-z"));
-            if V.Kind = M.Worktree then
-               declare
-                  Untracked : constant String := Git (Args ("ls-files") + "--others" + "--exclude-standard" + "--full-name" + "-z");
-               begin
-                  Append (Raw, Untracked);
-                  for Path of Split (Untracked, NUL) loop Untracked_Paths.Include (To_String (Path)); end loop;
-               end;
-            end if;
+            G.Snapshots.List (Repo, Shot, Include_Untracked => V.Kind = M.Worktree,
+                              Options => Query_Options, Result => Listing,
+                              Error => Error);
+            Check (Error);
          end if;
-         for Path of Split (To_String (Raw), NUL) loop
-            Inventory.Include (To_String (Path));
+         for I in 1 .. G.Snapshots.Count (Listing) loop
+            Inventory.Include (G.Snapshots.Path (Listing, I));
+            if G.Snapshots.Is_Untracked (Listing, I) then
+               Untracked_Paths.Include (G.Snapshots.Path (Listing, I));
+            end if;
          end loop;
       end;
       declare
@@ -592,42 +498,23 @@ package body Git_View_Repository with SPARK_Mode => Off is
       if V.Repository_Search.Last > 0 then
          T := Null_Unbounded_String; Tree_Rows.Clear;
          --  Search the actual snapshot, including unchanged tracked files.
-         --  git grep's NUL path separator avoids ambiguity in path bytes.
          declare
-            A : Strings.Vector := Args ("grep") + "-I" + "-n" + "-z" + "-F"
-              + "-e" + M.Image (V.Repository_Search);
+            Matches : G.Snapshots.Match_List;
          begin
-            if V.Kind = M.Commit then A := A + To_String (Target);
-            elsif V.Kind = M.Staging then A := A + "--cached"; end if;
-            A := A + "--";
-            declare
-               Raw : constant String := Git (A, True);
-               Pos : Positive := 1;
-            begin
-               while Pos <= Raw'Last loop
-                  declare
-                     Sep : constant Natural := Ada.Strings.Fixed.Index (Raw, "" & NUL, Pos);
-                     Num_End : Natural;
-                     Last : Natural;
-                  begin
-                     exit when Sep = 0;
-                     Num_End := Ada.Strings.Fixed.Index (Raw, "" & NUL, Sep + 1);
-                     exit when Num_End = 0;
-                     Last := Ada.Strings.Fixed.Index (Raw, "" & LF, Num_End + 1);
-                     if Last = 0 then Last := Raw'Last + 1; end if;
-                     declare
-                        Path : constant String := Raw
-                          (Pos + (if V.Kind = M.Commit then Length (Target) + 1 else 0) .. Sep - 1);
-                        Line : constant Positive := Positive'Value (Raw (Sep + 1 .. Num_End - 1));
-                     begin
-                        Add_Row (Path, Label (Path) & ":" & Trim (Line'Image) & ": "
-                          & Label (Raw (Num_End + 1 .. Last - 1)), Change (Path) > 0,
-                          Tui.Text.Line_Number'Min (Line, Tui.Text.Line_Number'Last));
-                     end;
-                     Pos := Last + 1;
-                  end;
-               end loop;
-            end;
+            G.Snapshots.Search (Repo, Shot, M.Image (V.Repository_Search),
+                                Query_Options, Result => Matches,
+                                Error => Error);
+            Check (Error);
+            for I in 1 .. G.Snapshots.Count (Matches) loop
+               declare
+                  Path : constant String := G.Snapshots.Path (Matches, I);
+                  Line : constant Positive := G.Snapshots.Line (Matches, I);
+               begin
+                  Add_Row (Path, Label (Path) & ":" & Trim (Line'Image) & ": "
+                    & Label (G.Snapshots.Text (Matches, I)), Change (Path) > 0,
+                    Tui.Text.Line_Number'Min (Line, Tui.Text.Line_Number'Last));
+               end;
+            end loop;
          end;
          if Tree_Rows.Is_Empty then Append (T, "[no snapshot search matches]" & LF); end if;
       end if;

@@ -10,7 +10,7 @@
 --  pane-sized surface and composited into the screen with the surface
 --  crate's region copy. The engine knows nothing about git; this package
 --  decides policy (the keymap, the selection, the status line) and pulls
---  content through the subprocess edge.
+--  content through the repository edge.
 --
 --  Like the standalone pager's app package, this is proved SPARK. Both
 --  documents are owned, line-indexed holders whose predicate ties the buffer
@@ -39,7 +39,7 @@ is
    function Has_Documents return Boolean with Global => (Input => State);
 
    --  Load the commit list and the first commit's diff through the git
-   --  subprocess edge. Ok is False when the log could not be loaded (then
+   --  repository edge. Ok is False when the log could not be loaded (then
    --  nothing is held and the host should exit with a message); a diff
    --  failure is not fatal — the pane shows the error and a note is posted.
    procedure Init

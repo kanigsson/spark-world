@@ -1,9 +1,10 @@
 with Git_View_Model;
 with Tui.Text;
 
---  Git/OS adapter. Only the worker accesses Git or mutable filesystem data.
---  Documents and row identities are transferred together, never reparsed
---  from escaped presentation text. No external command uses a shell.
+--  Repository adapter. Every question about the repository — snapshots,
+--  contents, comparisons, history — is asked through the git_changes
+--  library, and only the worker asks them. Documents and row identities are
+--  transferred together, never reparsed from escaped presentation text.
 package Git_View_Repository with SPARK_Mode => On,
   Abstract_State => State, Initializes => State
 is

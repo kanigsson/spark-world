@@ -1,20 +1,18 @@
---  Git_View_Source — the git subprocess edge, with a machine-checked
---  boundary.
+--  Git_View_Source — the repository edge, with a machine-checked boundary.
 --
---  This is the one place git is run. This spec carries the contracts the
---  proved app checks against (above all, that a loaded document reference
---  is never null where the app needs one), and they are PROVED, not
---  trusted: the body is SPARK too, holding the policy — argument
---  construction, exit-code handling, the failure fallback. Only the
---  spawn/capture mechanics sit behind a trusted private child, mirroring
---  the terminal driver's syscall edge.
+--  This is where the history and diff this frontend shows come from. The
+--  spec carries the contracts the proved app checks against (above all,
+--  that a loaded document reference is never null where the app needs one),
+--  and they are PROVED, not trusted: the body is SPARK too, holding the
+--  policy — what a failed load means for the document, the failure
+--  fallback. Only the repository access itself sits behind a trusted
+--  private child, mirroring the terminal driver's syscall edge.
 --
---  Output capture goes through a temporary file rather than a pipe: the
---  subprocess can emit arbitrarily much (a huge diff) without anyone having
---  to drain a pipe concurrently, and the file is then read back with the
---  same single-buffer pattern the standalone pager uses for regular files.
+--  No git process is started here. The git_changes library owns every
+--  repository query this program makes, including capturing however much a
+--  huge diff produces; this edge asks it questions and renders the answers.
 --
---  Trusted pairing (prose contract): Load_Log's format keeps the abbreviated
+--  Trusted pairing (prose contract): Load_Log renders the abbreviated
 --  commit id as the first space-terminated token of every line — exactly
 --  what the proved commit-id parser expects.
 
@@ -49,8 +47,8 @@ package Git_View_Source with SPARK_Mode => On is
    with Post => Image'Result'First = 1
                 and then Image'Result'Length = Value.Len;
 
-   --  Read-only git-log filters. Bounded strings keep the command policy in
-   --  SPARK and cross the OS edge as individual argv entries, never a shell
+   --  Read-only history filters. Bounded strings keep the query policy in
+   --  SPARK and cross the repository edge as typed fields, never as a shell
    --  command. A zero-length value means that filter is absent.
    Max_Filter_Length : constant := 255;
    subtype Filter_Length is Natural range 0 .. Max_Filter_Length;
@@ -87,11 +85,11 @@ package Git_View_Source with SPARK_Mode => On is
    --  once at startup to fail with a clear message instead of a dead screen.
    function Available return Boolean with Global => null;
 
-   --  Run git log in the current directory and load its output into a fresh
-   --  document: one line per commit, the abbreviated id first. Ok is False —
-   --  and Doc null — when git could not run or reported failure (typically:
-   --  not inside a repository); git's own message goes to standard error,
-   --  which is still the terminal at startup.
+   --  Walk the history of the repository in the current directory into a
+   --  fresh document: one line per commit, the abbreviated id first. Ok is
+   --  False — and Doc null — when the walk failed (typically: not inside a
+   --  repository); the backend's own message goes to standard error, which
+   --  is still the terminal at startup.
    procedure Load_Log
      (From    : Revision;
       Filter  : Filters;
@@ -100,11 +98,11 @@ package Git_View_Source with SPARK_Mode => On is
    with Global => null,
         Post   => Ok = (Doc /= null);
 
-   --  Replace Doc with the diff of one commit (git show): any document it
-   --  held is reclaimed, then the subprocess output is loaded fresh. Never
-   --  null on return: on failure the document holds git's error text (or a
-   --  one-line fallback) and Ok is False, so the caller can post a note
-   --  while the diff pane stays well-formed.
+   --  Replace Doc with the patch text of one commit: any document it held
+   --  is reclaimed, then the commit is loaded fresh. Never null on return:
+   --  on failure the document holds the backend's error text (or a one-line
+   --  fallback) and Ok is False, so the caller can post a note while the
+   --  diff pane stays well-formed.
    procedure Load_Diff
      (Id  : Git_View_Sha.Sha;
       Doc : in out Tui.Text.Doc_Ref;

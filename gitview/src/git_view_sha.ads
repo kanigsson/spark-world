@@ -30,7 +30,7 @@ package Git_View_Sha with SPARK_Mode => On is
 
    function Valid (S : Sha) return Boolean is (S.Len > 0);
 
-   --  The id's characters, 1-based — ready for a subprocess argument or the
+   --  The id's characters, 1-based — ready for a repository query or the
    --  status line.
    function Image (S : Sha) return String is (S.Text (1 .. S.Len))
    with Post => Image'Result'First = 1 and then Image'Result'Length = S.Len;

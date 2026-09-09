@@ -6,9 +6,9 @@ in [README.md](README.md). Add `--legacy` to the invocations below.
 A **git-history viewer** — and the proof-of-ecosystem application (Phase 5 of
 the parent `ROADMAP.md`): it embeds the proved `tui_pager` engine **twice**,
 as a commit-list pane and a diff pane composited into one surface, on the
-`tui_term` driver. The engine knows nothing about git; this host supplies
-content from git subprocesses at a trusted edge while all state and policy
-stay proved SPARK.
+`tui_term` driver. The engine knows nothing about git; this host gets its
+content from the `git-changes` library at a trusted edge while all state and
+policy stay proved SPARK.
 
 ## Use
 
@@ -125,7 +125,7 @@ exercises two things the standalone pager does not:
 
 - **Two independent engine instances** over two documents, one of which is
   **swapped at run time** (Enter frees the old diff document and loads the
-  new one through the subprocess edge — the document predicate keeps the
+  new one through the repository edge — the document predicate keeps the
   engines' content contracts discharged across the swap).
 - **A selection.** The engine is a pure viewport; the highlighted "current
   commit" is app state, kept inside the visible slice by proved coupling
@@ -145,9 +145,9 @@ the status `Line` buffer come from the shared
 [`tui_app_kit`](../appkit/README.md) crate — this app was their second
 consumer, which by the ecosystem's rule triggered the extraction — and are
 proved there. Only the OS edges are trusted
-(`SPARK_Mode => Off` bodies): the entry point (`Git_View_Main`) and the git
-subprocess glue behind the proved `Git_View_Source` spec, which captures
-output through a temporary file and never hands back a null diff document.
+(`SPARK_Mode => Off` bodies): the entry point (`Git_View_Main`) and the
+repository adapter behind the proved `Git_View_Source` spec, which drives the
+`git-changes` library and never hands back a null diff document.
 
 One contract is prose, not machine-checked: the log format the source uses
 keeps the abbreviated commit id as the first space-terminated token of every
@@ -169,7 +169,7 @@ alire.toml      crate manifest (depends on tui_pager, tui_term, tui_text,
 git_view.gpr    executable project (Main renamed to `git_view`)
 src/
   git_view_main.adb           entry point: startup checks + Event_Loop   [Off]
-  git_view_source.ads/adb     git subprocess edge (spec proved, body Off)
+  git_view_source.ads/adb     repository edge (spec proved, body Off)
   git_view_app.ads/adb        state + Paint/On_Key callbacks            [proved]
   git_view_policy.ads/adb     focus-aware keymap                        [proved]
   git_view_list.ads/adb       selection/viewport coupling               [proved]
