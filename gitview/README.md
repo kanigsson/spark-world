@@ -74,6 +74,13 @@ the forward branch.
 SPARK, with Silver verification of runtime safety. The existing proved pager,
 input, layout, search, and legacy viewer remain in use.
 
+`Behavior_Tests` pins the decisions those units make -- commit-id and
+ref-decoration parsing, landmark navigation, diff-line and syntax
+classification, the keymap, the layout breakpoints and the status text -- from
+literal inputs, with no repository, terminal or timing involved. Proof covers
+safety; this suite covers intent, and is what a move of this code between
+frontends or crates is checked against.
+
 `Git_View_Repository` is a trusted repository adapter. Every Git query it
 makes goes through the sibling [`git-changes`](../../git-changes) Ada
 library: change kinds, old/new paths, metadata, changed spans, snapshot
@@ -94,6 +101,7 @@ gprbuild -P git_view.gpr -j4
 gnatprove -P git_view.gpr --level=2 -j4
 gprbuild -P tests/explorer_tests.gpr -j4
 obj/tests/model_tests
+obj/tests/behavior_tests
 python3 tests/run_explorer_tests.py
 python3 tests/run_explorer_pty_tests.py
 python3 tests/run_mouse_tests.py        # legacy regression suite

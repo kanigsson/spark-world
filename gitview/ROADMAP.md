@@ -1,5 +1,10 @@
 # git_view roadmap
 
+Completed entries are deleted from this file rather than kept with a
+"done" marker, so everything here is work that remains. What was built
+and why is recorded in the commit history and, where it is user-visible,
+in the README.
+
 ## Temporal explorer MVP
 
 Implemented as the default frontend: snapshot tree and full-file change lenses,
@@ -215,22 +220,6 @@ diff swaps.
 
 ## Near-term improvements
 
-### Responsive and controllable panes
-
-Status: implemented.
-
-The current 45/55 split only collapses when the terminal is fewer than three
-columns wide, so narrow terminals do not yet degrade gracefully.
-
-- A 57-column breakpoint provides a useful single-pane layout.
-- `z` maximizes or restores the focused pane.
-- `,` and `.`, or separator dragging, resize the split.
-- A blue half-block separator points into the focused pane.
-- A resize that hides the diff returns focus to the list; Tab opens the diff
-  maximized when the terminal remains narrow.
-
-This is likely the highest-value small improvement.
-
 ### Preserve navigation state
 
 Opening a commit currently creates a fresh pager engine, losing its viewport
@@ -256,20 +245,6 @@ As the keymap grows, add an F1 help overlay. Useful small actions include:
 
 Mutating operations such as checkout or reset should remain outside the first
 iteration, or require an explicit confirmation layer.
-
-### Focused behavioral tests
-
-The PTY test provides strong end-to-end coverage, but it is one large,
-sleep-driven script. Add deterministic functional tests for:
-
-- Commit-ID and ref-decoration parsing.
-- Landmark navigation.
-- Syntax and diff-line classification.
-- Key policy.
-- Responsive layout breakpoints.
-- Status formatting.
-
-Proof establishes safety; these tests should pin the intended semantics.
 
 ## Architectural foundation
 
@@ -372,14 +347,7 @@ of its entries are not wrong, they are homeless.
 
 Each step here unblocks the next.
 
-1. **Focused behavioral tests.** Promoted from fourth to first. Deterministic
-   tests for layout breakpoints, key policy, landmark navigation, diff and
-   syntax classification, and status formatting are the regression net for
-   steps 2 to 5, which move all of that code. Proof establishes safety but
-   says nothing about intended semantics being preserved across a move, and
-   the single sleep-driven PTY script is not a net that catches a refactor.
-
-2. **Crate consolidation.** Eight `tui_*` crates to two: everything proved
+1. **Crate consolidation.** Eight `tui_*` crates to two: everything proved
    and OS-free in one, the terminal driver separate because its
    `SPARK_Mode => Off` status is a real trust boundary. No consumer currently
    takes a subset of the eight, and the root-namespace crate exists only as an
@@ -387,15 +355,19 @@ Each step here unblocks the next.
    the API regardless of packaging — but it must precede publication, because
    crate boundaries become a compatibility promise once indexed.
 
-3. **Extract the pane layer.** Layout, hit-testing returning pane-local
+2. **Extract the pane layer.** Layout, hit-testing returning pane-local
    coordinates, the gesture recognizer with wheel and boundary behaviour as
    declared policy rather than as per-frontend accident, the selection
    overlay, the selection-to-viewport coupling, and the clipboard encoder,
    with emission moved to the driver where effects belong. This retires the
    "split-pane resizing and clipboard selection in the explorer" follow-up as
-   a by-product rather than as a third implementation of it.
+   a by-product rather than as a third implementation of it. The selection
+   and viewport coupling, the gesture recognizer and the clipboard encoder
+   are the one part of the moved code the behavioural tests deliberately
+   leave alone, because testing them where they are today means writing those
+   tests twice; they want tests once they have one home.
 
-4. **Structured commit records and a narrowed backend query key.** The commit
+3. **Structured commit records and a narrowed backend query key.** The commit
    row type the section above already asks for, plus splitting the view state
    into the part that determines what the repository is asked and the part
    that determines only how it is drawn. Today the whole view state is the
@@ -404,14 +376,14 @@ Each step here unblocks the next.
    working-tree and index rows, all three of which need a row identity that a
    field typed as a path cannot carry.
 
-5. **Backend unification.** The legacy frontend moves onto the explorer's
+4. **Backend unification.** The legacy frontend moves onto the explorer's
    repository worker through its existing synchronous entry point, which
    avoids converting it to the asynchronous protocol at the same time. Needs
    one addition: an optional patch document in the frame, since the explorer
    replaced patches with annotated source and the legacy diff pane, its
    landmark navigation and its colouring all read patch text directly.
 
-6. **Retire the legacy frontend.** With the pane layer and one backend in
+5. **Retire the legacy frontend.** With the pane layer and one backend in
    place it is a layout preset — two panes and a lens choice — not a second
    program. This is the step that re-homes the entries above: per-location
    view-state retention, help overlay and copy actions, interactive filtering
@@ -436,7 +408,7 @@ behind a refactor.
   history query first. Worth doing early — it is a visible omission, and the
   smallest of the items here once that accessor exists.
 - Intra-line diff spans, and working-tree and index rows in the history pane.
-  The two exceptions in this track: both need step 4, the first because the
+  The two exceptions in this track: both need step 3, the first because the
   mark array carries one value per line and cannot express a column range, the
   second because a synthetic row has no object name to carry.
 - Multiple persistent pins, and snapshot-wide path search that adds to the
