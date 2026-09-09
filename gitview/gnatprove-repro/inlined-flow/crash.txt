@@ -1,0 +1,236 @@
+warning: invocation switch "--report" in attribute "Proof_Switches ("Ada")" of non-root project "/home/kanig/tools/pager/input/tui_input.gpr" is ignored
+warning: invocation switch "--report" in attribute "Proof_Switches ("Ada")" of non-root project "/home/kanig/tools/pager/surface/tui_surface.gpr" is ignored
+warning: invocation switch "--report" in attribute "Proof_Switches ("Ada")" of non-root project "/home/kanig/tools/pager/text/tui_text.gpr" is ignored
+warning: invocation switch "--report" in attribute "Proof_Switches ("Ada")" of non-root project "/home/kanig/tools/pager/width/tui_width.gpr" is ignored
+warning: invocation switch "--report" in attribute "Proof_Switches ("Ada")" of non-root project "/home/kanig/tools/pager/pager/tui_pager.gpr" is ignored
+warning: invocation switch "--report" in attribute "Proof_Switches ("Ada")" of non-root project "/home/kanig/tools/pager/appkit/tui_app_kit.gpr" is ignored
+warning: invocation switch "--report" in attribute "Proof_Switches ("Ada")" of non-root project "/home/kanig/tools/pager/term/tui_term.gpr" is ignored
+warning: invocation switch "--report" in attribute "Proof_Switches ("Ada")" of non-root project "/home/kanig/tools/pager/gitview/git_view.gpr" is ignored
+[Ada Global_Gen]  git_view_explorer.adb
+[Ada Global_Gen]  git_view_model.adb
+[Ada Global_Gen]  git_view_repository.adb
+[Ada Analysis]    git_view_explorer.adb
++===========================GNAT BUG DETECTED==============================+
+| Pro 27.0w (19940713) (spark) Assert_Failure failed precondition from flow_types.ads:544|
+| Error detected at git_view_explorer.adb:403:18                           |
+| Compiling /home/kanig/tools/pager/gitview/gnatprove-repro/inlined-flow/git_view_explorer.adb|
+| Please submit a bug report using GNATtracker at                          |
+| https://support.adacore.com/csm by using the button 'Create New Case'.   |
+| Or submit a bug report by email to support@adacore.com                   |
+| and include your customer number #nnn in the subject line.               |
+| Use a subject line meaningful to you and us to track the bug.            |
+| Include the entire contents of this bug box in the report.               |
+| Include the exact command that you entered.                              |
+| Also include sources listed below.                                       |
+| Use plain ASCII or MIME attachment(s).                                   |
++==========================================================================+
+
+Please include these source files with error report
+Note that list may not be accurate in some cases,
+so please double check that the problem can still
+be reproduced with the set of files listed.
+Consider also -gnatd.n switch (see debug.adb).
+
+/home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/system.ads
+/home/kanig/tools/pager/gitview/gnatprove-repro/inlined-flow/git_view_explorer.adb
+/home/kanig/tools/pager/gitview/gnatprove-repro/inlined-flow/git_view_explorer.ads
+/home/kanig/tools/pager/gitview/src/git_view_source.ads
+/home/kanig/tools/pager/core/src/tui.ads
+/home/kanig/tools/pager/text/src/tui-text.ads
+/home/kanig/tools/pager/gitview/src/git_view_sha.ads
+/home/kanig/tools/pager/gitview/src/git_view_model.ads
+/home/kanig/tools/pager/pager/src/tui-pager.ads
+/home/kanig/tools/pager/pager/src/tui-pager-engine.ads
+/home/kanig/tools/pager/surface/src/tui-surface.ads
+/home/kanig/tools/pager/pager/src/tui-pager-view.ads
+/home/kanig/tools/pager/gitview/gnatprove-repro/inlined-flow/git_view_repository.ads
+/home/kanig/tools/pager/input/src/tui-input.ads
+/home/kanig/tools/pager/gitview/src/git_view_list.ads
+/home/kanig/tools/pager/gitview/src/git_view_policy.ads
+/home/kanig/tools/pager/gitview/src/git_view_navigation.ads
+/home/kanig/tools/pager/appkit/src/tui-app_kit.ads
+/home/kanig/tools/pager/appkit/src/tui-app_kit-search_input.ads
+
+ info: initialization of "V" constituent of "State" proved
+--> git_view_explorer.adb:27:04
+
+ info: initialization of "Stack" constituent of "State" proved
+--> git_view_explorer.adb:28:04
+
+ info: initialization of "Data" constituent of "State" proved
+--> git_view_explorer.adb:29:04
+
+ info: initialization of "Editor" constituent of "State" proved
+--> git_view_explorer.adb:33:04
+
+ info: initialization of "Message" constituent of "State" proved
+--> git_view_explorer.adb:37:04
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:61:07
+
+ info: non-aliasing of formal parameters "E" and "Selected" proved
+--> git_view_explorer.adb:126:32
+
+ warning: "Result" is set by "Handle" but not used after the call, in call inlined at git_view_explorer.adb:235
+--> git_view_explorer.adb:221:114
+  221 |                if Data.History /= null then E.Handle (V.Views (V.Focus), Cmd, Data.History.Bytes, Data.History.Idx, Result); end if;
+      |                                                                                                                     ^
+
+ warning: "Result" is set by "Handle" but not used after the call, in call inlined at git_view_explorer.adb:243
+--> git_view_explorer.adb:221:114
+  221 |                if Data.History /= null then E.Handle (V.Views (V.Focus), Cmd, Data.History.Bytes, Data.History.Idx, Result); end if;
+      |                                                                                                                     ^
+
+ warning: "Result" is set by "Handle" but not used after the call, in call inlined at git_view_explorer.adb:244
+--> git_view_explorer.adb:221:114
+  221 |                if Data.History /= null then E.Handle (V.Views (V.Focus), Cmd, Data.History.Bytes, Data.History.Idx, Result); end if;
+      |                                                                                                                     ^
+
+ warning: "Result" is set by "Handle" but not used after the call, in call inlined at git_view_explorer.adb:235
+--> git_view_explorer.adb:223:105
+  223 |                if Data.Tree /= null then E.Handle (V.Views (V.Focus), Cmd, Data.Tree.Bytes, Data.Tree.Idx, Result); end if;
+      |                                                                                                            ^
+
+ warning: "Result" is set by "Handle" but not used after the call, in call inlined at git_view_explorer.adb:243
+--> git_view_explorer.adb:223:105
+  223 |                if Data.Tree /= null then E.Handle (V.Views (V.Focus), Cmd, Data.Tree.Bytes, Data.Tree.Idx, Result); end if;
+      |                                                                                                            ^
+
+ warning: "Result" is set by "Handle" but not used after the call, in call inlined at git_view_explorer.adb:244
+--> git_view_explorer.adb:223:105
+  223 |                if Data.Tree /= null then E.Handle (V.Views (V.Focus), Cmd, Data.Tree.Bytes, Data.Tree.Idx, Result); end if;
+      |                                                                                                            ^
+
+ warning: "Result" is set by "Handle" but not used after the call, in call inlined at git_view_explorer.adb:235
+--> git_view_explorer.adb:225:111
+  225 |                if Data.Source /= null then E.Handle (V.Views (V.Focus), Cmd, Data.Source.Bytes, Data.Source.Idx, Result); end if;
+      |                                                                                                                  ^
+
+ warning: "Result" is set by "Handle" but not used after the call, in call inlined at git_view_explorer.adb:243
+--> git_view_explorer.adb:225:111
+  225 |                if Data.Source /= null then E.Handle (V.Views (V.Focus), Cmd, Data.Source.Bytes, Data.Source.Idx, Result); end if;
+      |                                                                                                                  ^
+
+ warning: "Result" is set by "Handle" but not used after the call, in call inlined at git_view_explorer.adb:244
+--> git_view_explorer.adb:225:111
+  225 |                if Data.Source /= null then E.Handle (V.Views (V.Focus), Cmd, Data.Source.Bytes, Data.Source.Idx, Result); end if;
+      |                                                                                                                  ^
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:235:32
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:243:69
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:244:90
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:254:10
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:270:13
+
+ warning: initialization of "Row" has no effect
+--> git_view_explorer.adb:276:07
+  276 |          Row : Tui.Text.Line_Total := 0;
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ info: analyzing call to "Follow" in context
+--> git_view_explorer.adb:307:70
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:326:75
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:343:19
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:352:56
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:354:62
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:360:114
+
+ info: analyzing call to "Follow" in context
+--> git_view_explorer.adb:376:83
+
+ info: analyzing call to "Move_Selection" in context
+--> git_view_explorer.adb:378:21
+
+ info: analyzing call to "Follow" in context
+--> git_view_explorer.adb:382:37
+
+ info: analyzing call to "Move_Selection" in context
+--> git_view_explorer.adb:383:53
+
+ info: analyzing call to "Move_Selection" in context
+--> git_view_explorer.adb:384:51
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:385:53
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:386:54
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:387:58
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:388:39
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:389:53
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:390:56
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:391:27
+
+ info: analyzing call to "Drive" in context
+--> git_view_explorer.adb:392:27
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:393:64
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:394:64
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:396:72
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:399:81
+
+ info: analyzing call to "Reload" in context
+--> git_view_explorer.adb:400:27
+
+ info: analyzing call to "Jump_Change" in context
+--> git_view_explorer.adb:401:44
+
+ info: analyzing call to "Jump_Change" in context
+--> git_view_explorer.adb:402:44
+
+ info: flow dependencies proved
+--> git_view_explorer.ads:8:46
+
+ info: data dependencies proved
+--> git_view_explorer.ads:17:11
+
+ medium: "git_view_repository.mailbox" must be a global Input of "Tick"
+--> git_view_explorer.ads:22:11
+   22 |         with Global => (In_Out => State);
+      |              ^~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ medium: "git_view_repository.mailbox" must be a global Input of "Stop"
+--> git_view_explorer.ads:23:24
+   23 |       procedure Stop with Global => (In_Out => State);
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~~~
+
+compilation abandoned
+Summary logged in /home/kanig/tools/pager/gitview/gnatprove-repro/inlined-flow/obj/gnatprove/gnatprove.out
+gnatprove: error during analysis of data and information flow

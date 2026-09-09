@@ -1,0 +1,31 @@
+[Ada Global_Gen]  documents.ads
+[Ada Global_Gen]  repro.adb
++===========================GNAT BUG DETECTED==============================+
+| Pro 27.0w (19940713) (spark) Assert_Failure failed precondition from einfo-entities.ads:1997|
+| Error detected at repro.adb:2:14                                         |
+| Compiling /home/kanig/tools/pager/gitview/gnatprove-repro/document-parameter/repro.adb|
+| Please submit a bug report using GNATtracker at                          |
+| https://support.adacore.com/csm by using the button 'Create New Case'.   |
+| Or submit a bug report by email to support@adacore.com                   |
+| and include your customer number #nnn in the subject line.               |
+| Use a subject line meaningful to you and us to track the bug.            |
+| Include the entire contents of this bug box in the report.               |
+| Include the exact command that you entered.                              |
+| Also include sources listed below.                                       |
+| Use plain ASCII or MIME attachment(s).                                   |
++==========================================================================+
+
+Please include these source files with error report
+Note that list may not be accurate in some cases,
+so please double check that the problem can still
+be reproduced with the set of files listed.
+Consider also -gnatd.n switch (see debug.adb).
+
+/home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/system.ads
+/home/kanig/tools/pager/gitview/gnatprove-repro/document-parameter/repro.adb
+/home/kanig/tools/pager/gitview/gnatprove-repro/document-parameter/repro.ads
+/home/kanig/tools/pager/gitview/gnatprove-repro/document-parameter/documents.ads
+
+compilation abandoned
+Summary logged in /home/kanig/tools/pager/gitview/gnatprove-repro/document-parameter/obj/gnatprove/gnatprove.out
+gnatprove: error during analysis of data and information flow
