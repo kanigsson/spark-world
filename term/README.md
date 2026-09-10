@@ -99,7 +99,7 @@ left it.
 ## Layout
 
 ```
-alire.toml          crate manifest (depends on tui_core, tui_surface, tui_input)
+alire.toml          crate manifest (depends on tui)
 tui_term.gpr        library project
 src/                Tui.Term (+ .Mode .Output .Signals .Input .Event_Loop)
 tests/              test_output: redirects fd 1 through a pipe, asserts the bytes
@@ -109,7 +109,7 @@ demo/               throwaway: a movable colour box driven by Event_Loop (NOT SP
 ## Proof status
 
 This is the OS edge: `SPARK_Mode => Off`, by design. There are no proofs here —
-the verifiable work lives in the layers below (`tui_surface`, `tui_input`,
-`tui_pager`), which this crate only reads from and writes out. Correctness here
+the verifiable work lives in the layers below (`Tui.Surface`, `Tui.Input`,
+`Tui.Pager`), which this crate only reads from and writes out. Correctness here
 is pinned by the terminal-free `tests/` (deterministic byte assertions) and by
 dogfooding the `demo/`.

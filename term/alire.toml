@@ -13,16 +13,8 @@ project-files = ["tui_term.gpr"]
 "*".contracts = "Yes"
 
 [[depends-on]]
-tui_core = "*"
-[[depends-on]]
-tui_surface = "*"
-[[depends-on]]
-tui_input = "*"
+tui = "*"
 
 # No Alire index in this workspace; pin the sibling crates by path.
 [[pins]]
-tui_core = { path = "../core" }
-[[pins]]
-tui_surface = { path = "../surface" }
-[[pins]]
-tui_input = { path = "../input" }
+tui = { path = "../tui" }

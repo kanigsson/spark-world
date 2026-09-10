@@ -3,9 +3,7 @@
 --  controlled/interrupt machinery are SPARK_Mode Off; the byte-level work on
 --  either side of them — key decoding, escape/SGR assembly — is proved SPARK.
 
-with "../core/tui_core.gpr";
-with "../surface/tui_surface.gpr";
-with "../input/tui_input.gpr";
+with "../tui/tui.gpr";
 
 library project Tui_Term is
 
@@ -16,7 +14,7 @@ library project Tui_Term is
    for Library_Dir use "lib";
 
    package Compiler is
-      case Tui_Core.Mode is
+      case Tui.Mode is
          when "debug" =>
             for Default_Switches ("Ada") use
               ("-gnat2012", "-gnatwa", "-gnata", "-g", "-O0");
