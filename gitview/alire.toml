@@ -11,32 +11,16 @@ executables = ["git_view"]
 project-files = ["git_view.gpr"]
 
 [[depends-on]]
-tui_pager = "*"
+tui = "*"
 [[depends-on]]
 tui_term = "*"
-[[depends-on]]
-tui_text = "*"
-[[depends-on]]
-tui_app_kit = "*"
 [[depends-on]]
 git_changes = "*"
 
 # No Alire index in this workspace; pin the sibling crates by path.
 [[pins]]
-tui_core = { path = "../core" }
-[[pins]]
-tui_surface = { path = "../surface" }
-[[pins]]
-tui_input = { path = "../input" }
-[[pins]]
-tui_width = { path = "../width" }
-[[pins]]
-tui_text = { path = "../text" }
-[[pins]]
-tui_pager = { path = "../pager" }
+tui = { path = "../tui" }
 [[pins]]
 tui_term = { path = "../term" }
-[[pins]]
-tui_app_kit = { path = "../appkit" }
 [[pins]]
 git_changes = { path = "../../git-changes" }

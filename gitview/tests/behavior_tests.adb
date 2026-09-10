@@ -337,7 +337,7 @@ procedure Behavior_Tests is
       --  Language detection from a unified-diff header.
       Header ("+++ b/src/x.adb", Syn.Ada_Lang);
       Header ("--- a/src/x.ads", Syn.Ada_Lang);
-      Header ("+++ b/tui_core.gpr", Syn.Ada_Lang);
+      Header ("+++ b/tui.gpr", Syn.Ada_Lang);
       Header ("+++ b/src/main.c", Syn.C_Family);
       Header ("+++ b/src/app.tsx", Syn.C_Family);
       Header ("--- a/run_tests.py", Syn.Python_Like);

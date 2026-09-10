@@ -347,15 +347,7 @@ of its entries are not wrong, they are homeless.
 
 Each step here unblocks the next.
 
-1. **Crate consolidation.** Eight `tui_*` crates to two: everything proved
-   and OS-free in one, the terminal driver separate because its
-   `SPARK_Mode => Off` status is a real trust boundary. No consumer currently
-   takes a subset of the eight, and the root-namespace crate exists only as an
-   artifact of the split. Zero source impact, since the package hierarchy is
-   the API regardless of packaging — but it must precede publication, because
-   crate boundaries become a compatibility promise once indexed.
-
-2. **Extract the pane layer.** Layout, hit-testing returning pane-local
+1. **Extract the pane layer.** Layout, hit-testing returning pane-local
    coordinates, the gesture recognizer with wheel and boundary behaviour as
    declared policy rather than as per-frontend accident, the selection
    overlay, the selection-to-viewport coupling, and the clipboard encoder,
@@ -367,7 +359,7 @@ Each step here unblocks the next.
    leave alone, because testing them where they are today means writing those
    tests twice; they want tests once they have one home.
 
-3. **Structured commit records and a narrowed backend query key.** The commit
+2. **Structured commit records and a narrowed backend query key.** The commit
    row type the section above already asks for, plus splitting the view state
    into the part that determines what the repository is asked and the part
    that determines only how it is drawn. Today the whole view state is the
@@ -376,14 +368,14 @@ Each step here unblocks the next.
    working-tree and index rows, all three of which need a row identity that a
    field typed as a path cannot carry.
 
-4. **Backend unification.** The legacy frontend moves onto the explorer's
+3. **Backend unification.** The legacy frontend moves onto the explorer's
    repository worker through its existing synchronous entry point, which
    avoids converting it to the asynchronous protocol at the same time. Needs
    one addition: an optional patch document in the frame, since the explorer
    replaced patches with annotated source and the legacy diff pane, its
    landmark navigation and its colouring all read patch text directly.
 
-5. **Retire the legacy frontend.** With the pane layer and one backend in
+4. **Retire the legacy frontend.** With the pane layer and one backend in
    place it is a layout preset — two panes and a lens choice — not a second
    program. This is the step that re-homes the entries above: per-location
    view-state retention, help overlay and copy actions, interactive filtering
@@ -408,7 +400,7 @@ behind a refactor.
   history query first. Worth doing early — it is a visible omission, and the
   smallest of the items here once that accessor exists.
 - Intra-line diff spans, and working-tree and index rows in the history pane.
-  The two exceptions in this track: both need step 3, the first because the
+  The two exceptions in this track: both need step 2, the first because the
   mark array carries one value per line and cannot express a column range, the
   second because a synthetic row has no object name to carry.
 - Multiple persistent pins, and snapshot-wide path search that adds to the

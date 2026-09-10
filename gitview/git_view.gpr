@@ -5,11 +5,8 @@
 --  git_changes library, which owns every repository query, while the app
 --  logic stays proved SPARK.
 
-with "../core/tui_core.gpr";
-with "../pager/tui_pager.gpr";
+with "../tui/tui.gpr";
 with "../term/tui_term.gpr";
-with "../text/tui_text.gpr";
-with "../appkit/tui_app_kit.gpr";
 with "../../git-changes/git_changes.gpr";
 
 project Git_View is
@@ -22,7 +19,7 @@ project Git_View is
    --  Inherits the build mode from Tui_Core (default "release"; pass
    --  -XMODE=debug to keep contracts and an unoptimised, debuggable build).
    package Compiler is
-      case Tui_Core.Mode is
+      case Tui.Mode is
          when "debug" =>
             for Default_Switches ("Ada") use ("-gnat2022", "-gnatwa", "-g", "-O0");
          when "release" =>

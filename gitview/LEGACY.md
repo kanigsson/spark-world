@@ -4,7 +4,7 @@ This manual describes `git_view --legacy`. The default explorer is documented
 in [README.md](README.md). Add `--legacy` to the invocations below.
 
 A **git-history viewer** — and the proof-of-ecosystem application (Phase 5 of
-the parent `ROADMAP.md`): it embeds the proved `tui_pager` engine **twice**,
+the parent `ROADMAP.md`): it embeds the proved `Tui.Pager` engine **twice**,
 as a commit-list pane and a diff pane composited into one surface, on the
 `tui_term` driver. The engine knows nothing about git; this host gets its
 content from the `git-changes` library at a trusted edge while all state and
@@ -142,7 +142,7 @@ colour scheme and diff-line classifier (`Git_View_Theme`), the multi-language
 lexer (`Git_View_Syntax`), and the
 app-specific status texts (`Git_View_Status`). The search-pattern editor and
 the status `Line` buffer come from the shared
-[`tui_app_kit`](../appkit/README.md) crate — this app was their second
+[`Tui.App_Kit`](../tui/docs/app_kit.md) layer — this app was their second
 consumer, which by the ecosystem's rule triggered the extraction — and are
 proved there. Only the OS edges are trusted
 (`SPARK_Mode => Off` bodies): the entry point (`Git_View_Main`) and the
@@ -164,8 +164,7 @@ gnatprove -P git_view.gpr --level=2      # the proofs
 ## Layout
 
 ```
-alire.toml      crate manifest (depends on tui_pager, tui_term, tui_text,
-                tui_app_kit)
+alire.toml      crate manifest (depends on tui, tui_term, git_changes)
 git_view.gpr    executable project (Main renamed to `git_view`)
 src/
   git_view_main.adb           entry point: startup checks + Event_Loop   [Off]
@@ -184,4 +183,4 @@ src/
 ```
 
 The search-pattern editor and the status `Line` buffer come from the
-shared `tui_app_kit` crate.
+shared `Tui.App_Kit` layer of the `tui` crate.
