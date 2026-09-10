@@ -1,0 +1,16 @@
+with "../tui.gpr";
+
+--  One test project for the whole library: the per-layer suites kept their
+--  names, so a failure still says which layer it came from.
+project Tests is
+   for Source_Dirs use ("src");
+   for Object_Dir use "obj";
+   for Exec_Dir use ".";
+   for Main use ("test_width.adb", "test_text.adb", "test_surface.adb",
+                 "test_input.adb", "test_engine.adb", "test_pager.adb",
+                 "test_app_kit.adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use ("-gnat2012", "-gnata", "-g", "-O0");
+   end Compiler;
+end Tests;
