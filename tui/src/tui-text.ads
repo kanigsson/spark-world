@@ -115,10 +115,10 @@ package Tui.Text with SPARK_Mode => On is
    --  It lives here, in Index's own unit, deliberately: not just nesting an
    --  Index but also allocating or declaring an access to a predicated
    --  discriminated type trips a GNATprove front-end crash when done from
-   --  another unit (see gnatprove-repro/). So the type, its owning reference,
-   --  and the allocate/free primitives all stay here; a host only holds the
-   --  reference and reads the fields, which is crash-free. The natural home
-   --  anyway -- "a buffer plus the index built over it".
+   --  another unit (reproduced and reported separately). So the type, its
+   --  owning reference, and the allocate/free primitives all stay here; a host
+   --  only holds the reference and reads the fields, which is crash-free. The
+   --  natural home anyway -- "a buffer plus the index built over it".
    type Document (Size : Byte_Count; Capacity : Line_Total) is record
       Bytes : Buffer (1 .. Size);
       Idx   : Index (Capacity);
