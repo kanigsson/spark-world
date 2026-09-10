@@ -111,10 +111,6 @@ Use one matching GNAT/GNATprove toolchain for the application and dependencies.
 The project uses Ada 2022. Alire pins the sibling TUI crates and git-changes.
 `-XMODE=debug` builds the TUI without optimization; release is the default.
 
-The two compiler-crash reproductions encountered during implementation are
-isolated under [gnatprove-repro](gnatprove-repro), with commands, captured
-diagnostics, and toolchain details. They are excluded from the normal build.
-
 This implements the text/Git MVP from
 [temporal_code_explorer_design.md](temporal_code_explorer_design.md). Semantic
 analysis, review annotations, combined merge views, and side-by-side rendering
