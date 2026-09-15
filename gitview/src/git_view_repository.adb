@@ -316,6 +316,23 @@ package body Git_View_Repository with SPARK_Mode => Off is
          Base_Only : Boolean := False;
          Old_Lines, New_Lines : Strings.Vector;
 
+         --  The source pane shows the snapshot file, so the gutter numbers
+         --  snapshot lines and every row is one column wide for the whole
+         --  file. A removed line has no snapshot line to name, so it leaves
+         --  that column blank rather than labelling itself: the sign and the
+         --  ghost styling already say where it came from.
+         Number_Width : Positive := 1;
+
+         function Gutter (Sign : Character; Line : Natural) return String is
+            Text : constant String := (if Line = 0 then "" else Trim (Line'Image));
+         begin
+            return Sign & ' ' & String'(1 .. Number_Width - Text'Length => ' ')
+              & Text & " | ";
+         end Gutter;
+
+         function Width_For (Count : Natural) return Positive is
+           (Trim (Natural'Image (Natural'Max (1, Count)))'Length);
+
          function Near_Change (Line : Natural) return Boolean is
          begin
             for J in 1 .. G.Span_Count (Cached_Changes, File) loop
@@ -348,8 +365,10 @@ package body Git_View_Repository with SPARK_Mode => Off is
          end if;
          if Base_Only then
             Emit ("[base-only deleted file] " & Label (To_String (Scope)), Ghost);
-            for Line of Split (To_String (Old_Content), LF) loop
-               Emit ("- [base] " & To_String (Line), Ghost);
+            Old_Lines := Split (To_String (Old_Content), LF);
+            Number_Width := Width_For (Natural (Old_Lines.Length));
+            for Line of Old_Lines loop
+               Emit (Gutter ('-', 0) & To_String (Line), Ghost);
             end loop;
             return;
          end if;
@@ -363,6 +382,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
          end if;
          Old_Lines := Split (To_String (Old_Content), LF);
          New_Lines := Split (To_String (New_Content), LF);
+         Number_Width := Width_For (Natural (New_Lines.Length));
          for L in 1 .. Natural (New_Lines.Length) + 1 loop
             --  Spans are sorted; walk once, keeping the overlay linear in
             --  file size plus number of spans. Deletions may anchor at EOF.
@@ -387,7 +407,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
                      end if;
                      for O in P.Old_First .. P.Old_First + P.Old_Count - 1 loop
                         if O in 1 .. Natural (Old_Lines.Length) then
-                           Emit ("- [base] " & To_String (Old_Lines (O)), Ghost);
+                           Emit (Gutter ('-', 0) & To_String (Old_Lines (O)), Ghost);
                         end if;
                      end loop;
                   end if;
@@ -409,8 +429,8 @@ package body Git_View_Repository with SPARK_Mode => Off is
                      end if;
                      if V.Lens = M.Plain then Emit (To_String (New_Lines (L)));
                      else
-                        Emit ((if Added then "+ " else "  ") & Trim (L'Image)
-                              & " | " & To_String (New_Lines (L)),
+                        Emit (Gutter ((if Added then '+' else ' '), L)
+                              & To_String (New_Lines (L)),
                               (if Added then Addition else Normal));
                      end if;
                   end if;

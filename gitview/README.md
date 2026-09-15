@@ -87,11 +87,20 @@ restrict the history list to that commit's ancestors: you can move both
 backward and forward through the original history scope.
 
 The source always comes from the selected snapshot. Changing the base changes
-annotations. Removed lines use italic, pale red `- [base]` ghost rows;
-deleted files are labeled base-only. Gutter and changed-lines lenses retain
-the full file. Hunk lenses retain nearby context. Binary files and changed
-submodules have placeholders. Untracked, nonignored files are available in
-the working-tree view.
+annotations. Each row carries a sign and the snapshot line it shows, in a
+column as wide as the file needs, so the text stays aligned throughout:
+
+```
+   40 | unchanged line
+-     | line the base had here
++  41 | line the snapshot has instead
+```
+
+Removed lines have no snapshot line to name, so they leave that column blank
+and are drawn as italic, pale red ghost rows; deleted files are labeled
+base-only. Gutter and changed-lines lenses retain the full file. Hunk lenses
+retain nearby context. Binary files and changed submodules have placeholders.
+Untracked, nonignored files are available in the working-tree view.
 
 Moving the selection is how the explorer is read: the history pane's row is
 the snapshot and the tree pane's row is the scope, so arriving on a row shows
