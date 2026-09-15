@@ -1,5 +1,5 @@
 name = "tui"
-description = "Proved terminal-UI foundations: widths, line index, surface, key decoding, pager engine, app kit (SPARK, no I/O)"
+description = "Proved terminal-UI foundations for panes and pagers (no I/O)"
 version = "0.1.0-dev"
 
 authors = ["kanig"]

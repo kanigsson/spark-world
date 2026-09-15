@@ -1,7 +1,8 @@
 --  The library crate: pure SPARK, no I/O, no OS. Everything the ecosystem can
 --  compute without touching a terminal lives here — the empty Tui root, UTF-8
 --  decoding, display widths, the line index, the cell surface and its diff,
---  the key decoder, the pager engine, and the shared app kit.
+--  the key decoder, the pager engine, the shared app kit, and the pane layer
+--  that composes several engines into one screen.
 --
 --  There is deliberately one boundary left in the ecosystem, and it is not a
 --  size boundary: the driver (tui_term) is SPARK_Mode => Off because it owns

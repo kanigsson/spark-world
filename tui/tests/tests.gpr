@@ -8,7 +8,7 @@ project Tests is
    for Exec_Dir use ".";
    for Main use ("test_width.adb", "test_text.adb", "test_surface.adb",
                  "test_input.adb", "test_engine.adb", "test_pager.adb",
-                 "test_app_kit.adb");
+                 "test_app_kit.adb", "test_panes.adb");
 
    package Compiler is
       for Default_Switches ("Ada") use ("-gnat2012", "-gnata", "-g", "-O0");

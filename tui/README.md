@@ -25,9 +25,11 @@ the build closure of everyone who only needs the proved parts.
 | [`Tui.Input`](docs/input.md) | terminal byte stream to key events | interprets bytes; never reads them |
 | [`Tui.Pager`](docs/pager.md) | the viewport engine: view, search, render | the heart of the ecosystem |
 | [`Tui.App_Kit`](docs/app_kit.md) | search-pattern editor, status-line buffer | what every host needed twice |
+| [`Tui.Panes`](docs/panes.md) | a row of panes: layout, hit-testing, gestures, selection, clipboard encoding | one engine paints one surface; this composes several |
 
 The dependency order is width, text, surface and input over the root, then the
-pager over those, then the app kit. It is a shallow DAG and stays one.
+pager over those, then the app kit and the pane layer. It is a shallow DAG and
+stays one.
 
 ## Why one crate
 
@@ -55,7 +57,7 @@ proves a single unit in seconds when that is what you want.
 gprbuild -P tui.gpr                          # the library
 gprbuild -P tests/tests.gpr                  # the behavioural suites
 (cd tests && for t in test_width test_text test_surface test_input \
-                     test_engine test_pager test_app_kit; do ./$t; done)
+                     test_engine test_pager test_app_kit test_panes; do ./$t; done)
 gprbuild -P demo/demo.gpr                    # the throwaway demos
 gnatprove -P tui.gpr --level=2 -j8           # the proofs
 gnatprove -P tui.gpr -u tui-width.adb        # ... or one unit at a time
