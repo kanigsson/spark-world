@@ -205,21 +205,36 @@ is
       Total : constant Tui.Text.Line_Total := Tui.Text.Line_Count (Index);
       Part : Surface := Blank (Rows, Width);
       Title : Surface := Blank (1, Width);
+      --  Sizing a viewport clamps its offset to the document it is given,
+      --  and selecting a row clamps it to the document's length. While a
+      --  load is in flight the document on screen is the previous one but
+      --  the view state already describes the one being fetched, so doing
+      --  either against the held frame would clamp an offset or a row that
+      --  is perfectly valid in the frame about to arrive. Render the held
+      --  frame through copies and leave the view state alone; the paint
+      --  that follows the frame does the real sizing.
+      Stale : constant Boolean := Loading;
+      View : E.Instance := V.Views (P);
+      Row_Selected : Tui.Text.Line_Number := V.Selected (P);
    begin
-      E.Resize (V.Views (P), Natural (Rows), Natural (Width), Total);
+      E.Resize (View, Natural (Rows), Natural (Width), Total);
       if Total > 0 and then P /= M.Source_Pane then
-         Tui.Panes.List.Clamp (V.Views (P), Total, V.Selected (P));
+         Tui.Panes.List.Clamp (View, Total, Row_Selected);
       end if;
-      E.Render (V.Views (P), Part, Content, Index);
+      if not Stale then
+         V.Views (P) := View;
+         V.Selected (P) := Row_Selected;
+      end if;
+      E.Render (View, Part, Content, Index);
       for Row in Row_Index range 1 .. Rows loop
          declare
-            Line : constant Natural := E.Top_Line (V.Views (P)) + Natural (Row) - 1;
+            Line : constant Natural := E.Top_Line (View) + Natural (Row) - 1;
             Kind : R.Mark := R.Normal;
          begin
             if P = M.Source_Pane and then Data.Marks /= null
               and then Line in Data.Marks'Range
             then Kind := Data.Marks (Line); end if;
-            if P /= M.Source_Pane and then Line = V.Selected (P) then
+            if P /= M.Source_Pane and then Line = Row_Selected then
                Mark.Row (Part, Row);
             elsif P = M.Source_Pane then
                for C in Col_Index range 1 .. Part.Cols loop
@@ -255,8 +270,8 @@ is
             First, Last : Tui.Panes.Selection.Position;
          begin
             Gest.Selected_Range (Mouse, First, Last);
-            Mark.Overlay (Part, E.Top_Line (V.Views (P)),
-                          E.Left_Col (V.Views (P)), First, Last);
+            Mark.Overlay (Part, E.Top_Line (View), E.Left_Col (View),
+                          First, Last);
          end;
       end if;
 
@@ -283,9 +298,19 @@ is
                    Rule       => Lay.Keep_Focused,
                    Result     => Places);
 
-      if Loading then
-         Put (S, 1, "Loading repository... (navigation and q remain available)");
-      elsif R.Loaded (Data) then
+      --  A frame already loaded stays on screen while the next one is
+      --  fetched. The alternative -- blanking the panes down to a banner --
+      --  makes every keystroke two full-screen repaints a few tens of
+      --  milliseconds apart, which is seen as a flash rather than as
+      --  progress. Holding the last frame means a keystroke costs only the
+      --  cells it actually changes: the selected row moves at once, and the
+      --  panes that follow it catch up when the worker answers. Only the
+      --  first load, with nothing to hold, shows the banner.
+      if not R.Loaded (Data) then
+         if Loading then
+            Put (S, 1, "Loading repository... (navigation and q remain available)");
+         end if;
+      else
          if Lay.Shown (Places (Index_Of (M.History_Pane))) then
             Paint_Pane (S, M.History_Pane, Data.History.Bytes, Data.History.Idx);
          end if;
@@ -320,10 +345,14 @@ is
          Snapshot : constant M.Text := (if Loading then V.Snapshot else Data.Resolved_Snapshot);
          Base : constant M.Text := (if Loading then V.Base else Data.Resolved_Base);
       begin
+         --  The panes still show the previous frame while one is in flight,
+         --  so the status line is where that is said: one word, in the place
+         --  the reader already looks for what is on screen.
          Put (S, S.Rows - 1, "snapshot: " & Snapshot.Data (1 .. Natural'Min (12, Snapshot.Last))
            & "  base: " & Base.Data (1 .. Natural'Min (12, Base.Last))
            & "  scope: " & M.Image (V.Scope)
-           & "  lens: " & M.Change_Lens'Image (V.Lens), True);
+           & "  lens: " & M.Change_Lens'Image (V.Lens)
+           & (if Loading and then R.Loaded (Data) then "  [loading]" else ""), True);
       end;
       if Input_Mode /= No_Prompt then
          Put (S, S.Rows, Prompt'Image (Input_Mode) & ": " & M.Image (Input_Text), True);

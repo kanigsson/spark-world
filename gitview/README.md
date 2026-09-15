@@ -155,6 +155,16 @@ per row. Pressing `r` drops all of it and asks Git again.
 The worker finishes an active repository query before stopping; terminal
 state is restored when the UI exits.
 
+What reaches the terminal is the same economy. A frame already loaded stays
+on screen while the next one is fetched, marked `[loading]` on the status
+line, so a keystroke repaints the cells it changed rather than blanking the
+panes and painting them back; the selected row moves at once and the panes
+that follow it catch up. Only the first load, with no frame to hold, shows a
+banner. Beneath that, only cells that differ from the last frame are written,
+a run of neighbouring cells costs one cursor move rather than one per cell,
+and the frame is wrapped in synchronized output so a terminal that
+understands it never shows one half drawn.
+
 ```sh
 gprbuild -P git_view.gpr -j4
 gnatprove -P git_view.gpr --level=2 -j4
