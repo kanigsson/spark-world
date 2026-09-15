@@ -1,4 +1,5 @@
 with Tui.Term.Sys;
+with Tui.Width;
 
 package body Tui.Term.Output with
   SPARK_Mode    => On,
@@ -116,8 +117,13 @@ is
    --  Escape sequences accumulate here and flush to the write shim whenever
    --  the next piece might not fit, so a frame of any size streams through
    --  bounded memory while still going out in large writes.
+   --
+   --  The capacity is chosen so that an ordinary frame leaves in a single
+   --  write: a flush in the middle of one is a point at which the terminal
+   --  may render what it has so far, which is what a half-drawn frame looks
+   --  like. Synchronized output covers the frames too large for even this.
 
-   Stage_Capacity : constant := 8_192;
+   Stage_Capacity : constant := 65_536;
    subtype Stage_Count is Natural range 0 .. Stage_Capacity;
 
    type Stage is record
@@ -368,6 +374,23 @@ is
       Put (ESC & "[2J" & ESC & "[H");
    end New_Frame;
 
+   --  Synchronized output (DEC private mode 2026). Between the two markers a
+   --  terminal that understands them presents nothing, then presents the
+   --  whole frame at once, so a frame is never seen half applied -- which is
+   --  what reads as flicker when a repaint is large enough to span more than
+   --  one write. A terminal that does not understand the mode ignores both
+   --  markers, so this costs twelve bytes a frame and is never wrong.
+
+   procedure Begin_Sync (B : in out Stage) is
+   begin
+      Emit (B, ESC & "[?2026h");
+   end Begin_Sync;
+
+   procedure End_Sync (B : in out Stage) is
+   begin
+      Emit (B, ESC & "[?2026l");
+   end End_Sync;
+
    procedure Hide_Cursor is
    begin
       Put (ESC & "[?25l");
@@ -394,6 +417,7 @@ is
       Last_SGR : SGR_Params;
       First    : Boolean := True;
    begin
+      Begin_Sync (B);
       for R in Row_Index range 1 .. S.Rows loop
          Emit (B, Move_Str (Positive (R), 1));
          for C in Col_Index range 1 .. S.Cols loop
@@ -411,6 +435,7 @@ is
          end loop;
       end loop;
       Emit (B, ESC & "[0m");
+      End_Sync (B);
       Flush (B);
    end Blit;
 
@@ -422,13 +447,45 @@ is
       Here     : SGR_Params;
       Last_SGR : SGR_Params;
       First    : Boolean := True;
+
+      --  Where the terminal's cursor stands, as a row and the column the
+      --  next glyph would land in; zero until the first move places it.
+      --  Writing a glyph advances the cursor one column, which for a run of
+      --  neighbouring changed cells is exactly where the next one goes, so
+      --  only a break in the run needs an absolute move. A move costs up to
+      --  twelve bytes against one to four for the glyph, so on a frame that
+      --  changes whole lines -- a scroll, a new pane -- the moves are most
+      --  of what goes out.
+      --
+      --  The test is "is the cursor already there?", not "was the previous
+      --  change adjacent?", so it stays correct whatever order the changes
+      --  arrive in; a diff happens to produce them in row-major order, which
+      --  is what makes it pay.
+      Row_At : Natural := 0;
+      Col_At : Natural := 0;
    begin
+      if Count = 0 then
+         return;
+      end if;
+      Begin_Sync (B);
       for I in 1 .. Count loop
          declare
             Ch : constant Tui.Surface.Diff.Cell_Change :=
               Changes (Changes'First + (I - 1));
+            --  Columns the glyph will advance the cursor by. A run may only
+            --  be continued across a glyph that advances exactly one: a wide
+            --  or combining glyph leaves the cursor somewhere this package
+            --  does not model, so the next change is positioned outright.
+            Advance : constant Natural :=
+              Tui.Width.Char_Width
+                (if Wide_Wide_Character'Pos (Ch.Value.Glyph) <= 16#10_FFFF#
+                 then Wide_Wide_Character'Pos (Ch.Value.Glyph)
+                 else 16#FFFD#);
          begin
-            Emit (B, Move_Str (Positive (Ch.Row), Positive (Ch.Column)));
+            if Natural (Ch.Row) /= Row_At or else Natural (Ch.Column) /= Col_At
+            then
+               Emit (B, Move_Str (Positive (Ch.Row), Positive (Ch.Column)));
+            end if;
             Cell_SGR (Ch.Value, Here);
             if First or else not Same (Here, Last_SGR) then
                Emit_SGR (B, Here);
@@ -436,11 +493,17 @@ is
                First    := False;
             end if;
             Emit (B, Utf8 (Ch.Value.Glyph));
+            if Advance = 1 then
+               Row_At := Natural (Ch.Row);
+               Col_At := Natural (Ch.Column) + 1;
+            else
+               Row_At := 0;
+               Col_At := 0;
+            end if;
          end;
       end loop;
-      if Count > 0 then
-         Emit (B, ESC & "[0m");
-      end if;
+      Emit (B, ESC & "[0m");
+      End_Sync (B);
       Flush (B);
    end Apply;
 

@@ -22,11 +22,16 @@
 --  can actually show, per the configured Color_Depth. Default is Truecolor
 --  (modern xterm-likes); set a lower depth for older terminals.
 --
+--  Both wrap the frame in synchronized output (DEC private mode 2026), so a
+--  terminal that understands it presents the frame in one go instead of as it
+--  arrives. That is what keeps a large repaint from being seen half drawn.
+--
 --  v1 limitation (documented, shared with the rest of the stack): a wide (CJK)
 --  glyph is emitted as a single cell. Surfaces currently store one code point
 --  per cell, so column drift from a double-width glyph is possible within a row;
---  Blit re-homes the cursor every row and Apply positions every change
---  absolutely, which bounds the effect. Full wide-glyph cells are future work.
+--  Blit re-homes the cursor every row, and Apply only carries the cursor across
+--  a glyph one column wide, positioning the next change outright otherwise,
+--  which bounds the effect. Full wide-glyph cells are future work.
 
 with Tui.Surface;
 with Tui.Surface.Diff;
@@ -90,8 +95,11 @@ is
    with Global => (Input => Color_Config);
 
    --  Emit only the changed cells from a diff (see Tui.Surface.Diff.Compute).
-   --  Each change is positioned absolutely, so a stale previous frame is not
-   --  required to be on screen contiguously. Leaves the SGR state reset.
+   --  A change is positioned with an absolute move unless writing the
+   --  previous glyph already left the cursor on it, so a run of neighbouring
+   --  cells costs one move rather than one per cell; no change depends on a
+   --  stale previous frame being on screen contiguously. Leaves the SGR
+   --  state reset. Emits nothing at all for an empty change set.
    procedure Apply
      (Changes : Tui.Surface.Diff.Change_Array;
       Count   : Natural)
