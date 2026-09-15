@@ -13,9 +13,8 @@ back/forward locations, snapshot search, and asynchronous repository loading.
 The original viewer remains available through `--legacy`.
 
 Follow-ups: incremental history loading and a lane graph; cancellation of
-active repository queries; rename-following pins; split-pane resizing and
-clipboard selection in the explorer; semantic adapters after the text/Git
-workflow.
+active repository queries; rename-following pins; semantic adapters after the
+text/Git workflow.
 
 ## The tree pane as a working set
 
@@ -334,32 +333,28 @@ not reused under incompatible presentation settings.
 
 ## Suggested milestone order
 
-Revised. Two structural facts reorder everything above, both analysed in
+Revised. Two structural facts reordered everything above, both analysed in
 `~/aireports/2026-09-10-tui-panes-extraction.md`: the pane, mouse and
-clipboard machinery exists twice in incompatible forms, and the two frontends
+clipboard machinery existed twice in incompatible forms, and the two frontends
 have separate backends of which the explorer's is a strict superset. Until
 both are resolved, every feature listed here must either be written twice or
 be written for the frontend that should be deleted. That is why the original
 ordering, which was drawn up for the two-pane viewer, no longer applies: most
 of its entries are not wrong, they are homeless.
 
+The first of the two is now resolved. `Tui.Panes` owns layout, hit-testing
+with pane-local coordinates, gesture recognition under a declared policy, the
+selection and its viewport coupling, the overlays and the clipboard encoder,
+with emission in `Tui.Term.Clipboard` where effects belong; both frontends use
+it, and the explorer gained drag-select, clipboard copy and separator resizing
+as a by-product rather than as a third implementation. What remains below is
+the backend half.
+
 ### Blocking sequence
 
 Each step here unblocks the next.
 
-1. **Extract the pane layer.** Layout, hit-testing returning pane-local
-   coordinates, the gesture recognizer with wheel and boundary behaviour as
-   declared policy rather than as per-frontend accident, the selection
-   overlay, the selection-to-viewport coupling, and the clipboard encoder,
-   with emission moved to the driver where effects belong. This retires the
-   "split-pane resizing and clipboard selection in the explorer" follow-up as
-   a by-product rather than as a third implementation of it. The selection
-   and viewport coupling, the gesture recognizer and the clipboard encoder
-   are the one part of the moved code the behavioural tests deliberately
-   leave alone, because testing them where they are today means writing those
-   tests twice; they want tests once they have one home.
-
-2. **Structured commit records and a narrowed backend query key.** The commit
+1. **Structured commit records and a narrowed backend query key.** The commit
    row type the section above already asks for, plus splitting the view state
    into the part that determines what the repository is asked and the part
    that determines only how it is drawn. Today the whole view state is the
@@ -368,14 +363,14 @@ Each step here unblocks the next.
    working-tree and index rows, all three of which need a row identity that a
    field typed as a path cannot carry.
 
-3. **Backend unification.** The legacy frontend moves onto the explorer's
+2. **Backend unification.** The legacy frontend moves onto the explorer's
    repository worker through its existing synchronous entry point, which
    avoids converting it to the asynchronous protocol at the same time. Needs
    one addition: an optional patch document in the frame, since the explorer
    replaced patches with annotated source and the legacy diff pane, its
    landmark navigation and its colouring all read patch text directly.
 
-4. **Retire the legacy frontend.** With the pane layer and one backend in
+3. **Retire the legacy frontend.** With the pane layer and one backend in
    place it is a layout preset — two panes and a lens choice — not a second
    program. This is the step that re-homes the entries above: per-location
    view-state retention, help overlay and copy actions, interactive filtering
@@ -400,7 +395,7 @@ behind a refactor.
   history query first. Worth doing early — it is a visible omission, and the
   smallest of the items here once that accessor exists.
 - Intra-line diff spans, and working-tree and index rows in the history pane.
-  The two exceptions in this track: both need step 2, the first because the
+  The two exceptions in this track: both need step 1, the first because the
   mark array carries one value per line and cannot express a column range, the
   second because a synthetic row has no object name to carry.
 - Multiple persistent pins, and snapshot-wide path search that adds to the

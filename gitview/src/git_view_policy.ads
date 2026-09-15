@@ -11,7 +11,9 @@
 
 with Tui.Input;
 with Tui.Pager.Engine;
-with Tui.Surface;
+with Tui.Panes;
+with Tui.Panes.Layout;
+with Tui.Panes.List;
 with Git_View_Navigation;
 
 package Git_View_Policy with SPARK_Mode => On is
@@ -23,53 +25,34 @@ package Git_View_Policy with SPARK_Mode => On is
    --  a plain viewport.
    type Pane is (List_Pane, Diff_Pane);
 
-   --  How the list selection moves. Distinct from a viewport command: moving
-   --  the selection only scrolls the list when it would leave the screen.
-   type Sel_Move is
-     (Sel_Up, Sel_Down,            --  one entry
-      Sel_Page_Up, Sel_Page_Down,  --  a page of entries
-      Sel_Top, Sel_Bottom);        --  ends of the list
+   --  The legacy frontend's row of panes: the commit list on the left and
+   --  the diff on the right, with a separator column between them. The list
+   --  gives up its place last, because a diff with no history to pick from
+   --  is not a viewer.
+   Min_Pane_Width : constant := 28;
 
-   --  The normal two-pane layout keeps both panes useful. Split is the share
-   --  of the terminal width assigned to the commit list; the painter clamps
-   --  the actual columns further when either pane reaches its minimum.
-   Min_Pane_Width  : constant := 28;
-   Min_Split_Width : constant := Min_Pane_Width * 2 + 1;
+   Default_Split : constant Tui.Panes.Layout.Split_Percentage := 45;
 
-   subtype Split_Percentage is Natural range 25 .. 75;
-   Default_Split : constant Split_Percentage := 45;
-   Split_Step    : constant                  := 5;
+   subtype Pane_Specs is Tui.Panes.Layout.Specs_Array (1 .. 2);
 
-   type Layout is record
-      List_Cols : Natural := 0;
-      Diff_Cols : Natural := 0;
-   end record;
+   function Specs
+     (Split : Tui.Panes.Layout.Split_Percentage) return Pane_Specs
+   is (1 => (Weight   => Split,
+             Min_Cols => Min_Pane_Width,
+             Priority => 0),
+       2 => (Weight   => 100 - Split,
+             Min_Cols => Min_Pane_Width,
+             Priority => 1));
 
-   function Compute_Layout
-     (Cols      : Tui.Surface.Col_Count;
-      Focused   : Pane;
-      Maximized : Boolean;
-      Split     : Split_Percentage) return Layout
-   with Global => null,
-        Post   => Compute_Layout'Result.List_Cols
-                    + Compute_Layout'Result.Diff_Cols
-                    + (if Compute_Layout'Result.List_Cols > 0
-                         and then Compute_Layout'Result.Diff_Cols > 0
-                       then 1 else 0) = Natural (Cols);
+   --  Panes are addressed by position in the row; this frontend names them.
+   function Index (P : Pane) return Tui.Panes.Pane_Index
+   is (Pane'Pos (P) + 1);
 
-   function Adjust_Split
-     (Current   : Split_Percentage;
-      Grow_List : Boolean) return Split_Percentage
-   with Global => null;
-
-   --  Convert a dragged separator column to a bounded percentage. Column is a
-   --  screen coordinate and may lie beyond Total in a malformed mouse report;
-   --  clamping makes that harmless.
-   function Split_At
-     (Column : Natural;
-      Total  : Tui.Surface.Col_Count) return Split_Percentage
-   with Global => null,
-        Pre    => Natural (Total) > 0;
+   --  Total, so that a pane index taken from the pane layer needs no
+   --  bounds reasoning at every use: this row has a leftmost pane and a
+   --  right-hand one, and nothing else.
+   function Named (I : Tui.Panes.Pane_Index) return Pane
+   is (if I = 1 then List_Pane else Diff_Pane);
 
    type Action_Kind is
      (Quit,             --  leave the viewer        (q / Q / Ctrl-C)
@@ -87,7 +70,7 @@ package Git_View_Policy with SPARK_Mode => On is
 
    type Decision (Kind : Action_Kind := Ignore) is record
       case Kind is
-         when Move_Selection => Move     : Sel_Move;
+         when Move_Selection => Move     : Tui.Panes.List.Sel_Move;
          when Navigate       => Command  : Eng.Command;
          when Resize_Split   => Grow_List : Boolean;
          when Jump_Diff      =>
@@ -104,31 +87,5 @@ package Git_View_Policy with SPARK_Mode => On is
      (Focused : Pane;
       Event   : Tui.Input.Key_Event) return Decision
    with Global => null;
-
-   --  Where a screen position lands in the painted layout: one of the panes,
-   --  or neither (the separator column, the status row, past the content).
-   --  Pure geometry over the split the painter recorded; the postcondition
-   --  hands the position's lower bounds to the app's row/column arithmetic.
-   type Region is (List_Region, Separator_Region, Diff_Region, Outside);
-
-   function Locate
-     (Col, Row     : Natural;    --  1-based screen position (0: no position)
-      List_Cols    : Natural;    --  width of the list pane
-      Diff_Cols    : Natural;    --  width of the diff pane (0 when not shown)
-      Content_Rows : Natural)    --  rows above the status line
-      return Region
-   with Global => null,
-        Post   => (if Locate'Result /= Outside
-                   then Col >= 1 and Row in 1 .. Content_Rows)
-                  and then (if Locate'Result = List_Region
-                            then Col <= List_Cols)
-                  and then (if Locate'Result = Diff_Region
-                            then (if List_Cols = 0
-                                  then Col <= Diff_Cols
-                                  else Col > List_Cols
-                                    and then Col - List_Cols > 1))
-                  and then (if Locate'Result = Separator_Region
-                            then List_Cols > 0 and then Diff_Cols > 0
-                              and then Col = List_Cols + 1);
 
 end Git_View_Policy;

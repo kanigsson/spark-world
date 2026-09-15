@@ -1,74 +1,7 @@
 package body Git_View_Policy with SPARK_Mode => On is
 
    use Tui.Input;
-
-   --------------------
-   -- Compute_Layout --
-   --------------------
-
-   function Compute_Layout
-     (Cols      : Tui.Surface.Col_Count;
-      Focused   : Pane;
-      Maximized : Boolean;
-      Split     : Split_Percentage) return Layout
-   is
-      NC : constant Natural := Natural (Cols);
-   begin
-      if Maximized then
-         return (if Focused = List_Pane
-                 then (List_Cols => NC, Diff_Cols => 0)
-                 else (List_Cols => 0, Diff_Cols => NC));
-      elsif NC < Min_Split_Width then
-         return (List_Cols => NC, Diff_Cols => 0);
-      else
-         declare
-            Wanted : constant Natural := NC * Split / 100;
-            List_Width : constant Natural :=
-              Natural'Max
-                (Min_Pane_Width,
-                 Natural'Min (NC - Min_Pane_Width - 1, Wanted));
-         begin
-            return (List_Cols => List_Width,
-                    Diff_Cols => NC - List_Width - 1);
-         end;
-      end if;
-   end Compute_Layout;
-
-   ------------------
-   -- Adjust_Split --
-   ------------------
-
-   function Adjust_Split
-     (Current   : Split_Percentage;
-      Grow_List : Boolean) return Split_Percentage
-   is
-   begin
-      if Grow_List then
-         return Split_Percentage'Min
-           (Split_Percentage'Last, Current + Split_Step);
-      else
-         return Split_Percentage'Max
-           (Split_Percentage'First, Current - Split_Step);
-      end if;
-   end Adjust_Split;
-
-   --------------
-   -- Split_At --
-   --------------
-
-   function Split_At
-     (Column : Natural;
-      Total  : Tui.Surface.Col_Count) return Split_Percentage
-   is
-      Raw : constant Natural :=
-        Natural'Min
-          (100, (Natural'Min (Column, Natural (Total)) * 100)
-                / Natural (Total));
-   begin
-      return Split_Percentage'Max
-        (Split_Percentage'First,
-         Split_Percentage'Min (Split_Percentage'Last, Raw));
-   end Split_At;
+   use Tui.Panes.List;
 
    --  Map a movement key to a viewport command, the diff pane's vocabulary.
    --  This mirrors the standalone pager's table so the diff pane feels like
@@ -114,7 +47,7 @@ package body Git_View_Policy with SPARK_Mode => On is
    procedure Map_Selection
      (Event : Key_Event;
       Found : out Boolean;
-      Move  : out Sel_Move)
+      Move  : out Tui.Panes.List.Sel_Move)
    is
    begin
       Found := True;
@@ -221,7 +154,7 @@ package body Git_View_Policy with SPARK_Mode => On is
 
             declare
                Found : Boolean;
-               Move  : Sel_Move;
+               Move  : Tui.Panes.List.Sel_Move;
             begin
                Map_Selection (Event, Found, Move);
                if Found then
@@ -265,38 +198,5 @@ package body Git_View_Policy with SPARK_Mode => On is
 
       return (Kind => Ignore);
    end Classify;
-
-   ------------
-   -- Locate --
-   ------------
-
-   function Locate
-     (Col, Row     : Natural;
-      List_Cols    : Natural;
-      Diff_Cols    : Natural;
-      Content_Rows : Natural) return Region
-   is
-   begin
-      --  The comparisons are phrased as subtractions so they stay provably
-      --  in range whatever widths the caller hands in.
-      if Row = 0 or else Row > Content_Rows or else Col = 0 then
-         return Outside;
-      elsif List_Cols > 0 and then Col <= List_Cols then
-         return List_Region;
-      elsif List_Cols = 0 and then Diff_Cols > 0 and then Col <= Diff_Cols then
-         return Diff_Region;
-      elsif List_Cols > 0 and then Diff_Cols > 0
-        and then Col = List_Cols + 1
-      then
-         return Separator_Region;
-      elsif List_Cols > 0 and then Diff_Cols > 0
-        and then Col - List_Cols > 1            --  past the separator column
-        and then Col - List_Cols - 1 <= Diff_Cols
-      then
-         return Diff_Region;
-      else
-         return Outside;
-      end if;
-   end Locate;
 
 end Git_View_Policy;

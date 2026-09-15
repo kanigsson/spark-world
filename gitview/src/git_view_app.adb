@@ -3,16 +3,21 @@ with Tui.Input;                                  use Tui.Input;
 with Tui.Text;
 with Tui.Pager.Engine;
 with Git_View_Policy;
-with Git_View_List;
 with Git_View_Sha;
 with Git_View_Status;
 with Git_View_Theme;
 with Git_View_Syntax;
-with Git_View_Selection;
-with Git_View_Clipboard;
 with Git_View_Navigation;
 with Git_View_Refs;
 with Tui.App_Kit.Search_Input;
+with Tui.Panes;
+with Tui.Panes.Clip;
+with Tui.Panes.Gesture;
+with Tui.Panes.Highlight;
+with Tui.Panes.Layout;
+with Tui.Panes.List;
+with Tui.Panes.Selection;
+with Tui.Term.Clipboard;
 
 package body Git_View_App with
   SPARK_Mode    => On,
@@ -21,10 +26,7 @@ package body Git_View_App with
        (List_Doc, Diff_Doc, List_Eng, Diff_Eng, Selected, Diff_Id,
         Focused, Searching, Forward, Pattern, Note,
         Syntax_Enabled,
-        Maximized, Split, Resizing_Split,
-        List_Width, Diff_Width, View_Rows, Screen_Width,
-        Selecting, Selection_Shown, Selection_Pane,
-        Selection_Start, Selection_End))
+        Maximized, Split, Places, View_Rows, Screen_Width, Mouse))
 is
 
    package Eng_Pkg renames Tui.Pager.Engine;
@@ -32,12 +34,17 @@ is
    package Pol renames Git_View_Policy;
    package Thm renames Git_View_Theme;
    package Syn renames Git_View_Syntax;
-   package Sel renames Git_View_Selection;
+   package Pan renames Tui.Panes;
+   package Lay renames Tui.Panes.Layout;
+   package Gest renames Tui.Panes.Gesture;
+   package Mark renames Tui.Panes.Highlight;
+   package Clip renames Tui.Panes.Clip;
+   package Sel renames Tui.Panes.Selection;
    package Nav renames Git_View_Navigation;
    package Refs renames Git_View_Refs;
    use type Eng_Pkg.Effect;
    use type Pol.Pane;
-   use type Pol.Region;
+   use type Gest.Gesture_Kind;
    use type Git_View_Status.Note;
    use type Tui.Text.Doc_Ref;
    use type Sel.Position;
@@ -85,26 +92,25 @@ is
 
    --  Layout preference. In a maximized layout Focused identifies the one
    --  visible pane. Split is retained while maximized and restored by `z`.
-   Maximized      : Boolean := False;
-   Split          : Pol.Split_Percentage := Pol.Default_Split;
-   Resizing_Split : Boolean := False;
+   Maximized : Boolean := False;
+   Split     : Lay.Split_Percentage := Pol.Default_Split;
 
-   --  The pane split as last painted. The key handler has no surface, so the
-   --  painter leaves the geometry behind for mouse hit-testing; before the
-   --  first frame everything is 0 and every position falls Outside.
-   List_Width   : Natural := 0;
-   Diff_Width   : Natural := 0;
+   --  The pane row as last painted. The key handler has no surface, so the
+   --  painter leaves the geometry behind for hit-testing; before the first
+   --  frame nothing is shown and every position falls nowhere.
+   subtype Places_Array is Lay.Placement_Array (1 .. 2);
+   Places       : Places_Array := (others => (Start_Col => 0, Cols => 0));
    View_Rows    : Natural := 0;
    Screen_Width : Col_Count := 0;
 
-   --  A drag is stored in document/display coordinates, not screen
-   --  coordinates, so repainting and horizontal scrolling do not corrupt it.
-   --  A click without motion is not displayed as a one-cell selection.
-   Selecting      : Boolean := False;
-   Selection_Shown : Boolean := False;
-   Selection_Pane : Pol.Pane := Pol.List_Pane;
-   Selection_Start : Sel.Position;
-   Selection_End   : Sel.Position;
+   --  The mouse. Presses, drags, wheel notches and separator drags are
+   --  recognised by the pane layer; this frontend only decides what they
+   --  mean. The wheel deliberately scrolls the pane under the cursor without
+   --  moving the keyboard, so hovering to scroll never changes what the keys
+   --  do.
+   Mouse       : Gest.Recognizer;
+   Mouse_Rules : constant Gest.Policy :=
+     (Wheel => Gest.Pane_Under_Cursor, others => <>);
 
    -------------------
    -- Uninitialized --
@@ -163,7 +169,6 @@ is
       Focused  := Pol.List_Pane;
       Maximized      := False;
       Split          := Pol.Default_Split;
-      Resizing_Split := False;
 
       --  Open the newest commit's diff so the right pane starts populated.
       declare
@@ -535,68 +540,29 @@ is
          return;
       end if;
       if Selected >= Top and then Selected - Top < Natural (LS.Rows) then
-         declare
-            R : constant Row_Index := Row_Index (Selected - Top + 1);
-         begin
-            for C in Col_Index range 1 .. LS.Cols loop
-               declare
-                  Cl : Cell := Get (LS, R, C);
-               begin
-                  Cl.Attributes.Inverse := True;
-                  Set (LS, R, C, Cl);
-               end;
-            end loop;
-         end;
+         Mark.Row (LS, Row_Index (Selected - Top + 1));
       end if;
    end Highlight_Selection;
 
-   --  Overlay a retained linear mouse selection. Toggling inverse rather than
-   --  merely setting it keeps the selected text visible inside the list's
-   --  already-inverse current-commit row.
+   --  Overlay a retained mouse selection, if it belongs to this pane. The
+   --  overlay toggles inverse video rather than setting it, which keeps the
+   --  selected text visible inside the list's already-inverse current row.
    procedure Highlight_Text_Selection
      (PS   : in out Surface;
       Pane : Pol.Pane;
       E    : Eng_Pkg.Instance)
-   with Global => (Input => (Selection_Shown, Selection_Pane,
-                             Selection_Start, Selection_End))
+   with Global => (Input => Mouse)
    is
       First, Last : Sel.Position;
-      Top         : constant Tui.Text.Line_Number := Eng_Pkg.Top_Line (E);
-      Left        : constant Natural := Eng_Pkg.Left_Col (E);
    begin
-      if not Selection_Shown or else Selection_Pane /= Pane then
+      if not Gest.Has_Selection (Mouse)
+        or else Pol.Named (Gest.Selected_Pane (Mouse)) /= Pane
+      then
          return;
       end if;
-      Sel.Ordered (Selection_Start, Selection_End, First, Last);
-      for R in Row_Index range 1 .. PS.Rows loop
-         declare
-            LN : constant Natural := Top + (Natural (R) - 1);
-         begin
-            if LN >= First.Line and then LN <= Last.Line then
-               for C in Col_Index range 1 .. PS.Cols loop
-                  declare
-                     DC : constant Natural := Left + Natural (C) - 1;
-                     In_Range : constant Boolean :=
-                       (if First.Line = Last.Line then
-                           LN = First.Line
-                           and then DC in First.Col .. Last.Col
-                        elsif LN = First.Line then DC >= First.Col
-                        elsif LN = Last.Line then DC <= Last.Col
-                        else LN > First.Line and then LN < Last.Line);
-                  begin
-                     if In_Range then
-                        declare
-                           Cl : Cell := Get (PS, R, C);
-                        begin
-                           Cl.Attributes.Inverse := not Cl.Attributes.Inverse;
-                           Set (PS, R, C, Cl);
-                        end;
-                     end if;
-                  end;
-               end loop;
-            end if;
-         end;
-      end loop;
+      Gest.Selected_Range (Mouse, First, Last);
+      Mark.Overlay (PS, Eng_Pkg.Top_Line (E), Eng_Pkg.Left_Col (E),
+                    First, Last);
    end Highlight_Text_Selection;
 
    procedure Draw_Status (S : in out Surface)
@@ -678,22 +644,23 @@ is
       Content_Rows : constant Row_Count :=
         (if S.Rows >= 1 then S.Rows - 1 else 0);
 
-      --  A narrow normal layout shows the list alone. If the diff had focus
-      --  before the resize, move focus to the pane that remains visible.
-      Narrow : constant Boolean :=
-        not Maximized and then Natural (S.Cols) < Pol.Min_Split_Width;
    begin
-      if Narrow and then Focused = Pol.Diff_Pane then
-         Focused := Pol.List_Pane;
-      end if;
+      Lay.Compute (Specs      => Pol.Specs (Split),
+                   Total_Cols => S.Cols,
+                   Focused    => Pol.Index (Focused),
+                   Maximized  => Maximized,
+                   Separators => True,
+                   Rule       => Lay.Drop_By_Priority,
+                   Result     => Places);
+
+      --  A layout too narrow for both panes drops the diff; move the
+      --  keyboard onto whatever survived rather than onto nothing.
+      Focused := Pol.Named (Lay.Rescue_Focus (Places, Pol.Index (Focused)));
+
       declare
-         L : constant Pol.Layout :=
-           Pol.Compute_Layout (S.Cols, Focused, Maximized, Split);
-         List_Cols : constant Natural := L.List_Cols;
-         Diff_Cols : constant Natural := L.Diff_Cols;
+         List_Cols : constant Natural := Places (1).Cols;
+         Diff_Cols : constant Natural := Places (2).Cols;
          Is_Split  : constant Boolean := List_Cols > 0 and Diff_Cols > 0;
-         Diff_At   : constant Col_Index :=
-           (if Is_Split then Col_Index (List_Cols + 2) else 1);
       begin
          Eng_Pkg.Resize (List_Eng, Rows => Natural (Content_Rows),
                          Cols => List_Cols, Total => List_Total);
@@ -701,14 +668,12 @@ is
                          Cols => Diff_Cols, Total => Diff_Total);
 
          --  Leave the geometry behind for mouse hit-testing.
-         List_Width  := List_Cols;
-         Diff_Width  := Diff_Cols;
-         View_Rows   := Natural (Content_Rows);
+         View_Rows    := Natural (Content_Rows);
          Screen_Width := S.Cols;
 
          --  A resize can shrink the list viewport from under the selection.
          if List_Total > 0 then
-            Git_View_List.Clamp (List_Eng, List_Total, Selected);
+            Tui.Panes.List.Clamp (List_Eng, List_Total, Selected);
          end if;
 
          --  Each pane renders into its own surface; the region copy composites
@@ -722,27 +687,19 @@ is
                Colorize_List (LS);
                Highlight_Selection (LS, List_Total);
                Highlight_Text_Selection (LS, Pol.List_Pane, List_Eng);
-               Copy (LS, S, At_Row => 1, At_Col => 1);
+               Copy (LS, S, At_Row => 1, At_Col => Col_Index (Places (1).Start_Col));
             end;
          end if;
 
          if Is_Split then
-            declare
-               Sep : constant Col_Index := Col_Index (List_Cols + 1);
-               Focus_Glyph : constant Wide_Wide_Character :=
-                 (if Focused = Pol.List_Pane
-                  then Wide_Wide_Character'Val (16#258C#)  --  left half block
-                  else Wide_Wide_Character'Val (16#2590#)); -- right half block
-            begin
-               for R in Row_Index range 1 .. Content_Rows loop
-                  Set (S, R, Sep,
-                       (Glyph      => Focus_Glyph,
-                        Foreground => Thm.Bar_Accent,
-                        Attributes => (Bold => True, others => False),
-                        others     => <>));
-               end loop;
-            end;
+            Mark.Separator
+              (S,
+               At_Col      => Col_Index (Places (1).Start_Col + List_Cols),
+               Rows        => Content_Rows,
+               Points_Left => Focused = Pol.List_Pane,
+               Foreground  => Thm.Bar_Accent);
          end if;
+
          if Diff_Cols > 0 then
             declare
                DS : Surface := Blank (Content_Rows, Col_Count (Diff_Cols));
@@ -751,7 +708,8 @@ is
                                Diff_Doc.all.Idx);
                Colorize_Diff (DS);
                Highlight_Text_Selection (DS, Pol.Diff_Pane, Diff_Eng);
-               Copy (DS, S, At_Row => 1, At_Col => Diff_At);
+               Copy (DS, S, At_Row => 1,
+                     At_Col => Col_Index (Places (2).Start_Col));
             end;
          end if;
 
@@ -784,7 +742,7 @@ is
               Tui.Text.Line_Count (List_Doc.all.Idx);
          begin
             if Total > 0 then
-               Git_View_List.Clamp (List_Eng, Total, Selected);
+               Tui.Panes.List.Clamp (List_Eng, Total, Selected);
             end if;
          end;
          Missed_On_Pattern := Eng_Pkg.Has_Pattern (List_Eng);
@@ -871,7 +829,7 @@ is
 
    --  Apply a selection move (clamping first: the callbacks' contracts do
    --  not carry the selection-within-list invariant across calls).
-   procedure Move_Sel (M : Pol.Sel_Move; Changed : out Boolean)
+   procedure Move_Sel (M : Tui.Panes.List.Sel_Move; Changed : out Boolean)
    with Global => (In_Out => (List_Eng, Selected), Input => List_Doc),
         Pre    => List_Doc /= null
    is
@@ -883,8 +841,8 @@ is
          if Selected > Total then
             Selected := Total;
          end if;
-         Git_View_List.Move (List_Eng, M, List_Doc.all.Bytes,
-                             List_Doc.all.Idx, Selected, Changed);
+         Tui.Panes.List.Move (List_Eng, M, List_Doc.all.Bytes,
+                              List_Doc.all.Idx, Selected, Changed);
       end if;
    end Move_Sel;
 
@@ -926,273 +884,162 @@ is
       end case;
    end Handle_Search_Key;
 
-   --  One wheel notch scrolls this many lines, the desktop convention.
-   Wheel_Lines : constant := 3;
-
-   --  Map a mouse cell to the underlying pane's document/display coordinate.
-   procedure Mouse_Position
-     (Where : Pol.Region;
-      Event : Key_Event;
-      Pos   : out Sel.Position;
-      Valid : out Boolean)
-   with Global => (Input => (List_Doc, Diff_Doc, List_Eng, Diff_Eng,
-                             List_Width)),
+   --  What the recognizer needs to know about each pane to turn a screen
+   --  cell into a document position: where its viewport sits, and how much
+   --  document there is.
+   procedure Pane_Frames (F : out Gest.Frame_Array)
+   with Global => (Input => (List_Doc, Diff_Doc, List_Eng, Diff_Eng)),
         Pre    => List_Doc /= null and then Diff_Doc /= null
-                  and then (if Where = Pol.List_Region then Event.Col >= 1)
-                  and then (if Where = Pol.Diff_Region
-                            then (if List_Width = 0 then Event.Col >= 1
-                                  else Event.Col > List_Width
-                                    and then Event.Col - List_Width > 1))
-                  and then (if Where in Pol.List_Region | Pol.Diff_Region
-                            then Event.Row >= 1)
+                  and then F'First = 1 and then F'Last = 2,
+        Post   => F (1).Total = Tui.Text.Line_Count (List_Doc.all.Idx)
+                  and then F (2).Total = Tui.Text.Line_Count (Diff_Doc.all.Idx)
    is
-      Top, Left, Local_Col, Total : Natural;
    begin
-      Pos := (Line => 1, Col => 0);
-      Valid := False;
-      if Where = Pol.List_Region then
-         Top       := Eng_Pkg.Top_Line (List_Eng);
-         Left      := Eng_Pkg.Left_Col (List_Eng);
-         Local_Col := Event.Col - 1;
-         Total     := Tui.Text.Line_Count (List_Doc.all.Idx);
-      elsif Where = Pol.Diff_Region then
-         Top       := Eng_Pkg.Top_Line (Diff_Eng);
-         Left      := Eng_Pkg.Left_Col (Diff_Eng);
-         Local_Col :=
-           (if List_Width = 0 then Event.Col - 1
-            else Event.Col - List_Width - 2);
-         Total     := Tui.Text.Line_Count (Diff_Doc.all.Idx);
-      else
+      F := (others => (Top => 1, Left => 0, Total => 0));
+      F (1) := (Top   => Eng_Pkg.Top_Line (List_Eng),
+                Left  => Eng_Pkg.Left_Col (List_Eng),
+                Total => Tui.Text.Line_Count (List_Doc.all.Idx));
+      F (2) := (Top   => Eng_Pkg.Top_Line (Diff_Eng),
+                Left  => Eng_Pkg.Left_Col (Diff_Eng),
+                Total => Tui.Text.Line_Count (Diff_Doc.all.Idx));
+   end Pane_Frames;
+
+   --  Put a committed drag on the clipboard. The bounds are re-tested here
+   --  because a drag outlives the events that made it: the document under it
+   --  can have been swapped in between.
+   procedure Copy_Selection (G : Gest.Gesture; Changed : out Boolean)
+   with Global => (Input  => (List_Doc, Diff_Doc), In_Out => (Note, Mouse)),
+        Pre    => List_Doc /= null and then Diff_Doc /= null
+                  and then G.Kind = Gest.Range_Committed
+                  and then Sel.Before_Or_Equal (G.First, G.Last)
+   is
+      Text      : Clip.Payload;
+      Truncated : Boolean;
+      In_List   : constant Boolean :=
+        Pol.Named (G.Pane) = Pol.List_Pane;
+      Total     : constant Tui.Text.Line_Total :=
+        (if In_List then Tui.Text.Line_Count (List_Doc.all.Idx)
+         else Tui.Text.Line_Count (Diff_Doc.all.Idx));
+   begin
+      Changed := True;
+      if G.Last.Line > Total then
+         Gest.Reset (Mouse);
          return;
       end if;
-
-      if Top <= Total and then Event.Row - 1 <= Total - Top then
-         Pos.Line := Top + (Event.Row - 1);
-         Pos.Col  := Natural'Min (Tui.Pager.Max_Dim, Left + Local_Col);
-         Valid    := True;
+      if In_List then
+         Clip.Extract (List_Doc.all.Bytes, List_Doc.all.Idx,
+                       G.First, G.Last, Text, Truncated);
+      else
+         Clip.Extract (Diff_Doc.all.Bytes, Diff_Doc.all.Idx,
+                       G.First, G.Last, Text, Truncated);
       end if;
-   end Mouse_Position;
+      Tui.Term.Clipboard.Set (Text);
+      Note := (if Truncated then Git_View_Status.Selection_Copy_Truncated
+               else Git_View_Status.Selection_Copied);
+   end Copy_Selection;
 
-   --  Carry out a mouse event against the layout the painter recorded. A
-   --  left click loads the commit under the cursor and gives the clicked
-   --  pane the keyboard; a drag selects and copies pane text. The wheel
-   --  scrolls the pane UNDER the cursor —
-   --  deliberately without moving the keyboard focus, so hovering to scroll
-   --  never changes what the keys do.
+   --  Scroll the pane the recognizer named. A scrolled list pulls its
+   --  selection along into view.
+   procedure Wheel_Scroll (G : Gest.Gesture; Changed : in out Boolean)
+   with Global => (Input  => (List_Doc, Diff_Doc),
+                   In_Out => (List_Eng, Diff_Eng, Selected)),
+        Pre    => List_Doc /= null and then Diff_Doc /= null
+                  and then G.Kind = Gest.Wheel
+   is
+      In_List : constant Boolean := Pol.Named (G.Pane) = Pol.List_Pane;
+      Cmd     : constant Eng_Pkg.Command :=
+        (if G.Upward then Eng_Pkg.Line_Up else Eng_Pkg.Line_Down);
+      Res     : Eng_Pkg.Effect;
+   begin
+      for Step in 1 .. G.Notches loop
+         if In_List then
+            Eng_Pkg.Handle (List_Eng, Cmd, List_Doc.all.Bytes,
+                            List_Doc.all.Idx, Res);
+         else
+            Eng_Pkg.Handle (Diff_Eng, Cmd, Diff_Doc.all.Bytes,
+                            Diff_Doc.all.Idx, Res);
+         end if;
+         if Res /= Eng_Pkg.Unchanged then
+            Changed := True;
+         end if;
+      end loop;
+
+      if In_List and then Changed then
+         declare
+            Total : constant Tui.Text.Line_Total :=
+              Tui.Text.Line_Count (List_Doc.all.Idx);
+         begin
+            if Total > 0 then
+               Tui.Panes.List.Clamp (List_Eng, Total, Selected);
+            end if;
+         end;
+      end if;
+   end Wheel_Scroll;
+
+   --  Carry out a mouse event against the layout the painter recorded. The
+   --  pane layer decides WHAT the gesture is; everything here is what this
+   --  viewer makes of it — a click loads the commit under the cursor, a
+   --  committed drag reaches the clipboard, a separator drag moves the split.
    procedure Handle_Mouse (Event : Key_Event; Changed : out Boolean)
    with Global => (In_Out => (List_Eng, Diff_Eng, Diff_Doc, Diff_Id,
-                              Selected, Focused, Note, Selecting,
-                              Selection_Shown, Selection_Pane,
-                              Selection_Start, Selection_End, Split,
-                              Resizing_Split),
-                   Input  => (List_Doc, List_Width, Diff_Width, View_Rows,
-                              Screen_Width)),
+                              Selected, Focused, Note, Mouse, Split),
+                   Input  => (List_Doc, Places, Screen_Width, View_Rows)),
         Pre    => List_Doc /= null and then Diff_Doc /= null,
         Post   => Diff_Doc /= null
    is
-      Where : constant Pol.Region :=
-        Pol.Locate (Event.Col, Event.Row, List_Width, Diff_Width, View_Rows);
+      Frames : Gest.Frame_Array (1 .. 2);
+      G      : Gest.Gesture;
    begin
       Changed := False;
-      if Resizing_Split then
-         if Event.Kind = Mouse_Motion and then Event.Button = Left_Button
-           and then List_Width > 0 and then Diff_Width > 0
-           and then Natural (Screen_Width) > 0
-         then
-            Split := Pol.Split_At (Event.Col, Screen_Width);
-            Changed := True;
-         elsif Event.Kind = Mouse_Release then
-            Resizing_Split := False;
-            Changed := True;
-         end if;
-         return;
-      end if;
+      Pane_Frames (Frames);
+      Gest.Feed (R            => Mouse,
+                 Event        => Event,
+                 Placements   => Places,
+                 Frames       => Frames,
+                 First_Row    => 1,
+                 Content_Rows => View_Rows,
+                 Focused      => Pol.Index (Focused),
+                 Rules        => Mouse_Rules,
+                 Result       => G);
 
-      if Where = Pol.Separator_Region then
-         if Event.Kind = Mouse_Press and then Event.Button = Left_Button then
-            Resizing_Split := True;
-            Selecting := False;
-            Selection_Shown := False;
-            Changed := True;
-         end if;
-         return;
-      end if;
-
-      if Where = Pol.Outside then
-         if Event.Kind = Mouse_Release then
-            Selecting := False;
-         end if;
-         return;
-      end if;
-
-      case Event.Kind is
-         when Mouse_Press =>
-            if Event.Button = Left_Button then
-               declare
-                  Pos   : Sel.Position;
-                  Valid : Boolean;
-               begin
-                  Mouse_Position (Where, Event, Pos, Valid);
-                  Selecting       := Valid;
-                  Selection_Shown := False;
-                  if Valid then
-                     Selection_Pane  := (if Where = Pol.List_Region
-                                        then Pol.List_Pane else Pol.Diff_Pane);
-                     Selection_Start := Pos;
-                     Selection_End   := Pos;
-                  end if;
-               end;
-               if Where = Pol.List_Region then
-                  --  Select and immediately load the line under the cursor.
-                  declare
-                     Total : constant Tui.Text.Line_Total :=
-                       Tui.Text.Line_Count (List_Doc.all.Idx);
-                     Top   : constant Tui.Text.Line_Number :=
-                       Eng_Pkg.Top_Line (List_Eng);
-                     Off   : constant Natural := Event.Row - 1;
-                  begin
-                     if Total > 0 and then Top <= Total
-                       and then Off <= Total - Top
-                     then
-                        Selected := Top + Off;
-                        Changed  := True;
-                        declare
-                           Opened : Boolean;
-                        begin
-                           Open_Selected (Opened);
-                           Changed := Changed or else Opened;
-                        end;
-                     end if;
-                  end;
-                  if Focused /= Pol.List_Pane then
-                     Focused := Pol.List_Pane;
-                     Changed := True;
-                  end if;
-               else
-                  if Focused /= Pol.Diff_Pane then
-                     Focused := Pol.Diff_Pane;
-                     Changed := True;
-                  end if;
-               end if;
-            end if;
-
-         when Mouse_Motion =>
-            if Selecting and then Event.Button = Left_Button
-              and then ((Selection_Pane = Pol.List_Pane
-                         and then Where = Pol.List_Region)
-                        or else (Selection_Pane = Pol.Diff_Pane
-                                 and then Where = Pol.Diff_Region))
-            then
-               declare
-                  Pos   : Sel.Position;
-                  Valid : Boolean;
-               begin
-                  Mouse_Position (Where, Event, Pos, Valid);
-                  if Valid and then Pos /= Selection_End then
-                     Selection_End   := Pos;
-                     Selection_Shown := Pos /= Selection_Start;
-                     Changed         := True;
-                  end if;
-               end;
-            end if;
-
-         when Mouse_Release =>
-            if Selecting and then Event.Button = Left_Button then
-               declare
-                  Pos       : Sel.Position;
-                  Valid     : Boolean;
-                  Truncated : Boolean;
-               begin
-                  Mouse_Position (Where, Event, Pos, Valid);
-                  if Valid
-                    and then ((Selection_Pane = Pol.List_Pane
-                               and then Where = Pol.List_Region)
-                              or else (Selection_Pane = Pol.Diff_Pane
-                                       and then Where = Pol.Diff_Region))
-                  then
-                     Selection_End   := Pos;
-                     Selection_Shown := Pos /= Selection_Start;
-                  end if;
-                  Selecting := False;
-                  if Selection_Shown then
-                     if Selection_Pane = Pol.List_Pane then
-                        declare
-                           Total : constant Tui.Text.Line_Total :=
-                             Tui.Text.Line_Count (List_Doc.all.Idx);
-                        begin
-                           if Selection_Start.Line <= Total
-                             and then Selection_End.Line <= Total
-                           then
-                              Git_View_Clipboard.Copy
-                                (List_Doc.all.Bytes, List_Doc.all.Idx,
-                                 Selection_Start, Selection_End, Truncated);
-                           else
-                              Selection_Shown := False;
-                              Truncated := False;
-                           end if;
-                        end;
-                     else
-                        declare
-                           Total : constant Tui.Text.Line_Total :=
-                             Tui.Text.Line_Count (Diff_Doc.all.Idx);
-                        begin
-                           if Selection_Start.Line <= Total
-                             and then Selection_End.Line <= Total
-                           then
-                              Git_View_Clipboard.Copy
-                                (Diff_Doc.all.Bytes, Diff_Doc.all.Idx,
-                                 Selection_Start, Selection_End, Truncated);
-                           else
-                              Selection_Shown := False;
-                              Truncated := False;
-                           end if;
-                        end;
-                     end if;
-                     if Selection_Shown then
-                        Note := (if Truncated
-                                 then Git_View_Status.Selection_Copy_Truncated
-                                 else Git_View_Status.Selection_Copied);
-                     end if;
-                  end if;
-                  Changed := True;
-               end;
-            end if;
-
-         when Wheel_Up | Wheel_Down =>
-            Selection_Shown := False;
-            Selecting       := False;
+      case G.Kind is
+         when Gest.Click =>
             declare
-               Cmd : constant Eng_Pkg.Command :=
-                 (if Event.Kind = Wheel_Up
-                  then Eng_Pkg.Line_Up else Eng_Pkg.Line_Down);
-               Res : Eng_Pkg.Effect;
+               Clicked : constant Pol.Pane := Pol.Named (G.Pane);
             begin
-               for Step in 1 .. Wheel_Lines loop
-                  if Where = Pol.List_Region then
-                     Eng_Pkg.Handle (List_Eng, Cmd, List_Doc.all.Bytes,
-                                     List_Doc.all.Idx, Res);
-                  else
-                     Eng_Pkg.Handle (Diff_Eng, Cmd, Diff_Doc.all.Bytes,
-                                     Diff_Doc.all.Idx, Res);
-                  end if;
-                  if Res /= Eng_Pkg.Unchanged then
-                     Changed := True;
-                  end if;
-               end loop;
-               --  A scrolled list pulls its selection along into view.
-               if Where = Pol.List_Region and then Changed then
+               --  Clicking a commit selects and immediately opens it.
+               if Clicked = Pol.List_Pane and then G.On_Line then
+                  Selected := G.At_Line;
+                  Changed  := True;
                   declare
-                     Total : constant Tui.Text.Line_Total :=
-                       Tui.Text.Line_Count (List_Doc.all.Idx);
+                     Opened : Boolean;
                   begin
-                     if Total > 0 then
-                        Git_View_List.Clamp (List_Eng, Total, Selected);
-                     end if;
+                     Open_Selected (Opened);
+                     Changed := Changed or else Opened;
                   end;
+               end if;
+               if G.Takes_Focus and then Focused /= Clicked then
+                  Focused := Clicked;
+                  Changed := True;
                end if;
             end;
 
-         when others =>
+         when Gest.Range_Extended | Gest.Range_Cancelled =>
+            Changed := True;
+
+         when Gest.Range_Committed =>
+            Copy_Selection (G, Changed);
+
+         when Gest.Separator_Dragged =>
+            if Natural (Screen_Width) > 0 then
+               Split   := Lay.Split_At (G.Split_Col, Screen_Width);
+               Changed := True;
+            end if;
+
+         when Gest.Wheel =>
+            Wheel_Scroll (G, Changed);
+
+         when Gest.None =>
             null;
       end case;
    end Handle_Mouse;
@@ -1251,7 +1098,9 @@ is
                            then Pol.Diff_Pane else Pol.List_Pane);
                --  In the responsive list-only layout, Tab remains a way to
                --  reach the diff: it opens the newly focused pane maximized.
-               if Diff_Width = 0 and then Focused = Pol.Diff_Pane then
+               if not Lay.Shown (Places (Pol.Index (Pol.Diff_Pane)))
+                 and then Focused = Pol.Diff_Pane
+               then
                   Maximized := True;
                end if;
                Dirty := True;
@@ -1262,7 +1111,7 @@ is
 
             when Pol.Resize_Split =>
                if not Maximized then
-                  Split := Pol.Adjust_Split (Split, D.Grow_List);
+                  Split := Lay.Adjust (Split, D.Grow_List);
                   Dirty := True;
                end if;
 

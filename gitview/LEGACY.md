@@ -136,15 +136,18 @@ exercises two things the standalone pager does not:
 
 All app logic is proved (`SPARK_Mode => On`, free of run-time errors): the
 state and callbacks (`Git_View_App`), the keymap (`Git_View_Policy`), the
-selection rules (`Git_View_List`, `Git_View_Selection`), clipboard extraction
-and encoding (`Git_View_Clipboard`), the commit-id parser (`Git_View_Sha`), the
-colour scheme and diff-line classifier (`Git_View_Theme`), the multi-language
-lexer (`Git_View_Syntax`), and the
+commit-id parser (`Git_View_Sha`), the colour scheme and diff-line classifier
+(`Git_View_Theme`), the multi-language lexer (`Git_View_Syntax`), and the
 app-specific status texts (`Git_View_Status`). The search-pattern editor and
 the status `Line` buffer come from the shared
 [`Tui.App_Kit`](../tui/docs/app_kit.md) layer — this app was their second
 consumer, which by the ecosystem's rule triggered the extraction — and are
-proved there. Only the OS edges are trusted
+proved there. The panes themselves went the same way: layout, hit-testing,
+the mouse gesture recognizer, the selection and its viewport coupling, the
+overlays and the clipboard encoder are [`Tui.Panes`](../tui/docs/panes.md),
+with the OSC 52 write in `Tui.Term.Clipboard` because it is an effect. This
+viewer was the copy the extraction was taken FROM; the explorer was the
+second, weaker one that made it necessary. Only the OS edges are trusted
 (`SPARK_Mode => Off` bodies): the entry point (`Git_View_Main`) and the
 repository adapter behind the proved `Git_View_Source` spec, which drives the
 `git-changes` library and never hands back a null diff document.
@@ -171,16 +174,14 @@ src/
   git_view_source.ads/adb     repository edge (spec proved, body Off)
   git_view_app.ads/adb        state + Paint/On_Key callbacks            [proved]
   git_view_policy.ads/adb     focus-aware keymap                        [proved]
-  git_view_list.ads/adb       selection/viewport coupling               [proved]
-  git_view_selection.ads/adb  mouse selection ordering                  [proved]
   git_view_navigation.ads/adb structural file/hunk scanning             [proved]
   git_view_refs.ads/adb       commit-list ref decoration span            [proved]
-  git_view_clipboard.ads/adb  bounded extraction + OSC 52 encoding      [proved]
   git_view_sha.ads/adb        commit-list line -> commit id             [proved]
   git_view_theme.ads/adb      colour scheme + diff-line classifier      [proved]
   git_view_syntax.ads/adb     source language + lexical highlighting    [proved]
   git_view_status.ads/adb     status-line texts (notes, read-outs)      [proved]
 ```
 
-The search-pattern editor and the status `Line` buffer come from the
-shared `Tui.App_Kit` layer of the `tui` crate.
+The search-pattern editor and the status `Line` buffer come from the shared
+`Tui.App_Kit` layer of the `tui` crate; the pane row, hit-testing, gesture
+recognition, selection, overlays and clipboard encoding from `Tui.Panes`.

@@ -149,6 +149,34 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
         s.cols = 160
         f = s.frame()
         check("TREE /" in f, "wide layout restores all panes", f)
+        # The pane layer brings the legacy viewer's mouse work to the
+        # explorer: a drag selects text and reaches the clipboard, and a
+        # separator drag reshapes the row.
+        s.read(0.3)
+        os.write(s.fd, b"\x1b[<0;95;4M")     # press inside the source pane
+        s.read(0.3)
+        os.write(s.fd, b"\x1b[<32;105;4M")   # drag right along the line
+        s.read(0.3)
+        os.write(s.fd, b"\x1b[<0;105;4m")    # release
+        copied = s.read(0.5)
+        check(b"\x1b]52;c;" in copied,
+              "a drag in the source pane copies over OSC 52")
+
+        # Column 52 is in the tree pane while history takes 30% of 160.
+        f = s.send(b"\x1b[<0;52;2M")
+        check("scope:" in f, "column 52 is in the tree pane", f)
+        os.write(s.fd, b"\x1b[<0;49;5M")     # press the first separator
+        s.read(0.3)
+        os.write(s.fd, b"\x1b[<32;70;5M")    # drag it right
+        s.read(0.3)
+        os.write(s.fd, b"\x1b[<0;70;5m")
+        f = s.frame()
+        check("HISTORY" in f and "TREE /" in f,
+              "the row still paints after a separator drag", f)
+        f = s.send(b"\x1b[<0;52;2M")
+        check("HISTORY" in f,
+              "the widened history pane now owns column 52", f)
+
     finally:
         s.close()
     check(git("diff", "--name-only") == "main.txt", "TUI navigation is read-only")

@@ -25,9 +25,12 @@ relative. `--no-mouse` leaves mouse handling to the terminal.
 | Tab | Cycle history, tree, source focus |
 | j/k, arrows | Move selected row or scroll source |
 | Enter, left click | Follow a commit, file, or search result |
+| Left drag | Select pane text; releasing copies it to the clipboard |
+| Drag a pane boundary | Resize the two panes on either side of it |
+| Wheel | Scroll the pane under the cursor, which also takes the keyboard |
 | PageUp/PageDown, Space, Home/End | Page or jump within the focused pane |
 | h/l, left/right | Horizontal scrolling |
-| z | Maximize/restore; below 90 columns only the focused pane is shown |
+| z | Maximize/restore; a terminal too narrow for three panes drops the most disposable one, and never the focused one |
 | a | Tree: changed and ancestors → changed only → all files |
 | d | Lens: gutter → changed lines → hunks → before/after → plain |
 | [ / ] | Previous/next hunk |
@@ -72,11 +75,22 @@ the forward branch.
 `Git_View_Model` holds frontend-independent navigation values and transitions.
 `Git_View_Explorer` derives three pager panes from those values. Both are
 SPARK, with Silver verification of runtime safety. The existing proved pager,
-input, layout, search, and legacy viewer remain in use.
+input, search, and legacy viewer remain in use.
+
+Panes themselves are no longer this project's code. `Tui.Panes` in the sibling
+TUI crate owns the row of panes, hit-testing, gesture recognition, the
+selection and its viewport coupling, the overlays and the clipboard encoder;
+`Tui.Term.Clipboard` writes the OSC 52 sequence, because that is an effect and
+effects live in the driver. What each frontend keeps is policy: what a click
+means, which panes it declares and how disposable each is, and — now stated
+rather than implied — whether the wheel moves the keyboard. It does in the
+explorer and does not in the legacy viewer, which is the divergence the two
+copies had before they became one.
 
 `Behavior_Tests` pins the decisions those units make -- commit-id and
 ref-decoration parsing, landmark navigation, diff-line and syntax
-classification, the keymap, the layout breakpoints and the status text -- from
+classification, the keymap, the pane row this frontend declares and the status
+text -- from
 literal inputs, with no repository, terminal or timing involved. Proof covers
 safety; this suite covers intent, and is what a move of this code between
 frontends or crates is checked against.
@@ -121,5 +135,7 @@ library's fixed-string snapshot search over tracked files; untracked files
 can be opened and searched individually.
 
 The original two-pane diff viewer is available with `--legacy`; see
-[LEGACY.md](LEGACY.md) for its mouse selection, clipboard, syntax highlighting,
-and pane resizing controls.
+[LEGACY.md](LEGACY.md) for its syntax highlighting and its own key bindings.
+Both frontends now share one pane layer — layout, hit-testing, gesture
+recognition, selection and clipboard encoding all live in `Tui.Panes` — so
+mouse selection, clipboard copy and pane resizing behave the same in each.

@@ -18,6 +18,9 @@ with Tui.Input;
 with Tui.Pager.Engine;
 with Tui.Surface;
 with Tui.Text;
+with Tui.Panes;
+with Tui.Panes.Layout;
+with Tui.Panes.List;
 
 with Git_View_Navigation;
 with Git_View_Policy;
@@ -411,7 +414,7 @@ procedure Behavior_Tests is
 
    procedure Test_Key_Policy is
       use type Pol.Action_Kind;
-      use type Pol.Sel_Move;
+      use type Tui.Panes.List.Sel_Move;
       use type Nav.Landmark;
 
       procedure Both (E : Tui.Input.Key_Event; Expect : Pol.Action_Kind;
@@ -461,7 +464,7 @@ procedure Behavior_Tests is
              "Enter scrolls the diff pane");
 
       D := Pol.Classify (Pol.List_Pane, Ch ('j'));
-      Check (D.Kind = Pol.Move_Selection and then D.Move = Pol.Sel_Down,
+      Check (D.Kind = Pol.Move_Selection and then D.Move = Tui.Panes.List.Sel_Down,
              "j moves the selection down");
       D := Pol.Classify (Pol.Diff_Pane, Ch ('j'));
       Check (D.Kind = Pol.Navigate
@@ -469,13 +472,13 @@ procedure Behavior_Tests is
              "j scrolls the diff pane down");
 
       D := Pol.Classify (Pol.List_Pane, Key (Tui.Input.Page_Down));
-      Check (D.Kind = Pol.Move_Selection and then D.Move = Pol.Sel_Page_Down,
+      Check (D.Kind = Pol.Move_Selection and then D.Move = Tui.Panes.List.Sel_Page_Down,
              "Page Down moves a page of entries");
       D := Pol.Classify (Pol.List_Pane, Ch ('G'));
-      Check (D.Kind = Pol.Move_Selection and then D.Move = Pol.Sel_Bottom,
+      Check (D.Kind = Pol.Move_Selection and then D.Move = Tui.Panes.List.Sel_Bottom,
              "G selects the last entry");
       D := Pol.Classify (Pol.List_Pane, Ch ('g'));
-      Check (D.Kind = Pol.Move_Selection and then D.Move = Pol.Sel_Top,
+      Check (D.Kind = Pol.Move_Selection and then D.Move = Tui.Panes.List.Sel_Top,
              "g selects the first entry");
 
       --  Long subjects still scroll sideways in the list.
@@ -522,98 +525,190 @@ procedure Behavior_Tests is
    ---------------------------------
 
    procedure Test_Layout is
-      use type Pol.Region;
+      package Lay renames Tui.Panes.Layout;
+      use type Lay.Hit_Kind;
+      use type Tui.Panes.Pane_Index;
 
-      function L (Cols : Natural; Split : Pol.Split_Percentage := 45;
-                  Focused : Pol.Pane := Pol.List_Pane;
-                  Maximized : Boolean := False) return Pol.Layout
-      is (Pol.Compute_Layout (Tui.Surface.Col_Count (Cols), Focused,
-                              Maximized, Split));
+      subtype Two is Lay.Placement_Array (1 .. 2);
 
-      Wide, Narrow : Pol.Layout;
+      --  The legacy frontend's own row of panes, at a given width.
+      procedure Row
+        (P         : out Two;
+         Cols      : Natural;
+         Split     : Lay.Split_Percentage := Pol.Default_Split;
+         Focused   : Pol.Pane := Pol.List_Pane;
+         Maximized : Boolean := False)
+      is
+      begin
+         Lay.Compute (Specs      => Pol.Specs (Split),
+                      Total_Cols => Tui.Surface.Col_Count (Cols),
+                      Focused    => Pol.Index (Focused),
+                      Maximized  => Maximized,
+                      Separators => True,
+                      Rule       => Lay.Drop_By_Priority,
+                      Result     => P);
+      end Row;
+
+      P : Two;
+      H : Lay.Hit;
    begin
-      Check (Pol.Min_Split_Width = Pol.Min_Pane_Width * 2 + 1,
-             "the two-pane breakpoint is two minimum panes and a separator");
-
-      --  Below the breakpoint the layout collapses to a single pane; at it,
-      --  both panes appear at exactly their minimum.
-      Narrow := L (Pol.Min_Split_Width - 1);
-      Check (Narrow.List_Cols = 56 and then Narrow.Diff_Cols = 0,
+      --  Below two minimum panes and a separator the row collapses to one
+      --  pane; at exactly that width both appear at their minimum.
+      Row (P, Pol.Min_Pane_Width * 2);
+      Check (P (1).Cols = 56 and then P (2).Cols = 0,
              "56 columns show the commit list alone");
-      Wide := L (Pol.Min_Split_Width);
-      Check (Wide.List_Cols = 28 and then Wide.Diff_Cols = 28,
+      Check (P (1).Start_Col = 1 and then P (2).Start_Col = 0,
+             "a dropped pane has no place on screen");
+      Row (P, Pol.Min_Pane_Width * 2 + 1);
+      Check (P (1).Cols = 28 and then P (2).Cols = 28,
              "57 columns show both panes at their minimum");
+      Check (P (2).Start_Col = 30,
+             "the second pane starts one separator past the first");
 
-      Wide := L (100);
-      Check (Wide.List_Cols = 45 and then Wide.Diff_Cols = 54,
+      Row (P, 100);
+      Check (P (1).Cols = 45 and then P (2).Cols = 54,
              "100 columns split 45/55 around the separator");
+      Check (P (1).Cols + P (2).Cols + 1 = 100,
+             "the panes and their separator cover the width exactly");
 
       --  The split percentage never starves a pane below its minimum.
-      Wide := L (100, Split => 75);
-      Check (Wide.List_Cols = 71 and then Wide.Diff_Cols = 28,
+      Row (P, 100, Split => 75);
+      Check (P (1).Cols = 71 and then P (2).Cols = 28,
              "the widest split still leaves the diff pane its minimum");
-      Wide := L (100, Split => 25);
-      Check (Wide.List_Cols = 28 and then Wide.Diff_Cols = 71,
+      Row (P, 100, Split => 25);
+      Check (P (1).Cols = 28 and then P (2).Cols = 71,
              "the narrowest split still leaves the list its minimum");
 
       --  Maximizing gives the whole width to the focused pane.
-      Wide := L (100, Focused => Pol.List_Pane, Maximized => True);
-      Check (Wide.List_Cols = 100 and then Wide.Diff_Cols = 0,
+      Row (P, 100, Focused => Pol.List_Pane, Maximized => True);
+      Check (P (1).Cols = 100 and then P (2).Cols = 0,
              "a maximized list takes the full width");
-      Wide := L (100, Focused => Pol.Diff_Pane, Maximized => True);
-      Check (Wide.List_Cols = 0 and then Wide.Diff_Cols = 100,
+      Row (P, 100, Focused => Pol.Diff_Pane, Maximized => True);
+      Check (P (1).Cols = 0 and then P (2).Cols = 100,
              "a maximized diff takes the full width");
 
-      Narrow := L (0);
-      Check (Narrow.List_Cols = 0 and then Narrow.Diff_Cols = 0,
+      Row (P, 0);
+      Check (P (1).Cols = 0 and then P (2).Cols = 0,
              "a zero-width terminal paints nothing");
 
+      --  Drop_By_Priority keeps the pane the frontend declared least
+      --  disposable whatever has the keyboard, and focus is rescued onto it.
+      Row (P, 56, Focused => Pol.Diff_Pane);
+      Check (P (1).Cols = 56 and then P (2).Cols = 0,
+             "a narrow row keeps the list even when the diff has the keyboard");
+      Check (Lay.Rescue_Focus (P, Pol.Index (Pol.Diff_Pane))
+             = Pol.Index (Pol.List_Pane),
+             "focus is rescued onto a pane that survived");
+      Row (P, 100);
+      Check (Lay.Rescue_Focus (P, Pol.Index (Pol.Diff_Pane))
+             = Pol.Index (Pol.Diff_Pane),
+             "a shown pane keeps the keyboard");
+
       --  Resizing steps by Split_Step and saturates at the bounds.
-      Check (Pol.Adjust_Split (45, Grow_List => True) = 50,
-             "growing the list steps the split up");
-      Check (Pol.Adjust_Split (45, Grow_List => False) = 40,
-             "shrinking the list steps the split down");
-      Check (Pol.Adjust_Split (Pol.Split_Percentage'Last, True)
-             = Pol.Split_Percentage'Last, "growing saturates at the maximum");
-      Check (Pol.Adjust_Split (Pol.Split_Percentage'First, False)
-             = Pol.Split_Percentage'First,
+      Check (Lay.Adjust (45, Grow => True) = 50,
+             "growing the first pane steps the split up");
+      Check (Lay.Adjust (45, Grow => False) = 40,
+             "shrinking the first pane steps the split down");
+      Check (Lay.Adjust (Lay.Split_Percentage'Last, True)
+             = Lay.Split_Percentage'Last, "growing saturates at the maximum");
+      Check (Lay.Adjust (Lay.Split_Percentage'First, False)
+             = Lay.Split_Percentage'First,
              "shrinking saturates at the minimum");
 
       --  A dragged separator becomes a bounded percentage, whatever column
       --  the mouse report claims.
-      Check (Pol.Split_At (50, 100) = 50, "a drag to mid-screen is 50%");
-      Check (Pol.Split_At (0, 100) = Pol.Split_Percentage'First,
+      Check (Lay.Split_At (50, 100) = 50, "a drag to mid-screen is 50%");
+      Check (Lay.Split_At (0, 100) = Lay.Split_Percentage'First,
              "a drag to column 0 clamps to the minimum");
-      Check (Pol.Split_At (9_999, 100) = Pol.Split_Percentage'Last,
+      Check (Lay.Split_At (9_999, 100) = Lay.Split_Percentage'Last,
              "a drag past the screen clamps to the maximum");
 
-      --  Hit-testing the painted layout: 28 | separator | 28.
-      Check (Pol.Locate (1, 1, 28, 28, 20) = Pol.List_Region,
-             "the first column is the list pane");
-      Check (Pol.Locate (28, 1, 28, 28, 20) = Pol.List_Region,
-             "the list pane's last column is still the list");
-      Check (Pol.Locate (29, 1, 28, 28, 20) = Pol.Separator_Region,
-             "the column after the list is the separator");
-      Check (Pol.Locate (30, 1, 28, 28, 20) = Pol.Diff_Region,
-             "the column after the separator is the diff pane");
-      Check (Pol.Locate (57, 1, 28, 28, 20) = Pol.Diff_Region,
-             "the last painted column is the diff pane");
-      Check (Pol.Locate (58, 1, 28, 28, 20) = Pol.Outside,
-             "past the painted width is outside");
-      Check (Pol.Locate (10, 21, 28, 28, 20) = Pol.Outside,
-             "the status row is outside the panes");
-      Check (Pol.Locate (0, 1, 28, 28, 20) = Pol.Outside,
-             "a report with no column is outside");
-      Check (Pol.Locate (10, 0, 28, 28, 20) = Pol.Outside,
-             "a report with no row is outside");
+      ------------------------------------------------------------------
+      --  Hit-testing the painted row: 28 | separator | 28, over 20 rows
+      --  of content starting at screen row 1.
+      ------------------------------------------------------------------
+      Row (P, 57);
 
-      --  Single-pane layouts have no separator to hit.
-      Check (Pol.Locate (30, 1, 56, 0, 20) = Pol.List_Region,
-             "a collapsed layout is all list");
-      Check (Pol.Locate (57, 1, 56, 0, 20) = Pol.Outside,
-             "past a collapsed list is outside");
-      Check (Pol.Locate (1, 1, 0, 56, 20) = Pol.Diff_Region,
-             "a maximized diff owns the first column");
+      H := Lay.Locate (P, 1, 20, Col => 1, Row => 1);
+      Check (H.Kind = Lay.Pane_Hit and then H.Pane = 1
+             and then H.Local_Col = 1 and then H.Local_Row = 1,
+             "the first column is the first pane's first column");
+      H := Lay.Locate (P, 1, 20, Col => 28, Row => 5);
+      Check (H.Kind = Lay.Pane_Hit and then H.Pane = 1
+             and then H.Local_Col = 28 and then H.Local_Row = 5,
+             "the first pane's last column is still the first pane");
+      H := Lay.Locate (P, 1, 20, Col => 29, Row => 1);
+      Check (H.Kind = Lay.Separator_Hit and then H.Pane = 1,
+             "the column after a pane is the separator it owns");
+
+      --  Local coordinates are the pane's own frame, which is the point of
+      --  returning them: no caller subtracts a neighbour's width again.
+      H := Lay.Locate (P, 1, 20, Col => 30, Row => 1);
+      Check (H.Kind = Lay.Pane_Hit and then H.Pane = 2
+             and then H.Local_Col = 1,
+             "the column after the separator is the second pane's column 1");
+      H := Lay.Locate (P, 1, 20, Col => 57, Row => 20);
+      Check (H.Kind = Lay.Pane_Hit and then H.Pane = 2
+             and then H.Local_Col = 28 and then H.Local_Row = 20,
+             "the last painted cell is the second pane's last cell");
+
+      Check (Lay.Locate (P, 1, 20, 58, 1).Kind = Lay.Nowhere,
+             "past the painted width is nowhere");
+      Check (Lay.Locate (P, 1, 20, 10, 21).Kind = Lay.Nowhere,
+             "the status row is nowhere");
+      Check (Lay.Locate (P, 1, 20, 0, 1).Kind = Lay.Nowhere,
+             "a report with no column is nowhere");
+      Check (Lay.Locate (P, 1, 20, 10, 0).Kind = Lay.Nowhere,
+             "a report with no row is nowhere");
+
+      --  Rows reserved for chrome above the panes shift the local frame.
+      Check (Lay.Locate (P, 2, 20, 1, 1).Kind = Lay.Nowhere,
+             "a title row above the panes is nowhere");
+      H := Lay.Locate (P, 2, 20, Col => 1, Row => 2);
+      Check (H.Kind = Lay.Pane_Hit and then H.Local_Row = 1,
+             "the first content row is local row 1 whatever it is on screen");
+
+      --  A collapsed row has no separator to hit.
+      Row (P, 56);
+      Check (Lay.Locate (P, 1, 20, 30, 1).Kind = Lay.Pane_Hit,
+             "a collapsed row is all first pane");
+      Check (Lay.Locate (P, 1, 20, 57, 1).Kind = Lay.Nowhere,
+             "past a collapsed pane is nowhere");
+
+      ------------------------------------------------------------------
+      --  Three panes, the explorer's shape: the focused pane survives
+      --  narrowing, and the row still covers the width exactly.
+      ------------------------------------------------------------------
+      declare
+         Three : Lay.Placement_Array (1 .. 3);
+         Spec  : constant Lay.Specs_Array (1 .. 3) :=
+           (1 => (Weight => 30, Min_Cols => 28, Priority => 1),
+            2 => (Weight => 25, Min_Cols => 28, Priority => 2),
+            3 => (Weight => 45, Min_Cols => 28, Priority => 0));
+      begin
+         Lay.Compute (Spec, 160, 1, False, True, Lay.Keep_Focused, Three);
+         Check (Three (1).Cols = 48 and then Three (2).Cols = 40
+                and then Three (3).Cols = 70,
+                "160 columns split 30/25/45 around two separators");
+         Check (Three (1).Cols + Three (2).Cols + Three (3).Cols + 2 = 160,
+                "three panes and two separators cover the width exactly");
+         Check (Three (2).Start_Col = 50 and then Three (3).Start_Col = 91,
+                "each pane starts one separator past its predecessor");
+
+         --  Too narrow for three: the most disposable pane goes first and
+         --  the focused pane is never the one that goes.
+         Lay.Compute (Spec, 70, 3, False, True, Lay.Keep_Focused, Three);
+         Check (Three (2).Cols = 0 and then Three (1).Cols > 0
+                and then Three (3).Cols > 0,
+                "the tree pane gives up its place first");
+         Lay.Compute (Spec, 55, 3, False, True, Lay.Keep_Focused, Three);
+         Check (Three (3).Cols = 55 and then Three (1).Cols = 0
+                and then Three (2).Cols = 0,
+                "the last pane standing is the focused one");
+         Lay.Compute (Spec, 55, 1, False, True, Lay.Keep_Focused, Three);
+         Check (Three (1).Cols = 55,
+                "which pane survives follows the keyboard");
+      end;
    end Test_Layout;
 
    ----------------------
