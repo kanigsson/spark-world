@@ -18,6 +18,31 @@ out. History, tree, and source share one navigation state.
 any directory in the repository. Paths inside the explorer are repository
 relative. `--no-mouse` leaves mouse handling to the terminal.
 
+## The model
+
+Four values decide everything on screen.
+
+A **snapshot** is what you are looking at: a commit, the working tree, or the
+index. A **base** is what it is compared against, either derived automatically
+or set explicitly. The snapshot alone supplies the source text; the base only
+adds annotations to it.
+
+A **pane** is one of three vertical strips, in the order one determines the
+next: history picks the snapshot, the tree picks the path, the source shows the
+file. Each pane keeps its own viewport, selection, and search pattern.
+
+**Tree visibility** selects which files the tree lists. **A lens** selects which
+lines of the file the source shows, from the plain file through gutter
+annotations, changed lines, hunks, and before/after. The two are independent:
+one filters files, the other filters lines within whichever file is open.
+
+Everything else is a transition on those values, and the whole set — snapshot,
+base, scope, pin, filters, visibility, lens, focus, per-pane selections,
+viewports, and search patterns — is a single value. That is why back and forward
+restore a location completely rather than approximately, and why a **pin**,
+which holds one path fixed while the snapshot moves, is enough to walk a file
+through history.
+
 ## Navigation
 
 | Key | Action |
