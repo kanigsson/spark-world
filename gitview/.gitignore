@@ -1,3 +1,22 @@
+# Build artifacts
 obj/
-git_view
+lib/
+
+# Built executables (Exec_Dir is the project root)
+/git_view
+
+# Alire-generated
+/alire/
+/config/
+
+# Proof residue from reproducers kept outside the repo
+/gnatprove-repro/
+
+# Test helper caches
 __pycache__/
+*.pyc
+
+# Editor/OS cruft
+*~
+*.o
+*.ali

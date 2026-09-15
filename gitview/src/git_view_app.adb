@@ -34,7 +34,6 @@ is
    package Pol renames Git_View_Policy;
    package Thm renames Git_View_Theme;
    package Syn renames Git_View_Syntax;
-   package Pan renames Tui.Panes;
    package Lay renames Tui.Panes.Layout;
    package Gest renames Tui.Panes.Gesture;
    package Mark renames Tui.Panes.Highlight;
@@ -47,7 +46,6 @@ is
    use type Gest.Gesture_Kind;
    use type Git_View_Status.Note;
    use type Tui.Text.Doc_Ref;
-   use type Sel.Position;
    use type Syn.Language;
    use type Tui.Text.Byte;
 
