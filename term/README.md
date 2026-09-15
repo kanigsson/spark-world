@@ -13,7 +13,7 @@ and interrupt handlers the rest of the ecosystem keeps out.
 
 ## What it is
 
-Five child packages under `Tui.Term`:
+Six child packages under `Tui.Term`:
 
 | Package               | Role                                                                 |
 |-----------------------|----------------------------------------------------------------------|
@@ -22,6 +22,7 @@ Five child packages under `Tui.Term`:
 | `Tui.Term.Signals`    | `SIGWINCH` (resize, read-and-clear) and `SIGTERM` (latched quit) via protected interrupt handlers. |
 | `Tui.Term.Input`      | `Next`: read bytes, pump them through a `Tui.Input.Decoder`, resolve a lone `ESC` on a short timeout. |
 | `Tui.Term.Event_Loop` | Optional batteries-included loop: two callbacks (paint, key) and it runs the whole cycle with diffed redraws. |
+| `Tui.Term.Clipboard`  | `Set`: put a `Tui.Panes.Clip.Payload` on the clipboard over OSC 52. The encoding is pure and lives in the library; only the write is here. |
 
 The smallest possible host:
 

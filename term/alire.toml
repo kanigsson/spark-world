@@ -1,5 +1,5 @@
 name = "tui_term"
-description = "Terminal driver for the TUI ecosystem: raw mode, ANSI/SGR output, key input, signals (the OS edge)"
+description = "Terminal driver: raw mode, ANSI output, key input, signals"
 version = "0.1.0-dev"
 
 authors = ["kanig"]
