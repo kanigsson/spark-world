@@ -40,7 +40,10 @@ package body Git_View_Loop with SPARK_Mode => Off is
                loop
                   exit Sizes when Tui.Term.Signals.Quit_Requested;
                   exit when Tui.Term.Signals.Resize_Pending;
-                  Tui.Term.Input.Next (Decoder, Event, Status, Timeout => 50);
+                  --  The wait also bounds how long a finished frame sits in
+                  --  the mailbox before the poll below picks it up, so it is
+                  --  short enough not to be seen.
+                  Tui.Term.Input.Next (Decoder, Event, Status, Timeout => 20);
                   Dirty := False;
                   case Status is
                      when Tui.Term.Input.End_Of_Input => exit Sizes;

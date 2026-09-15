@@ -16,7 +16,7 @@ package Git_View_Model with SPARK_Mode => On is
 
    type Snapshot_Kind is (Commit, Worktree, Staging);
    type Change_Lens is (Plain, Gutter, Changed_Lines, Hunks, Before_After);
-   type Tree_Visibility is (All_Files, Changed_Ancestors, Changed_Only);
+   type Tree_Visibility is (All_Files, Changed_Only);
    type Pane is (History_Pane, Tree_Pane, Source_Pane);
    type Engines is array (Pane) of Tui.Pager.Engine.Instance;
    type Selections is array (Pane) of Tui.Text.Line_Number;
@@ -31,8 +31,8 @@ package Git_View_Model with SPARK_Mode => On is
       History_Filter : Git_View_Source.Filters;
       Path_Filter : Text;
       Repository_Search : Text;
-      Lens : Change_Lens := Gutter;
-      Visibility : Tree_Visibility := Changed_Ancestors;
+      Lens : Change_Lens := Hunks;
+      Visibility : Tree_Visibility := Changed_Only;
       Focus : Pane := History_Pane;
       Views : Engines;
       Selected : Selections := (others => 1);

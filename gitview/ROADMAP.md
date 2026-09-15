@@ -20,12 +20,10 @@ text/Git workflow.
 
 Status: proposed.
 
-The middle pane currently cycles through three visibilities: changed files with
-their ancestor directories, changed files only, and the complete tree. Three
-modes exist because none of them is the right default, but they do not answer
-three questions. Changed-only and changed-with-ancestors are two renderings of
-one answer, "what is in this comparison?"; the complete tree answers a
-different question, "what else does this repository contain?".
+The middle pane now toggles between two visibilities: the changed files of the
+comparison, which is the default, and the complete tree. They answer two
+different questions: "what is in this comparison?" and "what else does this
+repository contain?".
 
 The pane's real subject is the set of files the user currently cares about.
 That set is seeded by the comparison but must not be limited to it, because a

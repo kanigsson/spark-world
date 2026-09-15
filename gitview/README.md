@@ -36,6 +36,9 @@ lines of the file the source shows, from the plain file through gutter
 annotations, changed lines, hunks, and before/after. The two are independent:
 one filters files, the other filters lines within whichever file is open.
 
+At startup the snapshot is `HEAD`, the base is its first parent, the tree lists
+the changed files only with the first of them in scope, and the lens is hunks.
+
 Everything else is a transition on those values, and the whole set — snapshot,
 base, scope, pin, filters, visibility, lens, focus, per-pane selections,
 viewports, and search patterns — is a single value. That is why back and forward
@@ -48,15 +51,15 @@ through history.
 | Key | Action |
 | --- | --- |
 | Tab | Cycle history, tree, source focus |
-| j/k, arrows | Move selected row or scroll source |
-| Enter, left click | Follow a commit, file, or search result |
+| j/k, arrows | Move the selection, which the panes to its right follow at once, or scroll the source |
+| Enter, left click | Open a commit, file, or search result: a directory filters history, a file takes the keyboard |
 | Left drag | Select pane text; releasing copies it to the clipboard |
 | Drag a pane boundary | Resize the two panes on either side of it |
 | Wheel | Scroll the pane under the cursor, which also takes the keyboard |
 | PageUp/PageDown, Space, Home/End | Page or jump within the focused pane |
 | h/l, left/right | Horizontal scrolling |
 | z | Maximize/restore; a terminal too narrow for three panes drops the most disposable one, and never the focused one |
-| a | Tree: changed and ancestors → changed only → all files |
+| a | Tree: changed only ↔ all files |
 | d | Lens: gutter → changed lines → hunks → before/after → plain |
 | [ / ] | Previous/next hunk |
 | { / } | Previous/next changed file |
@@ -89,6 +92,12 @@ deleted files are labeled base-only. Gutter and changed-lines lenses retain
 the full file. Hunk lenses retain nearby context. Binary files and changed
 submodules have placeholders. Untracked, nonignored files are available in
 the working-tree view.
+
+Moving the selection is how the explorer is read: the history pane's row is
+the snapshot and the tree pane's row is the scope, so arriving on a row shows
+it. Enter keeps the row you arrived on -- it moves the keyboard to the source,
+or filters history to a directory. A run of moves records one location, the
+one it started from, so back leaves a browse rather than retracing it.
 
 Back/forward restores the snapshot, comparison, path, pin, filters, tree
 visibility, lens, focus, selections, search patterns, and pane scroll offsets.
@@ -130,8 +139,19 @@ SPARK and covered by integration tests. Silver does not establish Git's
 behavior or the semantic correctness of the rendered diff.
 
 Repository requests run on a worker. Results carry a generation and obsolete
-results are discarded. Commit content, tree listings, history, and comparisons
-are cached separately. The terminal keeps processing input while loading.
+results are discarded. The terminal keeps processing input while loading, and
+a request submitted while one is running replaces it rather than queueing
+behind it, so holding an arrow key down costs the frames it skips nothing.
+
+What a keystroke costs is what it changes. The repository handle, revision
+resolutions, comparisons, commit contents and the history walk are each kept
+under the inputs they were made with, and so are the rendered history and tree
+panes: moving the scope within one comparison rebuilds the source alone, and a
+snapshot listing is asked for only when something needs it -- the complete
+tree, a working tree's untracked files, or a path the comparison never
+mentions. A row of a pane names its commit or path as a slice of one buffer
+per pane, so a frame costs the identities it carries rather than a fixed size
+per row. Pressing `r` drops all of it and asks Git again.
 The worker finishes an active repository query before stopping; terminal
 state is restored when the UI exits.
 
@@ -141,6 +161,7 @@ gnatprove -P git_view.gpr --level=2 -j4
 gprbuild -P tests/explorer_tests.gpr -j4
 obj/tests/model_tests
 obj/tests/behavior_tests
+obj/tests/load_bench HEAD PATH      # frame timings in the current repository
 python3 tests/run_explorer_tests.py
 python3 tests/run_explorer_pty_tests.py
 python3 tests/run_mouse_tests.py        # legacy regression suite

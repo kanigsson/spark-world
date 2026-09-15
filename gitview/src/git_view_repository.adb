@@ -36,6 +36,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
    type Buffer_Ref is access Tui.Text.Buffer;
    procedure Release is new Ada.Unchecked_Deallocation (Tui.Text.Buffer, Buffer_Ref);
    procedure Release is new Ada.Unchecked_Deallocation (Target_Array, Target_Ref);
+   procedure Release is new Ada.Unchecked_Deallocation (String, Name_Ref);
    procedure Release is new Ada.Unchecked_Deallocation (Mark_Array, Mark_Ref);
 
    --  Every repository query reports failure the same way; the frame builder
@@ -137,6 +138,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
    begin
       Tui.Text.Free (F.History); Tui.Text.Free (F.Tree); Tui.Text.Free (F.Source);
       Release (F.Commits); Release (F.Paths); Release (F.Marks);
+      Release (F.Commit_Names); Release (F.Path_Names);
    end Free;
 
    Cached_Changes : G.Change_Set;
@@ -148,6 +150,66 @@ package body Git_View_Repository with SPARK_Mode => Off is
    Cached_Tree : G.Snapshots.Inventory;
    Cached_Content_Key, Cached_Content : Unbounded_String;
 
+   --  Opening a repository and resolving a revision each cost their own git
+   --  processes, and one keystroke asks most of the same questions as the
+   --  one before it. What is kept here is what the reader has not asked to
+   --  have reread; asking for a refresh drops all of it.
+   Cached_Repo : G.Repository;
+   Repository_Open : Boolean := False;
+   Cached_Commit_Key, Cached_Commit : Unbounded_String;
+   Cached_Parent_Key, Cached_Parent : Unbounded_String;
+   Cached_Identity_Key, Cached_Identity : Unbounded_String;
+
+   --  Each pane is kept rendered, together with the row identities it was
+   --  rendered with: the history text depends on the walk alone and the
+   --  tree text on the comparison alone, so moving the scope within one
+   --  comparison rebuilds neither — only the source.
+   Cached_History_Text, Cached_History_Names : Unbounded_String;
+   Cached_History_Rows : Targets.Vector;
+   Cached_Rows_Key : Unbounded_String;
+   Cached_Tree_Text, Cached_Tree_Names, Cached_Tree_Scope : Unbounded_String;
+   Cached_Tree_Rows : Targets.Vector;
+   Cached_Inventory, Cached_Untracked : Paths.Set;
+
+   --  Everything derived from the repository, dropped together: the worker
+   --  calls this for a refresh, and Load when it finds a different
+   --  repository under the same process.
+   procedure Forget_Repository is
+   begin
+      Cache_Valid := False;
+      Cached_Commit_Key := Null_Unbounded_String;
+      Cached_Parent_Key := Null_Unbounded_String;
+      Cached_Identity_Key := Null_Unbounded_String;
+      Cached_Log_Key := Null_Unbounded_String;
+      Cached_Tree_Key := Null_Unbounded_String;
+      Cached_Rows_Key := Null_Unbounded_String;
+      Cached_Content_Key := Null_Unbounded_String;
+   end Forget_Repository;
+
+   --  Append one row identity to a pane's name buffer, which the frame
+   --  hands out as the slice the row names.
+   procedure Add_Name
+     (Pool : in out Unbounded_String; Rows : in out Targets.Vector;
+      Name : String; Line : Tui.Text.Line_Number := 1;
+      Changed : Boolean := False) is
+   begin
+      Append (Pool, Name);
+      Rows.Append
+        (Row_Target'(First   => Length (Pool) - Name'Length + 1,
+                     Last    => Length (Pool),
+                     Line    => Line,
+                     Changed => Changed));
+   end Add_Name;
+
+   procedure Publish_Rows
+     (Target : out Target_Ref; Names : out Name_Ref;
+      Rows : Targets.Vector; Pool : Unbounded_String) is
+   begin
+      Names := new String'(To_String (Pool));
+      Target := new Target_Array (1 .. Natural (Rows.Length));
+      for I in Target'Range loop Target (I) := Rows (I); end loop;
+   end Publish_Rows;
+
    procedure Load (V : M.View_State; F : in out Frame) is
       Repo : G.Repository;
       Error : G.Error_Info;
@@ -155,12 +217,13 @@ package body Git_View_Repository with SPARK_Mode => Off is
       --  Which state of the repository every path and content query is
       --  about; the comparison endpoints are derived from the same choice.
       Shot : G.Snapshots.Snapshot;
-      Inventory : Paths.Set;
-      Untracked_Paths : Paths.Set;
+      --  Paths the comparison removes: they belong to the tree, which lists
+      --  them as base-only, but not to the snapshot, which no longer has
+      --  them to show.
+      Removed_Paths : Paths.Set;
       Changes_By_Path : Change_Maps.Map;
-      Tree_Rows, History_Rows : Targets.Vector;
       Source_Marks : Marks.Vector;
-      H, T, S : Unbounded_String;
+      S : Unbounded_String;
       Scope : Unbounded_String := To_Unbounded_String (M.Image (V.Scope));
 
       function Change (Path : String) return Natural is
@@ -168,11 +231,50 @@ package body Git_View_Repository with SPARK_Mode => Off is
          return (if Changes_By_Path.Contains (Path) then Changes_By_Path (Path) else 0);
       end Change;
 
+      --  Listing a whole snapshot costs a query proportional to the
+      --  repository rather than to the comparison, so it is asked for only
+      --  when a question actually needs it: the complete tree, a working
+      --  tree's untracked files, or a path the comparison never mentions.
+      procedure Ensure_Inventory is
+         Listing : G.Snapshots.Inventory;
+      begin
+         if V.Kind = M.Commit and then Target = Cached_Tree_Key then return; end if;
+         if V.Kind = M.Commit then
+            G.Snapshots.List (Repo, Shot, Options => Query_Options,
+                              Result => Cached_Tree, Error => Error);
+            Check (Error);
+            Listing := Cached_Tree;
+            Cached_Tree_Key := Target;
+         else
+            G.Snapshots.List (Repo, Shot, Include_Untracked => V.Kind = M.Worktree,
+                              Options => Query_Options, Result => Listing,
+                              Error => Error);
+            Check (Error);
+            Cached_Tree_Key := Null_Unbounded_String;
+         end if;
+         Cached_Inventory.Clear; Cached_Untracked.Clear;
+         for I in 1 .. G.Snapshots.Count (Listing) loop
+            Cached_Inventory.Include (G.Snapshots.Path (Listing, I));
+            if G.Snapshots.Is_Untracked (Listing, I) then
+               Cached_Untracked.Include (G.Snapshots.Path (Listing, I));
+            end if;
+         end loop;
+      end Ensure_Inventory;
+
+      function In_Snapshot (Path : String) return Boolean is
+      begin
+         if Removed_Paths.Contains (Path) then return False; end if;
+         --  A path the comparison names is in the snapshot by construction.
+         if Change (Path) > 0 then return True; end if;
+         Ensure_Inventory;
+         return Cached_Inventory.Contains (Path);
+      end In_Snapshot;
+
       procedure Add_Row (Path, Display : String; Changed : Boolean;
                          Line : Tui.Text.Line_Number := 1) is
       begin
-         Append (T, Display & LF);
-         Tree_Rows.Append (Row_Target'(Bounded (Path), Line, Changed));
+         Append (Cached_Tree_Text, Display & LF);
+         Add_Name (Cached_Tree_Names, Cached_Tree_Rows, Path, Line, Changed);
       end Add_Row;
 
       function Content (Path : String) return String is
@@ -209,7 +311,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
 
       procedure Render_Source is
          File : constant Natural := Change (To_String (Scope));
-         Whole_Added : constant Boolean := Untracked_Paths.Contains (To_String (Scope));
+         Whole_Added : constant Boolean := Cached_Untracked.Contains (To_String (Scope));
          Old_Content, New_Content : Unbounded_String;
          Base_Only : Boolean := False;
          Old_Lines, New_Lines : Strings.Vector;
@@ -251,7 +353,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
             end loop;
             return;
          end if;
-         if not Inventory.Contains (To_String (Scope)) then
+         if not In_Snapshot (To_String (Scope)) then
             Emit ("[absent in snapshot] " & Label (To_String (Scope)));
             return;
          end if;
@@ -323,24 +425,34 @@ package body Git_View_Repository with SPARK_Mode => Off is
       end Render_Source;
    begin
       Free (F);
-      G.Repositories.Open (".", Repo, Error);
-      Check (Error);
-      Root := To_Unbounded_String (G.Root_Path (Repo));
-      if Root /= Repository_Root then
-         Cache_Valid := False;
-         Cached_Log_Key := Null_Unbounded_String;
-         Cached_Tree_Key := Null_Unbounded_String;
-         Cached_Content_Key := Null_Unbounded_String;
+      --  Opening runs several git queries of its own, and the process works
+      --  in one directory for its whole life: the handle is worth keeping.
+      if not Repository_Open then
+         G.Repositories.Open (".", Cached_Repo, Error);
+         Check (Error);
+         Root := To_Unbounded_String (G.Root_Path (Cached_Repo));
+         if Root /= Repository_Root then
+            Forget_Repository;
+            Repository_Root := Root;
+         end if;
+         Repository_Open := True;
       end if;
-      Repository_Root := Root;
+      Repo := Cached_Repo;
       --  Every query runs relative to the repository root, even when the
       --  program was launched in a subdirectory: the handle carries the
       --  root, so the process working directory is never changed.
       if V.Kind = M.Commit then
-         G.Revisions.Resolve_Commit
-           (Repo, (if V.Snapshot.Last = 0 then "HEAD" else M.Image (V.Snapshot)),
-            Target, Error);
-         Check (Error);
+         declare
+            Spec : constant String :=
+              (if V.Snapshot.Last = 0 then "HEAD" else M.Image (V.Snapshot));
+         begin
+            if Cached_Commit_Key /= Spec then
+               G.Revisions.Resolve_Commit (Repo, Spec, Cached_Commit, Error);
+               Check (Error);
+               Cached_Commit_Key := To_Unbounded_String (Spec);
+            end if;
+         end;
+         Target := Cached_Commit;
          Shot := G.Snapshots.Tree (To_String (Target));
       elsif V.Kind = M.Worktree then
          Target := To_Unbounded_String ("worktree");
@@ -351,6 +463,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
       end if;
       if not V.Automatic_Base then Base := To_Unbounded_String (M.Image (V.Base));
       elsif V.Kind /= M.Commit then Base := To_Unbounded_String ("HEAD");
+      elsif Cached_Parent_Key = Target then Base := Cached_Parent;
       else
          --  A root commit has no parent to compare against; the empty tree
          --  makes its own content the whole change.
@@ -363,6 +476,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
                G.Revisions.Empty_Tree (Repo, Base, Error);
                Check (Error);
             end if;
+            Cached_Parent_Key := Target; Cached_Parent := Base;
          end;
       end if;
       if not Cache_Valid or else Cached_Base /= Base or else Cached_Target /= Target
@@ -389,13 +503,12 @@ package body Git_View_Repository with SPARK_Mode => Off is
          end loop;
       end loop;
       F.Resolved_Snapshot := Bounded (To_String (Target));
-      declare
-         Identity : Unbounded_String;
-      begin
-         G.Revisions.Resolve (Repo, To_String (Base), Identity, Error);
+      if V.Kind /= M.Commit or else Cached_Identity_Key /= Base then
+         G.Revisions.Resolve (Repo, To_String (Base), Cached_Identity, Error);
          Check (Error);
-         F.Resolved_Base := Bounded (To_String (Identity));
-      end;
+         Cached_Identity_Key := (if V.Kind = M.Commit then Base else Null_Unbounded_String);
+      end if;
+      F.Resolved_Base := Bounded (To_String (Cached_Identity));
       if G.Is_Stale (Cached_Changes) then F.Notice := Bounded ("comparison changed during capture; press r to refresh");
       else F.Notice := Bounded (""); end if;
       declare
@@ -436,55 +549,75 @@ package body Git_View_Repository with SPARK_Mode => Off is
                             Result => Cached_Log, Error => Error);
             Check (Error);
             Cached_Log_Key := Key;
+            Cached_History_Text := Null_Unbounded_String;
+            Cached_History_Names := Null_Unbounded_String;
+            Cached_History_Rows.Clear;
+            for I in 1 .. G.History.Count (Cached_Log) loop
+               declare
+                  Refs : constant String := G.History.References (Cached_Log, I);
+               begin
+                  Add_Name (Cached_History_Names, Cached_History_Rows,
+                            G.History.Commit_Id (Cached_Log, I));
+                  --  The subject is the field the reader scans for, so it comes
+                  --  before the decorations: refs are long, rare, and repeated on
+                  --  the status line, and are the right thing to lose first when
+                  --  the pane is narrow.
+                  Append (Cached_History_Text,
+                    (if G.History.Is_Merge (Cached_Log, I) then "M " else "  ")
+                    & Label (G.History.Abbreviated (Cached_Log, I) & " "
+                             & Compact_Date (G.History.Commit_Date (Cached_Log, I))
+                             & " " & G.History.Subject (Cached_Log, I)
+                             & (if Refs'Length = 0 then "" else " (" & Refs & ")"))
+                    & " [parents: " & G.History.Parents (Cached_Log, I) & "]" & LF);
+               end;
+            end loop;
          end if;
-         for I in 1 .. G.History.Count (Cached_Log) loop
-            declare
-               Refs : constant String := G.History.References (Cached_Log, I);
-            begin
-               History_Rows.Append
-                 (Row_Target'(Bounded (G.History.Commit_Id (Cached_Log, I)), 1, False));
-               --  The subject is the field the reader scans for, so it comes
-               --  before the decorations: refs are long, rare, and repeated on
-               --  the status line, and are the right thing to lose first when
-               --  the pane is narrow.
-               Append (H, (if G.History.Is_Merge (Cached_Log, I) then "M " else "  ")
-                 & Label (G.History.Abbreviated (Cached_Log, I) & " "
-                          & Compact_Date (G.History.Commit_Date (Cached_Log, I))
-                          & " " & G.History.Subject (Cached_Log, I)
-                          & (if Refs'Length = 0 then "" else " (" & Refs & ")"))
-                 & " [parents: " & G.History.Parents (Cached_Log, I) & "]" & LF);
-            end;
-         end loop;
       end;
-      declare
-         Listing : G.Snapshots.Inventory;
-      begin
-         if V.Kind = M.Commit then
-            if Target /= Cached_Tree_Key then
-               G.Snapshots.List (Repo, Shot, Options => Query_Options,
-                                 Result => Cached_Tree, Error => Error);
-               Check (Error);
-               Cached_Tree_Key := Target;
-            end if;
-            Listing := Cached_Tree;
-         else
-            G.Snapshots.List (Repo, Shot, Include_Untracked => V.Kind = M.Worktree,
-                              Options => Query_Options, Result => Listing,
-                              Error => Error);
-            Check (Error);
+      --  A working tree or an index is listed every time: its untracked
+      --  files are part of what the reader is looking at, and neither stays
+      --  still long enough to be remembered. A commit has no untracked
+      --  files, and must not inherit the ones a working tree left behind.
+      if V.Kind = M.Commit then Cached_Untracked.Clear; else Ensure_Inventory; end if;
+      for I in 1 .. G.File_Count (Cached_Changes) loop
+         if G.File_Kind (Cached_Changes, I) = G.Deleted then
+            Removed_Paths.Include (G.Path (Cached_Changes, I, G.Old_Side));
          end if;
-         for I in 1 .. G.Snapshots.Count (Listing) loop
-            Inventory.Include (G.Snapshots.Path (Listing, I));
-            if G.Snapshots.Is_Untracked (Listing, I) then
-               Untracked_Paths.Include (G.Snapshots.Path (Listing, I));
-            end if;
-         end loop;
-      end;
+      end loop;
       declare
-         Displayed : Paths.Set := Inventory;
+         --  What the tree shows depends on the comparison, the visibility
+         --  and the snapshot search — never on which file is open — so the
+         --  pane survives every move of the scope within one comparison.
+         Key : constant Unbounded_String :=
+           Target & NUL & Base & NUL & To_Unbounded_String (V.Kind'Image) & NUL
+           & To_Unbounded_String (V.Visibility'Image) & NUL
+           & To_Unbounded_String (M.Image (V.Repository_Search));
+         Displayed : Paths.Set;
          Dirs : Paths.Set;
          Changed_Dirs : Paths.Set;
       begin
+       if Key /= Cached_Rows_Key or else V.Kind /= M.Commit then
+         Cached_Rows_Key := (if V.Kind = M.Commit then Key else Null_Unbounded_String);
+         Cached_Tree_Text := Null_Unbounded_String;
+         Cached_Tree_Names := Null_Unbounded_String;
+         Cached_Tree_Scope := Null_Unbounded_String;
+         Cached_Tree_Rows.Clear;
+         if V.Visibility = M.All_Files then
+            Ensure_Inventory;
+            Displayed := Cached_Inventory;
+         else
+            --  Only the comparison is on show, and it names its own paths:
+            --  the snapshot need not be listed at all.
+            for I in 1 .. G.File_Count (Cached_Changes) loop
+               --  A rename is one row under the name the snapshot has it
+               --  under, as it is when the whole tree is listed.
+               Displayed.Include
+                 (G.Path (Cached_Changes, I,
+                    (if G.Has_Path (Cached_Changes, I, G.New_Side)
+                     then G.New_Side else G.Old_Side)));
+            end loop;
+            Displayed.Union (Cached_Untracked);
+         end if;
+         Displayed.Union (Removed_Paths);
          for I in 1 .. G.File_Count (Cached_Changes) loop
             declare
                Which : constant G.Side := (if G.Has_Path (Cached_Changes, I, G.New_Side)
@@ -496,16 +629,10 @@ package body Git_View_Repository with SPARK_Mode => Off is
                end loop;
             end;
          end loop;
-         for I in 1 .. G.File_Count (Cached_Changes) loop
-            if G.File_Kind (Cached_Changes, I) = G.Deleted then
-               Displayed.Include (G.Path (Cached_Changes, I, G.Old_Side));
-               Inventory.Exclude (G.Path (Cached_Changes, I, G.Old_Side));
-            end if;
-         end loop;
          for Path of Displayed loop
             declare
                C : constant Natural := Change (Path);
-               Untracked : constant Boolean := Untracked_Paths.Contains (Path);
+               Untracked : constant Boolean := Cached_Untracked.Contains (Path);
                Badge : constant String := (if C = 0 then (if Untracked then "?" else " ")
                  else (case G.File_Kind (Cached_Changes, C) is
                    when G.Added => "A", when G.Deleted => "D", when G.Renamed => "R",
@@ -523,49 +650,60 @@ package body Git_View_Repository with SPARK_Mode => Off is
                      end loop;
                   end if;
                   Add_Row (Path, Badge & " " & Label (Path), C > 0 or else Untracked);
-                  if Length (Scope) = 0 then Scope := To_Unbounded_String (Path); end if;
+                  if Length (Cached_Tree_Scope) = 0 then
+                     Cached_Tree_Scope := To_Unbounded_String (Path);
+                  end if;
                end if;
             end;
          end loop;
+         if V.Repository_Search.Last > 0 then
+            Cached_Tree_Text := Null_Unbounded_String;
+            Cached_Tree_Names := Null_Unbounded_String;
+            Cached_Tree_Rows.Clear;
+            --  Search the actual snapshot, including unchanged tracked files.
+            declare
+               Matches : G.Snapshots.Match_List;
+            begin
+               G.Snapshots.Search (Repo, Shot, M.Image (V.Repository_Search),
+                                   Query_Options, Result => Matches,
+                                   Error => Error);
+               Check (Error);
+               for I in 1 .. G.Snapshots.Count (Matches) loop
+                  declare
+                     Path : constant String := G.Snapshots.Path (Matches, I);
+                     Line : constant Positive := G.Snapshots.Line (Matches, I);
+                  begin
+                     Add_Row (Path, Label (Path) & ":" & Trim (Line'Image) & ": "
+                       & Label (G.Snapshots.Text (Matches, I)), Change (Path) > 0,
+                       Tui.Text.Line_Number'Min (Line, Tui.Text.Line_Number'Last));
+                  end;
+               end loop;
+            end;
+            if Cached_Tree_Rows.Is_Empty then
+               Append (Cached_Tree_Text, "[no snapshot search matches]" & LF);
+            end if;
+         end if;
+       end if;
       end;
-      if V.Repository_Search.Last > 0 then
-         T := Null_Unbounded_String; Tree_Rows.Clear;
-         --  Search the actual snapshot, including unchanged tracked files.
-         declare
-            Matches : G.Snapshots.Match_List;
-         begin
-            G.Snapshots.Search (Repo, Shot, M.Image (V.Repository_Search),
-                                Query_Options, Result => Matches,
-                                Error => Error);
-            Check (Error);
-            for I in 1 .. G.Snapshots.Count (Matches) loop
-               declare
-                  Path : constant String := G.Snapshots.Path (Matches, I);
-                  Line : constant Positive := G.Snapshots.Line (Matches, I);
-               begin
-                  Add_Row (Path, Label (Path) & ":" & Trim (Line'Image) & ": "
-                    & Label (G.Snapshots.Text (Matches, I)), Change (Path) > 0,
-                    Tui.Text.Line_Number'Min (Line, Tui.Text.Line_Number'Last));
-               end;
-            end loop;
-         end;
-         if Tree_Rows.Is_Empty then Append (T, "[no snapshot search matches]" & LF); end if;
-      end if;
+      if Length (Scope) = 0 then Scope := Cached_Tree_Scope; end if;
       F.Scope := Bounded (To_String (Scope));
       begin Render_Source;
       exception when E : others =>
          S := Null_Unbounded_String; Source_Marks.Clear;
          Emit ("[content unavailable] " & Label (Ada.Exceptions.Exception_Message (E)));
       end;
-      F.History := Doc (To_String (H)); F.Tree := Doc (To_String (T)); F.Source := Doc (To_String (S));
-      F.Commits := new Target_Array (1 .. Natural (History_Rows.Length));
-      for I in F.Commits'Range loop F.Commits (I) := History_Rows (I); end loop;
-      F.Paths := new Target_Array (1 .. Natural (Tree_Rows.Length));
-      for I in F.Paths'Range loop F.Paths (I) := Tree_Rows (I); end loop;
+      F.History := Doc (To_String (Cached_History_Text));
+      F.Tree := Doc (To_String (Cached_Tree_Text));
+      F.Source := Doc (To_String (S));
+      Publish_Rows (F.Commits, F.Commit_Names, Cached_History_Rows, Cached_History_Names);
+      Publish_Rows (F.Paths, F.Path_Names, Cached_Tree_Rows, Cached_Tree_Names);
       F.Marks := new Mark_Array (1 .. Natural (Source_Marks.Length));
       for I in F.Marks'Range loop F.Marks (I) := Source_Marks (I); end loop;
    exception
       when E : others =>
+         --  A frame abandoned halfway may have left a half-built pane
+         --  behind its own key; none of it is trusted after that.
+         Forget_Repository;
          Free (F);
          F.Notice := Bounded ("repository request failed");
          F.History := Doc (""); F.Tree := Doc ("");
@@ -626,9 +764,8 @@ package body Git_View_Repository with SPARK_Mode => Off is
          exit when Done;
          if Have then
             if Refresh then
-               Cache_Valid := False;
-               Cached_Log_Key := Null_Unbounded_String;
-               Cached_Tree_Key := Null_Unbounded_String;
+               Forget_Repository;
+               Repository_Open := False;
             end if;
             Load (V, F); Mailbox.Publish (F, Id);
          else delay 0.02; end if;

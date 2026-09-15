@@ -13,7 +13,7 @@ with Tui.Term.Clipboard;
 package body Git_View_Explorer with SPARK_Mode => On,
   Refined_State => (State => (V, Stack, Data, Loading, Input_Mode, Editor,
                              Places, Weights, Rows, Screen_Width, Mouse,
-                             Message))
+                             Message, Browsing))
 is
    package M renames Git_View_Model;
    package R renames Git_View_Repository;
@@ -39,6 +39,10 @@ is
    Stack : M.Navigation;
    Data : R.Frame;
    Loading : Boolean := False;
+   --  True while the reader is moving over rows rather than opening them:
+   --  the place browsing started from is already on the stack, so the moves
+   --  that follow do not each record one of their own.
+   Browsing : Boolean := False;
    type Prompt is (No_Prompt, File_Search, Repository_Search, Snapshot_Prompt, Base_Prompt);
    Input_Mode : Prompt := No_Prompt;
    Editor : Edit.Editor;
@@ -106,6 +110,17 @@ is
       Loading := True;
       Message := M.To_Text ("");
    end Reload;
+
+   --  Where back returns to. An explicit jump records the location it
+   --  starts from; browsing records only the location it started from,
+   --  however many rows it then moves over.
+   procedure Record_Location (Browse : Boolean := False)
+     with Global => (Input => V, In_Out => (Stack, Browsing))
+   is
+   begin
+      if not Browsing then M.Push (Stack, V); end if;
+      Browsing := Browse;
+   end Record_Location;
 
    procedure Init
      (From : Git_View_Source.Revision;
@@ -342,8 +357,50 @@ is
       end if;
    end Drive;
 
+   --  The panes to the right of the one being moved through follow the row
+   --  under the selection: a commit or a file is seen by arriving on it,
+   --  and opening it with Enter is what keeps it.
+   procedure Preview
+     with Global => (Input => Data,
+                     In_Out => (V, Stack, Loading, Message, Browsing, R.State))
+   is
+      Row : constant Tui.Text.Line_Number := V.Selected (V.Focus);
+   begin
+      if V.Focus = M.History_Pane and then Data.Commits /= null
+        and then Row in Data.Commits'Range
+      then
+         declare
+            Id : constant String := R.Commit_Id (Data, Row);
+         begin
+            if Id'Length in 1 .. M.Max_Text and then Id /= M.Image (V.Snapshot) then
+               Record_Location (Browse => True);
+               M.Select_Snapshot (V, M.To_Text (Id));
+               Reload;
+            end if;
+         end;
+      elsif V.Focus = M.Tree_Pane and then Data.Paths /= null
+        and then Row in Data.Paths'Range
+      then
+         declare
+            Target : constant String := R.Path (Data, Row);
+         begin
+            --  A directory names a history filter rather than a file: it is
+            --  opened deliberately, not by being passed over.
+            if Target'Length in 1 .. M.Max_Text
+              and then Target (Target'Last) /= '/'
+              and then Target /= M.Image (V.Scope)
+            then
+               Record_Location (Browse => True);
+               M.Select_Scope (V, M.To_Text (Target));
+               Reload;
+            end if;
+         end;
+      end if;
+   end Preview;
+
    procedure Move_Selection (Down : Boolean)
-     with Global => (Input => (Data, Rows), In_Out => V)
+     with Global => (Input => (Data, Rows),
+                     In_Out => (V, Stack, Loading, Message, Browsing, R.State))
    is
       Total : Natural := 0;
    begin
@@ -361,30 +418,42 @@ is
       if V.Selected (V.Focus) < E.Top_Line (V.Views (V.Focus)) then Drive (E.Line_Up);
       elsif V.Selected (V.Focus) >= E.Top_Line (V.Views (V.Focus)) + Natural (Rows) then Drive (E.Line_Down);
       end if;
+      Preview;
    end Move_Selection;
 
    procedure Follow
-     with Global => (Input => Data, In_Out => (V, Stack, Loading, Message, R.State))
+     with Global => (Input => Data,
+                     In_Out => (V, Stack, Loading, Message, Browsing, R.State))
    is
       Row : constant Tui.Text.Line_Number := V.Selected (V.Focus);
    begin
       if V.Focus = M.History_Pane and then Data.Commits /= null and then Row in Data.Commits'Range then
-         M.Push (Stack, V);
-         M.Select_Snapshot (V, Data.Commits (Row).Path);
-         Reload;
-      elsif V.Focus = M.Tree_Pane and then Data.Paths /= null and then Row in Data.Paths'Range then
          declare
-            Target : constant R.Row_Target := Data.Paths (Row);
+            Id : constant String := R.Commit_Id (Data, Row);
          begin
-            M.Push (Stack, V);
-            M.Select_Scope (V, Target.Path);
-            if Target.Path.Last > 0 and then Target.Path.Data (Target.Path.Last) = '/' then
-               V.Path_Filter := Target.Path;
+            if Id'Length <= M.Max_Text then
+               Record_Location;
+               M.Select_Snapshot (V, M.To_Text (Id));
+               Reload;
+            end if;
+         end;
+      elsif V.Focus = M.Tree_Pane and then Data.Paths /= null and then Row in Data.Paths'Range
+        and then R.Path (Data, Row)'Length in 1 .. M.Max_Text
+      then
+         declare
+            Name : constant String := R.Path (Data, Row);
+            Target : constant M.Text := M.To_Text (Name);
+         begin
+            Record_Location;
+            M.Select_Scope (V, Target);
+            if Name (Name'Last) = '/' then
+               V.Path_Filter := Target;
             else
                V.Focus := M.Source_Pane;
                if V.Repository_Search.Last > 0 then
                   V.Lens := M.Plain;
-                  E.Go_To_Line (V.Views (M.Source_Pane), Target.Line, Tui.Text.Max_Lines);
+                  E.Go_To_Line (V.Views (M.Source_Pane), Data.Paths (Row).Line,
+                                Tui.Text.Max_Lines);
                end if;
             end if;
             Reload;
@@ -393,7 +462,8 @@ is
    end Follow;
 
    procedure Jump_Change (Next, File : Boolean)
-     with Global => (Input => Data, In_Out => (V, Stack, Loading, Message, R.State))
+     with Global => (Input => Data,
+                     In_Out => (V, Stack, Loading, Message, Browsing, R.State))
    is
       Row : Tui.Text.Line_Total := 0;
       Last : Tui.Text.Line_Total := 0;
@@ -404,7 +474,7 @@ is
          if Data.Paths /= null then
             Last := Natural'Min (Tui.Text.Max_Lines, Natural'Max (0, Data.Paths'Last));
             for I in Data.Paths'Range loop
-               if Data.Paths (I).Path = V.Scope then Row := I; exit; end if;
+               if R.Path (Data, I) = M.Image (V.Scope) then Row := I; exit; end if;
             end loop;
          end if;
       else
@@ -417,8 +487,9 @@ is
          if Next then exit when Row = Last; Row := Row + 1;
          else exit when Row = 1; Row := Row - 1; end if;
          if File and then Data.Paths /= null and then Row in Data.Paths'Range then
-            Found := Data.Paths (Row).Changed and then Data.Paths (Row).Path.Last > 0
-              and then Data.Paths (Row).Path.Data (Data.Paths (Row).Path.Last) /= '/';
+            Found := Data.Paths (Row).Changed
+              and then R.Path (Data, Row)'Length > 0
+              and then R.Path (Data, Row) (R.Path (Data, Row)'Last) /= '/';
          elsif not File and then Data.Marks /= null and then Row in Data.Marks'Range then
             Found := Data.Marks (Row) = R.Hunk_Header
               or else (Data.Marks (Row) in R.Addition | R.Ghost
@@ -551,7 +622,7 @@ is
    procedure Handle_Mouse (Event : Key_Event; Dirty : in out Boolean)
      with Global => (Input => (Places, Rows, Screen_Width),
                      In_Out => (V, Stack, Data, Loading, Message, Weights,
-                                Mouse, R.State))
+                                Mouse, Browsing, R.State))
    is
       Frames : Gest.Frame_Array (1 .. 3);
       G      : Gest.Gesture;
@@ -615,7 +686,7 @@ is
                if Input_Mode = File_Search then
                   E.Set_Pattern (V.Views (V.Focus), Edit.Bytes (Editor)); Drive (E.Find_Next);
                else
-                  M.Push (Stack, V);
+                  Record_Location;
                   case Input_Mode is
                      when Repository_Search =>
                         V.Repository_Search := Input_Text; V.Focus := M.Tree_Pane;
@@ -639,20 +710,21 @@ is
       end if;
       if Ch = 'q' then Quit := True; return; end if;
       if Event.Kind = Backspace or else (Event.Mods.Alt and then Event.Kind = Left) then
-         if M.Can_Back (Stack) then M.Back (Stack, V); Reload; end if; return;
+         if M.Can_Back (Stack) then M.Back (Stack, V); Browsing := False; Reload; end if;
+         return;
       elsif Event.Mods.Alt and then Event.Kind = Right then
-         if M.Can_Forward (Stack) then M.Forward (Stack, V); Reload; end if; return;
+         if M.Can_Forward (Stack) then M.Forward (Stack, V); Browsing := False; Reload; end if;
+         return;
       end if;
       if Event.Kind = Tab then
          V.Focus := (if V.Focus = M.Source_Pane then M.History_Pane else M.Pane'Succ (V.Focus));
       elsif Ch = 'z' then V.Maximized := not V.Maximized;
       elsif Ch = 'w' or else Ch = 'i' then
-         M.Push (Stack, V); M.Select_Snapshot (V, M.To_Text (""), (if Ch = 'w' then M.Worktree else M.Staging)); Reload;
+         Record_Location; M.Select_Snapshot (V, M.To_Text (""), (if Ch = 'w' then M.Worktree else M.Staging)); Reload;
       elsif Ch = 'c' or else Ch = 'b' or else Ch = '/' or else Ch = 'S' then
          Edit.Clear (Editor);
          Input_Mode := (case Ch is when 'c' => Snapshot_Prompt, when 'b' => Base_Prompt,
                           when '/' => File_Search, when others => Repository_Search);
-      elsif Loading then null;
       elsif Event.Kind in Mouse_Press | Mouse_Release | Mouse_Motion
                         | Wheel_Up | Wheel_Down
       then
@@ -668,12 +740,12 @@ is
       elsif Event.Kind = End_Key or else Ch = 'G' then Drive (E.To_Bottom);
       elsif Ch = 'n' then Drive (E.Find_Next);
       elsif Ch = 'N' then Drive (E.Find_Prev);
-      elsif Ch = 'd' then M.Push (Stack, V); M.Cycle_Lens (V); Reload;
-      elsif Ch = 'a' then M.Push (Stack, V); M.Cycle_Tree (V); Reload;
-      elsif Ch = 'p' then M.Push (Stack, V); M.Toggle_Pin (V);
-      elsif Ch = 'f' then M.Push (Stack, V); V.Path_Filter := V.Scope; Reload;
+      elsif Ch = 'd' then Record_Location; M.Cycle_Lens (V); Reload;
+      elsif Ch = 'a' then Record_Location; M.Cycle_Tree (V); Reload;
+      elsif Ch = 'p' then Record_Location; M.Toggle_Pin (V);
+      elsif Ch = 'f' then Record_Location; V.Path_Filter := V.Scope; Reload;
       elsif Ch = 'F' then
-         M.Push (Stack, V); V.Path_Filter := M.To_Text ("");
+         Record_Location; V.Path_Filter := M.To_Text ("");
          V.History_Filter.Path.Len := 0; V.Repository_Search := M.To_Text (""); Reload;
       elsif Ch = 'r' then R.Request (V, Refresh => True); Loading := True;
       elsif Ch = ']' or else Ch = '[' then Jump_Change (Ch = ']', False);
