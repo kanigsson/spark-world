@@ -9,9 +9,6 @@ lib/
 /alire/
 /config/
 
-# Proof residue from reproducers kept outside the repo
-/gnatprove-repro/
-
 # Test helper caches
 __pycache__/
 *.pyc
