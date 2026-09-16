@@ -1,14 +1,12 @@
 with Ada.Containers.Vectors;
-with Ada.Directories;
-with Ada.Exceptions;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with GNAT.Directory_Operations;
 with GNAT.OS_Lib;
 with Gitignore;
 
 package body Dir_Walk is
 
-   package Dirs renames Ada.Directories;
-   use type Dirs.File_Kind;
+   package Dir_Ops renames GNAT.Directory_Operations;
    use type Gitignore.Decision;
 
    Ignore_File : constant String := ".gitignore";
@@ -19,10 +17,11 @@ package body Dir_Walk is
    package Name_Sorting is new Name_Vectors.Generic_Sorting ("<" => "<");
 
    type Ignore_Level is record
-      Rules : Gitignore.Rule_Set;
-      Base  : Unbounded_String;
-      --  Path of the directory holding the file, relative to Root, either
-      --  empty or ending in a separator.
+      Rules       : Gitignore.Rule_Set;
+      Base_Length : Natural := 0;
+      --  Length of the path of the directory holding the file, relative to
+      --  Root. Only the length is ever needed, to cut the same prefix off
+      --  the candidate path, and it is needed once per entry of the tree.
    end record;
 
    package Level_Vectors is new
@@ -43,10 +42,14 @@ package body Dir_Walk is
       Stopped : Boolean := False;
 
       Root_Resolved : constant String :=
-        GNAT.OS_Lib.Normalize_Pathname (Root, Resolve_Links => True);
-      --  Links are detected one component at a time against an already
-      --  resolved parent, so a starting point that itself lies behind a link
-      --  is followed rather than refused.
+        (if Opts.Follow_Links
+         then GNAT.OS_Lib.Normalize_Pathname (Root, Resolve_Links => True)
+         else "");
+      --  When links are followed they are resolved one component at a time
+      --  against an already resolved parent, so a starting point that itself
+      --  lies behind a link is followed rather than refused. Refusing them
+      --  instead needs no resolution at all, only the question of whether
+      --  one entry is a link, which is asked once per candidate directory.
 
       function Ignored (Rel_Path : String; Is_Dir : Boolean) return Boolean is
          --  Nearer ignore files override more distant ones, and within one
@@ -54,27 +57,23 @@ package body Dir_Walk is
          Result : Boolean := False;
       begin
          for Level of Levels loop
-            declare
-               Base : constant String := To_String (Level.Base);
-            begin
-               if Rel_Path'Length > Base'Length then
-                  case Gitignore.Match
-                         (Level.Rules,
-                          Rel_Path
-                            (Rel_Path'First + Base'Length .. Rel_Path'Last),
-                          Is_Dir)
-                  is
-                     when Gitignore.Matched  =>
-                        Result := True;
+            if Rel_Path'Length > Level.Base_Length then
+               case Gitignore.Match
+                      (Level.Rules,
+                       Rel_Path
+                         (Rel_Path'First + Level.Base_Length .. Rel_Path'Last),
+                       Is_Dir)
+               is
+                  when Gitignore.Matched  =>
+                     Result := True;
 
-                     when Gitignore.Negated  =>
-                        Result := False;
+                  when Gitignore.Negated  =>
+                     Result := False;
 
-                     when Gitignore.No_Match =>
-                        null;
-                  end case;
-               end if;
-            end;
+                  when Gitignore.No_Match =>
+                     null;
+               end case;
+            end if;
          end loop;
          return Result;
       end Ignored;
@@ -82,21 +81,23 @@ package body Dir_Walk is
       procedure Descend (Rel_Dir : String; Resolved : String; Depth : Natural)
       is
          --  Rel_Dir is relative to Root and is empty or ends in a separator.
-         Physical  : constant String := Root & "/" & Rel_Dir;
+         Physical    : constant String := Root & "/" & Rel_Dir;
          --  Always ends in a separator, so entry names append directly.
-         Pushed    : Boolean := False;
-         Entries   : Name_Vectors.Vector;
-         Search    : Dirs.Search_Type;
-         Directory : Dirs.Directory_Entry_Type;
+         Pushed      : Boolean := False;
+         Entries     : Name_Vectors.Vector;
+         Search      : Dir_Ops.Dir_Type;
+         Name_Buffer : String (1 .. 1024);
+         Last        : Natural;
       begin
-         if Opts.Respect_Ignore and then Dirs.Exists (Physical & Ignore_File)
+         if Opts.Respect_Ignore
+           and then GNAT.OS_Lib.Is_Regular_File (Physical & Ignore_File)
          then
             declare
                Level : Ignore_Level;
             begin
                Gitignore.Load (Level.Rules, Physical & Ignore_File, Warn);
                if not Gitignore.Is_Empty (Level.Rules) then
-                  Level.Base := To_Unbounded_String (Rel_Dir);
+                  Level.Base_Length := Rel_Dir'Length;
                   Levels.Append (Level);
                   Pushed := True;
                end if;
@@ -104,26 +105,35 @@ package body Dir_Walk is
          end if;
 
          --  Collect and sort first, because directory order is not specified
-         --  and the tool's output has to be reproducible.
+         --  and the tool's output has to be reproducible. Reading names alone
+         --  asks the file system nothing about them, so the entries excluded
+         --  by name never cost an enquiry at all.
          begin
-            Dirs.Start_Search (Search, Physical, "");
-            while Dirs.More_Entries (Search) loop
-               Dirs.Get_Next_Entry (Search, Directory);
+            Dir_Ops.Open (Search, Physical);
+            loop
+               Dir_Ops.Read (Search, Name_Buffer, Last);
+               exit when Last = 0;
                declare
-                  Name : constant String := Dirs.Simple_Name (Directory);
+                  Name : String renames Name_Buffer (1 .. Last);
                begin
-                  if Name /= "." and then Name /= ".." then
+                  if Name /= "."
+                    and then Name /= ".."
+                    and then (Opts.Hidden or else Name (1) /= '.')
+                    and then not (Opts.Respect_Ignore and then Name = ".git")
+                  then
                      Entries.Append (To_Unbounded_String (Name));
                   end if;
                end;
             end loop;
-            Dirs.End_Search (Search);
+            Dir_Ops.Close (Search);
          exception
-            when E : others =>
-               if Dirs.More_Entries (Search) then
-                  Dirs.End_Search (Search);
+            when others =>
+               --  The exception carries only where it was raised, so the
+               --  diagnostic says what the tool was doing instead.
+               if Dir_Ops.Is_Open (Search) then
+                  Dir_Ops.Close (Search);
                end if;
-               Warn (Physical & ": " & Ada.Exceptions.Exception_Message (E));
+               Warn (Physical & ": cannot be read");
          end;
          Name_Sorting.Sort (Entries);
 
@@ -133,41 +143,35 @@ package body Dir_Walk is
                Name     : constant String := To_String (Item);
                Rel_Path : constant String := Rel_Dir & Name;
                Full     : constant String := Physical & Name;
-               Kind     : Dirs.File_Kind;
             begin
-               if (Opts.Hidden or else Name (Name'First) /= '.')
-                 and then not (Opts.Respect_Ignore and then Name = ".git")
-               then
-                  begin
-                     Kind := Dirs.Kind (Full);
-                  exception
-                     when others =>
-                        --  A broken link or an entry that vanished during the
-                        --  traversal is not worth a diagnostic.
-                        Kind := Dirs.Special_File;
-                  end;
-
-                  if Kind = Dirs.Directory then
-                     declare
-                        Plain : constant String := Resolved & "/" & Name;
-                        Child : constant String :=
-                          GNAT.OS_Lib.Normalize_Pathname
-                            (Plain, Resolve_Links => True);
-                     begin
-                        if not Ignored (Rel_Path, Is_Dir => True)
-                          and then Depth + 1 < Opts.Max_Depth
-                          and then (if Opts.Follow_Links
-                                    then Child /= ""
-                                    else Child = Plain)
-                        then
-                           Descend (Rel_Path & "/", Child, Depth + 1);
-                        end if;
-                     end;
-                  elsif Kind = Dirs.Ordinary_File
-                    and then not Ignored (Rel_Path, Is_Dir => False)
+               if GNAT.OS_Lib.Is_Directory (Full) then
+                  --  The ignore decision comes first, so a pruned subtree
+                  --  costs nothing beyond the rules themselves.
+                  if not Ignored (Rel_Path, Is_Dir => True)
+                    and then Depth + 1 < Opts.Max_Depth
                   then
-                     Visit (Display & Rel_Path, Stopped);
+                     if not Opts.Follow_Links then
+                        if not GNAT.OS_Lib.Is_Symbolic_Link (Full) then
+                           Descend (Rel_Path & "/", "", Depth + 1);
+                        end if;
+                     else
+                        declare
+                           Child : constant String :=
+                             GNAT.OS_Lib.Normalize_Pathname
+                               (Resolved & "/" & Name, Resolve_Links => True);
+                        begin
+                           if Child /= "" then
+                              Descend (Rel_Path & "/", Child, Depth + 1);
+                           end if;
+                        end;
+                     end if;
                   end if;
+               elsif not Ignored (Rel_Path, Is_Dir => False)
+                 and then GNAT.OS_Lib.Is_Regular_File (Full)
+               then
+                  --  Asked last, because the ignore rules reject far more
+                  --  entries than the file system does and cost less.
+                  Visit (Display & Rel_Path, Stopped);
                end if;
             end;
          end loop;
