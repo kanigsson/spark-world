@@ -39,6 +39,17 @@ These refinements remove capacity-sized per-position and per-record clearing
 and replace state-set updates with byte comparisons where no match can start. Their measured
 benefits and costs are recorded in `BENCHMARKS.md`.
 
+- [x] **A front end that is not the bottleneck.** Measurement against ripgrep on a
+  large checkout found four fifths of `spark-rg`'s time outside the simulator: ignore
+  rules ran an automaton per rule per path, the walker asked the file system for the
+  same entry several times, and one file was searched at a time. Screening each glob by
+  the runs of bytes it emits literally, asking once per entry, and handing files to a
+  crew of tasks whose results are written back in traversal order together cost 5.02 s
+  to 0.64 s, with byte-identical output. All of it is command line code, outside the
+  proof boundary; the library was not touched, and it was already fit for the last part
+  of it, since a compiled `Program` is read-only and every entry point has
+  `Global => null`. See `BENCHMARKS.md`.
+
 ## Tier 2 — specification-preserving, but a project
 
 - **Multi-byte required-literal prefilter.** Higher payoff than the start-byte set on

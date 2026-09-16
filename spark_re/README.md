@@ -167,6 +167,18 @@ recursive search reports matches from many files.
 - `--no-ignore`, `--hidden`, `-L`/`--follow`, `--binary` each turn off one of
   the defaults above; `--max-depth N` bounds traversal as ripgrep counts it,
   with zero visiting nothing.
+- `-j N`/`--threads N` sets how many files are searched at once, defaulting to
+  the core count capped at sixteen. Files are handed to a crew of tasks and
+  their output is written back in traversal order, so the result does not
+  depend on `N` or on which file finished first. `-j1` and a `-` path both use
+  a single task and no queue.
+
+Before a glob's automaton runs, the path is tested against the leading and
+trailing runs of bytes the glob emits literally, which every path it accepts
+must carry. The test costs two comparisons, rejects almost every path, and is a
+necessary condition rather than a decision, so the automaton still settles every
+path that reaches it. Rules are examined from the last, since the last
+applicable rule decides and no earlier one can change that.
 
 Ignore handling covers nested `.gitignore` files, `!` negation, last-rule-wins
 ordering, anchoring by an interior separator, directory-only `/` rules, `**`

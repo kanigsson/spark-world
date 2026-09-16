@@ -1,5 +1,69 @@
 # Simulator measurements
 
+## Recursive search: traversal, ignore rules and parallelism
+
+These measurements are about `spark-rg`'s front end rather than the simulator.
+The corpus is a `~/sparkdev/spark2014` checkout, 1.8 GB on disk excluding
+`.git`, of which both tools search 27,865 files and 147,197,715 bytes after
+`.gitignore` filtering. It holds 10,904 directories and 24 ignore files, 41 of
+whose rules sit in the root file and therefore apply to every path. Measured on
+x86-64 Linux with 32 cores against ripgrep 14.1.0, page cache warm, best of
+repeated alternating runs including process startup, pattern compilation and
+I/O. `rg -j1` is shown as the single-threaded control.
+
+| Stage | `-c zzqqxx .` | Traversal alone |
+| --- | ---: | ---: |
+| Baseline (`3efa603`) | 5020 | — |
+| Ignore rules screened by required literals | 1526 | — |
+| Walker asks the file system once per entry | 1181 | 453 |
+| Files searched by a crew of tasks | **640** | 466 |
+| `rg -j1` | 361 | 174 |
+| `rg` | 59 | 39 |
+
+Four fifths of the original time was traversal rather than matching: handed the
+same file list directly, the baseline already finished in 857 ms. Of that,
+ignore matching dominated, because every path ran every rule's automaton over
+its whole length. Screening each rule by the runs of bytes its glob emits
+literally makes rule count almost free: on a synthetic tree of 10,000 files,
+40 root rules cost 510 ms before and 226 ms after, against 213 ms with no
+ignore file at all.
+
+Parallelism then pays what is left. Scanning scales until the traversal, which
+is a single task, sets the pace:
+
+| `-j` | 1 | 2 | 4 | 8 | 16 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `-c zzqqxx .` | 1139 | 644 | 606 | 619 | 650 |
+
+Two workers already hide the scan behind the walk, so the remaining distance to
+ripgrep is traversal: 466 ms against 174 ms for `rg -j1 --files`, roughly one to
+two `stat` calls per entry through portable Ada interfaces. The scan itself is
+no longer the limit. Output is byte-identical at every `-j`, and identical to
+`rg` on these patterns.
+
+Per-pattern whole-tree medians, milliseconds, printing matches with `-n`:
+
+| Pattern | `spark-rg` | `spark-rg -j1` | `rg -j1` | `rg` |
+| --- | ---: | ---: | ---: | ---: |
+| `zzqqxx` (no match) | 643 | 1135 | 371 | 62 |
+| `Ada_Node` | 643 | 1139 | 366 | 61 |
+| `Unbounded_String` | 641 | 1168 | 374 | 60 |
+| `gnatprove` | 644 | 1208 | 408 | 64 |
+| `Why3` | 637 | 1154 | 413 | 65 |
+| `procedure\|function` | 712 | 1698 | 527 | 76 |
+
+On one 24.6 MB file, where neither traversal nor parallelism applies, the engine
+scans at a near-constant 390 MB/s whatever the pattern, against ripgrep's
+3.5 GB/s on a literal and 0.9 GB/s on `e`, which no literal prefilter can
+accelerate. The literal cases differ by 9 to 13 times and `e` by 2.2, so the gap
+on realistic patterns is the SIMD literal prefilter rather than the speed of the
+automaton. That is the measurement behind the Tier 2 ordering in `ROADMAP.md`.
+
+Nothing here touches the library. The changes are confined to the command line
+code, which has always been outside the SPARK proof boundary: a compiled
+`Program` is read-only, every matching entry point has `Global => null`, and
+each worker declares its own `Matcher`, so the crew shares no mutable state.
+
 ## Workspace reuse across records
 
 Compared with `e283872` using the same GNAT Pro 27 release toolchain on x86-64
