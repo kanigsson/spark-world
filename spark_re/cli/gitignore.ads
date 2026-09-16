@@ -55,16 +55,55 @@ package Gitignore is
 
 private
 
-   type Rule is record
-      Code     : Glob_Re.Program;
+   Max_Literal : constant := 32;
+   --  Literal runs longer than this are kept truncated. A shorter necessary
+   --  condition rejects fewer paths but never rejects a path the rule
+   --  accepts, so the bound costs speed rather than precision.
+
+   type Literal is record
+      Text : String (1 .. Max_Literal) := [others => ' '];
+      Len  : Natural range 0 .. Max_Literal := 0;
+   end record;
+   --  A run of bytes every accepted path must carry, in a fixed buffer so
+   --  that testing it allocates nothing. An empty run constrains nothing.
+
+   type Screen is record
+      Head     : Literal;
+      --  Leading bytes required of an accepted path, empty unless the glob
+      --  is tied to the directory holding the ignore file.
+      Tail     : Literal;
+      --  Trailing bytes required of an accepted path, since every
+      --  translation ends the pattern at the end of the path.
       Negated  : Boolean := False;
       Dir_Only : Boolean := False;
    end record;
 
-   package Rule_Vectors is new Ada.Containers.Vectors (Positive, Rule);
+   package Screen_Vectors is new Ada.Containers.Vectors (Positive, Screen);
+   package Code_Vectors is new
+     Ada.Containers.Vectors (Positive, Glob_Re.Program, Glob_Re."=");
+   package Index_Vectors is new Ada.Containers.Vectors (Positive, Positive);
+
+   type Byte_Screen is array (Character, Character) of Boolean with Pack;
+   --  Indexed by the last two bytes a rule requires. One byte is not enough
+   --  on a real ignore file: a dozen suffix rules between them cover most of
+   --  the alphabet, and every path then reaches the rules anyway.
 
    type Rule_Set is record
-      Rules : Rule_Vectors.Vector;
+      Screens    : Screen_Vectors.Vector;
+      Codes      : Code_Vectors.Vector;
+      Open       : Index_Vectors.Vector;
+      --  Rules whose required trailing run is shorter than the screen, in
+      --  file order. They are the only ones that can apply to a path the
+      --  screen rejects.
+      Tail_Pairs : Byte_Screen := [others => [others => False]];
+      --  A path ending in an unrecorded pair is beyond every screened rule,
+      --  so a whole ignore file is usually dismissed on one lookup.
    end record;
+   --  One rule per index in both vectors. They are kept apart because a
+   --  compiled program is thousands of times the size of the bytes that
+   --  decide whether it is worth running: walking the screens alone keeps
+   --  the traversal's inner loop inside a few kilobytes, while walking
+   --  whole rules would stream the automata past the processor once per
+   --  entry of the tree.
 
 end Gitignore;

@@ -178,4 +178,37 @@ with tempfile.TemporaryDirectory() as root:
     finally:
         closed.chmod(0o755)
 
+# The rule screen derives a required leading and trailing run of bytes from
+# each glob and tests those before running the automaton. A run taken one byte
+# too far would silently stop selecting a path the rule accepts, so every shape
+# the translation can produce is checked against ripgrep on a tree built to
+# straddle it.
+SCREEN_NAMES = [
+    'a.log', 'a.logx', 'x.log.bak', 'log', 'alog', 'd/a.log', 'd/e/a.log',
+    'a~', 'b~c', 'GNAT-1', 'GNAT-', 'xGNAT-1', 'd/GNAT-2',
+    'obj', 'objx', 'xobj', 'd/obj/f.txt', 'auto.cgpr', 'd/auto.cgpr',
+    'a.adb', 'a.ads', 'a.ad', 'a.adbx', 'd/deep/a.adb',
+    'q[x].txt', 'qx.txt', 'qy.txt', 'q.txt', 'a b.txt', 'a.txt',
+    'star.c', 'd/star.c', 'd/e/star.c', 'pre_mid_post', 'pre_post',
+]
+SCREEN_GLOBS = [
+    '*.log', '*log', 'log*', '*.lo?', '*~', 'GNAT-*', '/obj', 'obj', 'obj/',
+    '/auto.cgpr', 'd/obj', '**/a.log', 'd/**/a.log', 'd/**', '**/star.c',
+    'a.ad[bs]', 'a.ad[!b]', 'q[[]x[]].txt', 'q[xy].txt', r'a\ b.txt',
+    r'\*.c', 'pre_*_post', 'pre*post', '?.adb', '*', '/*', '*/*',
+    'd/e/*.log', '!a.log', 'a.log', '*.ad?', 'a.log ', 'x.log.bak',
+]
+for glob in SCREEN_GLOBS:
+    compare(SCREEN_NAMES, {'': glob + '\n'}, label='screen ' + glob)
+    compare(SCREEN_NAMES, {'': '*.log\n!' + glob + '\n'},
+            label='screen negated ' + glob)
+
+# The same globs through -g, which shares the screen but selects rather than
+# excludes, so an over-eager run would drop wanted paths instead of keeping
+# unwanted ones.
+for glob in SCREEN_GLOBS:
+    if glob.startswith('!') or glob.endswith(' '):
+        continue
+    compare(SCREEN_NAMES, {}, flags=('-g', glob), label='glob ' + glob)
+
 print(f'PASS: {checks} walker checks against ripgrep and git')
