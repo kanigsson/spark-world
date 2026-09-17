@@ -21,3 +21,5 @@ tests/corpus/.ok
 *.stderr
 *.tmp
 __pycache__/
+
+/alire/

@@ -16,9 +16,11 @@ tools/          repo-wide build and proof drivers
 That uniform depth is load-bearing: it makes every cross-project reference the
 same shape, so moving a project between tiers is a one-token edit.
 
-> **Migration in progress.** The projects are still at the top level; they move
-> into the tiers in phases. `docs/STATUS.md` records what builds and proves.
-> Delete this note when the last project has moved.
+> **Migration in progress.** Most projects are still at the top level; they
+> move into the tiers one commit at a time, libraries first. A reference to a
+> project that has not moved yet is one level shorter than the shape above.
+> `docs/STATUS.md` records what builds and proves. Delete this note when the
+> last project has moved.
 
 ## Cross-project references
 

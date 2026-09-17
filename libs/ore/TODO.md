@@ -1,7 +1,8 @@
 # TODO
 
-Work that is wanted but not planned into a release. Scope that is planned is in
-[`ROADMAP.md`](ROADMAP.md).
+Work on what is already here: proof cost, contract shape, gaps a client has
+hit. New packages do not belong in this file — the library grows from client
+demand, recorded in [`FEEDBACK.md`](FEEDBACK.md), not from a plan.
 
 ## Cut the proof time down
 

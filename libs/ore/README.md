@@ -7,10 +7,17 @@ In an assertion-enabled build, violating a precondition can still raise
 `Assertion_Error`; that is a debugging check, not an operation's way of
 reporting an expected full or empty buffer.
 
+**Its scope is set by its clients, not by a plan.** Ore is the shared
+substrate of the programs in this repository, and it holds what more than one
+of them turned out to need. Nothing is added here because it would round out a
+standard library; what a single program needs stays inside that program until
+a second one wants it. [`FEEDBACK.md`](FEEDBACK.md) is where that demand is
+recorded — what a client replaced with Ore, what it could not, and which gap
+kept code the library was supposed to remove.
+
 The current version is `0.5.0`. Releases follow
 [Semantic Versioning](https://semver.org/); see [`VERSION`](VERSION) and
-[`CHANGELOG.md`](CHANGELOG.md). The planned scope is listed in
-[`ROADMAP.md`](ROADMAP.md).
+[`CHANGELOG.md`](CHANGELOG.md).
 
 ## Overview
 
@@ -21,7 +28,8 @@ self-contained layer: `Ore.Byte_Buffers`, bounded byte buffers with
 produce/consume cursors; `Ore.Bits`, the bit-level operations on the word
 types; and `Ore.Bit_Cursors`, bit-addressed access to a plain byte array —
 the bit at a position, the field of N bits as bits and as a number, and a
-cursor that takes and puts them. See [`ROADMAP.md`](ROADMAP.md) for what is planned.
+cursor that takes and puts them. All three are here because the DEFLATE codec
+in `apps/inflate` needed them.
 
 Each package, in addition to the spec and implementation of a primitive and its
 operations, also contains predicates and lemmas intended to help client code

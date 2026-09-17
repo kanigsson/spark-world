@@ -21,7 +21,7 @@ below). Compression-ratio upgrades are scoped in `compression.md`.
 The library is meant for callers that need to parse compressed data from
 untrusted input without dynamic allocation. There is no heap, no access
 type, no OS dependency, and no package state in the library. Its one
-dependency is [Ore](../ore), a SPARK library of proved bounded building
+dependency is [Ore](../libs/ore), a SPARK library of proved bounded building
 blocks, which supplies the physical byte and word types, the byte array
 every layer is written against, the checked little- and big-endian field
 access the three container formats parse their headers with, and the bit
@@ -332,9 +332,9 @@ registers and uses fused tables for length, distance, and extra bits.
 
 ## Building
 
-`inflate.gpr` withs `../ore/ore_lib.gpr`, so Ore has to sit beside this
-project in the repository; every `gprbuild` then builds it along with the
-library.
+`inflate.gpr` withs `../libs/ore/ore_lib.gpr`, so Ore has to sit in the
+library tier of this repository; every `gprbuild` then builds it along with
+the library.
 
 ```sh
 gprbuild -P inflate.gpr                  # release: -O2
