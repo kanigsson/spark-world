@@ -69,7 +69,13 @@ flags the directory as a candidate for `experiments/`.
 
 Each project was proved with its own documented command, level and switches —
 these vary on purpose — under a 30-minute wall-clock cap, with
-`--counterexamples=off` to keep the runs comparable. Nothing was repaired.
+`--counterexamples=off` to keep the runs comparable. Nothing was repaired. Every
+run completed inside the cap; nothing was truncated.
+
+Note that the exit status is not comparable across projects: `fuzzy_matcher`
+and `spark_re` pass switches that turn an unproved check into an error, so
+their runs exit 1, while `inflate` exits 0 with two checks outstanding. Read
+the check counts, not the status.
 
 | Project | Result | Checks | Time |
 | --- | --- | --- | --- |
@@ -82,7 +88,7 @@ these vary on purpose — under a 30-minute wall-clock cap, with
 | `json` | 10 unproved | 2,594 / 2,604 | 55s |
 | `fuzzy_matcher` | 1 unproved | 581 / 582 | 53s |
 | `spark_re` | 1 unproved | 4,039 / 4,040 | 285s |
-| `inflate` | *run not finished* | — | — |
+| `inflate` | 2 unproved | 7,763 / 7,765 | 960s |
 | `term` (`tui_term`) | not applicable | — | — |
 
 `term` is `SPARK_Mode => Off` by design: it is the one crate that owns termios,
@@ -108,6 +114,16 @@ checks as errors, so the run exits 1.
 iteration, at `spark_re_trees-matching.adb:6257`: `not Accepting (Self,
 Model_States (Self, Text, Whole, Earlier))`. Same error treatment, so this run
 also exits 1.
+
+**`inflate` — 2 checks.** An assertion at `inflate-fixed.adb:932`
+(`Encoding_Matches (After, Consumed, Data)`), where the provers reached their
+time and memory limit before completing the proof rather than finding it false;
+and a loop invariant at `inflate-dynamic.adb:3783`, on the `Spec_Walk` count
+against `Info.Decoded_Length`. This run exits 0: unlike `fuzzy_matcher` and
+`spark_re`, inflate's proof does not treat unproved checks as errors.
+
+The first of the two is a resource limit, not a verdict, so a longer timeout or
+a higher level may well close it. That is for later — nothing was retried here.
 
 ### Proof scope worth knowing
 
