@@ -140,11 +140,11 @@ commit-id parser (`Git_View_Sha`), the colour scheme and diff-line classifier
 (`Git_View_Theme`), the multi-language lexer (`Git_View_Syntax`), and the
 app-specific status texts (`Git_View_Status`). The search-pattern editor and
 the status `Line` buffer come from the shared
-[`Tui.App_Kit`](../tui/docs/app_kit.md) layer — this app was their second
+[`Tui.App_Kit`](../libs/tui/docs/app_kit.md) layer — this app was their second
 consumer, which by the ecosystem's rule triggered the extraction — and are
 proved there. The panes themselves went the same way: layout, hit-testing,
 the mouse gesture recognizer, the selection and its viewport coupling, the
-overlays and the clipboard encoder are [`Tui.Panes`](../tui/docs/panes.md),
+overlays and the clipboard encoder are [`Tui.Panes`](../libs/tui/docs/panes.md),
 with the OSC 52 write in `Tui.Term.Clipboard` because it is an effect. This
 viewer was the copy the extraction was taken FROM; the explorer was the
 second, weaker one that made it necessary. Only the OS edges are trusted

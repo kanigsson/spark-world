@@ -5,7 +5,7 @@
 --  git_changes library, which owns every repository query, while the app
 --  logic stays proved SPARK.
 
-with "../tui/tui.gpr";
+with "../libs/tui/tui.gpr";
 with "../term/tui_term.gpr";
 with "../git-changes/git_changes.gpr";
 

@@ -6,12 +6,12 @@ buffer, a grid of styled cells and its frame diff, a key decoder, the pager
 engine, and the app kit that hosts of the engine share. All SPARK, all proved
 free of run-time errors, no I/O and no OS anywhere in it.
 
-The terminal itself lives in the sibling `tui_term` crate. That split is the
-one boundary in the ecosystem, and it is about trust rather than size:
-`tui_term` is `SPARK_Mode => Off` because it owns termios, signals and
-controlled types, so keeping it separate is what makes "this library performs
-no I/O" a structural fact instead of a convention — and keeps syscalls out of
-the build closure of everyone who only needs the proved parts.
+The terminal itself lives in `tui_term`, the other half of the ecosystem in
+this repository. That split is the one boundary in it, and it is about trust
+rather than size: `tui_term` is `SPARK_Mode => Off` because it owns termios,
+signals and controlled types, so keeping it separate is what makes "this
+library performs no I/O" a structural fact instead of a convention — and keeps
+syscalls out of the build closure of everyone who only needs the proved parts.
 
 ## The layers
 
@@ -48,7 +48,7 @@ only referenced objects, so nothing grows.
 
 The one thing worth watching was proof scoping: each crate used to prove in
 isolation, which kept runs fast and failures attributable. One `Prove` package
-at level 2 covers the merged library (593 checks, all proved), and `-u` still
+at level 2 covers the merged library (1047 checks, all proved), and `-u` still
 proves a single unit in seconds when that is what you want.
 
 ## Build, test and prove
