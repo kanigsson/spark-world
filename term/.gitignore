@@ -1,0 +1,16 @@
+# Build artifacts
+obj/
+lib/
+
+# Built executables (Exec_Dir = project root)
+/demo/main
+/tests/test_output
+
+# Alire-generated
+/alire/
+/config/
+
+# Editor/OS cruft
+*~
+*.o
+*.ali

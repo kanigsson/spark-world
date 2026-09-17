@@ -1,0 +1,20 @@
+name = "tui_term"
+description = "Terminal driver: raw mode, ANSI output, key input, signals"
+version = "0.1.0-dev"
+
+authors = ["kanig"]
+maintainers = ["kanig <kanig@adacore.com>"]
+maintainers-logins = ["kanig"]
+licenses = "Apache-2.0"
+
+project-files = ["tui_term.gpr"]
+
+[build-switches]
+"*".contracts = "Yes"
+
+[[depends-on]]
+tui = "*"
+
+# No Alire index in this workspace; pin the sibling crates by path.
+[[pins]]
+tui = { path = "../tui" }
