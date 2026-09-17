@@ -3,7 +3,7 @@
 --  controlled/interrupt machinery are SPARK_Mode Off; the byte-level work on
 --  either side of them — key decoding, escape/SGR assembly — is proved SPARK.
 
-with "../libs/tui/tui.gpr";
+with "../../libs/tui/tui.gpr";
 
 library project Tui_Term is
 

@@ -17,4 +17,4 @@ tui = "*"
 
 # No Alire index in this workspace; pin the sibling crates by path.
 [[pins]]
-tui = { path = "../libs/tui" }
+tui = { path = "../../libs/tui" }

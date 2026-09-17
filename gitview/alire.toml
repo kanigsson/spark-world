@@ -21,6 +21,6 @@ git_changes = "*"
 [[pins]]
 tui = { path = "../libs/tui" }
 [[pins]]
-tui_term = { path = "../term" }
+tui_term = { path = "../libs/tui_term" }
 [[pins]]
 git_changes = { path = "../git-changes" }

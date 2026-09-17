@@ -1,10 +1,10 @@
 # tui_term
 
-The **terminal driver** for the TUI ecosystem (see the parent `ROADMAP.md`):
-the one crate that talks to the OS. It puts the terminal into raw / alternate-
-screen mode, turns a `Tui.Surface` into ANSI/SGR bytes, reads keystrokes back
-through the proved `Tui.Input` decoder, and notices resizes — and it **always**
-hands the terminal back, even on an exception or an external `kill`.
+The **terminal driver** for the TUI ecosystem: the one library that talks to
+the OS. It puts the terminal into raw / alternate-screen mode, turns a
+`Tui.Surface` into ANSI/SGR bytes, reads keystrokes back through the proved
+`Tui.Input` decoder, and notices resizes — and it **always** hands the terminal
+back, even on an exception or an external `kill`.
 
 Everything above it stays pure: the pager engine fills a surface, this crate is
 where "rendering is data" finally becomes an effect. `SPARK_Mode` is **Off**
@@ -41,14 +41,13 @@ When requested, button-event mouse tracking includes drag motion as well as
 presses, releases, and wheel notches.
 
 A host that wants to own its own loop ignores `Event_Loop` and wires `Mode`,
-`Output`, `Input` and `Signals` directly — exactly what the standalone `pager`
-and `git_view` will do.
+`Output`, `Input` and `Signals` directly — which is what `git_view` does.
 
-### Three names that depart from the roadmap
+### Three names that could not be had
 
-`Out`, `In` and `Loop` are all Ada reserved words, so the roadmap's
-`Tui.Term.Out` / `.In` / `.Loop` are spelled **`Tui.Term.Output`**,
-**`Tui.Term.Input`** and **`Tui.Term.Event_Loop`**.
+`Out`, `In` and `Loop` are all Ada reserved words, so the packages the original
+design called `Tui.Term.Out` / `.In` / `.Loop` are spelled
+**`Tui.Term.Output`**, **`Tui.Term.Input`** and **`Tui.Term.Event_Loop`**.
 
 ## Design decisions worth knowing
 
@@ -76,7 +75,7 @@ and `git_view` will do.
 
 ## v1 assumptions (documented, revisitable)
 
-- Hardcoded ANSI/xterm sequences; **no terminfo** (per the roadmap). Linux/
+- Hardcoded ANSI/xterm sequences; **no terminfo**, by design. Linux/
   x86-64 `termios`/`ioctl` constants are hardcoded (`TCSAFLUSH`, `TIOCGWINSZ`).
 - A wide (CJK) glyph is emitted as a single cell — surfaces currently store one
   code point per cell. `Blit` re-homes the cursor every row and `Apply`
