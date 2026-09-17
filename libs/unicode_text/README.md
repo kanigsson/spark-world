@@ -2,7 +2,7 @@
 
 `Unicode_Text` is a SPARK-compatible UTF-8 text library under development.
 The complete design and implementation milestones are described in
-[`design.md`](design.md).
+[`design.md`](docs/design.md).
 
 Milestones 1 through 6 provide the Unicode scalar types, the shared ghost text
 model, strict UTF-8 validation, single-scalar encoding and decoding, validation
@@ -20,7 +20,7 @@ reconstruction and delimiter-absence contracts.
 The current version is `0.6.0`. Releases follow Semantic Versioning; the
 repository's version and compatibility policy are described in
 [`VERSION`](VERSION), [`CHANGELOG.md`](CHANGELOG.md), and the versioning section
-of [`design.md`](design.md#20-versioning-and-compatibility).
+of [`design.md`](docs/design.md#20-versioning-and-compatibility).
 
 Build the library-only project and prove the library plus proof clients with:
 

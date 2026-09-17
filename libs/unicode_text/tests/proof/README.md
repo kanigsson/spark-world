@@ -46,7 +46,7 @@ gnatprove -P unicode_text.gpr
 
 The proof project uses all available provers with a 30-second per-attempt
 timeout. Numeric performance thresholds will be set only after the API and
-toolchain reach a stable pilot, as specified in `design.md`.
+toolchain reach a stable pilot, as specified in `docs/design.md`.
 
 The Milestone 6 reassessment kept these ordinary settings unchanged: the full
 project proved 2,595 checks, including 146 in the focused plain-string client,

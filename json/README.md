@@ -19,8 +19,8 @@ surrogate pairs; numbers are checked against the RFC grammar; a document
 that parses to `Document_End` conforms to RFC 8259.
 
 UTF-8 classification, scalar decoding, and scalar encoding come from the
-sibling [`unicode_text`](../unicode_text) crate. JSON retains only the JSON
-string and escape grammar; it does not maintain a second UTF-8 range table or
+[`unicode_text`](../libs/unicode_text) library in this repository. JSON retains
+only the JSON string and escape grammar; it does not maintain a second UTF-8 range table or
 encoder.
 
 ## Packages
@@ -112,8 +112,8 @@ gprbuild -P json.gpr                  # release: -O2, checks suppressed
 gprbuild -P json.gpr -XMODE=debug    # debug: -gnata, -O0
 ```
 
-The Alire manifest declares `unicode_text ^0.5.0` and pins the sibling checkout
-for this workspace. `unicode_text` exposes a library-only production project;
+The Alire manifest declares `unicode_text ^0.5.0` and pins it by path within
+this repository. `unicode_text` exposes a library-only production project;
 its proof clients are not part of this library.
 
 Suppressing checks in release is the point of the proof: the run-time

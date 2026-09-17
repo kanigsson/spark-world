@@ -17,4 +17,4 @@ unicode_text = "^0.5.0"
 
 # No Alire index in this workspace; pin the sibling crate by path.
 [[pins]]
-unicode_text = { path = "../unicode_text" }
+unicode_text = { path = "../libs/unicode_text" }

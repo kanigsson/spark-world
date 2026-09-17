@@ -1,4 +1,4 @@
-with "../unicode_text/unicode_text_lib.gpr";
+with "../libs/unicode_text/unicode_text_lib.gpr";
 
 --  The library crate: pure SPARK, no I/O, no OS, no heap. A pull-cursor
 --  JSON (RFC 8259) parser over caller-provided buffers, with separate
