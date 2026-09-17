@@ -325,16 +325,16 @@ def build_corpus():
         b[i] = rng.randrange(256)
         case(bytes(b), expect="auto")
 
-    # --- real files: this crate's own proof results ---------------------
-    # The third pattern reaches into another project's proof output, so it
-    # tracks that project's location and whether it has been proved lately.
-    # Both are wrong for a test to depend on; it is kept for now and is due
-    # to be replaced by a fixture of this library's own.
-    for pat in ["../obj/gnatprove/result.json", "../obj/gnatprove/*.sarif",
-                "../../../inflate/obj/gnatprove/*.json"]:
-        for p in glob.glob(os.path.join(HERE, pat)):
-            with open(p, "rb") as f:
-                case(f.read(), tag=os.path.basename(p))
+    # --- real files: committed fixtures ---------------------------------
+    # Machine-generated documents, larger and more deeply nested than anything
+    # generated above. They are committed rather than read out of a build
+    # tree, so the corpus is the same on every machine and in every run.
+    fixtures = sorted(glob.glob(os.path.join(HERE, "fixtures", "*.json")))
+    if not fixtures:
+        raise SystemExit("no fixtures found in tests/fixtures")
+    for p in fixtures:
+        with open(p, "rb") as f:
+            case(f.read(), tag=os.path.basename(p))
 
 
 # ----------------------------------------------------------------------

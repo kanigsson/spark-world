@@ -4,9 +4,9 @@ A pull-cursor JSON parser over caller-provided buffers: one event per
 call, payloads returned as slices into the input, nothing materialized.
 The entire library is SPARK. The current proof work covers absence of
 run-time errors, termination, and initialization/data-flow checks. Functional behavior is covered by differential tests
-against Python's `json` module on 1,918 valid and invalid documents —
-including this crate's own GNATprove `result.json` and SARIF output,
-compared event by event.
+against Python's `json` module on ~1,900 valid and invalid documents —
+including committed fixtures of real machine-generated output — compared
+event by event.
 
 The library is meant for callers that need to parse JSON from untrusted
 input without dynamic allocation. There is no heap, no access type, no
@@ -66,9 +66,8 @@ keeps a reader forward-compatible), read a string/integer/boolean, skip
 any unwanted value whole. Every successful step strictly advances the
 cursor — `Document_End` is only delivered once every container is closed
 — so a walk loop carries a `Loop_Variant` on the cursor position and is
-provably terminating on arbitrary bytes. The
-[`proof_results`](../proof/README.md) crate (a typed model of GNATprove's
-`result.json`) is the first consumer.
+provably terminating on arbitrary bytes. It was written for a typed model of
+GNATprove's own report output, which is where the test fixtures come from.
 
 `JSON.Walk.Matches` and `Find_Member` compare logical decoded key text.
 For example, `"abc"` and `"a\u0062c"` match, as do escaped BMP or
@@ -128,8 +127,8 @@ cd tests && ./run_tests.py --quick
 ```
 
 The driver generates handcrafted, random, truncated and bit-flipped
-documents, plus real proof-result files, and compares the harness's full
-event stream (structure, decoded strings, converted numbers) against
+documents, adds the committed fixtures in `tests/fixtures/`, and compares the
+harness's full event stream (structure, decoded strings, converted numbers) against
 Python's `json` on the same bytes. The harness runs with assertions
 enabled; any propagated exception is a failure.
 
