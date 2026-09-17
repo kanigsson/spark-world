@@ -7,7 +7,7 @@
 --  field access come from Ore, a separate SPARK library of proved bounded
 --  building blocks; see src/inflate.ads.
 
-with "../../ore/ore_lib.gpr";
+with "../ore/ore_lib.gpr";
 
 library project Inflate is
 
