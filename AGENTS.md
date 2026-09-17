@@ -16,11 +16,11 @@ tools/          repo-wide build and proof drivers
 That uniform depth is load-bearing: it makes every cross-project reference the
 same shape, so moving a project between tiers is a one-token edit.
 
-> **Migration in progress.** Most projects are still at the top level; they
-> move into the tiers one commit at a time, libraries first. A reference to a
-> project that has not moved yet is one level shorter than the shape above.
-> `docs/STATUS.md` records what builds and proves. Delete this note when the
-> last project has moved.
+> **Migration in progress.** Every project has reached its tier;
+> `experiments/` and `tools/` do not exist yet, and `docs/` still has
+> repo-wide material to absorb. `docs/STATUS.md` records what builds and
+> proves, in the flat layout it was measured in. Delete this note when those
+> are settled.
 
 ## Cross-project references
 
@@ -72,12 +72,15 @@ hand-edit.
 ## Build, test and prove
 
 Each project exposes a `Makefile` with `build`, `test`, `prove` and `flow`
-targets, plus `test-contracts` and `bench` where they apply. `fuzzy_matcher`,
-`spark_diff` and `spark_re` are closest to this, though their build target is
-spelled `all`, not `build` — renaming it is part of adopting the convention.
-`libs/git_changes` has the equivalent in `scripts/`; the rest still document
-raw `gprbuild` / `gnatprove` lines in their README. Convert a project when you
-touch it, not in a sweep.
+targets, plus `test-contracts` and `bench` where they apply. Every project in
+`apps/` now has one. `libs/git_changes` has the equivalent in `scripts/`; the
+rest of `libs/` still documents raw `gprbuild` / `gnatprove` lines in its
+README. Convert a project when you touch it, not in a sweep.
+
+A target that needs a non-obvious switch carries a comment saying why, not just
+the command — `-XMODE=debug` for a test build, a bounded `-j` for a proof whose
+provers are near their memory limit. The `Makefile` is where that reasoning
+survives; a README line does not stop someone passing `-j0`.
 
 Proof level and switches are a per-project decision — they vary on purpose,
 from `--level=2` to `--level=4`.
