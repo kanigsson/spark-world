@@ -1,0 +1,16 @@
+with "../../json.gpr";
+
+project Proof_Clients is
+   for Source_Dirs use (".");
+   for Object_Dir use "../../obj/proof_clients";
+
+   package Compiler is
+      for Default_Switches ("Ada") use ("-gnat2022", "-gnata");
+   end Compiler;
+
+   package Prove is
+      for Proof_Dir use "../../obj/gnatprove_clients";
+      for Proof_Switches ("Ada") use
+        ("--mode=all", "--level=2", "--timeout=30");
+   end Prove;
+end Proof_Clients;

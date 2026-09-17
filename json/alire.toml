@@ -1,0 +1,20 @@
+name = "json"
+description = "RFC 8259 JSON pull parser in SPARK (no heap, slice-returning, AoRTE-focused)"
+version = "0.1.0-dev"
+
+authors = ["kanig"]
+maintainers = ["kanig <kanig@adacore.com>"]
+maintainers-logins = ["kanig"]
+licenses = "Apache-2.0"
+
+project-files = ["json.gpr"]
+
+[build-switches]
+"*".contracts = "Yes"
+
+[[depends-on]]
+unicode_text = "^0.5.0"
+
+# No Alire index in this workspace; pin the sibling crate by path.
+[[pins]]
+unicode_text = { path = "../../unicode_text" }
