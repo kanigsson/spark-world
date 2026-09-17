@@ -4,7 +4,7 @@ project Explorer_Tests is
    for Object_Dir use "../obj/tests";
    for Exec_Dir use "../obj/tests";
    for Main use ("explorer_probe.adb", "model_tests.adb", "behavior_tests.adb",
-                "load_bench.adb");
+                "load_bench.adb", "worktree_bench.adb");
    package Compiler is
       for Default_Switches ("Ada") use ("-gnat2022", "-gnata", "-g", "-O1");
    end Compiler;

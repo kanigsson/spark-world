@@ -156,6 +156,14 @@ package body Git_View_Repository with SPARK_Mode => Off is
    --  processes, and one keystroke asks most of the same questions as the
    --  one before it. What is kept here is what the reader has not asked to
    --  have reread; asking for a refresh drops all of it.
+   --
+   --  That holds for the uncommitted snapshots too. A working tree can
+   --  change under the reader where a commit cannot, but rereading it on
+   --  every frame turns each move of the cursor into a full comparison, a
+   --  listing and a walk -- a dozen git processes to answer a question only
+   --  about which file to show. The uncommitted states are therefore read
+   --  when they are first opened and kept until the reader asks for them
+   --  again, which is what the refresh key is for.
    Cached_Repo : G.Repository;
    Repository_Open : Boolean := False;
    Cached_Commit_Key, Cached_Commit : Unbounded_String;
@@ -238,28 +246,22 @@ package body Git_View_Repository with SPARK_Mode => Off is
       --  repository rather than to the comparison, so it is asked for only
       --  when a question actually needs it: the complete tree, a working
       --  tree's untracked files, or a path the comparison never mentions.
+      --  One frame asks twice -- once to lay out the tree pane, once to
+      --  place the open file -- and both are about the same snapshot, so
+      --  the listing is kept under the snapshot it describes.
       procedure Ensure_Inventory is
-         Listing : G.Snapshots.Inventory;
       begin
-         if V.Kind = M.Commit and then Target = Cached_Tree_Key then return; end if;
-         if V.Kind = M.Commit then
-            G.Snapshots.List (Repo, Shot, Options => Query_Options,
-                              Result => Cached_Tree, Error => Error);
-            Check (Error);
-            Listing := Cached_Tree;
-            Cached_Tree_Key := Target;
-         else
-            G.Snapshots.List (Repo, Shot, Include_Untracked => V.Kind = M.Worktree,
-                              Options => Query_Options, Result => Listing,
-                              Error => Error);
-            Check (Error);
-            Cached_Tree_Key := Null_Unbounded_String;
-         end if;
+         if Target = Cached_Tree_Key then return; end if;
+         G.Snapshots.List (Repo, Shot, Include_Untracked => V.Kind = M.Worktree,
+                           Options => Query_Options, Result => Cached_Tree,
+                           Error => Error);
+         Check (Error);
+         Cached_Tree_Key := Target;
          Cached_Inventory.Clear; Cached_Untracked.Clear;
-         for I in 1 .. G.Snapshots.Count (Listing) loop
-            Cached_Inventory.Include (G.Snapshots.Path (Listing, I));
-            if G.Snapshots.Is_Untracked (Listing, I) then
-               Cached_Untracked.Include (G.Snapshots.Path (Listing, I));
+         for I in 1 .. G.Snapshots.Count (Cached_Tree) loop
+            Cached_Inventory.Include (G.Snapshots.Path (Cached_Tree, I));
+            if G.Snapshots.Is_Untracked (Cached_Tree, I) then
+               Cached_Untracked.Include (G.Snapshots.Path (Cached_Tree, I));
             end if;
          end loop;
       end Ensure_Inventory;
@@ -280,30 +282,21 @@ package body Git_View_Repository with SPARK_Mode => Off is
          Add_Name (Cached_Tree_Names, Cached_Tree_Rows, Path, Line, Changed);
       end Add_Row;
 
+      --  The file last drawn is worth keeping: scrolling one file re-asks
+      --  for it on every frame.
       function Content (Path : String) return String is
          Value : Unbounded_String;
          Local : G.Error_Info;
+         Key : constant Unbounded_String := Target & ":" & Path;
       begin
-         --  A commit snapshot never changes under the reader, so the file
-         --  last drawn is worth keeping: scrolling one file re-asks for it.
-         if V.Kind = M.Commit then
-            declare
-               Key : constant Unbounded_String := Target & ":" & Path;
-            begin
-               if Cached_Content_Key /= Key then
-                  G.Snapshots.Load (Repo, Shot, Path, Query_Options,
-                                    Content => Value, Error => Local);
-                  Check (Local);
-                  Cached_Content := Value;
-                  Cached_Content_Key := Key;
-               end if;
-               return To_String (Cached_Content);
-            end;
+         if Cached_Content_Key /= Key then
+            G.Snapshots.Load (Repo, Shot, Path, Query_Options,
+                              Content => Value, Error => Local);
+            Check (Local);
+            Cached_Content := Value;
+            Cached_Content_Key := Key;
          end if;
-         G.Snapshots.Load (Repo, Shot, Path, Query_Options, Content => Value,
-                           Error => Local);
-         Check (Local);
-         return To_String (Value);
+         return To_String (Cached_Content);
       end Content;
 
       procedure Emit (Value : String; Kind : Mark := Normal) is
@@ -535,7 +528,6 @@ package body Git_View_Repository with SPARK_Mode => Off is
          end;
       end if;
       if not Cache_Valid or else Cached_Base /= Base or else Cached_Target /= Target
-        or else V.Kind /= M.Commit
       then
          declare
             Comparison : constant G.Comparison :=
@@ -558,10 +550,10 @@ package body Git_View_Repository with SPARK_Mode => Off is
          end loop;
       end loop;
       F.Resolved_Snapshot := Bounded (To_String (Target));
-      if V.Kind /= M.Commit or else Cached_Identity_Key /= Base then
+      if Cached_Identity_Key /= Base then
          G.Revisions.Resolve (Repo, To_String (Base), Cached_Identity, Error);
          Check (Error);
-         Cached_Identity_Key := (if V.Kind = M.Commit then Base else Null_Unbounded_String);
+         Cached_Identity_Key := Base;
       end if;
       F.Resolved_Base := Bounded (To_String (Cached_Identity));
       if G.Is_Stale (Cached_Changes) then F.Notice := Bounded ("comparison changed during capture; press r to refresh");
@@ -599,7 +591,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
          Key := Filter.Start & NUL & Filter.Author & NUL & Filter.Since & NUL
            & Filter.Until_Date & NUL & Filter.Message & NUL & Filter.Pathspec
            & NUL & Filter.All_Refs'Image & Filter.First_Parent'Image;
-         if Key /= Cached_Log_Key or else V.Kind /= M.Commit then
+         if Key /= Cached_Log_Key then
             G.History.Load (Repo, Filter, Query_Options,
                             Result => Cached_Log, Error => Error);
             Check (Error);
@@ -637,10 +629,10 @@ package body Git_View_Repository with SPARK_Mode => Off is
             end loop;
          end if;
       end;
-      --  A working tree or an index is listed every time: its untracked
-      --  files are part of what the reader is looking at, and neither stays
-      --  still long enough to be remembered. A commit has no untracked
-      --  files, and must not inherit the ones a working tree left behind.
+      --  A working tree or an index is listed whatever the reader asked to
+      --  see: its untracked files are part of the snapshot, and the tree
+      --  pane shows them among the changes. A commit has no untracked files
+      --  to list, and must not inherit the ones a working tree left behind.
       if V.Kind = M.Commit then Cached_Untracked.Clear; else Ensure_Inventory; end if;
       for I in 1 .. G.File_Count (Cached_Changes) loop
          if G.File_Kind (Cached_Changes, I) = G.Deleted then
@@ -659,8 +651,8 @@ package body Git_View_Repository with SPARK_Mode => Off is
          Dirs : Paths.Set;
          Changed_Dirs : Paths.Set;
       begin
-       if Key /= Cached_Rows_Key or else V.Kind /= M.Commit then
-         Cached_Rows_Key := (if V.Kind = M.Commit then Key else Null_Unbounded_String);
+       if Key /= Cached_Rows_Key then
+         Cached_Rows_Key := Key;
          Cached_Tree_Text := Null_Unbounded_String;
          Cached_Tree_Names := Null_Unbounded_String;
          Cached_Tree_Scope := Null_Unbounded_String;
