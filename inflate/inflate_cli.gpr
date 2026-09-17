@@ -1,0 +1,27 @@
+with "inflate.gpr";
+
+project Inflate_CLI is
+   type Mode_Type is ("debug", "release");
+   Mode : Mode_Type := external ("MODE", "release");
+
+   for Source_Dirs use ("cli");
+   for Object_Dir use "obj/cli/" & Mode;
+   for Exec_Dir use "bin";
+   for Main use ("inflate_cli.adb");
+
+   package Compiler is
+      case Mode is
+         when "debug" =>
+            for Default_Switches ("Ada") use
+              ("-gnat2022", "-gnatwa", "-gnatwJ", "-g", "-O0");
+            for Local_Configuration_Pragmas use "debug.adc";
+         when "release" =>
+            for Default_Switches ("Ada") use
+              ("-gnat2022", "-gnatwa", "-gnatwJ", "-O2");
+      end case;
+   end Compiler;
+
+   package Builder is
+      for Executable ("inflate_cli.adb") use "inflate";
+   end Builder;
+end Inflate_CLI;

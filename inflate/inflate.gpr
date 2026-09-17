@@ -1,0 +1,48 @@
+--  The library crate: pure SPARK, no I/O, no OS, no heap. A one-shot
+--  DEFLATE (RFC 1951) decoder with zlib (RFC 1950), gzip (RFC 1952), and
+--  ZIP container parsing for bounded caller-provided buffers, plus a
+--  adaptive gzip compressor with a proved round-trip contract.
+--
+--  The physical byte/word types and the checked little- and big-endian
+--  field access come from Ore, a separate SPARK library of proved bounded
+--  building blocks; see src/inflate.ads.
+
+with "../../ore/ore_lib.gpr";
+
+library project Inflate is
+
+   --  "debug" keeps language run-time checks and debug information, but the
+   --  configuration pragmas disable execution of proof contracts. "release"
+   --  suppresses all checks and optimises.
+   --  Select with `-XMODE=debug` on the gprbuild command line.
+   type Mode_Type is ("debug", "release");
+   Mode : Mode_Type := external ("MODE", "release");
+
+   for Library_Name use "inflate";
+   for Library_Kind use "static";
+   for Source_Dirs use ("src");
+   --  Keep modes in separate directories so gprbuild cannot reuse objects
+   --  compiled with incompatible assertion and optimisation switches.
+   for Object_Dir use "obj/" & Mode;
+   for Library_Dir use "lib/" & Mode;
+
+   --  -gnatwJ: the sources predate Ada 2022 and write array aggregates with
+   --  parentheses throughout; the dependency on Ore requires -gnat2022, which
+   --  makes that spelling obsolescent.
+   package Compiler is
+      case Mode is
+         when "debug" =>
+            for Default_Switches ("Ada") use
+              ("-gnat2022", "-gnatwa", "-gnatwJ", "-g", "-O0");
+            for Local_Configuration_Pragmas use "debug.adc";
+         when "release" =>
+            for Default_Switches ("Ada") use
+              ("-gnat2022", "-gnatwa", "-gnatwJ", "-O2", "-gnatp");
+      end case;
+   end Compiler;
+
+   package Prove is
+      for Proof_Switches ("Ada") use ("--level=4", "--report=statistics");
+   end Prove;
+
+end Inflate;

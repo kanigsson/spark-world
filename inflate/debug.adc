@@ -1,0 +1,6 @@
+--  Debug builds retain ordinary language run-time checks, but proof
+--  contracts are not executable tests.  Set the default policy first, then
+--  ignore source-local Assertion_Policy pragmas so a local Check policy
+--  cannot re-enable recursive or quantified contracts.
+pragma Assertion_Policy (Ignore);
+pragma Ignore_Pragma (Assertion_Policy);

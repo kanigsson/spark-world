@@ -1,0 +1,19 @@
+--  M4 harness over the shipping LZ77 match-copy implementation.
+
+project M4_LZ77 is
+
+   for Source_Dirs use ("src", "../../src");
+   for Object_Dir use "obj";
+   for Main use ("lz77_test.adb");
+   for Exec_Dir use ".";
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        ("-gnat2022", "-gnatwa", "-gnata", "-g", "-O0");
+   end Compiler;
+
+   package Prove is
+      for Proof_Switches ("Ada") use ("--level=2", "--report=statistics");
+   end Prove;
+
+end M4_LZ77;

@@ -1,0 +1,14 @@
+name = "inflate"
+description = "DEFLATE/zlib/gzip codec in SPARK (no heap, one-shot, proof-focused)"
+version = "0.1.0-dev"
+
+authors = ["kanig"]
+maintainers = ["kanig <kanig@adacore.com>"]
+maintainers-logins = ["kanig"]
+licenses = "Apache-2.0"
+
+executables = ["inflate"]
+project-files = ["inflate.gpr", "inflate_cli.gpr"]
+
+[build-switches]
+"*".contracts = "Yes"
