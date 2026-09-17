@@ -154,7 +154,7 @@ safety; this suite covers intent, and is what a move of this code between
 frontends or crates is checked against.
 
 `Git_View_Repository` is a trusted repository adapter. Every Git query it
-makes goes through the sibling [`git-changes`](../../git-changes) Ada
+makes goes through the sibling [`git-changes`](../git-changes) Ada
 library: change kinds, old/new paths, metadata, changed spans, snapshot
 inventories and contents, snapshot search, revision resolution, and history.
 No Git process is started in this project, and no repository path is read

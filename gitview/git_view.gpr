@@ -7,7 +7,7 @@
 
 with "../tui/tui.gpr";
 with "../term/tui_term.gpr";
-with "../../git-changes/git_changes.gpr";
+with "../git-changes/git_changes.gpr";
 
 project Git_View is
 

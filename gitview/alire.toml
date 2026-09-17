@@ -23,4 +23,4 @@ tui = { path = "../tui" }
 [[pins]]
 tui_term = { path = "../term" }
 [[pins]]
-git_changes = { path = "../../git-changes" }
+git_changes = { path = "../git-changes" }
