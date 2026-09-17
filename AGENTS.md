@@ -106,6 +106,12 @@ The proof level and switches are a per-project decision recorded in that
 project's `Makefile` and `AGENTS.md` — they vary on purpose, from `--level=2`
 to `--level=4`.
 
+**Do not suppress an unproved check to obtain a passing run.** If a check does
+not prove, either prove it or record it — in `docs/STATUS.md` for a baseline,
+in the project's `AGENTS.md` for a standing exception, with the reason. A green
+run that was made green by silencing is worse than a red one, because it stops
+anyone from looking again.
+
 ## Toolchain
 
 One matching GNAT/GPRbuild/GNATprove installation for a project and all its
