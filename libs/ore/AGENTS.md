@@ -43,10 +43,19 @@ not a detail:
 ```sh
 gprbuild  -P ore_lib.gpr                          # debug: contracts on
 gprbuild  -P ore_lib.gpr -XORE_BUILD_MODE=release # -O2, contracts dropped
-gnatprove -P ore_lib.gpr                          # --mode=all --level=2 --timeout=180
+gnatprove -P ore_lib.gpr                          # the library alone: 2069 checks
+gnatprove -P ore.gpr                              # library + proof clients: 2278
 gprbuild  -P tests/runtime/runtime_tests.gpr && obj/runtime_tests/bit_tests
 python3   tools/proof_status.py                   # regenerates PROOF_STATUS.md
 ```
+
+Two proof projects, and the difference matters. `ore_lib.gpr` proves `src/`
+only, which is what `PROOF_STATUS.md` reports and what a client inherits.
+`ore.gpr` adds the proof clients under `tests/proof`, whose whole purpose is to
+fail when a predicate or lemma is unusable from outside the library — a change
+to a contract can leave the library proving clean and break them. Prove through
+`ore.gpr` before calling a contract change done. Both carry the same switches:
+`--mode=all --level=2 --timeout=180`.
 
 A third build mode, `restrictions`, is a debug build that additionally checks
 the library against its restricted-runtime promise (`restrictions.adc`). It
