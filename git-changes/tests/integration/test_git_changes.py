@@ -205,6 +205,8 @@ def snapshot_scenario(tmp: Path) -> int:
     assert out.count("  match sub/a.txt: 2:needle here") == 3
     assert "commits= 2" in out and "scoped-commits= 2" in out
     assert "subject=second commit" in out and "parents=[]" in out
+    #  The message of one commit is reachable without parsing a patch.
+    assert "described=" in out and "|second commit" in out
     assert "refs=[HEAD -> main]" in out or "refs=[HEAD -> master]" in out
 
     #  A symbolic link reads as its target text, never as the file it names.

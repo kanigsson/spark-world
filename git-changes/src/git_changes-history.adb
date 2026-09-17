@@ -4,6 +4,7 @@ with Git_Changes.Backends;
 package body Git_Changes.History is
    use Ada.Strings.Unbounded;
 
+   NUL : constant Character := Character'Val (0);
    HT : constant Character := Character'Val (9);
    LF : constant Character := Character'Val (10);
 
@@ -174,6 +175,59 @@ package body Git_Changes.History is
          end if;
       end;
    end Load;
+
+   procedure Describe
+     (Repository : Git_Changes.Repository;
+      Revision   : String;
+      Options    : Capture_Options := Default_Options;
+      Author     : out Unbounded_String;
+      Date       : out Unbounded_String;
+      Message    : out Unbounded_String;
+      Error      : out Error_Info)
+   is
+      --  NUL separates the fields because no author name, date or message
+      --  can contain one: the message runs to the end of the output, so it
+      --  keeps its own newlines without any escaping.
+      Describe_Format : constant String := "--format=%an%x00%ad%x00%B";
+      Output : Unbounded_String;
+      First, Second : Natural := 0;
+   begin
+      Author := Null_Unbounded_String;
+      Date := Null_Unbounded_String;
+      Message := Null_Unbounded_String;
+      Git_Changes.Backends.Run_Git
+        (Root_Path (Repository),
+         [Literal, Arg ("log"), Arg ("--max-count=1"), Arg ("--date=short"),
+          Arg (Describe_Format), Arg ("--end-of-options"), Arg (Revision),
+          Arg ("--")],
+         Options.Max_Output_Bytes, "describe commit", Output, Error);
+      if not Success (Error) then
+         return;
+      end if;
+      declare
+         Raw : constant String := To_String (Output);
+      begin
+         for J in Raw'Range loop
+            if Raw (J) = NUL then
+               if First = 0 then
+                  First := J;
+               else
+                  Second := J;
+                  exit;
+               end if;
+            end if;
+         end loop;
+         if Second = 0 then
+            --  A revision Git described in a shape this parser does not
+            --  know still yields its text, as the whole message.
+            Message := Output;
+            return;
+         end if;
+         Author := To_Unbounded_String (Raw (Raw'First .. First - 1));
+         Date := To_Unbounded_String (Raw (First + 1 .. Second - 1));
+         Message := To_Unbounded_String (Raw (Second + 1 .. Raw'Last));
+      end;
+   end Describe;
 
    procedure Show_Commit
      (Repository : Git_Changes.Repository;

@@ -151,6 +151,28 @@ begin
             return;
          end if;
          Put_Line ("patch-bytes=" & Length (Text)'Image);
+         declare
+            Who, When_Written, Message : Unbounded_String;
+            Stop : Natural;
+         begin
+            H.Describe (Repo, H.Commit_Id (Walk, 1), Author => Who,
+                        Date => When_Written, Message => Message,
+                        Error => Error);
+            if not Git_Changes.Success (Error) then
+               Fail ("describe");
+               return;
+            end if;
+            Stop := Length (Message);
+            for J in 1 .. Length (Message) loop
+               if Element (Message, J) = Character'Val (10) then
+                  Stop := J - 1;
+                  exit;
+               end if;
+            end loop;
+            Put_Line ("described=" & To_String (Who) & "|"
+                      & To_String (When_Written) & "|"
+                      & Slice (Message, 1, Stop));
+         end;
       end if;
       Filter.Pathspec := To_Unbounded_String (Argument (2));
       H.Load (Repo, Filter, Result => Walk, Error => Error);

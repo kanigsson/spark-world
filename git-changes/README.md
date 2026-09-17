@@ -19,8 +19,8 @@ client asks around them, so that such a client needs no Git of its own:
 - `Git_Changes.Snapshots` lists the paths of a tree, the index, or the
   working tree, loads the content of any one of them — changed or not — and
   runs a fixed-string content search over a snapshot.
-- `Git_Changes.History` walks filtered commit history as typed records and
-  returns the patch text of a single commit.
+- `Git_Changes.History` walks filtered commit history as typed records, and
+  returns the message or the patch text of a single commit.
 
 These are reads. The library never writes to a repository: no clone, fetch,
 push, commit, checkout, or index mutation.

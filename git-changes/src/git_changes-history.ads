@@ -59,6 +59,20 @@ package Git_Changes.History is
       Error      : out Error_Info)
      with Pre => Is_Open (Repository);
 
+   --  The message of one commit, with the author and date that identify
+   --  it. The message is whatever Git stored, subject line first and body
+   --  after it; how it reads on screen is the caller's decision. Empty
+   --  outputs when the revision cannot be described, with Error saying so.
+   procedure Describe
+     (Repository : Git_Changes.Repository;
+      Revision   : String;
+      Options    : Capture_Options := Default_Options;
+      Author     : out Ada.Strings.Unbounded.Unbounded_String;
+      Date       : out Ada.Strings.Unbounded.Unbounded_String;
+      Message    : out Ada.Strings.Unbounded.Unbounded_String;
+      Error      : out Error_Info)
+     with Pre => Is_Open (Repository);
+
    --  The patch text of one commit, as Git renders it. Text holds whatever
    --  Git wrote even when Error reports failure, so a caller can show the
    --  message it produced instead of inventing one.

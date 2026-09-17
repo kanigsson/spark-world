@@ -20,7 +20,8 @@ and the milestone-5 standalone inspection consumer:
   untracked paths, content of any path in a snapshot, and fixed-string
   snapshot search — with symbolic links read as their targets;
 - revision resolution (expressions, first parents, the empty tree) and
-  filtered commit history with single-commit patch text.
+  filtered commit history with the message and the patch text of a single
+  commit.
 
 Those last two groups were added so that a reviewing client needs no Git
 invocation of its own; `git_view` uses them for everything it draws.
