@@ -68,6 +68,91 @@ class Session:
         assert self.proc.returncode == 0
 
 
+class Screen:
+    """Just enough terminal to see what the incremental repaint left behind.
+
+    The viewer paints by sending only the cells that changed since the last
+    frame, so a frame that goes missing shows up here and nowhere else: a
+    full repaint (which is what Session.frame does, by resizing) would hide
+    it. Cursor moves, SGR and erase are all these frames use.
+    """
+
+    def __init__(self, rows, cols):
+        self.rows, self.cols = rows, cols
+        self.glyph = [[" "] * cols for _ in range(rows)]
+        self.inverse = [[False] * cols for _ in range(rows)]
+        self.row = self.col = 0
+        self.inv = False
+
+    def feed(self, data):
+        i = 0
+        while i < len(data):
+            byte = data[i]
+            if byte == 0x1B:
+                match = re.match(rb"\x1b\[([0-9;?]*)([@-~])", data[i:])
+                if match:
+                    self.control(match.group(1).decode(), match.group(2).decode())
+                    i += match.end()
+                    continue
+                i += 1
+                continue
+            if byte == 0x0D:
+                self.col = 0
+                i += 1
+                continue
+            if byte == 0x0A:
+                self.row = min(self.row + 1, self.rows - 1)
+                i += 1
+                continue
+            width = 1 if byte < 0x80 else 2 if byte < 0xE0 else 3 if byte < 0xF0 else 4
+            try:
+                glyph = data[i:i + width].decode()
+            except UnicodeDecodeError:
+                glyph = "?"
+            if self.row < self.rows and self.col < self.cols:
+                self.glyph[self.row][self.col] = glyph
+                self.inverse[self.row][self.col] = self.inv
+            self.col = min(self.col + 1, self.cols - 1)
+            i += width
+
+    def control(self, params, final):
+        if "?" in params:
+            return
+        values = [int(p) if p else 0 for p in params.split(";")] if params else [0]
+        if final in "Hf":
+            self.row = max(0, min((values[0] or 1) - 1, self.rows - 1))
+            second = values[1] if len(values) > 1 else 1
+            self.col = max(0, min((second or 1) - 1, self.cols - 1))
+        elif final == "m":
+            for value in values:
+                if value in (0, 27):
+                    self.inv = False
+                elif value == 7:
+                    self.inv = True
+        elif final == "J" and values[0] == 2:
+            self.glyph = [[" "] * self.cols for _ in range(self.rows)]
+            self.inverse = [[False] * self.cols for _ in range(self.rows)]
+            self.row = self.col = 0
+
+    def separators(self):
+        return [c for c in range(self.cols) if self.glyph[0][c] in ("\u258c", "\u2590")]
+
+    def panes(self):
+        """The column span of each pane, taken from the separators on screen."""
+        edges = [-1] + self.separators() + [self.cols]
+        return [(a + 1, b) for a, b in zip(edges, edges[1:]) if b - a > 4]
+
+    def marked_rows(self, span, rows):
+        first, last = span
+        out = []
+        for r in rows:
+            wide = sum(1 for c in range(first, last) if self.inverse[r][c])
+            if wide > 0.8 * (last - first):
+                out.append((r, "".join(self.glyph[r][first:last]).strip()))
+        return out
+
+
+
 checks = 0
 
 
@@ -211,5 +296,40 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
     finally:
         s.close()
     check(git("diff", "--name-only") == "main.txt", "TUI navigation is read-only")
+
+    #  Keys faster than the repository worker. Every frame is a set of
+    #  changed cells over the one before it, so anything that drops a frame
+    #  -- or paints two current rows -- leaves a second highlighted row on
+    #  screen that no later frame ever erases.
+    for i in range(1, 13):
+        write(f"spam{i:02d}.txt", f"file {i}\n")
+    git("add", ".")
+    git("commit", "-qm", "many files")
+    for i in range(1, 13):
+        write(f"spam{i:02d}.txt", f"file {i} changed\n")
+    fast = Session(repo)
+    try:
+        screen = Screen(fast.rows, fast.cols)
+        screen.feed(fast.read(2))
+        for _ in range(40):
+            os.write(fast.fd, b"}")
+            screen.feed(fast.read(0.03))
+        screen.feed(fast.read(2))
+        content = range(1, fast.rows - 4)
+        panes = screen.panes()
+        check(len(panes) == 3, f"three panes on screen, found {len(panes)}")
+        for span in panes:
+            marked = screen.marked_rows(span, content)
+            check(len(marked) <= 1,
+                  "a pane highlights at most one row while keys arrive faster "
+                  "than frames",
+                  repr(marked))
+        status = "".join(screen.glyph[fast.rows - 2])
+        tree = screen.marked_rows(panes[1], content)
+        check(bool(tree) and tree[0][1].split()[-1] in status,
+              "the highlighted tree row is the one the status line names",
+              repr(tree) + status)
+    finally:
+        fast.close()
 
 print(f"{checks} explorer PTY checks passed")

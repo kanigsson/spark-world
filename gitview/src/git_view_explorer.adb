@@ -194,7 +194,12 @@ is
       end case;
       if Found then
          V.Selected (P) := Row;
-         E.Go_To_Line (V.Views (P), Row, Total);
+         --  Reveal, not a viewport jump: the rows above the one being
+         --  selected stay where they are, so the worktree and index rows
+         --  remain at the head of the history while one of them is current.
+         if Row <= Total then
+            Tui.Panes.List.Reveal (V.Views (P), Row, Total);
+         end if;
       end if;
    end Align_Selection;
 
@@ -291,17 +296,36 @@ is
          V.Selected (P) := Row_Selected;
       end if;
       E.Render (View, Part, Content, Index);
-      for Row in Row_Index range 1 .. Rows loop
-         declare
-            Line : constant Natural := E.Top_Line (View) + Natural (Row) - 1;
-            Kind : R.Mark := R.Normal;
-         begin
-            if P = M.Source_Pane and then Data.Marks /= null
-              and then Line in Data.Marks'Range
-            then Kind := Data.Marks (Line); end if;
-            if P /= M.Source_Pane and then Line = Row_Selected then
-               Mark.Row (Part, Row);
-            elsif P = M.Source_Pane then
+
+      --  The current row of a list pane, which is one row and no more.
+      --
+      --  The row is computed from the selection rather than looked for while
+      --  walking the pane: a screen row and a document line determine each
+      --  other, so a search over the rows can only ever find the one this
+      --  arithmetic names, and the single call is what makes "exactly one row
+      --  is marked" a property of this code rather than of a loop's shape.
+      --  A selection outside the visible slice -- the pane has no document
+      --  yet, so nothing clamped it -- marks nothing.
+      if P /= M.Source_Pane then
+         if Row_Selected >= E.Top_Line (View)
+           and then Row_Selected - E.Top_Line (View) < Natural (Rows)
+         then
+            Mark.Row (Part, Row_Index (Row_Selected - E.Top_Line (View) + 1));
+            pragma Assert
+              (Mark.Only_Row_Marked
+                 (Part, Row_Index (Row_Selected - E.Top_Line (View) + 1)));
+         else
+            pragma Assert (No_Inverse (Part));
+         end if;
+      else
+         for Row in Row_Index range 1 .. Rows loop
+            declare
+               Line : constant Natural := E.Top_Line (View) + Natural (Row) - 1;
+               Kind : R.Mark := R.Normal;
+            begin
+               if Data.Marks /= null and then Line in Data.Marks'Range then
+                  Kind := Data.Marks (Line);
+               end if;
                for C in Col_Index range 1 .. Part.Cols loop
                   declare
                      Cell_Value : Cell := Get (Part, Row, C);
@@ -322,9 +346,9 @@ is
                      Set (Part, Row, C, Cell_Value);
                   end;
                end loop;
-            end if;
-         end;
-      end loop;
+            end;
+         end loop;
+      end if;
 
       --  A retained mouse selection sits on top of the pane's own colours,
       --  toggling inverse video so it stays legible over a selected row.
