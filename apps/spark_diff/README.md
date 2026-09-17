@@ -19,7 +19,7 @@ Requires a matching GNAT/GNATprove toolchain with Ada 2022 support and GPRbuild.
 The library has no third-party dependencies. Build the CLI and tests with:
 
 ```sh
-make
+make build
 bin/spark-diff old.adb new.adb
 bin/spark-diff -U 5 --label a/file.adb --label b/file.adb old.adb new.adb
 bin/spark-diff --max-distance 512 old.txt new.txt
@@ -108,6 +108,7 @@ tested against an independent dynamic-programming oracle, not formally proved.
 ## Verification
 
 ```sh
+make build
 make flow
 make prove
 make test

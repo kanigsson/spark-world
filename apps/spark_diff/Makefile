@@ -2,11 +2,11 @@ GPRBUILD ?= gprbuild
 GNATPROVE ?= gnatprove
 JOBS ?= 4
 
-.PHONY: all test test-contracts prove flow
-all:
+.PHONY: build test test-contracts prove flow
+build:
 	$(GPRBUILD) -P tools.gpr -j$(JOBS)
 
-test: all
+test: build
 	bin/test_diff
 	python3 tests/test_cli.py
 
