@@ -9,6 +9,7 @@ dependencies.
 Use a matching Ada 2022 GNAT/GPRbuild and GNATprove installation.
 
 ```sh
+make build                # library, CLIs, tests
 make test                 # library tests, Python re and grep -E oracles
 make test-contracts       # same tests with executable library contracts
 make flow                 # initialization and dependency analysis
@@ -125,7 +126,7 @@ continuation, search scans bytes outside this set without running NFA transition
 or closures. The first and final boundaries retain their normal closure checks,
 including nullable and anchored matches. A nullable interior closure disables
 skipping; such a pattern is already accepted by the initial search closure.
-[Measurements](BENCHMARKS.md) cover sparse searches, wide active sets, and short
+[Measurements](docs/BENCHMARKS.md) cover sparse searches, wide active sets, and short
 records, including their tradeoffs.
 
 ## CLI
@@ -218,7 +219,7 @@ pattern with a grammar derivation cannot produce a syntax error, with resource
 failures allowed separately. Every derivation has the same span semantics as
 the byte-only `Pattern_Matches` denotation. The public `Compile_For_Text`
 theorem connects successful compilation to `Pattern_Accepts` for whole matching
-and search. [PROOF.md](PROOF.md) states the theorems and proof boundary.
+and search. [PROOF.md](docs/PROOF.md) states the theorems and proof boundary.
 
 Recursive semantic models and proof certificates use SPARK's `Static` ghost
 level. They are proved but never executed, including in contract-enabled

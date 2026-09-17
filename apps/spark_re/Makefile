@@ -7,10 +7,10 @@ GPRBUILD ?= gprbuild
 GNATPROVE ?= gnatprove
 GNATFORMAT ?= gnatformat
 JOBS ?= 4
-.PHONY: all test test-contracts flow prove format
-all:
+.PHONY: build test test-contracts flow prove format
+build:
 	$(GPRBUILD) -P tools.gpr -j$(JOBS)
-test: all
+test: build
 	bin/test_regex
 	python3 tests/test_cli.py
 	python3 tests/test_rg.py
