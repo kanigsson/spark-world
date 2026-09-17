@@ -120,6 +120,23 @@ package body Git_Changes.Backends is
       Name := Null_Unbounded_String;
    end Create_Capture;
 
+   --  One shell word carrying Value literally: single quotes protect
+   --  everything except a single quote itself, which is spliced in as a
+   --  quoted-out fragment.
+   function Shell_Word (Value : String) return String is
+      Result : Unbounded_String := To_Unbounded_String ("'");
+   begin
+      for C of Value loop
+         if C = ''' then
+            Append (Result, "'\''");
+         else
+            Append (Result, C);
+         end if;
+      end loop;
+      Append (Result, "'");
+      return To_String (Result);
+   end Shell_Word;
+
    procedure Run_Git
      (Working_Directory : String;
       Arguments         : Argument_Array;
@@ -130,10 +147,14 @@ package body Git_Changes.Backends is
    is
       use GNAT.OS_Lib;
       Prefix_Count : constant Positive := 7;
-      Args : Argument_List (1 .. Prefix_Count + Arguments'Length);
+      --  The shell, the script, and the program name the script runs: the
+      --  captured command is handed to a shell that redirects for it.
+      Shell_Count : constant Positive := 3;
+      Args : Argument_List (1 .. Shell_Count + Prefix_Count + Arguments'Length);
       FD   : File_Descriptor;
       Temp : Unbounded_String;
       Git  : GNAT.OS_Lib.String_Access := Locate_Exec_On_Path ("git");
+      Shell : GNAT.OS_Lib.String_Access := Locate_Exec_On_Path ("sh");
       Spawned : Boolean;
       Status  : Integer := -1;
       Read_Error : Error_Info;
@@ -145,41 +166,63 @@ package body Git_Changes.Backends is
             Free (Arg);
          end loop;
          Free (Git);
+         Free (Shell);
       end Release;
    begin
       Output := Null_Unbounded_String;
       Error := (others => <>);
       if Git = null then
+         Free (Shell);
          Set_Error (Error, Git_Command_Failed, Operation, "git executable not found", -1);
          return;
       end if;
-
-      Args (1) := new String'("--no-pager");
-      Args (2) := new String'("-c");
-      Args (3) := new String'("color.ui=false");
-      Args (4) := new String'("-c");
-      Args (5) := new String'("core.quotepath=false");
-      Args (6) := new String'("-C");
-      Args (7) := new String'(Working_Directory);
-      for J in Arguments'Range loop
-         Args (Prefix_Count + (J - Arguments'First) + 1) :=
-           new String'(To_String (Arguments (J)));
-      end loop;
+      if Shell = null then
+         Free (Git);
+         Set_Error (Error, Git_Command_Failed, Operation, "shell not found", -1);
+         return;
+      end if;
 
       Create_Capture (FD, Temp);
       if FD = Invalid_FD then
-         Release;
+         Free (Git);
+         Free (Shell);
          Set_Error (Error, Filesystem_Error, Operation, "cannot create temporary output");
          return;
       end if;
       Close (FD);
-      Spawn
-        (Program_Name => Git.all,
-         Args         => Args,
-         Output_File  => To_String (Temp),
-         Success      => Spawned,
-         Return_Code  => Status,
-         Err_To_Out   => True);
+
+      --  The redirection belongs to the child, not to this process.
+      --
+      --  GNAT.OS_Lib's Output_File form of Spawn points THIS process's
+      --  standard output and error at the capture file for as long as the
+      --  child runs, then puts them back. Nothing in this library's
+      --  interface says it takes the process's descriptors over, and in a
+      --  program where another task writes to standard output -- a terminal
+      --  client drawing frames, most obviously -- that window swallows those
+      --  writes: they land in the capture file and never reach the screen,
+      --  so whatever they were painting stays on screen as it was. Handing
+      --  the command to a shell puts the redirection where it belongs, in
+      --  the process being redirected, and leaves this one's descriptors
+      --  alone. "$0" and "$@" carry the program and its arguments as
+      --  themselves, so no argument is ever read as shell syntax.
+      Args (1) := new String'("-c");
+      Args (2) := new String'
+        ("exec ""$0"" ""$@"" >" & Shell_Word (To_String (Temp)) & " 2>&1");
+      Args (3) := new String'(Git.all);
+      Args (Shell_Count + 1) := new String'("--no-pager");
+      Args (Shell_Count + 2) := new String'("-c");
+      Args (Shell_Count + 3) := new String'("color.ui=false");
+      Args (Shell_Count + 4) := new String'("-c");
+      Args (Shell_Count + 5) := new String'("core.quotepath=false");
+      Args (Shell_Count + 6) := new String'("-C");
+      Args (Shell_Count + 7) := new String'(Working_Directory);
+      for J in Arguments'Range loop
+         Args (Shell_Count + Prefix_Count + (J - Arguments'First) + 1) :=
+           new String'(To_String (Arguments (J)));
+      end loop;
+
+      Status := Spawn (Program_Name => Shell.all, Args => Args);
+      Spawned := Status >= 0;
       Release;
 
       if not Spawned then

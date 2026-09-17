@@ -17,6 +17,7 @@ CLI = ROOT / "bin" / "git-changes"
 PROBE = ROOT / "tests" / "bin" / "api_probe"
 STALE_PROBE = ROOT / "tests" / "bin" / "stale_content_probe"
 SNAPSHOT_PROBE = ROOT / "tests" / "bin" / "snapshot_probe"
+STDOUT_PROBE = ROOT / "tests" / "bin" / "stdout_probe"
 
 
 def run(*args: str | bytes | Path, cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess[bytes]:
@@ -416,6 +417,15 @@ def main() -> None:
         checks += 1
 
         checks += snapshot_scenario(tmp)
+
+        #  A query captures the command's output, not the caller's. Every
+        #  line another task prints while queries run must still arrive: a
+        #  capture that borrowed this process's standard output would eat
+        #  some of them, which is what makes a terminal client's frames go
+        #  missing.
+        marks = text(run(STDOUT_PROBE, repo)).count("mark")
+        assert marks == 2000, f"{marks} of 2000 lines survived the queries"
+        checks += 1
 
     print(f"integration tests: {checks} scenario checks passed")
 
