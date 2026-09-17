@@ -1,0 +1,41 @@
+--  The git_view executable: a git-history viewer that embeds the proved
+--  Tui.Pager engine TWICE — a commit-list pane and a diff pane composited
+--  into one surface — on the Tui.Term driver. The proof-of-ecosystem app:
+--  the engine knows nothing about git; this host gets its content from the
+--  git_changes library, which owns every repository query, while the app
+--  logic stays proved SPARK.
+
+with "../tui/tui.gpr";
+with "../term/tui_term.gpr";
+with "../../git-changes/git_changes.gpr";
+
+project Git_View is
+
+   for Source_Dirs use ("src");
+   for Object_Dir use "obj";
+   for Exec_Dir use ".";
+   for Main use ("git_view_main.adb");
+
+   --  Inherits the build mode from Tui_Core (default "release"; pass
+   --  -XMODE=debug to keep contracts and an unoptimised, debuggable build).
+   package Compiler is
+      case Tui.Mode is
+         when "debug" =>
+            for Default_Switches ("Ada") use ("-gnat2022", "-gnatwa", "-g", "-O0");
+         when "release" =>
+            for Default_Switches ("Ada") use ("-gnat2022", "-gnatwa", "-O2");
+      end case;
+   end Compiler;
+
+   package Builder is
+      for Executable ("git_view_main.adb") use "git_view";
+   end Builder;
+
+   --  App logic (state, keymap, selection rules, SHA parsing, formatters) is
+   --  proved SPARK; only the OS edges — the main unit and the repository
+   --  adapters — are SPARK_Mode => Off. gnatprove analyses the On units.
+   package Prove is
+      for Proof_Switches ("Ada") use ("--level=2", "--report=statistics");
+   end Prove;
+
+end Git_View;
