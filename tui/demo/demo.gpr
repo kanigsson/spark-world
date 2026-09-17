@@ -1,0 +1,15 @@
+with "../tui.gpr";
+
+--  Throwaway dogfooding programs, one per layer. NOT part of the library and
+--  NOT SPARK: they exist to make each layer observable from ordinary Ada.
+project Demo is
+   for Source_Dirs use ("src");
+   for Object_Dir use "obj";
+   for Exec_Dir use ".";
+   for Main use ("demo_width.adb", "demo_text.adb", "demo_surface.adb",
+                 "demo_input.adb", "demo_pager.adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use ("-gnat2012", "-g", "-O0");
+   end Compiler;
+end Demo;

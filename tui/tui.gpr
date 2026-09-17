@@ -1,0 +1,52 @@
+--  The library crate: pure SPARK, no I/O, no OS. Everything the ecosystem can
+--  compute without touching a terminal lives here — the empty Tui root, UTF-8
+--  decoding, display widths, the line index, the cell surface and its diff,
+--  the key decoder, the pager engine, the shared app kit, and the pane layer
+--  that composes several engines into one screen.
+--
+--  There is deliberately one boundary left in the ecosystem, and it is not a
+--  size boundary: the driver (tui_term) is SPARK_Mode => Off because it owns
+--  termios, signals and controlled types. Keeping it a separate crate is what
+--  makes "this library performs no I/O" a structural fact rather than a
+--  convention, and what keeps syscalls out of the build closure of everyone
+--  who only needs the proved parts.
+
+library project Tui is
+
+   --  Build mode, shared by every crate in the ecosystem (they reference
+   --  Tui.Mode). The SPARK contracts throughout are proved statically by
+   --  gnatprove, so they need not run at execution time. "debug" keeps -gnata
+   --  (contracts run as assertions) and -O0; "release" drops assertions and
+   --  optimises. Select with `-XMODE=debug` on the gprbuild command line.
+   type Mode_Type is ("debug", "release");
+   Mode : Mode_Type := external ("MODE", "release");
+
+   for Library_Name use "tui";
+   for Library_Kind use "static";
+   for Source_Dirs use ("src");
+   for Object_Dir use "obj";
+   for Library_Dir use "lib";
+
+   package Compiler is
+      case Mode is
+         when "debug" =>
+            for Default_Switches ("Ada") use
+              ("-gnat2012",   --  contracts, quantifiers, expression functions
+               "-gnatwa",     --  all warnings
+               "-gnata",      --  enable assertions/contracts at run time
+               "-g", "-O0");
+         when "release" =>
+            for Default_Switches ("Ada") use ("-gnat2012", "-gnatwa", "-O2");
+      end case;
+   end Compiler;
+
+   --  gnatprove reads these. One setting for the whole library: every unit
+   --  here proved at level 2 before the merge, and the merge is a packaging
+   --  change, not a proof change. Raise a single file with a further
+   --  Proof_Switches entry for its name rather than by splitting the crate;
+   --  prove one unit at a time with `gnatprove -P tui.gpr -u <file>`.
+   package Prove is
+      for Proof_Switches ("Ada") use ("--level=2", "--report=statistics");
+   end Prove;
+
+end Tui;
