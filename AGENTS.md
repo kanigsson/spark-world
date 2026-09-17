@@ -73,10 +73,11 @@ hand-edit.
 
 Each project exposes a `Makefile` with `build`, `test`, `prove` and `flow`
 targets, plus `test-contracts` and `bench` where they apply. `fuzzy_matcher`,
-`spark_diff` and `spark_re` have this already; copy from them. `git-changes`
-has the equivalent in `scripts/`; the rest still document raw `gprbuild` /
-`gnatprove` lines in their README. Convert a project when you touch it, not in
-a sweep.
+`spark_diff` and `spark_re` are closest to this, though their build target is
+spelled `all`, not `build` — renaming it is part of adopting the convention.
+`libs/git_changes` has the equivalent in `scripts/`; the rest still document
+raw `gprbuild` / `gnatprove` lines in their README. Convert a project when you
+touch it, not in a sweep.
 
 Proof level and switches are a per-project decision — they vary on purpose,
 from `--level=2` to `--level=4`.
@@ -92,7 +93,7 @@ anyone from looking again.
 One matching GNAT/GPRbuild/GNATprove installation for a project and all its
 dependencies. Ada 2022 throughout.
 
-Note one inconsistency: `git-changes/scripts/prove.sh` requires GNATprove 16
+Note one inconsistency: `libs/git_changes/scripts/prove.sh` requires GNATprove 16
 specifically and finds it under `~/.alire/`, while every other project proves
 with whatever is on `PATH`. Until that is reconciled, the repository proves
 with two different provers depending on which project you are in.
