@@ -134,4 +134,3 @@ outside SPARK. Tests cover their byte fidelity by applying generated diffs with
 both GNU `patch --fuzz=0` and `git apply` in temporary directories. Core tests
 exhaust short sequences and all relevant budgets, compare against an independent
 minimum-edit oracle, replay scripts independently, and reject malformed scripts.
-See [validation/README.md](validation/README.md) for recorded results and versions.

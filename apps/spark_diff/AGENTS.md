@@ -62,14 +62,6 @@ The CLI tests apply generated diffs with both GNU `patch --fuzz=0` and `git
 apply`, so byte fidelity is checked against real consumers rather than against
 this project's own renderer.
 
-## `validation/` is a dated snapshot, not a live check
-
-It records one run from 2026-09-11 with logs, timings, a toolchain record and
-`source-sha256.txt`. It is evidence of that day, and nothing recomputes it — the
-`Makefile` hash in it is already stale after the `all` → `build` rename. Do not
-treat a mismatch as a regression; regenerate the whole directory, dated, when a
-fresh record is wanted.
-
 ## Dependencies
 
 None.
