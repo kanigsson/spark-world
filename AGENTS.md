@@ -1,8 +1,6 @@
 # spark-world
 
-A mono-repo of Ada/SPARK projects: proved libraries and the programs built on
-them. Eleven projects, previously eleven separate repositories, merged with
-their full history on 2026-09-17 (see `MIGRATION.md`).
+A mono-repo of Ada/SPARK projects: proved libraries and programs.
 
 ## Layout
 
@@ -30,10 +28,6 @@ Always write a cross-project `with` in full, from the repository root:
 with "../../libs/tui/tui.gpr";
 ```
 
-Even between two projects in the same tier, where `../tui/tui.gpr` would also
-resolve. One shape everywhere means there is never a question of which form to
-write, and a tier change touches one path component.
-
 The same applies to Alire path pins (`{ path = "../../libs/tui" }`) and to
 documentation links between projects.
 
@@ -58,10 +52,7 @@ wider compatibility obligation.
 ## Working across projects
 
 **Do not work around a bug or a shortcoming of another project from the calling
-side. Fix it where it lives, and say so.** This was the rule when these were
-separate repositories and a fix meant a second checkout; in one repository
-there is no excuse left. A workaround in a client hides a defect in a library
-that other clients still have.
+side. Fix it where it lives, and say so.** 
 
 When a change to a library breaks a client, both are in this repository, so
 both get fixed in the same commit.
