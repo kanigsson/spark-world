@@ -19,7 +19,7 @@ surrogate pairs; numbers are checked against the RFC grammar; a document
 that parses to `Document_End` conforms to RFC 8259.
 
 UTF-8 classification, scalar decoding, and scalar encoding come from the
-sibling [`unicode_text`](../../unicode_text) crate. JSON retains only the JSON
+sibling [`unicode_text`](../unicode_text) crate. JSON retains only the JSON
 string and escape grammar; it does not maintain a second UTF-8 range table or
 encoder.
 
