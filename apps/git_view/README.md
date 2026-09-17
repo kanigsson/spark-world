@@ -154,7 +154,7 @@ safety; this suite covers intent, and is what a move of this code between
 frontends or crates is checked against.
 
 `Git_View_Repository` is a trusted repository adapter. Every Git query it
-makes goes through the [`git_changes`](../libs/git_changes) library in this
+makes goes through the [`git_changes`](../../libs/git_changes) library in this
 repository: change kinds, old/new paths, metadata, changed spans, snapshot
 inventories and contents, snapshot search, revision resolution, and history.
 No Git process is started in this project, and no repository path is read
@@ -207,7 +207,7 @@ path within this repository.
 `-XMODE=debug` builds the TUI without optimization; release is the default.
 
 This implements the text/Git MVP from
-[temporal_code_explorer_design.md](temporal_code_explorer_design.md). Semantic
+[docs/temporal_code_explorer_design.md](docs/temporal_code_explorer_design.md). Semantic
 analysis, review annotations, combined merge views, and side-by-side rendering
 remain deferred. History is loaded in full, within the capture limit; files
 and command captures are limited to 64 MiB and path identities to 4096 bytes.
@@ -216,7 +216,7 @@ library's fixed-string snapshot search over tracked files; untracked files
 can be opened and searched individually.
 
 The original two-pane diff viewer is available with `--legacy`; see
-[LEGACY.md](LEGACY.md) for its syntax highlighting and its own key bindings.
+[LEGACY.md](docs/LEGACY.md) for its syntax highlighting and its own key bindings.
 Both frontends now share one pane layer — layout, hit-testing, gesture
 recognition, selection and clipboard encoding all live in `Tui.Panes` — so
 mouse selection, clipboard copy and pane resizing behave the same in each.

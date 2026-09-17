@@ -19,8 +19,8 @@ git_changes = "*"
 
 # No Alire index in this workspace; pin the sibling crates by path.
 [[pins]]
-tui = { path = "../libs/tui" }
+tui = { path = "../../libs/tui" }
 [[pins]]
-tui_term = { path = "../libs/tui_term" }
+tui_term = { path = "../../libs/tui_term" }
 [[pins]]
-git_changes = { path = "../libs/git_changes" }
+git_changes = { path = "../../libs/git_changes" }
