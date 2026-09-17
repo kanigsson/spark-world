@@ -1,0 +1,36 @@
+library project Git_Changes is
+   type Build_Mode is ("debug", "release");
+   Mode : Build_Mode := external ("GIT_CHANGES_BUILD", "debug");
+
+   for Languages use ("Ada");
+   for Source_Dirs use ("src");
+   for Object_Dir use "obj/lib/" & Mode;
+   for Library_Name use "git_changes";
+   for Library_Dir use "lib/" & Mode;
+   for Library_ALI_Dir use "lib/" & Mode & "/ali";
+   for Library_Kind use "static";
+   for Library_Interface use
+     ("Git_Changes",
+      "Git_Changes.Repositories",
+      "Git_Changes.Comparisons",
+      "Git_Changes.Contents",
+      "Git_Changes.History",
+      "Git_Changes.Revisions",
+      "Git_Changes.Snapshots",
+      "Git_Changes.JSON",
+      "Git_Changes.Core",
+      "Git_Changes.Core.Raw",
+      "Git_Changes.Core.Hunks",
+      "Git_Changes.Core.Validation");
+
+   package Compiler is
+      case Mode is
+         when "debug" =>
+            for Default_Switches ("Ada") use
+              ("-gnat2022", "-gnata", "-gnatVa", "-gnatwa", "-g", "-O0");
+         when "release" =>
+            for Default_Switches ("Ada") use
+              ("-gnat2022", "-gnatn", "-gnatVa", "-gnatwa", "-O2");
+      end case;
+   end Compiler;
+end Git_Changes;
