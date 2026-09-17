@@ -68,43 +68,25 @@ both get fixed in the same commit.
 
 ## Per-project `AGENTS.md`
 
-Each project carries its own, covering:
+Each project carries its own; copy the shape from a neighbour. It covers what
+someone changing the project needs and would not infer — the README already
+explains it to a user. Keep it short.
 
-- **What it is** — one paragraph, and what it deliberately is not.
-- **Dependencies** — which projects, and why each one is there.
-- **Build, test, prove** — the exact commands (see below).
-- **SPARK posture** — what is proved, what is deliberately not, what is
-  `SPARK_Mode => Off` and why. `libs/tui_term` is the clearest case: it is
-  `Off` on purpose because it owns termios, signals and controlled types, and
-  keeping it separate is what makes "the rest performs no I/O" structural.
-- **Anything an agent would otherwise get wrong** — a proof that is known
-  incomplete, a test that needs a fixture, a generated file not to hand-edit.
-
-Keep it short. The README explains the project to a user; `AGENTS.md` covers
-what someone changing it needs and would not infer.
+Worth stating explicitly wherever it applies: a proof known to be incomplete, a
+deliberate `SPARK_Mode => Off` and the reason for it, a generated file not to
+hand-edit.
 
 ## Build, test and prove
 
-Each project exposes a `Makefile` with these targets:
+Each project exposes a `Makefile` with `build`, `test`, `prove` and `flow`
+targets, plus `test-contracts` and `bench` where they apply. `fuzzy_matcher`,
+`spark_diff` and `spark_re` have this already; copy from them. `git-changes`
+has the equivalent in `scripts/`; the rest still document raw `gprbuild` /
+`gnatprove` lines in their README. Convert a project when you touch it, not in
+a sweep.
 
-| Target | Meaning |
-| --- | --- |
-| `build` | the library and any executables |
-| `test` | the full suite, including Python differential drivers |
-| `prove` | the project's own proof run, at its own level and switches |
-| `flow` | `--mode=flow` only |
-
-Optional where they apply: `test-contracts` (the suite again with `-gnata`, so
-contracts execute), `bench`.
-
-Three projects have this already (`fuzzy_matcher`, `spark_diff`, `spark_re`);
-`git-changes` has the equivalent in `scripts/`; the rest document raw
-`gprbuild` / `gnatprove` lines in their README. Convert a project when you touch
-it, not in a sweep.
-
-The proof level and switches are a per-project decision recorded in that
-project's `Makefile` and `AGENTS.md` — they vary on purpose, from `--level=2`
-to `--level=4`.
+Proof level and switches are a per-project decision — they vary on purpose,
+from `--level=2` to `--level=4`.
 
 **Do not suppress an unproved check to obtain a passing run.** If a check does
 not prove, either prove it or record it — in `docs/STATUS.md` for a baseline,
