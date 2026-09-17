@@ -1,0 +1,32 @@
+# UTF-8 runtime conformance tests
+
+`utf_8_tests.adb` checks independent encodings at every scalar boundary,
+exhaustively round-trips every Unicode scalar value, and systematically varies
+lead and continuation octets across the valid and malformed UTF-8 classes. It
+also covers truncation, overlong forms, surrogates, values above U+10FFFF,
+embedded zero octets, validation error offsets, empty strings, and non-default
+Ada string bounds.
+
+`plain_string_tests.adb` covers Milestone 3 code-point length, indexed access,
+forward cursor progress, prefix, suffix, comparison, mixed-width text, and
+non-default Ada string bounds. Its Milestone 5 cases cover byte spans,
+code-point slices, scalar and substring search, reverse search, containment,
+empty needles, and search offsets. It also confirms that executable API
+preconditions remain enabled while static ghost-model contracts are erased.
+Its Milestone 6 cases cover scalar and substring split reconstruction,
+delimiter absence, leading, trailing, adjacent, missing, overlapping, and
+multibyte delimiters, relative byte spans, and non-default Ada string bounds.
+
+`bounded_string_tests.adb` covers Milestone 4 zero and exact capacities,
+construction and copying, all append forms, clearing, equality independent of
+unused storage, indexed access, and cursor iteration. Its Milestone 5 cases
+cover bounded slices and ordinary/bounded needle search wrappers.
+
+Run it from the repository root with:
+
+```sh
+gprbuild -P tests/runtime/runtime_tests.gpr
+./obj/runtime_tests/utf_8_tests
+./obj/runtime_tests/plain_string_tests
+./obj/runtime_tests/bounded_string_tests
+```

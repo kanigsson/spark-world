@@ -1,0 +1,3 @@
+--  Static assertions contain proof-only models and are always ignored by the
+--  compiler.  Executable contracts and assertions remain enabled by -gnata.
+pragma Assertion_Policy (Ghost => Ignore);

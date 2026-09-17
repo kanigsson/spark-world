@@ -1,0 +1,12 @@
+project SPARKlib extends "sparklib_internal" is
+
+   --  A normal build compiles these repository-local objects with the active
+   --  compiler. After that build, proof commands set the external variable so
+   --  GNATprove uses SPARKlib's contracts without analyzing the dependency.
+   for Externally_Built use
+     external ("SPARKLIB_EXTERNALLY_BUILT", "false");
+   for Object_Dir use "obj/sparklib";
+   for Source_Dirs use SPARKlib_Internal'Source_Dirs;
+   for Excluded_Source_Files use SPARKlib_Internal'Excluded_Source_Files;
+
+end SPARKlib;
