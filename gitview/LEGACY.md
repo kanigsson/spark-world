@@ -7,7 +7,7 @@ A **git-history viewer** — and the proof-of-ecosystem application (Phase 5 of
 the parent `ROADMAP.md`): it embeds the proved `Tui.Pager` engine **twice**,
 as a commit-list pane and a diff pane composited into one surface, on the
 `tui_term` driver. The engine knows nothing about git; this host gets its
-content from the `git-changes` library at a trusted edge while all state and
+content from the `git_changes` library at a trusted edge while all state and
 policy stay proved SPARK.
 
 ## Use

@@ -154,8 +154,8 @@ safety; this suite covers intent, and is what a move of this code between
 frontends or crates is checked against.
 
 `Git_View_Repository` is a trusted repository adapter. Every Git query it
-makes goes through the sibling [`git-changes`](../git-changes) Ada
-library: change kinds, old/new paths, metadata, changed spans, snapshot
+makes goes through the [`git_changes`](../libs/git_changes) library in this
+repository: change kinds, old/new paths, metadata, changed spans, snapshot
 inventories and contents, snapshot search, revision resolution, and history.
 No Git process is started in this project, and no repository path is read
 directly. Document assembly, caching, and the worker mailbox are outside
@@ -202,7 +202,8 @@ python3 tests/run_mouse_tests.py        # legacy regression suite
 ```
 
 Use one matching GNAT/GNATprove toolchain for the application and dependencies.
-The project uses Ada 2022. Alire pins the sibling TUI crates and git-changes.
+The project uses Ada 2022. Alire pins the TUI libraries and git_changes by
+path within this repository.
 `-XMODE=debug` builds the TUI without optimization; release is the default.
 
 This implements the text/Git MVP from
