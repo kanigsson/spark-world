@@ -25,7 +25,7 @@ for directory in ["src", "cli", "tests", "benchmarks", "scripts"]:
     for path in sorted((ROOT / directory).rglob("*")):
         if path.is_file() and "__pycache__" not in path.parts:
             manifest["sha256"][str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
-for name in ["fuzzy.gpr", "tools.gpr", "Makefile", "fuzzy_matcher_design.md"]:
+for name in ["fuzzy.gpr", "tools.gpr", "Makefile", "docs/design.md"]:
     manifest["sha256"][name] = hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
 
 def run(args, log):

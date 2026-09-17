@@ -9,11 +9,12 @@ CLI is also provided for convenience.
 Use a matching GNAT/GPRbuild and GNATprove installation with Ada 2022 support.
 
 ```sh
+make build                # library, CLI, benchmark, tests
 make test                 # library, CLI, independent oracle tests
 make test-contracts      # also execute contracts and ghost assertions
 make flow                # initialization and dependency analysis
 make prove               # runtime safety and functional contracts
-make benchmark           # 100,000 synthetic paths, K=30, 20 searches
+make bench               # 100,000 synthetic paths, K=30, 20 searches
 make format              # reformat the Ada sources with GNATformat
 printf '%s\n' src/foo.adb src/bar.ads | bin/fuzzy fa 30
 ```
@@ -188,7 +189,7 @@ search. Source it from `~/.bashrc`, after any other tool that binds those keys,
 since the last binding wins:
 
 ```sh
-source ~/tools/fuzzy_matcher/shell/fuzzy.bash
+source ~/tools/spark-world/apps/fuzzy/shell/fuzzy.bash
 ```
 
 It lists the history newest first, collapses repeats, and separates entries

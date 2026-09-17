@@ -8,11 +8,11 @@ GNATPROVE ?= gnatprove
 GNATFORMAT ?= gnatformat
 JOBS ?= 4
 
-.PHONY: all test test-contracts prove flow benchmark format
-all:
+.PHONY: build test test-contracts prove flow bench format
+build:
 	$(GPRBUILD) -P tools.gpr -j$(JOBS)
 
-test: all
+test: build
 	bin/test_fuzzy
 	python3 tests/test_cli.py
 	python3 tests/test_pick.py
@@ -29,7 +29,7 @@ flow:
 prove:
 	$(GNATPROVE) -P fuzzy.gpr --level=2 --proof=per_path --timeout=20 --prover=cvc5,z3 --counterexamples=off -j$(JOBS)
 
-benchmark: all
+bench: build
 	bin/bench_fuzzy
 
 #  Some sources hold UTF-8 literals, so the charset must be stated: the
