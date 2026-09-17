@@ -1,0 +1,19 @@
+with "../../ore_lib.gpr";
+
+project Restriction_Smoke is
+
+   for Source_Dirs use (".");
+   for Object_Dir use "../../obj/restriction_smoke";
+   for Exec_Dir use "../../obj/restriction_smoke";
+   for Main use ("restriction_smoke.adb");
+
+   package Builder is
+      for Global_Configuration_Pragmas use "../../restrictions.adc";
+   end Builder;
+
+   package Compiler is
+      for Default_Switches ("Ada") use ("-gnat2022", "-gnata");
+      for Local_Configuration_Pragmas use "../../gnat.adc";
+   end Compiler;
+
+end Restriction_Smoke;

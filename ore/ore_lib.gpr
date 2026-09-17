@@ -1,0 +1,72 @@
+library project Ore_Lib is
+
+   --  "debug" keeps the executable contracts of the library; "release" drops
+   --  them, on the grounds that they have been proved. Ghost code is ignored
+   --  in both modes, see gnat.adc. "restrictions" is not a mode to ship: it
+   --  is a debug build that additionally checks the library against the
+   --  restricted-runtime promise, see restrictions.adc.
+   type Build_Mode_Type is ("debug", "release", "restrictions");
+   Build_Mode : Build_Mode_Type := external ("ORE_BUILD_MODE", "debug");
+
+   Mode_Switches := ();
+   Obj_Dir       := "obj/lib";
+   Lib_Dir       := "lib";
+   case Build_Mode is
+      when "debug"        => Mode_Switches := ("-gnata");
+      when "release"      => Mode_Switches := ("-O2");
+      when "restrictions" =>
+         Mode_Switches := ("-gnata");
+         --  Own directories, so that checking the promise never replaces the
+         --  artifacts that were built, proved and installed.
+         Obj_Dir := "obj/lib-restrictions";
+         Lib_Dir := "lib-restrictions";
+   end case;
+
+   for Library_Name use "ore";
+   for Library_Kind use "static";
+   for Source_Dirs use ("src");
+   for Object_Dir use Obj_Dir;
+   for Library_Dir use Lib_Dir;
+
+   --  The restrictions come in on top of gnat.adc rather than replacing it,
+   --  and as a Builder attribute, which is honoured only when this project is
+   --  the root one -- a client that withs the library never inherits them.
+   package Builder is
+      case Build_Mode is
+         when "restrictions" =>
+            for Global_Configuration_Pragmas use "restrictions.adc";
+         when others =>
+            null;
+      end case;
+   end Builder;
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        ("-gnat2022") & Mode_Switches;
+      for Local_Configuration_Pragmas use "gnat.adc";
+   end Compiler;
+
+   --  Install the GNATprove summary files (global effects, termination) next
+   --  to the installed library, so that clients of the installed library get
+   --  that information rather than assuming it. The destination must match
+   --  the directory gprinstall puts the ALI files in.
+   package Install is
+      for Artifacts ("lib/ore_lib/gnatprove") use
+        (Ore_Lib'Library_ALI_Dir & "/gnatprove/*.ali");
+   end Install;
+
+   package Prove is
+      for Proof_Dir use "proof/lib";
+      --  The timeout is set by the hardest goals in the library: a
+      --  bit-level contract on a 64-bit word is a bit-vector problem with a
+      --  variable shift amount, which the provers solve in seconds on their
+      --  own and in tens of seconds when a whole run competes for the cores.
+      --  The margin over that is deliberate: at 60 seconds the field
+      --  operations on a 64-bit word were proved on their own and lost in a
+      --  whole-library run, which is a proof result that depends on the
+      --  machine it was obtained on.
+      for Proof_Switches ("Ada") use
+        ("--mode=all", "--level=2", "--timeout=180");
+   end Prove;
+
+end Ore_Lib;

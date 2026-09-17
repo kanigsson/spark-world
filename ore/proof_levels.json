@@ -1,0 +1,12 @@
+{
+  "Ore.Bits": {
+    "level": "gold",
+    "note": "the 16 entities outside SPARK are the shift and rotate intrinsics, which have no body for GNATprove to analyse and are modelled natively by it"
+  },
+  "Ore.Byte_Buffers": {
+    "level": "gold"
+  },
+  "Ore": {
+    "note": "physical types only; no subprograms, so nothing to prove"
+  }
+}
