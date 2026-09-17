@@ -149,6 +149,8 @@ package body Git_View_Repository with SPARK_Mode => Off is
    Cached_Tree_Key : Unbounded_String;
    Cached_Tree : G.Snapshots.Inventory;
    Cached_Content_Key, Cached_Content : Unbounded_String;
+   Cached_Message_Key, Cached_Message : Unbounded_String;
+   Cached_Message_Author, Cached_Message_Date : Unbounded_String;
 
    --  Opening a repository and resolving a revision each cost their own git
    --  processes, and one keystroke asks most of the same questions as the
@@ -184,6 +186,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
       Cached_Tree_Key := Null_Unbounded_String;
       Cached_Rows_Key := Null_Unbounded_String;
       Cached_Content_Key := Null_Unbounded_String;
+      Cached_Message_Key := Null_Unbounded_String;
    end Forget_Repository;
 
    --  Append one row identity to a pane's name buffer, which the frame
@@ -309,6 +312,37 @@ package body Git_View_Repository with SPARK_Mode => Off is
          Source_Marks.Append (Kind);
       end Emit;
 
+      --  The commit message, read as the commit's own account of itself:
+      --  the object name, who wrote it and when, then the message indented
+      --  the way Git's own log shows it.
+      procedure Render_Message is
+         Local : G.Error_Info;
+      begin
+         if V.Kind /= M.Commit then
+            Emit ("[no commit message] "
+                  & (if V.Kind = M.Worktree then "working tree" else "index"));
+            return;
+         end if;
+         if Cached_Message_Key /= Target then
+            G.History.Describe (Repo, To_String (Target), Query_Options,
+                                Author => Cached_Message_Author,
+                                Date => Cached_Message_Date,
+                                Message => Cached_Message, Error => Local);
+            Check (Local);
+            Cached_Message_Key := Target;
+         end if;
+         Emit ("commit " & To_String (Target), Hunk_Header);
+         Emit ("Author: " & Label (To_String (Cached_Message_Author)));
+         Emit ("Date:   " & Label (To_String (Cached_Message_Date)));
+         Emit ("");
+         for Line of Split (To_String (Cached_Message), LF) loop
+            --  Indented the way Git's own log shows a message, except that a
+            --  blank line stays blank rather than carrying the indent.
+            Emit (if Length (Line) = 0 then ""
+                  else "    " & Label (To_String (Line)));
+         end loop;
+      end Render_Message;
+
       procedure Render_Source is
          File : constant Natural := Change (To_String (Scope));
          Whole_Added : constant Boolean := Cached_Untracked.Contains (To_String (Scope));
@@ -350,6 +384,7 @@ package body Git_View_Repository with SPARK_Mode => Off is
          Span_Total : Natural := 0;
       begin
          if Length (Scope) = 0 then Emit ("Select a file in the tree."); return; end if;
+         if M.Is_Message (To_String (Scope)) then Render_Message; return; end if;
          if File > 0 then
             if G.Is_Submodule (Cached_Changes, File) then
                Emit ("[submodule] " & Label (To_String (Scope))); return;
@@ -572,6 +607,15 @@ package body Git_View_Repository with SPARK_Mode => Off is
             Cached_History_Text := Null_Unbounded_String;
             Cached_History_Names := Null_Unbounded_String;
             Cached_History_Rows.Clear;
+            --  The working tree and the index are snapshots like any
+            --  commit, and they are where uncommitted work is: they head
+            --  the list, above the commit they are compared against.
+            Add_Name (Cached_History_Names, Cached_History_Rows, M.Worktree_Row);
+            Append (Cached_History_Text,
+                    "  [worktree] uncommitted changes" & LF);
+            Add_Name (Cached_History_Names, Cached_History_Rows, M.Index_Row);
+            Append (Cached_History_Text,
+                    "  [index]    staged changes" & LF);
             for I in 1 .. G.History.Count (Cached_Log) loop
                declare
                   Refs : constant String := G.History.References (Cached_Log, I);
@@ -621,6 +665,12 @@ package body Git_View_Repository with SPARK_Mode => Off is
          Cached_Tree_Names := Null_Unbounded_String;
          Cached_Tree_Scope := Null_Unbounded_String;
          Cached_Tree_Rows.Clear;
+         --  A commit says in its own words what it is for, and that is
+         --  read before its files: the message heads the tree as a row of
+         --  its own. The uncommitted states have no message to show.
+         if V.Kind = M.Commit then
+            Add_Row (M.Message_Row, "  " & M.Message_Label, Changed => False);
+         end if;
          if V.Visibility = M.All_Files then
             Ensure_Inventory;
             Displayed := Cached_Inventory;
@@ -706,6 +756,13 @@ package body Git_View_Repository with SPARK_Mode => Off is
        end if;
       end;
       if Length (Scope) = 0 then Scope := Cached_Tree_Scope; end if;
+      --  A comparison with no file to open still has something to say when
+      --  the snapshot is a commit: its message.
+      if Length (Scope) = 0 and then V.Kind = M.Commit
+        and then not Cached_Tree_Rows.Is_Empty
+      then
+         Scope := To_Unbounded_String (M.Message_Row);
+      end if;
       F.Scope := Bounded (To_String (Scope));
       begin Render_Source;
       exception when E : others =>

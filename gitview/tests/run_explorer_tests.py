@@ -63,6 +63,17 @@ with tempfile.TemporaryDirectory(prefix="gitview-explorer-") as tmp:
     check("+ 1 | new first" in f["source"] and "-   | old first" in f["source"], "replacement overlay and base ghost")
     check("keep middle" in f["source"], "full file context remains available")
     check("[parents:" in f["history"], "history exposes graph parent information")
+    check("[worktree] uncommitted changes" in f["history"]
+          and "[index]    staged changes" in f["history"],
+          "history lists the uncommitted snapshots above the commits")
+    check(f["tree"].splitlines()[1].endswith("COMMIT_MSG"),
+          "the commit message heads the tree")
+    f = probe(path="COMMIT_MSG")
+    check("commit " in f["source"] and "modify delete rename" in f["source"]
+          and "Author: Explorer" in f["source"],
+          "the commit message reads as the commit's own account of itself")
+    check("COMMIT_MSG" not in probe(kind="worktree")["tree"],
+          "the working tree has no commit message")
     f = probe(tree="changed_only")
     check("context/unchanged.txt" not in f["tree"], "changed-only tree omits unchanged files")
     check("src/\n" not in f["tree"], "flat changed-only tree")

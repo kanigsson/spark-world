@@ -140,6 +140,64 @@ is
       Reload;
    end Init;
 
+   --  A pane's selection is what its right-hand neighbour follows, so it
+   --  follows in turn whatever was chosen elsewhere: a snapshot picked at
+   --  startup, from the revision prompt or with the worktree and index
+   --  keys, and a scope reached by a pin, by back and forward, or by the
+   --  file jumps. A row that already names it is left alone, and a value no
+   --  row names -- a commit outside a filtered history, a file absent from
+   --  the snapshot -- leaves the selection where it is.
+   procedure Align_Selection (P : M.Pane; Wanted : String)
+     with Global => (Input => Data, In_Out => V),
+          Pre => P /= M.Source_Pane
+   is
+      Row : Tui.Text.Line_Number := 1;
+      Total : Tui.Text.Line_Total := 0;
+      Found : Boolean := False;
+   begin
+      if Wanted'Length = 0 then return; end if;
+      --  Each pane reaches its rows through its own branch: an access value
+      --  read out of the frame would be a move, and the frame keeps
+      --  ownership of what it carries.
+      case P is
+         when M.History_Pane =>
+            if Data.Commits = null
+              or else (V.Selected (P) in Data.Commits'Range
+                       and then R.Commit_Id (Data, V.Selected (P)) = Wanted)
+            then
+               return;
+            end if;
+            for I in Data.Commits'Range loop
+               if R.Commit_Id (Data, I) = Wanted then
+                  Row := I; Found := True; exit;
+               end if;
+            end loop;
+            if Data.History /= null then
+               Total := Tui.Text.Line_Count (Data.History.Idx);
+            end if;
+         when M.Tree_Pane =>
+            if Data.Paths = null
+              or else (V.Selected (P) in Data.Paths'Range
+                       and then R.Path (Data, V.Selected (P)) = Wanted)
+            then
+               return;
+            end if;
+            for I in Data.Paths'Range loop
+               if R.Path (Data, I) = Wanted then
+                  Row := I; Found := True; exit;
+               end if;
+            end loop;
+            if Data.Tree /= null then
+               Total := Tui.Text.Line_Count (Data.Tree.Idx);
+            end if;
+         when M.Source_Pane => return;
+      end case;
+      if Found then
+         V.Selected (P) := Row;
+         E.Go_To_Line (V.Views (P), Row, Total);
+      end if;
+   end Align_Selection;
+
    procedure Tick (Dirty : out Boolean) is
       Ready : Boolean;
    begin
@@ -154,6 +212,13 @@ is
             V.Base := Data.Resolved_Base;
          end if;
          if V.Scope.Last = 0 then V.Scope := Data.Scope; end if;
+         Align_Selection
+           (M.History_Pane,
+            (case V.Kind is
+                when M.Worktree => M.Worktree_Row,
+                when M.Staging => M.Index_Row,
+                when M.Commit => M.Image (V.Snapshot)));
+         Align_Selection (M.Tree_Pane, M.Image (V.Scope));
          Message := Data.Notice;
       end if;
    end Tick;
@@ -350,7 +415,7 @@ is
          --  the reader already looks for what is on screen.
          Put (S, S.Rows - 1, "snapshot: " & Snapshot.Data (1 .. Natural'Min (12, Snapshot.Last))
            & "  base: " & Base.Data (1 .. Natural'Min (12, Base.Last))
-           & "  scope: " & M.Image (V.Scope)
+           & "  scope: " & M.Scope_Label (M.Image (V.Scope))
            & "  lens: " & M.Change_Lens'Image (V.Lens)
            & (if Loading and then R.Loaded (Data) then "  [loading]" else ""), True);
       end;
@@ -361,7 +426,8 @@ is
          Put (S, S.Rows, "Tab panes  a tree  d lens  f history  p pin  [/] hunks  {/} files  / search  S repo-search  c snapshot  b base  w worktree  i index  BS back  Alt-Right forward");
       end if;
       if V.Pin.Last > 0 or else V.Path_Filter.Last > 0 or else V.Repository_Search.Last > 0 then
-         Put (S, S.Rows - 2, "pin: " & M.Image (V.Pin) & "  history filter: "
+         Put (S, S.Rows - 2, "pin: " & M.Scope_Label (M.Image (V.Pin))
+              & "  history filter: "
               & M.Image (V.Path_Filter) & "  search: " & M.Image (V.Repository_Search));
       elsif V.History_Filter.Path.Len > 0 then
          Put (S, S.Rows - 2, "history filter: " & Git_View_Source.Image (V.History_Filter.Path));
@@ -400,10 +466,14 @@ is
       then
          declare
             Id : constant String := R.Commit_Id (Data, Row);
+            Kind : constant M.Snapshot_Kind := M.Row_Kind (Id);
+            Name : constant String := M.Row_Snapshot (Id);
          begin
-            if Id'Length in 1 .. M.Max_Text and then Id /= M.Image (V.Snapshot) then
+            if Id'Length in 1 .. M.Max_Text
+              and then (Kind /= V.Kind or else Name /= M.Image (V.Snapshot))
+            then
                Record_Location (Browse => True);
-               M.Select_Snapshot (V, M.To_Text (Id));
+               M.Select_Snapshot (V, M.To_Text (Name), Kind);
                Reload;
             end if;
          end;
@@ -462,7 +532,8 @@ is
          begin
             if Id'Length <= M.Max_Text then
                Record_Location;
-               M.Select_Snapshot (V, M.To_Text (Id));
+               M.Select_Snapshot
+                 (V, M.To_Text (M.Row_Snapshot (Id)), M.Row_Kind (Id));
                Reload;
             end if;
          end;
@@ -772,7 +843,12 @@ is
       elsif Ch = 'd' then Record_Location; M.Cycle_Lens (V); Reload;
       elsif Ch = 'a' then Record_Location; M.Cycle_Tree (V); Reload;
       elsif Ch = 'p' then Record_Location; M.Toggle_Pin (V);
-      elsif Ch = 'f' then Record_Location; V.Path_Filter := V.Scope; Reload;
+      elsif Ch = 'f' then
+         --  The commit message belongs to no path, so there is no history
+         --  to scope to it.
+         if not M.Is_Message (M.Image (V.Scope)) then
+            Record_Location; V.Path_Filter := V.Scope; Reload;
+         else Dirty := False; end if;
       elsif Ch = 'F' then
          Record_Location; V.Path_Filter := M.To_Text ("");
          V.History_Filter.Path.Len := 0; V.Repository_Search := M.To_Text (""); Reload;

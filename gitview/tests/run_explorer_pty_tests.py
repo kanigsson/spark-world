@@ -111,7 +111,22 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
               "moving in the history pane shows the commit without opening it", f)
         f = s.send(b"\x7f")
         check(second[:12] in f, "back returns to where the browse started", f)
+        # The uncommitted snapshots head the history, so they are reached by
+        # moving the selection rather than by remembering a key.
+        f = s.send(b"k")
+        check("snapshot: index" in f, "the index is a row of the history", f)
+        f = s.send(b"k")
+        check("snapshot: worktree" in f and "M main.txt" in f,
+              "the working tree is the first row of the history, with its "
+              "uncommitted changes", f)
+        f = s.send(b"\x7f")
+        check(second[:12] in f, "back leaves the uncommitted snapshots", f)
         f = s.send(b"\t")
+        f = s.send(b"k")
+        check("scope: COMMIT_MSG" in f and "commit " + second[:12] in f
+              and "Author:" in f,
+              "the commit message is the first row of the tree", f)
+        f = s.send(b"\x7f")
         f = s.send(b"j")
         check("scope: main.txt" in f and "NEW_CHANGE" in f,
               "moving in the tree pane shows the file without opening it", f)
@@ -132,9 +147,10 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
         check("scope: unchanged.txt" in f and "SOURCE / PLAIN" in f, "forward restores source lens and scope", f)
         f = s.send(b"F")
         f = s.send(b"c" + second.encode() + b"\r")
-        # Open later.txt using a tree click (first row in canonical ordering).
-        # The tree pane starts after the history pane's 30% of the 160 columns.
-        f = s.send(b"\x1b[<0;52;2M")
+        # Open later.txt using a tree click: the commit message heads the
+        # tree, so the first file is the second row. The tree pane starts
+        # after the history pane's 30% of the 160 columns.
+        f = s.send(b"\x1b[<0;52;3M")
         check("scope: later.txt" in f, "tree mouse selection opens file", f)
         f = s.send(b"p")
         check("pin: later.txt" in f, "pin is visible", f)
@@ -147,8 +163,8 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
         f = s.send(b"F")
         check("initial" in f, "clear file history filter", f)
         f = s.send(b"p")
-        # main.txt is second tree row in the all-files tree.
-        f = s.send(b"\x1b[<0;52;3M")
+        # main.txt is the second file row, below the message and later.txt.
+        f = s.send(b"\x1b[<0;52;4M")
         check("scope: main.txt" in f, "open another file without changing snapshot", f)
         f = s.send(b"/line 080\r")
         check("line 080" in f and "line 001" not in f, "search within source", f)

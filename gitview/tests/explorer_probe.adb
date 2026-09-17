@@ -16,7 +16,10 @@ procedure Explorer_Probe is
    end Dump;
 begin
    V.Snapshot := To_Text (Argument (1));
-   V.Scope := To_Text (Argument (2));
+   --  The commit-message row identifies itself with a byte no path can
+   --  contain, which no command line can carry: it is named by its label.
+   V.Scope := To_Text (if Argument (2) = Message_Label then Message_Row
+                       else Argument (2));
    V.Kind := Snapshot_Kind'Value (Argument (3));
    V.Visibility := Tree_Visibility'Value (Argument (4));
    V.Lens := Change_Lens'Value (Argument (5));

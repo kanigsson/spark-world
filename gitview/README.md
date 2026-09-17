@@ -29,7 +29,16 @@ adds annotations to it.
 
 A **pane** is one of three vertical strips, in the order one determines the
 next: history picks the snapshot, the tree picks the path, the source shows the
-file. Each pane keeps its own viewport, selection, and search pattern.
+file. Each pane keeps its own viewport, selection, and search pattern. A
+selection made anywhere else -- at startup, from a prompt, by a pin, or by back
+and forward -- is shown on the row that names it, so the panes and the values
+they stand for never disagree.
+
+History lists the working tree and the index above the commits, so uncommitted
+and staged work is a snapshot reached by moving the selection like any other.
+The tree lists the commit message as its first row, `COMMIT_MSG`, above the
+files: what the commit says about itself is read the same way as what it
+changed. A working tree and an index have no message to show.
 
 **Tree visibility** selects which files the tree lists. **A lens** selects which
 lines of the file the source shows, from the plain file through gutter
@@ -38,6 +47,7 @@ one filters files, the other filters lines within whichever file is open.
 
 At startup the snapshot is `HEAD`, the base is its first parent, the tree lists
 the changed files only with the first of them in scope, and the lens is hunks.
+A comparison with no file to open falls back to the commit message.
 
 Everything else is a transition on those values, and the whole set — snapshot,
 base, scope, pin, filters, visibility, lens, focus, per-pane selections,
@@ -71,7 +81,7 @@ through history.
 | S | Literal search throughout the snapshot; Enter opens a result |
 | c | Select snapshot and history root by revision |
 | b | Set comparison base; empty input restores the automatic base |
-| w / i | Working tree / index snapshot |
+| w / i | Working tree / index snapshot, which are also the first two history rows |
 | r | Refresh repository data |
 | q | Quit |
 
@@ -79,6 +89,11 @@ Enter a prompt value and press Enter; Escape cancels. Selecting a directory
 filters history to that directory. File history uses Git path history;
 renames are marked in comparisons but pins do not heuristically follow them.
 An absent pinned file stays selected and is explicitly reported as absent.
+
+A commit message reads as the commit's own account of itself: the object name,
+who wrote it and when, then the message as Git stored it. It is a row like a
+file, so it can be pinned and followed through history; it names no path, so
+it scopes no history filter.
 
 Commits compare with their first parent; roots compare with the empty tree.
 History marks ordinary commits with `*` and merges with `M`, and includes

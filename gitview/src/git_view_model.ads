@@ -15,6 +15,33 @@ package Git_View_Model with SPARK_Mode => On is
    function Image (S : Text) return String is (S.Data (1 .. S.Last));
 
    type Snapshot_Kind is (Commit, Worktree, Staging);
+
+   --  The uncommitted states are rows of the history pane above the
+   --  commits, so they are reached by moving the selection like any other
+   --  snapshot rather than by remembering a key. Their identities begin
+   --  with a colon, which no object name can, so no commit is mistaken for
+   --  one.
+   Worktree_Row : constant String := ":worktree";
+   Index_Row : constant String := ":index";
+   function Row_Kind (Id : String) return Snapshot_Kind is
+     (if Id = Worktree_Row then Worktree
+      elsif Id = Index_Row then Staging
+      else Commit);
+   --  What a history row names as a snapshot: a commit is named by its
+   --  object name, the uncommitted states by their kind alone.
+   function Row_Snapshot (Id : String) return String is
+     (if Row_Kind (Id) = Commit then Id else "");
+
+   --  The commit message is a row of the tree pane like a file, so reading
+   --  it is one more move of the selection. Its identity begins with a byte
+   --  no path can contain.
+   Message_Row : constant String := ASCII.NUL & "COMMIT_MSG";
+   Message_Label : constant String := "COMMIT_MSG";
+   function Is_Message (Path : String) return Boolean is (Path = Message_Row);
+   --  A scope as it reads on a status line: the message row names itself.
+   function Scope_Label (Path : String) return String is
+     (if Is_Message (Path) then Message_Label else Path);
+
    type Change_Lens is (Plain, Gutter, Changed_Lines, Hunks, Before_After);
    type Tree_Visibility is (All_Files, Changed_Only);
    type Pane is (History_Pane, Tree_Pane, Source_Pane);
