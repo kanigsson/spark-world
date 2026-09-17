@@ -16,12 +16,12 @@ decompressor additionally carry a **proved
 round-trip theorem**: `Inflate.Theorems.GZip_Round_Trip` states — and the
 proof establishes for every input — that decompressing the compressor's
 output restores the input exactly, with `Status = OK` (see "Compression"
-below). Compression-ratio upgrades are scoped in `compression.md`.
+below). Compression-ratio upgrades are scoped in `docs/compression.md`.
 
 The library is meant for callers that need to parse compressed data from
 untrusted input without dynamic allocation. There is no heap, no access
 type, no OS dependency, and no package state in the library. Its one
-dependency is [Ore](../libs/ore), a SPARK library of proved bounded building
+dependency is [Ore](../../libs/ore), a SPARK library of proved bounded building
 blocks, which supplies the physical byte and word types, the byte array
 every layer is written against, the checked little- and big-endian field
 access the three container formats parse their headers with, and the bit
@@ -238,7 +238,7 @@ Some proof-relevant structure:
   paths return a defined error status. (`spikes/m2_kraft/` since proved,
   in isolation, that both checks are dead code — the ghost-summation and
   Kraft-equality lemmas discharge at `--level=2`; porting that proof into
-  the library is part of the `compression.md` ladder.)
+  the library is part of the `docs/compression.md` ladder.)
 - The compressor emits blocks back to front: the decode-model relation
   recurses front to back over the remaining stream, so a backward loop
   makes each iteration exactly one unfolding of the relation and the
@@ -332,9 +332,19 @@ registers and uses fused tables for length, distance, and extra bits.
 
 ## Building
 
-`inflate.gpr` withs `../libs/ore/ore_lib.gpr`, so Ore has to sit in the
+`inflate.gpr` withs `../../libs/ore/ore_lib.gpr`, so Ore has to sit in the
 library tier of this repository; every `gprbuild` then builds it along with
 the library.
+
+```sh
+make build       # the library and bin/inflate
+make test        # library suite, built with language checks on, contracts off
+make test-cli    # CLI round-trip and compatibility checks
+make prove       # reproduce the proof
+make bench       # needs libz.a
+```
+
+The underlying commands, for a one-off outside the `Makefile`:
 
 ```sh
 gprbuild -P inflate.gpr                  # release: -O2
@@ -368,7 +378,8 @@ bin/inflate compress input.dat output.gz
 bin/inflate decompress output.gz restored.dat
 ```
 
-Run the focused CLI round-trip and compatibility checks with:
+Run the focused CLI round-trip and compatibility checks with `make test-cli`,
+or directly:
 
 ```sh
 python3 tests/run_cli_tests.py
