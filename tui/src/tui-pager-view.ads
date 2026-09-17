@@ -19,7 +19,8 @@ package Tui.Pager.View with SPARK_Mode => On is
    function Max_Top (Total : Line_Total; Height : Dimension) return Line_Number
    with Global => null,
         Post   => (if Height = 0 or else Total <= Height
-                   then Max_Top'Result = 1);
+                   then Max_Top'Result = 1
+                   else Max_Top'Result = Total - Height + 1);
 
    --  Update the visible size (e.g. on terminal resize) and re-clamp Top so the
    --  view stays within the content.
@@ -58,8 +59,15 @@ package Tui.Pager.View with SPARK_Mode => On is
    with Global => null;
 
    --  The last content line currently visible (0 if the document is empty or
-   --  the viewport has no height).
+   --  the viewport has no height). Stated as a value, not just a range: what
+   --  a list-shaped pane needs is the arithmetic itself, to decide whether a
+   --  line it is about to select is on screen.
    function Last_Visible (V : Viewport; Total : Line_Total) return Line_Total
-   with Global => null;
+   with Global => null,
+        Post => (if Total = 0 or else V.Height = 0
+                 then Last_Visible'Result = 0
+                 elsif V.Top + V.Height - 1 > Total
+                 then Last_Visible'Result = Total
+                 else Last_Visible'Result = V.Top + V.Height - 1);
 
 end Tui.Pager.View;

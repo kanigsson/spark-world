@@ -57,6 +57,19 @@ package Tui.Pager.Engine with SPARK_Mode => On is
       Search_Miss);  --  a search command found nothing (viewport unchanged)
 
    ---------------------------------------------------------------------------
+   --  Read-only state (for a host's status line, and for the contracts of
+   --  the operations below, which are stated in terms of it)
+   ---------------------------------------------------------------------------
+
+   function Top_Line (E : Instance) return Line_Number with Global => null;
+   function Left_Col (E : Instance) return Dimension   with Global => null;
+   --  The viewport's visible height, as Resize last set it. A pane layered on
+   --  the engine needs it to decide how far to scroll for a line off screen.
+   function Height (E : Instance) return Dimension     with Global => null;
+   function Last_Visible (E : Instance; Total : Line_Total) return Line_Total
+   with Global => null;
+
+   ---------------------------------------------------------------------------
    --  Configuration / content geometry
    ---------------------------------------------------------------------------
 
@@ -81,7 +94,11 @@ package Tui.Pager.Engine with SPARK_Mode => On is
      (E     : in out Instance;
       Line  : Line_Number;
       Total : Line_Total)
-   with Global => null;
+   with Global => null,
+        Post => Height (E) = Height (E'Old)
+                and then Top_Line (E) =
+                  Line_Number'Min
+                    (Line, Tui.Pager.View.Max_Top (Total, Height (E)));
 
    --  Install the literal search pattern (bytes). An empty Pattern clears it.
    --  At most Max_Pattern bytes are kept.
@@ -113,16 +130,10 @@ package Tui.Pager.Engine with SPARK_Mode => On is
       Index   : Tui.Text.Index)
    with Global => null,
         Pre => Content'First = 1
-               and then Content'Last >= Tui.Text.Scanned_Bytes (Index);
-
-   ---------------------------------------------------------------------------
-   --  Read-only state (for a host's status line)
-   ---------------------------------------------------------------------------
-
-   function Top_Line (E : Instance) return Line_Number with Global => null;
-   function Left_Col (E : Instance) return Dimension   with Global => null;
-   function Last_Visible (E : Instance; Total : Line_Total) return Line_Total
-   with Global => null;
+               and then Content'Last >= Tui.Text.Scanned_Bytes (Index),
+        --  A rendered pane carries text only. Whatever says "current row"
+        --  goes on top of it afterwards, and is the host's single call.
+        Post => Tui.Surface.No_Inverse (Target);
 
 private
 
@@ -141,6 +152,7 @@ private
 
    function Has_Pattern (E : Instance) return Boolean is (E.Pat_Len > 0);
    function Top_Line (E : Instance) return Line_Number is (E.View.Top);
+   function Height (E : Instance) return Dimension is (E.View.Height);
    function Left_Col (E : Instance) return Dimension is (E.View.Left);
    function Last_Visible (E : Instance; Total : Line_Total) return Line_Total
      is (Tui.Pager.View.Last_Visible (E.View, Total));

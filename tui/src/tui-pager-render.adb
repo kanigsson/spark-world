@@ -25,7 +25,15 @@ package body Tui.Pager.Render with SPARK_Mode => On is
         Pre => R <= Target.Rows
                and then Content'First = 1
                and then Content'Last >= Tui.Text.Scanned_Bytes (Index)
-               and then N <= Tui.Text.Line_Count (Index)
+               and then N <= Tui.Text.Line_Count (Index),
+        --  Every cell this writes is plain, and it writes only in row R.
+        Post => (for all RR in Row_Index range 1 .. Target.Rows =>
+                   (for all CC in Col_Index range 1 .. Target.Cols =>
+                      (if RR /= R
+                       then Get (Target, RR, CC) = Get (Target'Old, RR, CC)
+                       else not Get (Target, RR, CC).Attributes.Inverse
+                            or else
+                            Get (Target'Old, RR, CC).Attributes.Inverse)))
    is
       S     : constant Tui.Text.Span := Tui.Text.Line_Span (Index, N);
       Hi    : constant Natural := S.Start + S.Length - 1;   --  last content byte
@@ -35,6 +43,15 @@ package body Tui.Pager.Render with SPARK_Mode => On is
    begin
       while Pos <= Hi and then Col < Left + Width loop
          pragma Loop_Invariant (Pos >= S.Start);
+         pragma Loop_Invariant
+           (for all RR in Row_Index range 1 .. Target.Rows =>
+              (for all CC in Col_Index range 1 .. Target.Cols =>
+                 (if RR /= R
+                  then Get (Target, RR, CC)
+                         = Get (Target'Loop_Entry, RR, CC)
+                  else not Get (Target, RR, CC).Attributes.Inverse
+                       or else
+                       Get (Target'Loop_Entry, RR, CC).Attributes.Inverse)));
          pragma Loop_Variant (Decreases => Integer (Hi) - Integer (Pos));
          declare
             B0 : constant Tui.Byte := Tui.Byte (Content (Pos));
@@ -93,13 +110,33 @@ package body Tui.Pager.Render with SPARK_Mode => On is
    with Global => null,
         Pre => R <= Target.Rows
                and then Content'First = 1
-               and then Content'Last >= Tui.Text.Scanned_Bytes (Index)
+               and then Content'Last >= Tui.Text.Scanned_Bytes (Index),
+        --  The row is blanked before it is drawn, so whatever it carried --
+        --  a selection the host had put there -- is gone, and no other row
+        --  is touched.
+        Post => (for all CC in Col_Index range 1 .. Target.Cols =>
+                   not Get (Target, R, CC).Attributes.Inverse)
+                and then
+                  (for all RR in Row_Index range 1 .. Target.Rows =>
+                     (for all CC in Col_Index range 1 .. Target.Cols =>
+                        (if RR /= R
+                         then Get (Target, RR, CC)
+                                = Get (Target'Old, RR, CC))))
    is
       Total : constant Line_Total := Tui.Text.Line_Count (Index);
       N     : constant Natural := V.Top + (Natural (R) - 1);
    begin
       for C in 1 .. Target.Cols loop
          Set (Target, R, C, Blank_Cell);
+         pragma Loop_Invariant
+           (for all CC in Col_Index range 1 .. C =>
+              Get (Target, R, CC) = Blank_Cell);
+         pragma Loop_Invariant
+           (for all RR in Row_Index range 1 .. Target.Rows =>
+              (for all CC in Col_Index range 1 .. Target.Cols =>
+                 (if RR /= R
+                  then Get (Target, RR, CC)
+                         = Get (Target'Loop_Entry, RR, CC))));
       end loop;
       if N <= Total then
          Draw_Line (Target, Content, Index, V.Left, Tab, R, N);
@@ -120,6 +157,10 @@ package body Tui.Pager.Render with SPARK_Mode => On is
    begin
       for R in 1 .. Target.Rows loop
          Draw_Row (Target, Content, Index, V, Tab, R);
+         pragma Loop_Invariant
+           (for all RR in Row_Index range 1 .. R =>
+              (for all CC in Col_Index range 1 .. Target.Cols =>
+                 not Get (Target, RR, CC).Attributes.Inverse));
       end loop;
    end Draw;
 

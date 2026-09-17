@@ -35,6 +35,30 @@ package Tui.Panes.List with SPARK_Mode => On is
         Pre  => Total > 0,
         Post => Selected <= Total;
 
+   --  The dual of Clamp: bring a selection chosen elsewhere -- by name, by a
+   --  jump, by a restored location -- into view, moving the viewport as
+   --  little as will do it. A line already on screen leaves the viewport
+   --  alone, a line above it becomes the first row, a line below it the last.
+   --  A viewport jump instead (top := the line) would scroll a list whenever
+   --  the selection was set from outside, which reads as the list losing its
+   --  place: the rows above the selection disappear although nothing asked
+   --  them to.
+   procedure Reveal
+     (E     : in out Eng.Instance;
+      Line  : Tui.Text.Line_Number;
+      Total : Tui.Text.Line_Total)
+   with Global => null,
+        Pre  => Line <= Total,
+        Post => --  Nothing moves for a line that was already on screen.
+                (if Line >= Eng.Top_Line (E'Old)
+                   and then Line <= Eng.Last_Visible (E'Old, Total)
+                 then Eng.Top_Line (E) = Eng.Top_Line (E'Old))
+                --  And whatever the viewport does, the line ends up in it.
+                and then
+                  (if Eng.Height (E'Old) > 0
+                   then Line >= Eng.Top_Line (E)
+                        and then Line <= Eng.Last_Visible (E, Total));
+
    --  Apply one selection move, scrolling the viewport just enough to keep
    --  the selection visible. Changed reports whether anything moved, for the
    --  host's repaint decision.

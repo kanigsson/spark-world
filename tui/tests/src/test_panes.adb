@@ -423,6 +423,27 @@ begin
       PList.Clamp (E, 50, Sel_Line);
       Check (Sel_Line = 10,
              "a viewport jump pulls the selection back into view");
+
+      --  Reveal is the other direction: the viewport follows a selection set
+      --  from outside, and moves as little as will show it.
+      Eng.Resize (E, Rows => 10, Cols => 20, Total => 50);
+      Eng.Go_To_Line (E, 20, 50);
+      PList.Reveal (E, 25, 50);
+      Check (Eng.Top_Line (E) = 20,
+             "revealing a line already on screen scrolls nothing");
+      PList.Reveal (E, 34, 50);
+      Check (Eng.Top_Line (E) = 25,
+             "a line below the slice becomes its last row, no further");
+      PList.Reveal (E, 12, 50);
+      Check (Eng.Top_Line (E) = 12,
+             "a line above the slice becomes its first row");
+
+      --  The head of a list stays visible when the row just below it is
+      --  selected by name -- the worktree and index rows of a history pane.
+      Eng.Go_To_Line (E, 1, 50);
+      PList.Reveal (E, 2, 50);
+      Check (Eng.Top_Line (E) = 1,
+             "selecting the second row keeps the first one on screen");
    end;
 
    ---------------------------------------------------------------------------

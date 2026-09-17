@@ -101,6 +101,16 @@ package Tui.Surface with SPARK_Mode => On is
                     (for all C in Col_Index range 1 .. Cols =>
                        Get (Blank'Result, R, C) = Blank_Cell));
 
+   --  Inverse video is how every pane in the ecosystem says "this is the
+   --  current row", so whether a surface carries any is a property worth
+   --  naming: a pane that has only been drawn carries none, and a pane with a
+   --  current row carries exactly one row's worth. Ghost, for contracts only.
+   function No_Inverse (S : Surface) return Boolean
+   is (for all R in Row_Index range 1 .. S.Rows =>
+         (for all C in Col_Index range 1 .. S.Cols =>
+            not Get (S, R, C).Attributes.Inverse))
+   with Ghost;
+
    procedure Clear (S : in out Surface; To : Cell := Blank_Cell)
    with Post => (for all R in Row_Index range 1 .. S.Rows =>
                    (for all C in Col_Index range 1 .. S.Cols =>

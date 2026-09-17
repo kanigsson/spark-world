@@ -12,12 +12,14 @@ package body Tui.Panes.Highlight with SPARK_Mode => On is
    is
    begin
       for C in Col_Index range 1 .. S.Cols loop
-         declare
-            Value : Cell := Get (S, R, C);
-         begin
-            Value.Attributes.Inverse := True;
-            Set (S, R, C, Value);
-         end;
+         Set (S, R, C, Inverted (Get (S, R, C)));
+         pragma Loop_Invariant
+           (for all RR in Row_Index range 1 .. S.Rows =>
+              (for all CC in Col_Index range 1 .. S.Cols =>
+                 (if RR = R and then CC <= C
+                  then Get (S, RR, CC)
+                         = Inverted (Get (S'Loop_Entry, RR, CC))
+                  else Get (S, RR, CC) = Get (S'Loop_Entry, RR, CC))));
       end loop;
    end Row;
 

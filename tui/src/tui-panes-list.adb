@@ -28,6 +28,29 @@ package body Tui.Panes.List with SPARK_Mode => On is
       end if;
    end Clamp;
 
+   ------------
+   -- Reveal --
+   ------------
+
+   procedure Reveal
+     (E     : in out Eng.Instance;
+      Line  : Tui.Text.Line_Number;
+      Total : Tui.Text.Line_Total)
+   is
+      Top    : constant Tui.Text.Line_Number := Eng.Top_Line (E);
+      Height : constant Tui.Pager.Dimension  := Eng.Height (E);
+   begin
+      if Height = 0 then
+         return;
+      end if;
+      if Line < Top then
+         Eng.Go_To_Line (E, Line, Total);
+      elsif Line > Top + Height - 1 then
+         --  The least scroll that puts the line on the last row.
+         Eng.Go_To_Line (E, Line - Height + 1, Total);
+      end if;
+   end Reveal;
+
    ----------
    -- Move --
    ----------
