@@ -16,7 +16,9 @@
 
 with Tui.Text;
 
-package Git_View_Sha with SPARK_Mode => On is
+package Git_View_Sha
+  with SPARK_Mode => On
+is
 
    --  A full git object name is 40 hexadecimal characters; abbreviated ids
    --  are shorter. A longer leading token is not a commit id.
@@ -25,14 +27,16 @@ package Git_View_Sha with SPARK_Mode => On is
 
    type Sha is record
       Text : String (1 .. Max_Sha) := (others => ' ');
-      Len  : Sha_Length            := 0;   --  0 = no commit id on the line
+      Len  : Sha_Length := 0;   --  0 = no commit id on the line
    end record;
 
-   function Valid (S : Sha) return Boolean is (S.Len > 0);
+   function Valid (S : Sha) return Boolean
+   is (S.Len > 0);
 
    --  The id's characters, 1-based — ready for a repository query or the
    --  status line.
-   function Image (S : Sha) return String is (S.Text (1 .. S.Len))
+   function Image (S : Sha) return String
+   is (S.Text (1 .. S.Len))
    with Post => Image'Result'First = 1 and then Image'Result'Length = S.Len;
 
    --  Parse line N of the commit list: the leading run of hexadecimal
@@ -43,9 +47,11 @@ package Git_View_Sha with SPARK_Mode => On is
       Idx     : Tui.Text.Index;
       N       : Tui.Text.Line_Number;
       Result  : out Sha)
-   with Global => null,
-        Pre => N <= Tui.Text.Line_Count (Idx)
-               and then Content'First = 1
-               and then Content'Last >= Tui.Text.Scanned_Bytes (Idx);
+   with
+     Global => null,
+     Pre    =>
+       N <= Tui.Text.Line_Count (Idx)
+       and then Content'First = 1
+       and then Content'Last >= Tui.Text.Scanned_Bytes (Idx);
 
 end Git_View_Sha;

@@ -13,36 +13,38 @@
 with Tui.Surface;
 with Tui.Text;
 
-package Git_View_Theme with SPARK_Mode => On is
+package Git_View_Theme
+  with SPARK_Mode => On
+is
 
    subtype Color is Tui.Surface.Color;
 
    --  The conventional ANSI names for the base-palette indices used below.
-   Red    : constant := 1;
-   Green  : constant := 2;
-   Yellow : constant := 3;
-   Blue   : constant := 4;
+   Red     : constant := 1;
+   Green   : constant := 2;
+   Yellow  : constant := 3;
+   Blue    : constant := 4;
    Magenta : constant := 5;
-   Cyan   : constant := 6;
-   Gray   : constant := 8;   --  "bright black"
+   Cyan    : constant := 6;
+   Gray    : constant := 8;   --  "bright black"
 
-   function Palette (Index : Tui.Surface.Component) return Color is
-     ((Kind => Tui.Surface.Palette, Index => Index));
+   function Palette (Index : Tui.Surface.Component) return Color
+   is ((Kind => Tui.Surface.Palette, Index => Index));
 
    --  Diff pane. File_Meta lines carry no colour of their own — they are
    --  drawn bold in the default foreground (git's "meta" look), which adapts
    --  to light and dark terminal themes alike.
-   Added_Color   : constant Color := Palette (Green);
-   Removed_Color : constant Color := Palette (Red);
+   Added_Color        : constant Color := Palette (Green);
+   Removed_Color      : constant Color := Palette (Red);
    --  Very pale truecolour washes keep polarity visible across the complete
    --  row without turning it into a solid colour block. The terminal driver
    --  maps them to the closest available colour at lower colour depths.
-   Added_Background : constant Color :=
+   Added_Background   : constant Color :=
      (Kind => Tui.Surface.RGB, R => 230, G => 255, B => 236);
    Removed_Background : constant Color :=
      (Kind => Tui.Surface.RGB, R => 255, G => 235, B => 233);
-   Hunk_Color    : constant Color := Palette (Cyan);
-   Commit_Color  : constant Color := Palette (Yellow);
+   Hunk_Color         : constant Color := Palette (Cyan);
+   Commit_Color       : constant Color := Palette (Yellow);
 
    --  Diff polarity is confined to the leading +/- gutter. Source-token
    --  foregrounds can therefore carry syntax without erasing that meaning.

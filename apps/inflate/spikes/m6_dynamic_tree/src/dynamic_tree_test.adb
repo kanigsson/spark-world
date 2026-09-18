@@ -1,8 +1,8 @@
-with Ada.Text_IO;      use Ada.Text_IO;
+with Ada.Text_IO;     use Ada.Text_IO;
 with Interfaces;
-with Inflate;          use Inflate;
+with Inflate;         use Inflate;
 with Inflate.Codebooks;
-with Inflate.Dynamic;  use Inflate.Dynamic;
+with Inflate.Dynamic; use Inflate.Dynamic;
 with Inflate.Fixed;
 with Inflate.Raw;
 
@@ -19,13 +19,10 @@ procedure Dynamic_Tree_Test is
    end Require;
 
    procedure Set_Stream_Bit
-     (Output   : in out Byte_Array;
-      Position : Natural;
-      Value    : Natural)
+     (Output : in out Byte_Array; Position : Natural; Value : Natural)
    is
-      P : constant Buffer_Index := Output'First + Position / 8;
-      Mask : constant Byte :=
-        Interfaces.Shift_Left (Byte (1), Position mod 8);
+      P    : constant Buffer_Index := Output'First + Position / 8;
+      Mask : constant Byte := Interfaces.Shift_Left (Byte (1), Position mod 8);
    begin
       if Value = 0 then
          Output (P) := Output (P) and not Mask;
@@ -38,20 +35,18 @@ procedure Dynamic_Tree_Test is
      (Output : in out Byte_Array;
       Start  : Natural;
       Length : Positive;
-      Value  : Natural)
-   is
+      Value  : Natural) is
    begin
       for I in 0 .. Length - 1 loop
          Set_Stream_Bit
-           (Output, Start + I,
+           (Output,
+            Start + I,
             (Value / Inflate.Codebooks.Pow2 (Length - 1 - I)) mod 2);
       end loop;
    end Write_Code;
 
    procedure Check
-     (Name        : String;
-      Frequencies : Frequency_Array;
-      Expected    : Symbol_Count)
+     (Name : String; Frequencies : Frequency_Array; Expected : Symbol_Count)
    is
       Lengths  : Code_Length_Array (Frequencies'Range);
       Assigned : Natural := 0;
@@ -70,8 +65,7 @@ procedure Dynamic_Tree_Test is
       end loop;
       Require (Assigned = Expected);
       Require (Space = Pow2 (15));
-      Put_Line
-        (Name & ":" & Assigned'Image & " leaves, complete code");
+      Put_Line (Name & ":" & Assigned'Image & " leaves, complete code");
    end Check;
 
    Empty_Code_Lengths : constant Frequency_Array (0 .. 18) := (others => 0);
@@ -86,35 +80,46 @@ procedure Dynamic_Tree_Test is
 
    Distance_Alphabet : Frequency_Array (0 .. 29) := (others => 0);
 
-   Payload_Literals  : Frequency_Array (0 .. 285) := (others => 0);
-   Payload_Distances : Frequency_Array (0 .. 29) := (others => 0);
-   Literal_Book      : Inflate.Codebooks.Codebook
-     (Inflate.Codebooks.Canonical);
-   Distance_Book     : Inflate.Codebooks.Codebook
-     (Inflate.Codebooks.Canonical);
+   Payload_Literals              : Frequency_Array (0 .. 285) := (others => 0);
+   Payload_Distances             : Frequency_Array (0 .. 29) := (others => 0);
+   Literal_Book                  :
+     Inflate.Codebooks.Codebook (Inflate.Codebooks.Canonical);
+   Distance_Book                 :
+     Inflate.Codebooks.Codebook (Inflate.Codebooks.Canonical);
    Literal_Ready, Distance_Ready : Boolean;
-   Payload_Data : constant Byte_Array (1 .. 9) :=
-     (Character'Pos ('a'), Character'Pos ('b'), Character'Pos ('c'),
-      Character'Pos ('a'), Character'Pos ('b'), Character'Pos ('c'),
-      Character'Pos ('a'), Character'Pos ('b'), Character'Pos ('c'));
-   Payload_Bits : Byte_Array (1 .. 8) := (others => 0);
-   Payload_End  : Natural;
+   Payload_Data                  : constant Byte_Array (1 .. 9) :=
+     (Character'Pos ('a'),
+      Character'Pos ('b'),
+      Character'Pos ('c'),
+      Character'Pos ('a'),
+      Character'Pos ('b'),
+      Character'Pos ('c'),
+      Character'Pos ('a'),
+      Character'Pos ('b'),
+      Character'Pos ('c'));
+   Payload_Bits                  : Byte_Array (1 .. 8) := (others => 0);
+   Payload_End                   : Natural;
 
-   Body_Output : Byte_Array (1 .. Max_Size (Payload_Data'Length)) :=
-     (others => 16#A5#);
-   Alternative_Body : Byte_Array (Body_Output'Range) := (others => 0);
-   Malformed_Body : Byte_Array (Body_Output'Range) := (others => 0);
-   Framed_Body : Byte_Array
-     (7 .. 7 + Max_Size (Payload_Data'Length) + 7) := (others => 16#5A#);
-   Body_Produced : Natural;
+   Body_Output                           :
+     Byte_Array (1 .. Max_Size (Payload_Data'Length)) := (others => 16#A5#);
+   Alternative_Body                      : Byte_Array (Body_Output'Range) :=
+     (others => 0);
+   Malformed_Body                        : Byte_Array (Body_Output'Range) :=
+     (others => 0);
+   Framed_Body                           :
+     Byte_Array (7 .. 7 + Max_Size (Payload_Data'Length) + 7) :=
+       (others => 16#5A#);
+   Body_Produced                         : Natural;
    Alternative_End, Alternative_Produced : Natural;
-   Decoded       : Byte_Array (Payload_Data'Range) := (others => 0);
-   Direct_Decoded : Byte_Array (Payload_Data'Range) := (others => 0);
-   Body_Consumed, Decoded_Length : Natural;
-   Direct_Consumed, Direct_Length : Natural;
-   Direct_Success : Boolean;
-   Body_Status : Status_Type;
-   Body_Info : Stream_Info;
+   Decoded                               : Byte_Array (Payload_Data'Range) :=
+     (others => 0);
+   Direct_Decoded                        : Byte_Array (Payload_Data'Range) :=
+     (others => 0);
+   Body_Consumed, Decoded_Length         : Natural;
+   Direct_Consumed, Direct_Length        : Natural;
+   Direct_Success                        : Boolean;
+   Body_Status                           : Status_Type;
+   Body_Info                             : Stream_Info;
 
    Hex_Digits : constant String := "0123456789abcdef";
 begin
@@ -152,8 +157,7 @@ begin
    Build_Codebook (Payload_Distances, Distance_Book, Distance_Ready);
    Require (Literal_Ready and then Distance_Ready);
    Serialize_Payload
-     (Payload_Data, Literal_Book, Distance_Book,
-      Payload_Bits, 0, Payload_End);
+     (Payload_Data, Literal_Book, Distance_Book, Payload_Bits, 0, Payload_End);
    Require (Payload_End = 13);
    Require (Inflate.Fixed.Prefix_Value (Payload_Bits, 0, 2) = 0);
    Require (Inflate.Fixed.Prefix_Value (Payload_Bits, 2, 2) = 1);
@@ -165,15 +169,11 @@ begin
 
    Require (Books_Encodable (Literal_Book, Distance_Book));
    Serialize_Body
-     (Payload_Data, Literal_Book, Distance_Book,
-      Body_Output, Body_Produced);
+     (Payload_Data, Literal_Book, Distance_Book, Body_Output, Body_Produced);
    Require (Body_Produced <= Body_Output'Length);
-   Require
-     (Header_Encodes (Body_Output, Literal_Book, Distance_Book));
-   Require
-     (Literal_Book_From_Header (Body_Output) = Literal_Book);
-   Require
-     (Distance_Book_From_Header (Body_Output) = Distance_Book);
+   Require (Header_Encodes (Body_Output, Literal_Book, Distance_Book));
+   Require (Literal_Book_From_Header (Body_Output) = Literal_Book);
+   Require (Distance_Book_From_Header (Body_Output) = Distance_Book);
    Body_Info := Analyze (Body_Output);
    Require (Body_Info.Valid);
    Require ((Body_Info.End_Bit + 7) / 8 = Body_Produced);
@@ -210,13 +210,16 @@ begin
            Inflate.Codebooks.Length_Of (Literal_Book, Symbol);
       begin
          Write_Code
-           (Alternative_Body, Alternative_End, Length,
+           (Alternative_Body,
+            Alternative_End,
+            Length,
             Inflate.Codebooks.Code_Of (Literal_Book, Symbol));
          Alternative_End := Alternative_End + Length;
       end;
    end loop;
    Write_Code
-     (Alternative_Body, Alternative_End,
+     (Alternative_Body,
+      Alternative_End,
       Inflate.Codebooks.Length_Of (Literal_Book, 256),
       Inflate.Codebooks.Code_Of (Literal_Book, 256));
    Alternative_End :=
@@ -229,12 +232,18 @@ begin
    Require (Body_Info.Decoded_Length = Payload_Data'Length);
    Require
      (Encoding_Matches
-        (Alternative_Body, Alternative_End,
-         Literal_Book, Distance_Book, Payload_Data));
+        (Alternative_Body,
+         Alternative_End,
+         Literal_Book,
+         Distance_Book,
+         Payload_Data));
 
    Inflate.Dynamic.Decompress
-     (Alternative_Body, Direct_Decoded,
-      Direct_Consumed, Direct_Length, Direct_Success);
+     (Alternative_Body,
+      Direct_Decoded,
+      Direct_Consumed,
+      Direct_Length,
+      Direct_Success);
    Require (Direct_Success);
    Require (Direct_Consumed = Alternative_Produced);
    Require (Direct_Length = Payload_Data'Length);
@@ -242,8 +251,7 @@ begin
 
    Decoded := (others => 0);
    Inflate.Raw.Decompress
-     (Alternative_Body, Decoded,
-      Body_Consumed, Decoded_Length, Body_Status);
+     (Alternative_Body, Decoded, Body_Consumed, Decoded_Length, Body_Status);
    Require (Body_Status = OK);
    Require (Body_Consumed = Alternative_Produced);
    Require (Decoded_Length = Payload_Data'Length);
@@ -252,9 +260,8 @@ begin
 
    --  Reframe the exact body at a different lower bound and leave unrelated
    --  bytes after it, as gzip will do with its trailer.
-   Framed_Body
-     (Framed_Body'First .. Framed_Body'First + Body_Produced - 1) :=
-       Body_Output (Body_Output'First .. Body_Output'First + Body_Produced - 1);
+   Framed_Body (Framed_Body'First .. Framed_Body'First + Body_Produced - 1) :=
+     Body_Output (Body_Output'First .. Body_Output'First + Body_Produced - 1);
    Body_Info := Analyze (Framed_Body);
    Require (Body_Info.Valid);
    Require ((Body_Info.End_Bit + 7) / 8 = Body_Produced);

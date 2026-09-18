@@ -1,8 +1,8 @@
 with Ada.Assertions;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
-with Ada.Text_IO;        use Ada.Text_IO;
-with Unicode_Text;       use Unicode_Text;
-with Unicode_Text.UTF_8; use Unicode_Text.UTF_8;
+with Ada.Text_IO;           use Ada.Text_IO;
+with Unicode_Text;          use Unicode_Text;
+with Unicode_Text.UTF_8;    use Unicode_Text.UTF_8;
 
 procedure Plain_String_Tests is
 
@@ -75,7 +75,8 @@ procedure Plain_String_Tests is
          Count := Count + 1;
       end loop;
       Check (Count = Expected_Count, "substring split segment count");
-      Check (To_String (Reconstructed) = Source, "substring split reconstructs");
+      Check
+        (To_String (Reconstructed) = Source, "substring split reconstructs");
       Check (Split_Complete (State), "substring split completes");
       Check
         (Split_Model_Index (State)
@@ -104,7 +105,8 @@ procedure Plain_String_Tests is
          declare
             Part : constant String := Slice (Source, Segment);
          begin
-            Check (Find (Part, Separator) = 0, "scalar split delimiter absence");
+            Check
+              (Find (Part, Separator) = 0, "scalar split delimiter absence");
             Append (Reconstructed, Part);
          end;
          Count := Count + 1;
@@ -136,8 +138,9 @@ begin
       Value            : Scalar_Value;
       Expected_Offsets : constant array (Positive range 1 .. 5) of Natural :=
         [0, 1, 3, 6, 10];
-      Expected_Values  : constant array (Positive range 1 .. 4) of Scalar_Value :=
-        [16#41#, 16#80#, 16#800#, 16#1_0000#];
+      Expected_Values  :
+        constant array (Positive range 1 .. 4) of Scalar_Value :=
+          [16#41#, 16#80#, 16#800#, 16#1_0000#];
    begin
       for Index in Expected_Values'Range loop
          Check (Has_Element (Mixed, Cursor), "cursor has element");
@@ -145,8 +148,7 @@ begin
            (Byte_Offset (Cursor) = Expected_Offsets (Index),
             "cursor byte offset");
          Check
-           (Model_Index (Cursor) = Cursor_Index (Index),
-            "cursor model index");
+           (Model_Index (Cursor) = Cursor_Index (Index), "cursor model index");
          Next (Mixed, Cursor, Value);
          Check (Value = Expected_Values (Index), "cursor value");
       end loop;
@@ -172,9 +174,7 @@ begin
       Middle : constant Byte_Span := To_Byte_Span (Mixed, 2, 2);
       At_End : constant Byte_Span := To_Byte_Span (Mixed, 5, 0);
    begin
-      Check
-        (Middle = (First => 1, Past_Last => 6),
-         "mixed code-point span");
+      Check (Middle = (First => 1, Past_Last => 6), "mixed code-point span");
       Check (Is_Valid_Byte_Span (Mixed, Middle), "mixed span validity");
       Check (Slice (Mixed, Middle) = U_0080 & U_0800, "span slice");
       Check (Slice (Mixed, 2, 2) = U_0080 & U_0800, "indexed slice");
@@ -188,17 +188,14 @@ begin
    Check (Find (Mixed, Scalar_Value'(16#80#)) = 2, "find two-byte scalar");
    Check (Find (Mixed, Scalar_Value'(16#800#)) = 3, "find three-byte scalar");
    Check
-     (Find (Mixed, Scalar_Value'(16#1_0000#)) = 4,
-      "find four-byte scalar");
+     (Find (Mixed, Scalar_Value'(16#1_0000#)) = 4, "find four-byte scalar");
    Check
      (Find (Mixed, Scalar_Value'(16#80#), From => 3) = 0,
       "scalar search from later position");
    Check
      (Reverse_Find (Mixed & U_0080, Scalar_Value'(16#80#)) = 5,
       "reverse scalar search");
-   Check
-     (Find (Mixed, U_0080 & U_0800) = 2,
-      "find multibyte substring");
+   Check (Find (Mixed, U_0080 & U_0800) = 2, "find multibyte substring");
    Check
      (Find (Mixed, U_0080 & U_0800, From => 3) = 0,
       "substring search from later position");
@@ -213,11 +210,9 @@ begin
    Check_Substring_Split ("abc", ",", 1);
    Check_Substring_Split (",a,,b,", ",", 5);
    Check_Substring_Split ("aaa", "aa", 2);
-   Check_Substring_Split
-     (A & U_0080 & U_0800 & U_0080, U_0080, 3);
+   Check_Substring_Split (A & U_0080 & U_0800 & U_0080, U_0080, 3);
    Check_Scalar_Split (",a,,b,", Character'Pos (','), 5);
-   Check_Scalar_Split
-     (A & U_0080 & U_0800 & U_0080, 16#80#, 3);
+   Check_Scalar_Split (A & U_0080 & U_0800 & U_0080, 16#80#, 3);
 
    declare
       State     : Split_State := Start_Split;
@@ -251,9 +246,7 @@ begin
       Check (Is_Prefix (A & U_0080, Shifted), "shifted prefix");
       Check (Compare (Shifted, Mixed) = Equal, "shifted comparison");
       Check (Slice (Shifted, 2, 2) = U_0080 & U_0800, "shifted slice");
-      Check
-        (Find (Shifted, U_0080 & U_0800) = 2,
-         "shifted substring search");
+      Check (Find (Shifted, U_0080 & U_0800) = 2, "shifted substring search");
       Check_Substring_Split (Shifted, U_0800, 2);
    end;
 

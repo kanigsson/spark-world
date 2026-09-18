@@ -125,9 +125,8 @@ is
    function Fits
      (A : Byte_Array; Position : Natural; Count : Natural) return Boolean
    is (Count = 0
-       or else
-         (Position <= Natural'Last - Count
-          and then (Position + Count - 1) / 8 < A'Length))
+       or else (Position <= Natural'Last - Count
+                and then (Position + Count - 1) / 8 < A'Length))
    with Global => null;
 
    --  The byte a bit position falls in, as an index of the array.
@@ -203,11 +202,11 @@ is
       Numbering     : Bit_Numbering) return Boolean
    is (Before'First = After'First
        and then Before'Last = After'Last
-       and then
-         (for all P in Natural =>
-            (if Fits (Before, P, 1)
-               and then (P < First or else P - First >= Count)
-             then Bit (After, P, Numbering) = Bit (Before, P, Numbering))))
+       and then (for all P in Natural =>
+                   (if Fits (Before, P, 1)
+                      and then (P < First or else P - First >= Count)
+                    then
+                      Bit (After, P, Numbering) = Bit (Before, P, Numbering))))
    with Ghost => Static;
 
    --  One byte of the array changed, and within that byte only the bit the
@@ -225,18 +224,16 @@ is
      Global => null,
      Pre    =>
        Fits (Before, Position, 1)
-       and then
-         Byte_Buffers.Unchanged_Outside
-           (Before,
-            After,
-            Byte_Of (Before, Position),
-            Byte_Of (Before, Position) + 1)
-       and then
-         (for all I in Bits.Bit_Index_8 =>
-            (if I /= Bit_In_Byte (Position, Numbering)
-             then
-               Bits.Bit (After (Byte_Of (Before, Position)), I)
-               = Bits.Bit (Before (Byte_Of (Before, Position)), I))),
+       and then Byte_Buffers.Unchanged_Outside
+                  (Before,
+                   After,
+                   Byte_Of (Before, Position),
+                   Byte_Of (Before, Position) + 1)
+       and then (for all I in Bits.Bit_Index_8 =>
+                   (if I /= Bit_In_Byte (Position, Numbering)
+                    then
+                      Bits.Bit (After (Byte_Of (Before, Position)), I)
+                      = Bits.Bit (Before (Byte_Of (Before, Position)), I))),
      Post   => Bits_Unchanged_Outside (Before, After, Position, 1, Numbering);
 
    ---------------------------------------------------------------------------
@@ -269,8 +266,8 @@ is
                (Bits_At'Result,
                 (if Order = Low_Bit_First then K else Count - 1 - K))
              = Bit (A, Position + K, Numbering))
-          and then
-            (for all I in Count .. 31 => not Bits.Bit (Bits_At'Result, I)));
+          and then (for all I in Count .. 31 =>
+                      not Bits.Bit (Bits_At'Result, I)));
 
    --  Bits that did not change give a field that did not change: the frame
    --  lemma of a read, and the step from the bit-wise statement a write makes
@@ -299,10 +296,9 @@ is
        Before'First = After'First
        and then Before'Last = After'Last
        and then Fits (Before, Position, Count)
-       and then
-         (for all K in 0 .. Count - 1 =>
-            Bit (After, Position + K, Numbering)
-            = Bit (Before, Position + K, Numbering)),
+       and then (for all K in 0 .. Count - 1 =>
+                   Bit (After, Position + K, Numbering)
+                   = Bit (Before, Position + K, Numbering)),
      Post   =>
        Bits_At (After, Position, Count, Numbering, Order)
        = Bits_At (Before, Position, Count, Numbering, Order);
@@ -401,7 +397,7 @@ is
        Field_Value'Result
        = Natural (Bits_At (A, Position, Count, Numbering, Order))
        and then Field_Value'Result <= Natural (Bits.Low_Mask_32 (Count))
-       and then Field_Value'Result < 2 ** Count
+       and then Field_Value'Result < 2**Count
        and then Field_Value'Result <= Natural'Last / 2;
 
    --  The same recurrence in the arithmetic a client's model is written in.
@@ -448,9 +444,11 @@ is
        (Runtime => Bit (A, Position, Numbering) = Value,
         Static  =>
           Bits_Unchanged_Outside (A'Old, A, Position, 1, Numbering)
-          and then
-            Byte_Buffers.Unchanged_Outside
-              (A'Old, A, Byte_Of (A, Position), Byte_Of (A, Position) + 1));
+          and then Byte_Buffers.Unchanged_Outside
+                     (A'Old,
+                      A,
+                      Byte_Of (A, Position),
+                      Byte_Of (A, Position) + 1));
 
    ---------------------------------------------------------------------------
    --  Cursors
@@ -481,13 +479,13 @@ is
      Post   =>
        (Runtime =>
           Success = Fits (A, Position'Old, Count)
-          and then
-            (if Success
-             then
-               Position = Position'Old + Count
-               and then
-                 Value = Bits_At (A, Position'Old, Count, Numbering, Order)
-             else Position = Position'Old and then Value = 0));
+          and then (if Success
+                    then
+                      Position = Position'Old + Count
+                      and then Value
+                               = Bits_At
+                                   (A, Position'Old, Count, Numbering, Order)
+                    else Position = Position'Old and then Value = 0));
 
    --  Put Count bits of Value at Position and advance it, or report that the
    --  array does not hold them and change neither the array nor the cursor.
@@ -512,25 +510,24 @@ is
      Post   =>
        (Runtime =>
           Success = Fits (A, Position'Old, Count)
-          and then
-            (if Success
-             then
-               Position = Position'Old + Count
-               and then
-                 Bits_At (A, Position'Old, Count, Numbering, Order) = Value
-             else Position = Position'Old),
+          and then (if Success
+                    then
+                      Position = Position'Old + Count
+                      and then Bits_At
+                                 (A, Position'Old, Count, Numbering, Order)
+                               = Value
+                    else Position = Position'Old),
         Static  =>
           (if Success
            then
              Bits_Unchanged_Outside (A'Old, A, Position'Old, Count, Numbering)
-             and then
-               (if Count > 0
-                then
-                  Byte_Buffers.Unchanged_Outside
-                    (A'Old,
-                     A,
-                     Byte_Of (A, Position'Old),
-                     Byte_Of (A, Position'Old + Count - 1) + 1))
+             and then (if Count > 0
+                       then
+                         Byte_Buffers.Unchanged_Outside
+                           (A'Old,
+                            A,
+                            Byte_Of (A, Position'Old),
+                            Byte_Of (A, Position'Old + Count - 1) + 1))
            else A = A'Old));
 
 end Ore.Bit_Cursors;

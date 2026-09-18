@@ -1,4 +1,6 @@
-package body Git_Changes.Core.Validation with SPARK_Mode is
+package body Git_Changes.Core.Validation
+  with SPARK_Mode
+is
 
    function Is_Octal_Mode (Value : String) return Boolean is
    begin
@@ -19,8 +21,9 @@ package body Git_Changes.Core.Validation with SPARK_Mode is
          return False;
       end if;
       for C of Value loop
-         if C not in '0' .. '9' and then
-           C not in 'a' .. 'f' and then C not in 'A' .. 'F'
+         if C not in '0' .. '9'
+           and then C not in 'a' .. 'f'
+           and then C not in 'A' .. 'F'
          then
             return False;
          end if;
@@ -59,9 +62,7 @@ package body Git_Changes.Core.Validation with SPARK_Mode is
    end Line_Count;
 
    procedure Parse_Natural
-     (Value  : String;
-      Result : out Natural;
-      Valid  : out Boolean)
+     (Value : String; Result : out Natural; Valid : out Boolean)
    is
       Accum : Natural := 0;
       Digit : Natural;
@@ -87,10 +88,10 @@ package body Git_Changes.Core.Validation with SPARK_Mode is
    end Parse_Natural;
 
    procedure Checked_Last
-     (First  : Natural;
-      Count  : Natural;
-      Last   : out Natural;
-      Valid  : out Boolean) is
+     (First : Natural;
+      Count : Natural;
+      Last  : out Natural;
+      Valid : out Boolean) is
    begin
       if Count = 0 then
          Last := First;

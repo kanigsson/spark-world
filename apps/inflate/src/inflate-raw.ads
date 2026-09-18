@@ -11,7 +11,9 @@
 with Inflate.Model;
 with Inflate.Bodies;
 
-package Inflate.Raw with SPARK_Mode => On is
+package Inflate.Raw
+  with SPARK_Mode => On
+is
 
    --  Decompress the DEFLATE stream starting at Input'First.
    --
@@ -37,27 +39,28 @@ package Inflate.Raw with SPARK_Mode => On is
    --  and returns the exact Body_Encodes relation.  Higher layers do not need
    --  to branch on the selected DEFLATE representation.
    procedure Decompress
-     (Input    : in     Byte_Array;
+     (Input    : in Byte_Array;
       Output   : in out Byte_Array;
-      Consumed :    out Natural;
-      Produced :    out Natural;
-      Status   :    out Status_Type)
+      Consumed : out Natural;
+      Produced : out Natural;
+      Status   : out Status_Type)
    with
      Global => null,
      Post   =>
        (Consumed <= Input'Length and then Produced <= Output'Length)
        and then (if Status = OK
-                 then Model.Is_Decoding
-                        (Input, Output, Consumed, Produced))
-       and then
-       (if Bodies.Recognized (Input, Output'Length)
-        then
-          Status = OK
-          and then Consumed = Bodies.Encoded_Size (Input)
-          and then Produced = Bodies.Decoded_Size (Input)
-          and then Bodies.Body_Encodes
-                     (Input, Consumed,
-                      Output (Output'First .. Output'First - 1 + Produced)));
+                 then Model.Is_Decoding (Input, Output, Consumed, Produced))
+       and then (if Bodies.Recognized (Input, Output'Length)
+                 then
+                   Status = OK
+                   and then Consumed = Bodies.Encoded_Size (Input)
+                   and then Produced = Bodies.Decoded_Size (Input)
+                   and then Bodies.Body_Encodes
+                              (Input,
+                               Consumed,
+                               Output
+                                 (Output'First
+                                  .. Output'First - 1 + Produced)));
 
    ---------------------------------------------------------------------
    --  Compression
@@ -78,15 +81,15 @@ package Inflate.Raw with SPARK_Mode => On is
 
    --  Blocks needed for N bytes of input: ceiling division, and one
    --  (empty, final) block when there is no input at all.
-   function Stored_Block_Count (N : Natural) return Positive is
-     (if N = 0 then 1 else 1 + (N - 1) / Max_Stored_Block)
+   function Stored_Block_Count (N : Natural) return Positive
+   is (if N = 0 then 1 else 1 + (N - 1) / Max_Stored_Block)
    with Post => Stored_Block_Count'Result <= 32769;
 
    --  The exact compressed size for N input bytes: 5 bytes of block
    --  header per block. This is the proved size bound the caller can
    --  allocate from.
-   function Stored_Size (N : Natural) return Positive is
-     (N + 5 * Stored_Block_Count (N))
+   function Stored_Size (N : Natural) return Positive
+   is (N + 5 * Stored_Block_Count (N))
    with Pre => N <= Max_Compress_Input;
 
    --  Compress Input into a sequence of stored blocks. Total: under the
@@ -97,17 +100,20 @@ package Inflate.Raw with SPARK_Mode => On is
    --  the produced bytes stand in the decode-model relation to exactly
    --  the input bytes.
    procedure Compress_Stored
-     (Input    : in     Byte_Array;
+     (Input    : in Byte_Array;
       Output   : in out Byte_Array;
-      Produced :    out Natural)
+      Produced : out Natural)
    with
      Global => null,
-     Pre    => Input'Length <= Max_Compress_Input
-               and then Output'Length >= Stored_Size (Input'Length),
+     Pre    =>
+       Input'Length <= Max_Compress_Input
+       and then Output'Length >= Stored_Size (Input'Length),
      Post   =>
        Produced = Stored_Size (Input'Length)
        and then Model.Encodes_Stored
-                  (Output, Output'First, Output'First + (Produced - 1),
+                  (Output,
+                   Output'First,
+                   Output'First + (Produced - 1),
                    Input,
                    (if Input'Length > 0 then Input'First else 1),
                    (if Input'Length > 0 then Input'Last else 0));

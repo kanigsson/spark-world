@@ -16,7 +16,9 @@ with Tui.Panes.Layout;
 with Tui.Panes.List;
 with Git_View_Navigation;
 
-package Git_View_Policy with SPARK_Mode => On is
+package Git_View_Policy
+  with SPARK_Mode => On
+is
 
    package Eng renames Tui.Pager.Engine;
 
@@ -35,14 +37,10 @@ package Git_View_Policy with SPARK_Mode => On is
 
    subtype Pane_Specs is Tui.Panes.Layout.Specs_Array (1 .. 2);
 
-   function Specs
-     (Split : Tui.Panes.Layout.Split_Percentage) return Pane_Specs
-   is (1 => (Weight   => Split,
-             Min_Cols => Min_Pane_Width,
-             Priority => 0),
-       2 => (Weight   => 100 - Split,
-             Min_Cols => Min_Pane_Width,
-             Priority => 1));
+   function Specs (Split : Tui.Panes.Layout.Split_Percentage) return Pane_Specs
+   is (1 => (Weight => Split, Min_Cols => Min_Pane_Width, Priority => 0),
+       2 =>
+         (Weight => 100 - Split, Min_Cols => Min_Pane_Width, Priority => 1));
 
    --  Panes are addressed by position in the row; this frontend names them.
    function Index (P : Pane) return Tui.Panes.Pane_Index
@@ -70,22 +68,33 @@ package Git_View_Policy with SPARK_Mode => On is
 
    type Decision (Kind : Action_Kind := Ignore) is record
       case Kind is
-         when Move_Selection => Move     : Tui.Panes.List.Sel_Move;
-         when Navigate       => Command  : Eng.Command;
-         when Resize_Split   => Grow_List : Boolean;
-         when Jump_Diff      =>
-            Target   : Git_View_Navigation.Landmark;
+         when Move_Selection =>
+            Move : Tui.Panes.List.Sel_Move;
+
+         when Navigate =>
+            Command : Eng.Command;
+
+         when Resize_Split =>
+            Grow_List : Boolean;
+
+         when Jump_Diff =>
+            Target       : Git_View_Navigation.Landmark;
             Jump_Forward : Boolean;
-         when Search         => Forward  : Boolean;
-         when Repeat_Search  => Reversed : Boolean;
-         when others         => null;
+
+         when Search =>
+            Forward : Boolean;
+
+         when Repeat_Search =>
+            Reversed : Boolean;
+
+         when others =>
+            null;
       end case;
    end record;
 
    --  Classify a keystroke seen while navigating. Pure: no state, no I/O.
    function Classify
-     (Focused : Pane;
-      Event   : Tui.Input.Key_Event) return Decision
+     (Focused : Pane; Event : Tui.Input.Key_Event) return Decision
    with Global => null;
 
 end Git_View_Policy;

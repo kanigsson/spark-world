@@ -12,6 +12,5 @@ with Box_Demo;
 procedure Main is
 begin
    Tui.Term.Event_Loop.Run
-     (Paint  => Box_Demo.Paint'Access,
-      On_Key => Box_Demo.On_Key'Access);
+     (Paint => Box_Demo.Paint'Access, On_Key => Box_Demo.On_Key'Access);
 end Main;

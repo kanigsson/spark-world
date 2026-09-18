@@ -1,5 +1,5 @@
 with System;
-with Interfaces.C;             use Interfaces.C;
+with Interfaces.C; use Interfaces.C;
 with Tui.Term.Output;
 
 package body Tui.Term.Mode is
@@ -22,27 +22,26 @@ package body Tui.Term.Mode is
    ---------------------------------------------------------------------------
 
    function C_Isatty (FD : int) return int
-     with Import, Convention => C, External_Name => "isatty",
-          Global => null,
-          Post   => C_Isatty'Result in 0 .. 1;
+   with
+     Import,
+     Convention    => C,
+     External_Name => "isatty",
+     Global        => null,
+     Post          => C_Isatty'Result in 0 .. 1;
 
    function C_Tcgetattr (FD : int; T : System.Address) return int
-     with Import, Convention => C, External_Name => "tcgetattr",
-          Global => null;
+   with Import, Convention => C, External_Name => "tcgetattr", Global => null;
 
-   function C_Tcsetattr (FD : int; Optional_Actions : int; T : System.Address)
-      return int
-     with Import, Convention => C, External_Name => "tcsetattr",
-          Global => null;
+   function C_Tcsetattr
+     (FD : int; Optional_Actions : int; T : System.Address) return int
+   with Import, Convention => C, External_Name => "tcsetattr", Global => null;
 
    procedure C_Cfmakeraw (T : System.Address)
-     with Import, Convention => C, External_Name => "cfmakeraw",
-          Global => null;
+   with Import, Convention => C, External_Name => "cfmakeraw", Global => null;
 
-   function C_Ioctl (FD : int; Request : unsigned_long; Arg : System.Address)
-      return int
-     with Import, Convention => C, External_Name => "ioctl",
-          Global => null;
+   function C_Ioctl
+     (FD : int; Request : unsigned_long; Arg : System.Address) return int
+   with Import, Convention => C, External_Name => "ioctl", Global => null;
 
    --  The kernel's struct winsize: rows, cols, then pixel dims we ignore.
    type Winsize is record
@@ -51,7 +50,7 @@ package body Tui.Term.Mode is
       Ws_XPixel : unsigned_short := 0;
       Ws_YPixel : unsigned_short := 0;
    end record
-     with Convention => C;
+   with Convention => C;
 
    ---------------------------------------------------------------------------
    --  Size
@@ -71,11 +70,11 @@ package body Tui.Term.Mode is
    --  Enter on construction, restore on destruction
    ---------------------------------------------------------------------------
 
-   overriding procedure Initialize (S : in out Session) is
+   overriding
+   procedure Initialize (S : in out Session) is
    begin
       --  Only drive a real terminal. A redirected stdin/stdout is left alone.
-      if C_Isatty (int (Stdin_FD)) /= 1
-        or else C_Isatty (int (Stdout_FD)) /= 1
+      if C_Isatty (int (Stdin_FD)) /= 1 or else C_Isatty (int (Stdout_FD)) /= 1
       then
          S.Is_Active := False;
          return;
@@ -120,7 +119,8 @@ package body Tui.Term.Mode is
       Output.Put (ESC & "[?1006h");   --  ... encoded as SGR sequences
    end Enable_Mouse;
 
-   overriding procedure Finalize (S : in out Session) is
+   overriding
+   procedure Finalize (S : in out Session) is
    begin
       if not S.Is_Active then
          return;
@@ -138,6 +138,7 @@ package body Tui.Term.Mode is
       Output.Put (ESC & "[?1049l");
       if C_Tcsetattr (int (Stdin_FD), TCSAFLUSH, S.Saved'Address) /= 0 then
          null;   --  nothing useful to do if even the restore fails
+
       end if;
    end Finalize;
 

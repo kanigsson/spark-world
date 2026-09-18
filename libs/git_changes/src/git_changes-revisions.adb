@@ -7,8 +7,8 @@ package body Git_Changes.Revisions is
 
    --  Every command runs literally: a revision or path byte string is never
    --  reinterpreted as a glob, whatever the repository's configuration.
-   function Literal return Unbounded_String is
-     (To_Unbounded_String ("--literal-pathspecs"));
+   function Literal return Unbounded_String
+   is (To_Unbounded_String ("--literal-pathspecs"));
 
    procedure Run
      (Repository : Git_Changes.Repository;
@@ -18,7 +18,11 @@ package body Git_Changes.Revisions is
       Error      : out Error_Info) is
    begin
       Git_Changes.Backends.Run_Git
-        (Root_Path (Repository), Arguments, Query_Limit, Operation, Output,
+        (Root_Path (Repository),
+         Arguments,
+         Query_Limit,
+         Operation,
+         Output,
          Error);
    end Run;
 
@@ -32,16 +36,22 @@ package body Git_Changes.Revisions is
       Output : Unbounded_String;
    begin
       Identity := Null_Unbounded_String;
-      Run (Repository,
-           [Literal,
-            To_Unbounded_String ("rev-parse"),
-            To_Unbounded_String ("--verify"),
-            To_Unbounded_String ("--end-of-options"),
-            To_Unbounded_String (Expression)],
-           Operation, Output, Error);
+      Run
+        (Repository,
+         [Literal,
+          To_Unbounded_String ("rev-parse"),
+          To_Unbounded_String ("--verify"),
+          To_Unbounded_String ("--end-of-options"),
+          To_Unbounded_String (Expression)],
+         Operation,
+         Output,
+         Error);
       if not Success (Error) then
          Set_Error
-           (Error, Unresolved_Revision, Operation, Detail (Error),
+           (Error,
+            Unresolved_Revision,
+            Operation,
+            Detail (Error),
             Exit_Status (Error));
          return;
       end if;
@@ -67,7 +77,10 @@ package body Git_Changes.Revisions is
       Error      : out Error_Info) is
    begin
       Resolve_Expression
-        (Repository, Expression & "^{commit}", "resolve commit", Identity,
+        (Repository,
+         Expression & "^{commit}",
+         "resolve commit",
+         Identity,
          Error);
    end Resolve_Commit;
 
@@ -82,15 +95,18 @@ package body Git_Changes.Revisions is
    begin
       Parent := Null_Unbounded_String;
       Found := False;
-      Run (Repository,
-           [Literal,
-            To_Unbounded_String ("rev-list"),
-            To_Unbounded_String ("--parents"),
-            To_Unbounded_String ("-n"),
-            To_Unbounded_String ("1"),
-            To_Unbounded_String ("--end-of-options"),
-            To_Unbounded_String (Revision)],
-           "list parents", Output, Error);
+      Run
+        (Repository,
+         [Literal,
+          To_Unbounded_String ("rev-list"),
+          To_Unbounded_String ("--parents"),
+          To_Unbounded_String ("-n"),
+          To_Unbounded_String ("1"),
+          To_Unbounded_String ("--end-of-options"),
+          To_Unbounded_String (Revision)],
+         "list parents",
+         Output,
+         Error);
       if not Success (Error) then
          return;
       end if;
@@ -130,13 +146,16 @@ package body Git_Changes.Revisions is
       Output : Unbounded_String;
    begin
       Identity := Null_Unbounded_String;
-      Run (Repository,
-           [Literal,
-            To_Unbounded_String ("hash-object"),
-            To_Unbounded_String ("-t"),
-            To_Unbounded_String ("tree"),
-            To_Unbounded_String ("/dev/null")],
-           "resolve empty tree", Output, Error);
+      Run
+        (Repository,
+         [Literal,
+          To_Unbounded_String ("hash-object"),
+          To_Unbounded_String ("-t"),
+          To_Unbounded_String ("tree"),
+          To_Unbounded_String ("/dev/null")],
+         "resolve empty tree",
+         Output,
+         Error);
       if not Success (Error) then
          return;
       end if;

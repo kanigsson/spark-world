@@ -8,7 +8,7 @@
 
 with Ada.Text_IO;
 with Ada.Strings.UTF_Encoding.Wide_Wide_Strings;
-with Tui.Surface;       use Tui.Surface;
+with Tui.Surface; use Tui.Surface;
 with Tui.Surface.Diff;
 
 procedure Demo_Surface is
@@ -24,8 +24,8 @@ procedure Demo_Surface is
       return (if S (S'First) = ' ' then S (S'First + 1 .. S'Last) else S);
    end Img;
 
-   function Utf8 (G : Wide_Wide_Character) return String is
-     (Enc.Encode ((1 => G)));
+   function Utf8 (G : Wide_Wide_Character) return String
+   is (Enc.Encode ((1 => G)));
 
    procedure Goto_RC (R : Row_Index; C : Col_Index) is
    begin
@@ -51,16 +51,19 @@ procedure Demo_Surface is
       end loop;
    end Blit_Changes;
 
-   procedure Put_String (S : in out Surface; R : Row_Index; C : Col_Index;
-                         Text : String)
+   procedure Put_String
+     (S : in out Surface; R : Row_Index; C : Col_Index; Text : String)
    is
       Col : Col_Count := C;
    begin
       for Ch of Text loop
          exit when Col > S.Cols;
-         Set (S, R, Col,
-              (Glyph => Wide_Wide_Character'Val (Character'Pos (Ch)),
-               others => <>));
+         Set
+           (S,
+            R,
+            Col,
+            (Glyph  => Wide_Wide_Character'Val (Character'Pos (Ch)),
+             others => <>));
          Col := Col + 1;
       end loop;
    end Put_String;
@@ -88,6 +91,7 @@ begin
       Blit_Changes (Buf, N);
       Goto_RC (Rows, 1);
       TIO.New_Line;
-      TIO.Put_Line ("diff reported" & N'Image & " changed cell(s) (expected 1)");
+      TIO.Put_Line
+        ("diff reported" & N'Image & " changed cell(s) (expected 1)");
    end;
 end Demo_Surface;

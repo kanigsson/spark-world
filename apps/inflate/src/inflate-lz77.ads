@@ -8,7 +8,9 @@
 
 with Inflate.Model;
 
-package Inflate.LZ77 with SPARK_Mode => On is
+package Inflate.LZ77
+  with SPARK_Mode => On
+is
 
    --  Copies_Match quantifies over the whole produced prefix.  It is a proof
    --  contract, not work the decoder should repeat after every match in an
@@ -19,15 +21,17 @@ package Inflate.LZ77 with SPARK_Mode => On is
    procedure Copy_Match
      (Output   : in out Byte_Array;
       Produced : in out Natural;
-      Length   : in     Positive;
-      Distance : in     Positive)
+      Length   : in Positive;
+      Distance : in Positive)
    with
      Global => null,
-     Pre  => Produced <= Output'Length
-               and then Distance <= Produced
-               and then Length <= Output'Length - Produced,
-     Post => Produced = Produced'Old + Length
-               and then Model.Copies_Match
-                 (Output'Old, Output, Produced'Old, Length, Distance);
+     Pre    =>
+       Produced <= Output'Length
+       and then Distance <= Produced
+       and then Length <= Output'Length - Produced,
+     Post   =>
+       Produced = Produced'Old + Length
+       and then Model.Copies_Match
+                  (Output'Old, Output, Produced'Old, Length, Distance);
 
 end Inflate.LZ77;

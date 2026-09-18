@@ -1,17 +1,17 @@
 --  Command-line front end for the Inflate library.  File I/O and dynamic
 --  allocation intentionally live here, outside the SPARK library.
 
-with Ada.Command_Line;             use Ada.Command_Line;
-with Ada.Exceptions;               use Ada.Exceptions;
-with Ada.Streams;                  use Ada.Streams;
+with Ada.Command_Line; use Ada.Command_Line;
+with Ada.Exceptions;   use Ada.Exceptions;
+with Ada.Streams;      use Ada.Streams;
 with Ada.Streams.Stream_IO;
-with Ada.Text_IO;                  use Ada.Text_IO;
+with Ada.Text_IO;      use Ada.Text_IO;
 with Ada.Unchecked_Deallocation;
 
 with Ore;
 with Ore.Byte_Buffers;
 
-with Inflate;                      use Inflate;
+with Inflate; use Inflate;
 with Inflate.GZip;
 with Inflate.Raw;
 
@@ -22,13 +22,12 @@ use type Ore.Word32;
 procedure Inflate_CLI is
 
    type Byte_Array_Access is access Byte_Array;
-   procedure Free is
-     new Ada.Unchecked_Deallocation (Byte_Array, Byte_Array_Access);
+   procedure Free is new
+     Ada.Unchecked_Deallocation (Byte_Array, Byte_Array_Access);
 
    type Stream_Array_Access is access Stream_Element_Array;
-   procedure Free_Stream is
-     new Ada.Unchecked_Deallocation
-       (Stream_Element_Array, Stream_Array_Access);
+   procedure Free_Stream is new
+     Ada.Unchecked_Deallocation (Stream_Element_Array, Stream_Array_Access);
 
    procedure Error (Message : String) is
    begin
@@ -45,7 +44,9 @@ procedure Inflate_CLI is
         (File,
          "Compress creates a gzip file using fixed Huffman coding and "
          & "verified run matches.");
-      Put_Line (File, "Decompress accepts gzip files, including concatenated members.");
+      Put_Line
+        (File,
+         "Decompress accepts gzip files, including concatenated members.");
    end Usage;
 
    function Load (Name : String) return Byte_Array_Access is
@@ -63,14 +64,12 @@ procedure Inflate_CLI is
 
          declare
             Length : constant Natural := Natural (File_Length);
-            Data   : Byte_Array_Access :=
-              new Byte_Array (1 .. Length);
+            Data   : Byte_Array_Access := new Byte_Array (1 .. Length);
             --  File-sized automatic arrays overflow the default process
             --  stack at about 8 MiB. Keep the I/O staging buffer on the heap,
             --  alongside the library input buffer.
             Buffer : Stream_Array_Access :=
-              new Stream_Element_Array
-                (1 .. Stream_Element_Offset (Length));
+              new Stream_Element_Array (1 .. Stream_Element_Offset (Length));
             Last   : Stream_Element_Offset;
          begin
             if Length > 0 then
@@ -101,17 +100,14 @@ procedure Inflate_CLI is
          raise;
    end Load;
 
-   procedure Save
-     (Name : String; Data : Byte_Array; Length : Natural)
-   is
+   procedure Save (Name : String; Data : Byte_Array; Length : Natural) is
       use Ada.Streams.Stream_IO;
       F      : Ada.Streams.Stream_IO.File_Type;
       Buffer : Stream_Array_Access :=
         new Stream_Element_Array (1 .. Stream_Element_Offset (Length));
    begin
       for I in Buffer.all'Range loop
-         Buffer (I) := Stream_Element
-           (Data (Data'First - 1 + Natural (I)));
+         Buffer (I) := Stream_Element (Data (Data'First - 1 + Natural (I)));
       end loop;
       Create (F, Out_File, Name);
       if Length > 0 then
@@ -128,9 +124,8 @@ procedure Inflate_CLI is
          raise;
    end Save;
 
-   function LE32_At_End (Data : Byte_Array) return Word32 is
-     (Ore.Byte_Buffers.Load_32
-        (Data, Data'Last - 3, Ore.Little_Endian));
+   function LE32_At_End (Data : Byte_Array) return Word32
+   is (Ore.Byte_Buffers.Load_32 (Data, Data'Last - 3, Ore.Little_Endian));
 
    procedure Compress_File (Input_Name, Output_Name : String) is
       Input : Byte_Array_Access := Load (Input_Name);
@@ -143,8 +138,8 @@ procedure Inflate_CLI is
       end if;
 
       declare
-         Output : Byte_Array_Access := new Byte_Array
-           (1 .. Inflate.GZip.Compressed_Size (Input'Length));
+         Output   : Byte_Array_Access :=
+           new Byte_Array (1 .. Inflate.GZip.Compressed_Size (Input'Length));
          Produced : Natural;
       begin
          Inflate.GZip.Compress (Input.all, Output.all, Produced);
@@ -156,11 +151,11 @@ procedure Inflate_CLI is
 
    procedure Decompress_File (Input_Name, Output_Name : String) is
       Initial_Capacity_Limit : constant Natural := 8 * 1_024 * 1_024;
-      Input    : Byte_Array_Access := Load (Input_Name);
-      Output   : Byte_Array_Access;
-      Capacity : Natural := 0;
-      Produced : Natural;
-      Status   : Status_Type;
+      Input                  : Byte_Array_Access := Load (Input_Name);
+      Output                 : Byte_Array_Access;
+      Capacity               : Natural := 0;
+      Produced               : Natural;
+      Status                 : Status_Type;
    begin
       --  ISIZE, the last four bytes of a gzip member, is normally the exact
       --  answer.  For concatenated members it is only a useful first guess;
@@ -172,16 +167,15 @@ procedure Inflate_CLI is
             if Hint <= Word32 (Buffer_Index'Last) then
                --  Do not let an untrusted trailer cause a huge allocation
                --  before the decoder has even validated the gzip header.
-               Capacity := Natural'Min
-                 (Natural (Hint), Initial_Capacity_Limit);
+               Capacity :=
+                 Natural'Min (Natural (Hint), Initial_Capacity_Limit);
             end if;
          end;
       end if;
 
       loop
          Output := new Byte_Array (1 .. Capacity);
-         Inflate.GZip.Decompress_All
-           (Input.all, Output.all, Produced, Status);
+         Inflate.GZip.Decompress_All (Input.all, Output.all, Produced, Status);
          exit when Status /= Output_Too_Small;
 
          Free (Output);

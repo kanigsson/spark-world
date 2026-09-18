@@ -25,7 +25,9 @@ with Tui.Surface;
 with Tui.Text;
 with Tui.Pager.View;
 
-package Tui.Pager.Render with SPARK_Mode => On is
+package Tui.Pager.Render
+  with SPARK_Mode => On
+is
 
    procedure Draw
      (Target  : in out Tui.Surface.Surface;
@@ -33,15 +35,17 @@ package Tui.Pager.Render with SPARK_Mode => On is
       Index   : Tui.Text.Index;
       V       : Tui.Pager.View.Viewport;
       Tab     : Tui.Pager.Tab_Width := Tui.Pager.Default_Tab_Width)
-   with Global => null,
-        Pre    => Content'First = 1
-                  and then Content'Last >= Tui.Text.Scanned_Bytes (Index),
-        --  Drawing paints text, never a selection: every cell it writes is
-        --  plain, and it writes every cell. A host's highlight therefore
-        --  starts from a surface with no inverse video on it, which is what
-        --  lets "one row is highlighted" be a property of the host's own
-        --  single call rather than an assumption about what drawing left
-        --  behind.
-        Post   => Tui.Surface.No_Inverse (Target);
+   with
+     Global => null,
+     Pre    =>
+       Content'First = 1
+       and then Content'Last >= Tui.Text.Scanned_Bytes (Index),
+     --  Drawing paints text, never a selection: every cell it writes is
+     --  plain, and it writes every cell. A host's highlight therefore
+     --  starts from a surface with no inverse video on it, which is what
+     --  lets "one row is highlighted" be a property of the host's own
+     --  single call rather than an assumption about what drawing left
+     --  behind.
+     Post   => Tui.Surface.No_Inverse (Target);
 
 end Tui.Pager.Render;

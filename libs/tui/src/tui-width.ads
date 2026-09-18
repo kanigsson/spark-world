@@ -20,9 +20,11 @@
 --  so they can be replaced wholesale. `Tables_Well_Formed` checks the ordering
 --  invariant the search relies on.
 
-package Tui.Width with SPARK_Mode => On is
+package Tui.Width
+  with SPARK_Mode => On
+is
 
-   subtype Code_Point   is Natural range 0 .. 16#10_FFFF#;
+   subtype Code_Point is Natural range 0 .. 16#10_FFFF#;
    subtype Column_Count is Natural range 0 .. 2;
 
    --  Columns the code point occupies when rendered:
@@ -30,11 +32,15 @@ package Tui.Width with SPARK_Mode => On is
    --    2 = East-Asian wide / fullwidth,
    --    1 = everything else.
    function Char_Width (CP : Code_Point) return Column_Count
-   with Global => null,
-        Post   => Char_Width'Result =
-                    (if Is_Control (CP) or else Is_Zero_Width (CP) then 0
-                     elsif Is_Wide (CP) then 2
-                     else 1);
+   with
+     Global => null,
+     Post   =>
+       Char_Width'Result
+       = (if Is_Control (CP) or else Is_Zero_Width (CP)
+          then 0
+          elsif Is_Wide (CP)
+          then 2
+          else 1);
 
    --  C0 (0..16#1F#) and C1 (16#7F#..16#9F#) control codes. Char_Width is 0 for
    --  these; a caller that renders controls specially (tabs, caret notation)
@@ -44,14 +50,17 @@ package Tui.Width with SPARK_Mode => On is
    with Global => null;
 
    --  East-Asian wide / fullwidth: occupies 2 columns.
-   function Is_Wide (CP : Code_Point) return Boolean with Global => null;
+   function Is_Wide (CP : Code_Point) return Boolean
+   with Global => null;
 
    --  Combining mark or otherwise zero-width: occupies 0 columns.
-   function Is_Zero_Width (CP : Code_Point) return Boolean with Global => null;
+   function Is_Zero_Width (CP : Code_Point) return Boolean
+   with Global => null;
 
    --  Diagnostic: True iff the internal interval tables are sorted and
    --  non-overlapping — the precondition the binary search relies on. Exposed so
    --  tests can guard against transcription errors when the tables are edited.
-   function Tables_Well_Formed return Boolean with Global => null;
+   function Tables_Well_Formed return Boolean
+   with Global => null;
 
 end Tui.Width;

@@ -13,31 +13,31 @@
 --  the documented ~1.0E-13 relative error bound comes from, and a
 --  rejection threshold one decade under Long_Float'Last.
 
-package body JSON.Numbers with SPARK_Mode => On is
+package body JSON.Numbers
+  with SPARK_Mode => On
+is
 
    use type Interfaces.Unsigned_64;
 
    subtype I64 is Interfaces.Integer_64;
    subtype U64 is Interfaces.Unsigned_64;
 
-   function Cur (Token : String; Pos : Natural) return Character is
-     (Token (Token'First + Pos))
+   function Cur (Token : String; Pos : Natural) return Character
+   is (Token (Token'First + Pos))
    with Pre => Pos < Token'Length;
 
-   function Is_Digit (C : Character) return Boolean is (C in '0' .. '9');
+   function Is_Digit (C : Character) return Boolean
+   is (C in '0' .. '9');
 
-   function Digit (C : Character) return Natural is
-     (Character'Pos (C) - Character'Pos ('0'))
+   function Digit (C : Character) return Natural
+   is (Character'Pos (C) - Character'Pos ('0'))
    with Pre => Is_Digit (C), Post => Digit'Result <= 9;
 
    ----------------
    -- To_Integer --
    ----------------
 
-   procedure To_Integer
-     (Token : in     String;
-      Value :    out I64;
-      OK    :    out Boolean)
+   procedure To_Integer (Token : in String; Value : out I64; OK : out Boolean)
    is
       --  Integer_64'First / 10, truncated: V may take one more digit
       --  exactly when V is above this, or equal to it with a digit <= 8
@@ -45,11 +45,11 @@ package body JSON.Numbers with SPARK_Mode => On is
 
       Pos : Natural := 0;
       Neg : Boolean := False;
-      V   : I64     := 0;
+      V   : I64 := 0;
       D   : Natural range 0 .. 9;
    begin
       Value := 0;
-      OK    := False;
+      OK := False;
 
       if Token'Length = 0 then
          return;
@@ -78,8 +78,9 @@ package body JSON.Numbers with SPARK_Mode => On is
          D := Digit (Cur (Token, Pos));
          if V < Limit or else (V = Limit and then D > 8) then
             return;  --  the next digit would overflow Integer_64
+
          end if;
-         V   := V * 10 - I64 (D);
+         V := V * 10 - I64 (D);
          Pos := Pos + 1;
       end loop;
 
@@ -88,6 +89,7 @@ package body JSON.Numbers with SPARK_Mode => On is
       else
          if V = I64'First then
             return;  --  9223372036854775808 has no positive Integer_64
+
          end if;
          Value := -V;
       end if;
@@ -99,9 +101,7 @@ package body JSON.Numbers with SPARK_Mode => On is
    --------------
 
    procedure To_Float
-     (Token : in     String;
-      Value :    out Long_Float;
-      OK    :    out Boolean)
+     (Token : in String; Value : out Long_Float; OK : out Boolean)
    is
       --  Mantissa digits beyond this would not change the result; the
       --  guard keeps M * 10 + 9 below 2**63
@@ -110,19 +110,19 @@ package body JSON.Numbers with SPARK_Mode => On is
       --  Decimal exponents beyond these bounds saturate: the value is
       --  certainly an overflow (high side) or a flush to zero (low side)
 
-      E_Cap   : constant := 100_000;
+      E_Cap : constant := 100_000;
 
-      Pos      : Natural := 0;
-      Neg      : Boolean := False;
-      M        : U64     := 0;
-      E10      : Integer range -E_Cap .. E_Cap := 0;
-      Exp      : Natural range 0 .. E_Cap := 0;
-      Exp_Neg  : Boolean := False;
-      E        : Integer;
-      F        : Long_Float;
+      Pos     : Natural := 0;
+      Neg     : Boolean := False;
+      M       : U64 := 0;
+      E10     : Integer range -E_Cap .. E_Cap := 0;
+      Exp     : Natural range 0 .. E_Cap := 0;
+      Exp_Neg : Boolean := False;
+      E       : Integer;
+      F       : Long_Float;
    begin
       Value := 0.0;
-      OK    := False;
+      OK := False;
 
       if Token'Length = 0 then
          return;
@@ -144,6 +144,7 @@ package body JSON.Numbers with SPARK_Mode => On is
          Pos := Pos + 1;
          if Pos < Token'Length and then Is_Digit (Cur (Token, Pos)) then
             return;  --  leading zero
+
          end if;
       else
          while Pos < Token'Length and then Is_Digit (Cur (Token, Pos)) loop
@@ -163,9 +164,7 @@ package body JSON.Numbers with SPARK_Mode => On is
 
       if Pos < Token'Length and then Cur (Token, Pos) = '.' then
          Pos := Pos + 1;
-         if Pos >= Token'Length
-           or else not Is_Digit (Cur (Token, Pos))
-         then
+         if Pos >= Token'Length or else not Is_Digit (Cur (Token, Pos)) then
             return;
          end if;
          while Pos < Token'Length and then Is_Digit (Cur (Token, Pos)) loop
@@ -173,8 +172,9 @@ package body JSON.Numbers with SPARK_Mode => On is
             pragma Loop_Invariant (M <= M_Limit * 10 + 9);
             pragma Loop_Variant (Increases => Pos);
             if M <= M_Limit and then E10 > -E_Cap then
-               M   := M * 10 + U64 (Digit (Cur (Token, Pos)));
+               M := M * 10 + U64 (Digit (Cur (Token, Pos)));
                E10 := E10 - 1;  --  used fraction digit
+
             end if;
             Pos := Pos + 1;
          end loop;
@@ -186,11 +186,9 @@ package body JSON.Numbers with SPARK_Mode => On is
          Pos := Pos + 1;
          if Pos < Token'Length and then Cur (Token, Pos) in '+' | '-' then
             Exp_Neg := Cur (Token, Pos) = '-';
-            Pos     := Pos + 1;
+            Pos := Pos + 1;
          end if;
-         if Pos >= Token'Length
-           or else not Is_Digit (Cur (Token, Pos))
-         then
+         if Pos >= Token'Length or else not Is_Digit (Cur (Token, Pos)) then
             return;
          end if;
          while Pos < Token'Length and then Is_Digit (Cur (Token, Pos)) loop
@@ -207,6 +205,7 @@ package body JSON.Numbers with SPARK_Mode => On is
 
       if Pos < Token'Length then
          return;  --  trailing characters: not a number token
+
       end if;
 
       --  Combine and scale. M = 0 covers "0", "-0", "0.00e99".
@@ -234,6 +233,7 @@ package body JSON.Numbers with SPARK_Mode => On is
          if F > 1.0E307 then
             Value := 0.0;
             return;  --  conservative: within one decade of 'Last
+
          end if;
          F := F * 10.0;
          E := E - 1;
@@ -248,7 +248,7 @@ package body JSON.Numbers with SPARK_Mode => On is
       end loop;
 
       Value := (if Neg then -F else F);
-      OK    := True;
+      OK := True;
    end To_Float;
 
 end JSON.Numbers;

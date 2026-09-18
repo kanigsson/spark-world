@@ -54,16 +54,14 @@ is
      (Left, Right : Byte_Array; From_Left, From_Right : Index; Count : Natural)
       return Boolean
    is (Count = 0
-       or else
-         (From_Left >= Left'First
-          and then From_Left <= Left'Last
-          and then Count - 1 <= Left'Last - From_Left
-          and then From_Right >= Right'First
-          and then From_Right <= Right'Last
-          and then Count - 1 <= Right'Last - From_Right
-          and then
-            (for all K in 0 .. Count - 1 =>
-               Left (From_Left + K) = Right (From_Right + K))))
+       or else (From_Left >= Left'First
+                and then From_Left <= Left'Last
+                and then Count - 1 <= Left'Last - From_Left
+                and then From_Right >= Right'First
+                and then From_Right <= Right'Last
+                and then Count - 1 <= Right'Last - From_Right
+                and then (for all K in 0 .. Count - 1 =>
+                            Left (From_Left + K) = Right (From_Right + K))))
    with Ghost => Static;
 
    --  After is Before outside the half-open window First .. Past_Last - 1:
@@ -75,9 +73,9 @@ is
    is (Before'First = After'First
        and then Before'Last = After'Last
        and then First <= Past_Last
-       and then
-         (for all I in Before'Range =>
-            (if I < First or else I >= Past_Last then After (I) = Before (I))))
+       and then (for all I in Before'Range =>
+                   (if I < First or else I >= Past_Last
+                    then After (I) = Before (I))))
    with Ghost => Static;
 
    --  Equal content is transitive. Stated with three independent offsets
@@ -106,9 +104,9 @@ is
      (A : Byte_Array; From : Index; Order : Byte_Order) return Word16
    is (case Order is
          when Little_Endian =>
-           Word16 (A (From)) + 2 ** 8 * Word16 (A (From + 1)),
+           Word16 (A (From)) + 2**8 * Word16 (A (From + 1)),
          when Big_Endian    =>
-           2 ** 8 * Word16 (A (From)) + Word16 (A (From + 1)))
+           2**8 * Word16 (A (From)) + Word16 (A (From + 1)))
    with
      Global => null,
      Pre    =>
@@ -118,12 +116,16 @@ is
      (A : Byte_Array; From : Index; Order : Byte_Order) return Word32
    is (case Order is
          when Little_Endian =>
-           Word32 (A (From)) + 2 ** 8 * Word32 (A (From + 1))
-           + 2 ** 16 * Word32 (A (From + 2))
-           + 2 ** 24 * Word32 (A (From + 3)),
+           Word32 (A (From))
+           + 2**8 * Word32 (A (From + 1))
+           + 2**16 * Word32 (A (From + 2))
+           + 2**24 * Word32 (A (From + 3)),
          when Big_Endian    =>
-           2 ** 24 * Word32 (A (From)) + 2 ** 16 * Word32 (A (From + 1))
-           + 2 ** 8 * Word32 (A (From + 2))
+           2
+           **24
+           * Word32 (A (From))
+           + 2**16 * Word32 (A (From + 1))
+           + 2**8 * Word32 (A (From + 2))
            + Word32 (A (From + 3)))
    with
      Global => null,
@@ -134,20 +136,24 @@ is
      (A : Byte_Array; From : Index; Order : Byte_Order) return Word64
    is (case Order is
          when Little_Endian =>
-           Word64 (A (From)) + 2 ** 8 * Word64 (A (From + 1))
-           + 2 ** 16 * Word64 (A (From + 2))
-           + 2 ** 24 * Word64 (A (From + 3))
-           + 2 ** 32 * Word64 (A (From + 4))
-           + 2 ** 40 * Word64 (A (From + 5))
-           + 2 ** 48 * Word64 (A (From + 6))
-           + 2 ** 56 * Word64 (A (From + 7)),
+           Word64 (A (From))
+           + 2**8 * Word64 (A (From + 1))
+           + 2**16 * Word64 (A (From + 2))
+           + 2**24 * Word64 (A (From + 3))
+           + 2**32 * Word64 (A (From + 4))
+           + 2**40 * Word64 (A (From + 5))
+           + 2**48 * Word64 (A (From + 6))
+           + 2**56 * Word64 (A (From + 7)),
          when Big_Endian    =>
-           2 ** 56 * Word64 (A (From)) + 2 ** 48 * Word64 (A (From + 1))
-           + 2 ** 40 * Word64 (A (From + 2))
-           + 2 ** 32 * Word64 (A (From + 3))
-           + 2 ** 24 * Word64 (A (From + 4))
-           + 2 ** 16 * Word64 (A (From + 5))
-           + 2 ** 8 * Word64 (A (From + 6))
+           2
+           **56
+           * Word64 (A (From))
+           + 2**48 * Word64 (A (From + 1))
+           + 2**40 * Word64 (A (From + 2))
+           + 2**32 * Word64 (A (From + 3))
+           + 2**24 * Word64 (A (From + 4))
+           + 2**16 * Word64 (A (From + 5))
+           + 2**8 * Word64 (A (From + 6))
            + Word64 (A (From + 7)))
    with
      Global => null,
@@ -292,9 +298,8 @@ is
      Post   =>
        Contents'Result'First = 1
        and then Contents'Result'Length = Length (B)
-       and then
-         (for all Position in 1 .. Length (B) =>
-            Contents'Result (Position) = Element (B, Position));
+       and then (for all Position in 1 .. Length (B) =>
+                   Contents'Result (Position) = Element (B, Position));
 
    ---------------------------------------------------------------------------
    --  Proof vocabulary over buffers
@@ -305,9 +310,8 @@ is
    function Same_Prefix (Left, Right : Buffer; Count : Natural) return Boolean
    is (Count <= Length (Left)
        and then Count <= Length (Right)
-       and then
-         (for all Position in 1 .. Count =>
-            Element (Left, Position) = Element (Right, Position)))
+       and then (for all Position in 1 .. Count =>
+                   Element (Left, Position) = Element (Right, Position)))
    with Ghost => Static;
 
    --  The produced bytes of B starting at From are exactly Bytes. This is
@@ -317,9 +321,8 @@ is
      (B : Buffer; From : Positive; Bytes : Byte_Array) return Boolean
    is (From <= Length (B) + 1
        and then Bytes'Length <= Length (B) - (From - 1)
-       and then
-         (for all K in 0 .. Bytes'Length - 1 =>
-            Element (B, From + K) = Bytes (Bytes'First + K)))
+       and then (for all K in 0 .. Bytes'Length - 1 =>
+                   Element (B, From + K) = Bytes (Bytes'First + K)))
    with Ghost => Static;
 
    --  After is Before with Count bytes appended by a back-reference Distance
@@ -335,12 +338,12 @@ is
        and then Count <= Max_Capacity
        and then Length (After) = Length (Before) + Count
        and then Same_Prefix (Before, After, Length (Before))
-       and then
-         (for all K in 0 .. Count - 1 =>
-            Element (After, Length (Before) + 1 + K)
-            = (if K < Distance
-               then Element (Before, Length (Before) + 1 + K - Distance)
-               else Element (After, Length (Before) + 1 + K - Distance))))
+       and then (for all K in 0 .. Count - 1 =>
+                   Element (After, Length (Before) + 1 + K)
+                   = (if K < Distance
+                      then Element (Before, Length (Before) + 1 + K - Distance)
+                      else
+                        Element (After, Length (Before) + 1 + K - Distance))))
    with Ghost => Static;
 
    ---------------------------------------------------------------------------
@@ -411,9 +414,8 @@ is
           and then Read_Position (B) = Read_Position (B)'Old,
         Static  =>
           Same_Prefix (B'Old, B, Length (B)'Old)
-          and then
-            (for all K in 1 .. Count =>
-               Element (B, Length (B)'Old + K) = Value));
+          and then (for all K in 1 .. Count =>
+                      Element (B, Length (B)'Old + K) = Value));
 
    procedure Append_16 (B : in out Buffer; Value : Word16; Order : Byte_Order)
    with
@@ -470,9 +472,9 @@ is
           and then Read_Position (B) = Read_Position (B)'Old,
         Static  =>
           Same_Prefix (B'Old, B, Length (B)'Old)
-          and then
-            (for all K in 0 .. Result.Consumed - 1 =>
-               Element (B, Length (B)'Old + 1 + K) = Bytes (Bytes'First + K)));
+          and then (for all K in 0 .. Result.Consumed - 1 =>
+                      Element (B, Length (B)'Old + 1 + K)
+                      = Bytes (Bytes'First + K)));
 
    ---------------------------------------------------------------------------
    --  Consuming
@@ -572,13 +574,11 @@ is
           and then Length (B) = Length (B)'Old,
         Static  =>
           Same_Prefix (B'Old, B, Length (B))
-          and then
-            (for all K in 0 .. Result.Produced - 1 =>
-               Into (Into'First + K)
-               = Element (B, Read_Position (B)'Old + 1 + K))
-          and then
-            (for all K in Result.Produced .. Into'Length - 1 =>
-               Into (Into'First + K) = Into'Old (Into'First + K)));
+          and then (for all K in 0 .. Result.Produced - 1 =>
+                      Into (Into'First + K)
+                      = Element (B, Read_Position (B)'Old + 1 + K))
+          and then (for all K in Result.Produced .. Into'Length - 1 =>
+                      Into (Into'First + K) = Into'Old (Into'First + K)));
 
    --  Move unread bytes from Source into Target, as many as both allow.
    procedure Move
@@ -590,19 +590,17 @@ is
           Result.Consumed
           = Natural'Min (Unread (Source)'Old, Available (Target)'Old)
           and then Result.Produced = Result.Consumed
-          and then
-            Read_Position (Source)
-            = Read_Position (Source)'Old + Result.Consumed
+          and then Read_Position (Source)
+                   = Read_Position (Source)'Old + Result.Consumed
           and then Length (Source) = Length (Source)'Old
           and then Length (Target) = Length (Target)'Old + Result.Produced
           and then Read_Position (Target) = Read_Position (Target)'Old,
         Static  =>
           Same_Prefix (Source'Old, Source, Length (Source))
           and then Same_Prefix (Target'Old, Target, Length (Target)'Old)
-          and then
-            (for all K in 0 .. Result.Produced - 1 =>
-               Element (Target, Length (Target)'Old + 1 + K)
-               = Element (Source, Read_Position (Source)'Old + 1 + K)));
+          and then (for all K in 0 .. Result.Produced - 1 =>
+                      Element (Target, Length (Target)'Old + 1 + K)
+                      = Element (Source, Read_Position (Source)'Old + 1 + K)));
 
    ---------------------------------------------------------------------------
    --  Cursor and content management
@@ -693,9 +691,8 @@ is
      Post   =>
        Slice'Result'First = 1
        and then Slice'Result'Length = Length (S)
-       and then
-         (for all K in 0 .. Length (S) - 1 =>
-            Slice'Result (1 + K) = Element (B, S.First + K));
+       and then (for all K in 0 .. Length (S) - 1 =>
+                   Slice'Result (1 + K) = Element (B, S.First + K));
 
    --  Append a subview of one buffer to another without an intermediate array.
    procedure Append_Slice
@@ -710,10 +707,9 @@ is
           and then Read_Position (Target) = Read_Position (Target)'Old,
         Static  =>
           Same_Prefix (Target'Old, Target, Length (Target)'Old)
-          and then
-            (for all K in 0 .. Length (S) - 1 =>
-               Element (Target, Length (Target)'Old + 1 + K)
-               = Element (Source, S.First + K)));
+          and then (for all K in 0 .. Length (S) - 1 =>
+                      Element (Target, Length (Target)'Old + 1 + K)
+                      = Element (Source, S.First + K)));
 
    ---------------------------------------------------------------------------
    --  Copies

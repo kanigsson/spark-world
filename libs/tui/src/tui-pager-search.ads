@@ -17,7 +17,9 @@
 
 with Tui.Text;
 
-package Tui.Pager.Search with SPARK_Mode => On is
+package Tui.Pager.Search
+  with SPARK_Mode => On
+is
 
    --  True when line N's bytes contain Pattern as a contiguous substring. An
    --  empty pattern never matches (the engine never searches with one), which
@@ -27,11 +29,13 @@ package Tui.Pager.Search with SPARK_Mode => On is
       Index   : Tui.Text.Index;
       Pattern : Tui.Text.Buffer;
       N       : Line_Number) return Boolean
-   with Global => null,
-        Pre => Content'First = 1
-               and then Content'Last >= Tui.Text.Scanned_Bytes (Index)
-               and then Pattern'First = 1
-               and then N <= Tui.Text.Line_Count (Index);
+   with
+     Global => null,
+     Pre    =>
+       Content'First = 1
+       and then Content'Last >= Tui.Text.Scanned_Bytes (Index)
+       and then Pattern'First = 1
+       and then N <= Tui.Text.Line_Count (Index);
 
    --  Scan for a matching line, starting at From (inclusive) and moving toward
    --  the end (Forward) or the start. On success Found is True and Line is the
@@ -44,12 +48,14 @@ package Tui.Pager.Search with SPARK_Mode => On is
       Forward : Boolean;
       Found   : out Boolean;
       Line    : out Line_Number)
-   with Global => null,
-        Pre  => Content'First = 1
-                and then Content'Last >= Tui.Text.Scanned_Bytes (Index)
-                and then Pattern'First = 1
-                and then Tui.Text.Line_Count (Index) >= 1
-                and then From <= Tui.Text.Line_Count (Index),
-        Post => (if Found then Line <= Tui.Text.Line_Count (Index));
+   with
+     Global => null,
+     Pre    =>
+       Content'First = 1
+       and then Content'Last >= Tui.Text.Scanned_Bytes (Index)
+       and then Pattern'First = 1
+       and then Tui.Text.Line_Count (Index) >= 1
+       and then From <= Tui.Text.Line_Count (Index),
+     Post   => (if Found then Line <= Tui.Text.Line_Count (Index));
 
 end Tui.Pager.Search;

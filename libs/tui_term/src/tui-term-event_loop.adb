@@ -1,4 +1,4 @@
-with Tui.Surface;            use Tui.Surface;
+with Tui.Surface; use Tui.Surface;
 with Tui.Surface.Diff;
 with Tui.Term.Mode;
 with Tui.Term.Output;
@@ -14,9 +14,7 @@ package body Tui.Term.Event_Loop is
    Tick_Ms : constant := 100;
 
    procedure Run
-     (Paint  : Painter;
-      On_Key : Key_Handler;
-      Mouse  : Boolean := False)
+     (Paint : Painter; On_Key : Key_Handler; Mouse : Boolean := False)
    is
       Term : Tui.Term.Mode.Session;          --  enters raw/alt mode now (RAII)
       Dec  : Tui.Input.Decoder;
@@ -53,8 +51,9 @@ package body Tui.Term.Event_Loop is
                Prev : Tui.Surface.Surface := Blank (Rows, Cols);
                Cur  : Tui.Surface.Surface := Blank (Rows, Cols);
 
-               Buf : Tui.Surface.Diff.Change_Array
-                       (1 .. Tui.Surface.Diff.Cell_Count (Cur));
+               Buf :
+                 Tui.Surface.Diff.Change_Array
+                   (1 .. Tui.Surface.Diff.Cell_Count (Cur));
                Cnt : Natural;
 
                Ev    : Tui.Input.Key_Event;
@@ -71,12 +70,12 @@ package body Tui.Term.Event_Loop is
                Read_Keys :
                loop
                   exit Size_Epoch when Tui.Term.Signals.Quit_Requested;
-                  exit Read_Keys   when Tui.Term.Signals.Resize_Pending;
+                  exit Read_Keys when Tui.Term.Signals.Resize_Pending;
 
                   Tui.Term.Input.Next (Dec, Ev, St, Timeout => Tick_Ms);
 
                   case St is
-                     when Tui.Term.Input.Got_Event =>
+                     when Tui.Term.Input.Got_Event    =>
                         On_Key (Ev, Dirty, Quit);
                         exit Size_Epoch when Quit;
                         if Dirty then
@@ -87,7 +86,7 @@ package body Tui.Term.Event_Loop is
                            Prev := Cur;
                         end if;
 
-                     when Tui.Term.Input.Timed_Out =>
+                     when Tui.Term.Input.Timed_Out    =>
                         null;   --  tick: fall through to re-check signals
 
                      when Tui.Term.Input.End_Of_Input =>
@@ -98,7 +97,7 @@ package body Tui.Term.Event_Loop is
          end;
       end loop Size_Epoch;
 
-      --  Falling off here finalizes Term, which restores the terminal.
+   --  Falling off here finalizes Term, which restores the terminal.
    end Run;
 
 end Tui.Term.Event_Loop;

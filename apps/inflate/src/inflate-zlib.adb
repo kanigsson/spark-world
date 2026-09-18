@@ -3,20 +3,22 @@ with Ore.Byte_Buffers;
 with Inflate.Raw;
 with Inflate.Adler32;
 
-package body Inflate.ZLib with SPARK_Mode => On is
+package body Inflate.ZLib
+  with SPARK_Mode => On
+is
 
    use Ore.Byte_Buffers;
 
    procedure Decompress
-     (Input    : in     Byte_Array;
+     (Input    : in Byte_Array;
       Output   : in out Byte_Array;
-      Consumed :    out Natural;
-      Produced :    out Natural;
-      Status   :    out Status_Type)
+      Consumed : out Natural;
+      Produced : out Natural;
+      Status   : out Status_Type)
    is
-      CMF, FLG : Byte;
+      CMF, FLG                   : Byte;
       Raw_Consumed, Raw_Produced : Natural;
-      Stored_Sum : Word32;
+      Stored_Sum                 : Word32;
    begin
       Consumed := 0;
       Produced := 0;
@@ -42,8 +44,11 @@ package body Inflate.ZLib with SPARK_Mode => On is
       end if;
 
       Raw.Decompress
-        (Input (Input'First + 2 .. Input'Last), Output,
-         Raw_Consumed, Raw_Produced, Status);
+        (Input (Input'First + 2 .. Input'Last),
+         Output,
+         Raw_Consumed,
+         Raw_Produced,
+         Status);
       Consumed := 2 + Raw_Consumed;
       Produced := Raw_Produced;
       if Status /= OK then
@@ -58,8 +63,9 @@ package body Inflate.ZLib with SPARK_Mode => On is
       Stored_Sum := Load_32 (Input, Input'First + Consumed, Big_Endian);
       Consumed := Consumed + 4;
 
-      if Stored_Sum /=
-        Adler32.Compute (Output (Output'First .. Output'First - 1 + Produced))
+      if Stored_Sum
+        /= Adler32.Compute
+             (Output (Output'First .. Output'First - 1 + Produced))
       then
          Status := ZLib_Checksum_Mismatch;
       end if;

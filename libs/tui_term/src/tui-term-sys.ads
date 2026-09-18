@@ -21,7 +21,9 @@
 
 with Tui.Input;
 
-package Tui.Term.Sys with SPARK_Mode => On is
+package Tui.Term.Sys
+  with SPARK_Mode => On
+is
 
    --  Raw bytes as they come off the wire. Same octet type the decoder consumes,
    --  so a refilled buffer feeds straight in with no reinterpretation.
@@ -46,9 +48,10 @@ package Tui.Term.Sys with SPARK_Mode => On is
       Buf     : out Byte_Array;
       Count   : out Natural;
       Outcome : out Read_Outcome)
-   with Global => null,
-        Post   => Count <= Buf'Length
-                  and then (Outcome = Read_Data) = (Count > 0);
+   with
+     Global => null,
+     Post   =>
+       Count <= Buf'Length and then (Outcome = Read_Data) = (Count > 0);
 
    ---------------------------------------------------------------------------
    --  write()
@@ -58,12 +61,8 @@ package Tui.Term.Sys with SPARK_Mode => On is
    --  actually took, 0 .. Data'Length (0 on a closed pipe or error); the caller
    --  loops on the remainder. The bound is what keeps that loop's offset
    --  arithmetic in range.
-   procedure Write
-     (FD      : File_Descriptor;
-      Data    : String;
-      Written : out Natural)
-   with Global => null,
-        Post   => Written <= Data'Length;
+   procedure Write (FD : File_Descriptor; Data : String; Written : out Natural)
+   with Global => null, Post => Written <= Data'Length;
 
    ---------------------------------------------------------------------------
    --  poll()
@@ -77,7 +76,8 @@ package Tui.Term.Sys with SPARK_Mode => On is
    --  Wait up to Timeout_Ms for FD to become readable (a negative timeout
    --  blocks). Folds poll()'s int return into the three cases a host loop
    --  actually distinguishes, and hides the pollfd struct and its address.
-   function Poll (FD : File_Descriptor; Timeout_Ms : Integer) return Poll_Outcome
+   function Poll
+     (FD : File_Descriptor; Timeout_Ms : Integer) return Poll_Outcome
    with Global => null;
 
 end Tui.Term.Sys;

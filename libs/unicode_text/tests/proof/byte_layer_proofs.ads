@@ -9,13 +9,13 @@ is
 
    procedure Scalar_Round_Trip (Value : Scalar_Value)
    with
-     Ghost => Static,
+     Ghost  => Static,
      Global => null,
      Post   =>
        Is_Valid_UTF_8 (Encode_One (Value))
        and then Decode_One (Encode_One (Value), 0).Value = Value
-       and then
-         Decode_One (Encode_One (Value), 0).Width = Encoding_Width (Value)
+       and then Decode_One (Encode_One (Value), 0).Width
+                = Encoding_Width (Value)
        and then Model (Encode_One (Value)) = [Value];
 
    procedure Boundary_Witness

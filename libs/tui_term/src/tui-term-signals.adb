@@ -9,8 +9,10 @@ package body Tui.Term.Signals is
    protected Dispatcher
      with Interrupt_Priority => System.Interrupt_Priority'Last
    is
-      procedure On_Winch with Attach_Handler => Ada.Interrupts.Names.SIGWINCH;
-      procedure On_Term  with Attach_Handler => Ada.Interrupts.Names.SIGTERM;
+      procedure On_Winch
+      with Attach_Handler => Ada.Interrupts.Names.SIGWINCH;
+      procedure On_Term
+      with Attach_Handler => Ada.Interrupts.Names.SIGTERM;
       --  SIGINT is deliberately NOT attached: this GNAT runtime reserves it,
       --  and in raw mode (ISIG off) an interactive Ctrl-C reaches us as the
       --  byte 0x03 — an ordinary key event — not a signal anyway.
@@ -43,7 +45,8 @@ package body Tui.Term.Signals is
          Resized := False;
       end Take_Resize;
 
-      function Quitting return Boolean is (Quit_Set);
+      function Quitting return Boolean
+      is (Quit_Set);
 
    end Dispatcher;
 
@@ -67,6 +70,7 @@ package body Tui.Term.Signals is
       return Pending;
    end Resize_Pending;
 
-   function Quit_Requested return Boolean is (Dispatcher.Quitting);
+   function Quit_Requested return Boolean
+   is (Dispatcher.Quitting);
 
 end Tui.Term.Signals;

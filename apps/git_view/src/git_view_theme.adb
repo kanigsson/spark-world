@@ -1,4 +1,6 @@
-package body Git_View_Theme with SPARK_Mode => On is
+package body Git_View_Theme
+  with SPARK_Mode => On
+is
 
    use type Tui.Text.Byte;
 

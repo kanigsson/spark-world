@@ -26,18 +26,23 @@
 --  buffer must be append-only — the first Scanned_Bytes bytes must be
 --  unchanged. Violating it does not break safety, only correctness.
 
-package Tui.Text with SPARK_Mode => On is
+package Tui.Text
+  with SPARK_Mode => On
+is
 
-   type Byte is mod 2 ** 8;
+   type Byte is mod 2**8;
 
    --  Generous caps that keep all offset/area arithmetic inside 32-bit Integer.
-   Max_Bytes : constant := 2 ** 30 - 1;   --  ~1 GiB of buffered content
-   Max_Lines : constant := 2 ** 24 - 1;   --  ~16 M lines
+   Max_Bytes : constant := 2**30 - 1;   --  ~1 GiB of buffered content
+   Max_Lines : constant := 2**24 - 1;   --  ~16 M lines
 
-   subtype Byte_Count is Natural range 0 .. Max_Bytes;       --  a length / cursor
-   subtype Byte_Index is Natural range 1 .. Max_Bytes;       --  a 1-based position
+   subtype Byte_Count is
+     Natural range 0 .. Max_Bytes;       --  a length / cursor
+   subtype Byte_Index is
+     Natural range 1 .. Max_Bytes;       --  a 1-based position
    subtype Line_Total is Natural range 0 .. Max_Lines;       --  a line count
-   subtype Line_Number is Natural range 1 .. Max_Lines;      --  a 1-based line id
+   subtype Line_Number is
+     Natural range 1 .. Max_Lines;      --  a 1-based line id
 
    type Buffer is array (Byte_Index range <>) of Byte;
 
@@ -71,16 +76,20 @@ package Tui.Text with SPARK_Mode => On is
    --  can slice it out of a buffer that covers Scanned_Bytes without a bounds
    --  check of its own.
    function Line_Span (Idx : Index; N : Line_Number) return Span
-   with Pre  => N <= Line_Count (Idx),
-        Post => Line_Span'Result.Start + Line_Span'Result.Length
-                  <= Scanned_Bytes (Idx) + 1;
+   with
+     Pre  => N <= Line_Count (Idx),
+     Post =>
+       Line_Span'Result.Start + Line_Span'Result.Length
+       <= Scanned_Bytes (Idx) + 1;
 
    --  The bytes of line N, sliced out of the buffer the index was built over.
    function Line (Idx : Index; Buf : Buffer; N : Line_Number) return Buffer
-   with Pre  => N <= Line_Count (Idx)
-                and then Buf'First = 1
-                and then Buf'Last >= Scanned_Bytes (Idx),
-        Post => Line'Result'Length = Line_Span (Idx, N).Length;
+   with
+     Pre  =>
+       N <= Line_Count (Idx)
+       and then Buf'First = 1
+       and then Buf'Last >= Scanned_Bytes (Idx),
+     Post => Line'Result'Length = Line_Span (Idx, N).Length;
 
    ---------------------------------------------------------------------------
    --  Building the index
@@ -90,16 +99,18 @@ package Tui.Text with SPARK_Mode => On is
    --  cursor to the end of Buf, advancing the cursor. Idempotent on a buffer
    --  that has not grown. Stops and sets Truncated if Capacity is reached.
    procedure Scan (Idx : in out Index; Buf : Buffer)
-   with Global => null,
-        Pre    => Buf'First = 1 and then Buf'Last >= Scanned_Bytes (Idx),
-        Post   => Scanned_Bytes (Idx) <= Buf'Last;
+   with
+     Global => null,
+     Pre    => Buf'First = 1 and then Buf'Last >= Scanned_Bytes (Idx),
+     Post   => Scanned_Bytes (Idx) <= Buf'Last;
 
    --  Finalise a trailing partial line (bytes after the last LF) as the last
    --  line. Use at end-of-input. No-op if there is no pending tail.
    procedure Seal (Idx : in out Index; Buf : Buffer)
-   with Global => null,
-        Pre    => Buf'First = 1 and then Buf'Last >= Scanned_Bytes (Idx),
-        Post   => Scanned_Bytes (Idx) <= Buf'Last;
+   with
+     Global => null,
+     Pre    => Buf'First = 1 and then Buf'Last >= Scanned_Bytes (Idx),
+     Post   => Scanned_Bytes (Idx) <= Buf'Last;
 
    ---------------------------------------------------------------------------
    --  Document — a buffer bundled with the index built over it
@@ -119,7 +130,10 @@ package Tui.Text with SPARK_Mode => On is
    --  owning reference, and the allocate/free primitives all stay here; a host
    --  only holds the reference and reads the fields, which is crash-free. The
    --  natural home anyway -- "a buffer plus the index built over it".
-   type Document (Size : Byte_Count; Capacity : Line_Total) is record
+   type Document
+     (Size     : Byte_Count;
+      Capacity : Line_Total)
+   is record
       Bytes : Buffer (1 .. Size);
       Idx   : Index (Capacity);
    end record
@@ -131,14 +145,14 @@ package Tui.Text with SPARK_Mode => On is
    --  Allocate a Document over Content -- copied in once -- and build its line
    --  index, so the buffer-fits invariant holds on the result. Never null.
    function New_Document (Content : Buffer) return Doc_Ref
-   with Global => null,
-        Pre    => Content'First = 1,
-        Post   => New_Document'Result /= null;
+   with
+     Global => null,
+     Pre    => Content'First = 1,
+     Post   => New_Document'Result /= null;
 
    --  Reclaim a Document. No-op on null; leaves R null.
    procedure Free (R : in out Doc_Ref)
-   with Global => null,
-        Post   => R = null;
+   with Global => null, Post => R = null;
 
 private
 
@@ -155,18 +169,22 @@ private
       Spans     : Span_Array (1 .. Capacity);
       Count     : Line_Total := 0;
       Scanned   : Byte_Count := 0;
-      Truncated : Boolean    := False;
+      Truncated : Boolean := False;
    end record
-     with Dynamic_Predicate =>
+   with
+     Dynamic_Predicate =>
        Index.Count <= Index.Capacity
        and then (for all I in 1 .. Index.Count =>
                    Index.Spans (I).Start + Index.Spans (I).Length
-                     <= Index.Scanned + 1);
+                   <= Index.Scanned + 1);
 
-   function Line_Count     (Idx : Index) return Line_Total is (Idx.Count);
-   function Scanned_Bytes  (Idx : Index) return Byte_Count is (Idx.Scanned);
-   function Truncated      (Idx : Index) return Boolean    is (Idx.Truncated);
+   function Line_Count (Idx : Index) return Line_Total
+   is (Idx.Count);
+   function Scanned_Bytes (Idx : Index) return Byte_Count
+   is (Idx.Scanned);
+   function Truncated (Idx : Index) return Boolean
+   is (Idx.Truncated);
    function Line_Span (Idx : Index; N : Line_Number) return Span
-     is (Idx.Spans (N));
+   is (Idx.Spans (N));
 
 end Tui.Text;

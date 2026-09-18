@@ -26,13 +26,17 @@ package body Git_Changes.Backends is
       Content := Null_Unbounded_String;
       Error := (others => <>);
       if not Ada.Directories.Exists (Name) then
-         Set_Error (Error, Filesystem_Error, "read", "file does not exist: " & Name);
+         Set_Error
+           (Error, Filesystem_Error, "read", "file does not exist: " & Name);
          return;
       end if;
-      if Ada.Directories.Size (Name) > Ada.Directories.File_Size (Max_Content_Bytes)
+      if Ada.Directories.Size (Name)
+        > Ada.Directories.File_Size (Max_Content_Bytes)
       then
          Set_Error
-           (Error, Resource_Limit, "read",
+           (Error,
+            Resource_Limit,
+            "read",
             "content exceeds configured limit: " & Name);
          return;
       end if;
@@ -43,14 +47,16 @@ package body Git_Changes.Backends is
          --  Read in chunks and accumulate on the heap: holding the whole
          --  file in stack objects overflows the caller's task stack on
          --  outputs and sources of a few megabytes.
-         Chunk : Stream_Element_Array (1 .. 64 * 1024);
-         Last  : Stream_Element_Offset;
-         Total : IO.Count := 0;
+         Chunk        : Stream_Element_Array (1 .. 64 * 1024);
+         Last         : Stream_Element_Offset;
+         Total        : IO.Count := 0;
       begin
          if Current_Size > IO.Count (Max_Content_Bytes) then
             IO.Close (File);
             Set_Error
-              (Error, Resource_Limit, "read",
+              (Error,
+               Resource_Limit,
+               "read",
                "content grew beyond configured limit: " & Name);
             return;
          end if;
@@ -61,7 +67,8 @@ package body Git_Changes.Backends is
                Text : String (1 .. Natural (Last));
             begin
                for J in Text'Range loop
-                  Text (J) := Character'Val (Chunk (Stream_Element_Offset (J)));
+                  Text (J) :=
+                    Character'Val (Chunk (Stream_Element_Offset (J)));
                end loop;
                Append (Content, Text);
             end;
@@ -94,14 +101,16 @@ package body Git_Changes.Backends is
       use GNAT.OS_Lib;
       Dir : constant String :=
         (if Ada.Environment_Variables.Exists ("TMPDIR")
-         then Ada.Environment_Variables.Value ("TMPDIR") else "/tmp");
+         then Ada.Environment_Variables.Value ("TMPDIR")
+         else "/tmp");
       Pid : constant Integer := Pid_To_Integer (Current_Process_Id);
    begin
       for Attempt in 1 .. 1_000 loop
          Capture_Serial := Capture_Serial + 1;
          declare
             Candidate : constant String :=
-              Dir & "/git_changes-"
+              Dir
+              & "/git_changes-"
               & Ada.Strings.Fixed.Trim (Integer'Image (Pid), Ada.Strings.Both)
               & "-"
               & Ada.Strings.Fixed.Trim
@@ -149,16 +158,17 @@ package body Git_Changes.Backends is
       Prefix_Count : constant Positive := 7;
       --  The shell, the script, and the program name the script runs: the
       --  captured command is handed to a shell that redirects for it.
-      Shell_Count : constant Positive := 3;
-      Args : Argument_List (1 .. Shell_Count + Prefix_Count + Arguments'Length);
-      FD   : File_Descriptor;
-      Temp : Unbounded_String;
-      Git  : GNAT.OS_Lib.String_Access := Locate_Exec_On_Path ("git");
-      Shell : GNAT.OS_Lib.String_Access := Locate_Exec_On_Path ("sh");
-      Spawned : Boolean;
-      Status  : Integer := -1;
-      Read_Error : Error_Info;
-      Deleted : Boolean;
+      Shell_Count  : constant Positive := 3;
+      Args         :
+        Argument_List (1 .. Shell_Count + Prefix_Count + Arguments'Length);
+      FD           : File_Descriptor;
+      Temp         : Unbounded_String;
+      Git          : GNAT.OS_Lib.String_Access := Locate_Exec_On_Path ("git");
+      Shell        : GNAT.OS_Lib.String_Access := Locate_Exec_On_Path ("sh");
+      Spawned      : Boolean;
+      Status       : Integer := -1;
+      Read_Error   : Error_Info;
+      Deleted      : Boolean;
 
       procedure Release is
       begin
@@ -173,12 +183,18 @@ package body Git_Changes.Backends is
       Error := (others => <>);
       if Git = null then
          Free (Shell);
-         Set_Error (Error, Git_Command_Failed, Operation, "git executable not found", -1);
+         Set_Error
+           (Error,
+            Git_Command_Failed,
+            Operation,
+            "git executable not found",
+            -1);
          return;
       end if;
       if Shell = null then
          Free (Git);
-         Set_Error (Error, Git_Command_Failed, Operation, "shell not found", -1);
+         Set_Error
+           (Error, Git_Command_Failed, Operation, "shell not found", -1);
          return;
       end if;
 
@@ -186,7 +202,11 @@ package body Git_Changes.Backends is
       if FD = Invalid_FD then
          Free (Git);
          Free (Shell);
-         Set_Error (Error, Filesystem_Error, Operation, "cannot create temporary output");
+         Set_Error
+           (Error,
+            Filesystem_Error,
+            Operation,
+            "cannot create temporary output");
          return;
       end if;
       Close (FD);
@@ -206,8 +226,9 @@ package body Git_Changes.Backends is
       --  alone. "$0" and "$@" carry the program and its arguments as
       --  themselves, so no argument is ever read as shell syntax.
       Args (1) := new String'("-c");
-      Args (2) := new String'
-        ("exec ""$0"" ""$@"" >" & Shell_Word (To_String (Temp)) & " 2>&1");
+      Args (2) :=
+        new String'
+          ("exec ""$0"" ""$@"" >" & Shell_Word (To_String (Temp)) & " 2>&1");
       Args (3) := new String'(Git.all);
       Args (Shell_Count + 1) := new String'("--no-pager");
       Args (Shell_Count + 2) := new String'("-c");
@@ -227,7 +248,8 @@ package body Git_Changes.Backends is
 
       if not Spawned then
          Delete_File (To_String (Temp), Deleted);
-         Set_Error (Error, Git_Command_Failed, Operation, "could not execute git", -1);
+         Set_Error
+           (Error, Git_Command_Failed, Operation, "could not execute git", -1);
          return;
       end if;
 
@@ -239,12 +261,20 @@ package body Git_Changes.Backends is
       end if;
       if Status /= 0 then
          Set_Error
-           (Error, Git_Command_Failed, Operation,
-            Trim_Line_End (To_String (Output)), Status);
+           (Error,
+            Git_Command_Failed,
+            Operation,
+            Trim_Line_End (To_String (Output)),
+            Status);
       end if;
    exception
       when others =>
-         Set_Error (Error, Filesystem_Error, Operation, "backend process failure", Status);
+         Set_Error
+           (Error,
+            Filesystem_Error,
+            Operation,
+            "backend process failure",
+            Status);
    end Run_Git;
 
    function Trim_Line_End (Value : String) return String is
@@ -259,7 +289,8 @@ package body Git_Changes.Backends is
    end Trim_Line_End;
 
    function Digest (Value : String) return String is
-      Result : constant GNAT.SHA256.Message_Digest := GNAT.SHA256.Digest (Value);
+      Result : constant GNAT.SHA256.Message_Digest :=
+        GNAT.SHA256.Digest (Value);
    begin
       return Result;
    end Digest;
@@ -267,8 +298,10 @@ package body Git_Changes.Backends is
    function Git_Blob_Id (Object_Format, Content : String) return String is
       Image : constant String := Natural'Image (Content'Length);
       Input : constant String :=
-        "blob " & Image (Image'First + 1 .. Image'Last)
-        & Character'Val (0) & Content;
+        "blob "
+        & Image (Image'First + 1 .. Image'Last)
+        & Character'Val (0)
+        & Content;
    begin
       if Object_Format = "sha256" then
          declare
@@ -279,7 +312,8 @@ package body Git_Changes.Backends is
          end;
       else
          declare
-            Result : constant GNAT.SHA1.Message_Digest := GNAT.SHA1.Digest (Input);
+            Result : constant GNAT.SHA1.Message_Digest :=
+              GNAT.SHA1.Digest (Input);
          begin
             return Result;
          end;

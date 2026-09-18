@@ -1,10 +1,13 @@
-package body Tui.Pager.View with SPARK_Mode => On is
+package body Tui.Pager.View
+  with SPARK_Mode => On
+is
 
    -------------
    -- Max_Top --
    -------------
 
-   function Max_Top (Total : Line_Total; Height : Dimension) return Line_Number is
+   function Max_Top (Total : Line_Total; Height : Dimension) return Line_Number
+   is
    begin
       if Height = 0 or else Total <= Height then
          return 1;
@@ -23,7 +26,7 @@ package body Tui.Pager.View with SPARK_Mode => On is
       Cap : constant Line_Number := Max_Top (Total, Height);
    begin
       V.Height := Height;
-      V.Width  := Width;
+      V.Width := Width;
       if V.Top > Cap then
          V.Top := Cap;
       end if;
@@ -33,7 +36,8 @@ package body Tui.Pager.View with SPARK_Mode => On is
    -- Scroll_Down --
    -----------------
 
-   procedure Scroll_Down (V : in out Viewport; Total : Line_Total; By : Dimension)
+   procedure Scroll_Down
+     (V : in out Viewport; Total : Line_Total; By : Dimension)
    is
       Cap  : constant Line_Number := Max_Top (Total, V.Height);
       Want : constant Natural := V.Top + By;
@@ -135,7 +139,8 @@ package body Tui.Pager.View with SPARK_Mode => On is
    -- Last_Visible --
    ------------------
 
-   function Last_Visible (V : Viewport; Total : Line_Total) return Line_Total is
+   function Last_Visible (V : Viewport; Total : Line_Total) return Line_Total
+   is
    begin
       if Total = 0 or else V.Height = 0 then
          return 0;

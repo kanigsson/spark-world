@@ -1,5 +1,5 @@
-with Ada.Text_IO;          use Ada.Text_IO;
-with Huffman_Round_Trip;   use Huffman_Round_Trip;
+with Ada.Text_IO;        use Ada.Text_IO;
+with Huffman_Round_Trip; use Huffman_Round_Trip;
 
 procedure Huffman_Round_Trip_Test is
    Lengths : Full_Length_Array := (others => 0);
@@ -27,8 +27,13 @@ begin
    --  288-symbol alphabet and its 7-, 8-, and 9-bit code lengths.
    for I in Lengths'Range loop
       Lengths (I) :=
-        (if I <= 143 then 8 elsif I <= 255 then 9
-         elsif I <= 279 then 7 else 8);
+        (if I <= 143
+         then 8
+         elsif I <= 255
+         then 9
+         elsif I <= 279
+         then 7
+         else 8);
    end loop;
    Build (Lengths, Book, Success);
    pragma Assert (Success);

@@ -26,19 +26,21 @@ procedure Test_Diff is
       end loop;
       for I in A'Range loop
          for J in B'Range loop
-            T (I, J) := (if A (I) = B (J) then T (I - 1, J - 1)
-                         else 1 + Natural'Min (T (I - 1, J), T (I, J - 1)));
+            T (I, J) :=
+              (if A (I) = B (J)
+               then T (I - 1, J - 1)
+               else 1 + Natural'Min (T (I - 1, J), T (I, J - 1)));
          end loop;
       end loop;
       return T (A'Length, B'Length);
    end Optimal;
 
    procedure Test (A, B : Sequence; Budget : Natural) is
-      W : Workspace (0 .. Budget, -Budget .. Budget);
-      S : Script (1 .. A'Length + B'Length);
-      Last : Natural;
-      Minimal : Boolean;
-      Expected : constant Natural := Optimal (A, B);
+      W          : Workspace (0 .. Budget, -Budget .. Budget);
+      S          : Script (1 .. A'Length + B'Length);
+      Last       : Natural;
+      Minimal    : Boolean;
+      Expected   : constant Natural := Optimal (A, B);
       X, Y, Cost : Natural := 0;
    begin
       Cases := Cases + 1;
@@ -53,14 +55,16 @@ procedure Test_Diff is
       for E of S (1 .. Last) loop
          Check (E.Source = X and E.Target = Y);
          case E.Kind is
-            when Keep =>
+            when Keep   =>
                X := X + 1;
                Y := Y + 1;
                Check (A (X) = B (Y) and E.Value = A (X));
+
             when Delete =>
                X := X + 1;
                Cost := Cost + 1;
                Check (E.Value = A (X));
+
             when Insert =>
                Y := Y + 1;
                Cost := Cost + 1;
@@ -87,20 +91,22 @@ procedure Test_Diff is
    end Decode;
 
    procedure All_Alternatives (A, B : Sequence) is
-      Budget : constant Natural := A'Length + B'Length;
-      W : Workspace (0 .. Budget, -Budget .. Budget);
+      Budget      : constant Natural := A'Length + B'Length;
+      W           : Workspace (0 .. Budget, -Budget .. Budget);
       Best, Other : Script (1 .. Budget);
-      Last : Natural;
-      Minimal : Boolean;
+      Last        : Natural;
+      Minimal     : Boolean;
       procedure Visit (X, Y, Used : Natural) is
       begin
          if X = A'Length and Y = B'Length then
             Check (Describes (A, B, Other (1 .. Used)));
             Lemma_Minimal (A, B, Best (1 .. Last), Other (1 .. Used), W);
-            Check (Edit_Cost (Best (1 .. Last)) <= Edit_Cost (Other (1 .. Used)));
+            Check
+              (Edit_Cost (Best (1 .. Last)) <= Edit_Cost (Other (1 .. Used)));
             return;
          end if;
-         if X < A'Length and then Y < B'Length and then A (X + 1) = B (Y + 1) then
+         if X < A'Length and then Y < B'Length and then A (X + 1) = B (Y + 1)
+         then
             Other (Used + 1) := (Keep, X, Y, A (X + 1));
             Visit (X + 1, Y + 1, Used + 1);
          end if;
@@ -125,8 +131,8 @@ procedure Test_Diff is
 begin
    for N in 0 .. 4 loop
       for M in 0 .. 4 loop
-         for AC in 0 .. 3 ** N - 1 loop
-            for BC in 0 .. 3 ** M - 1 loop
+         for AC in 0 .. 3**N - 1 loop
+            for BC in 0 .. 3**M - 1 loop
                for Budget in 0 .. N + M loop
                   Test (Decode (N, AC), Decode (M, BC), Budget);
                end loop;
@@ -136,19 +142,19 @@ begin
    end loop;
    for N in 0 .. 2 loop
       for M in 0 .. 2 loop
-         for AC in 0 .. 3 ** N - 1 loop
-            for BC in 0 .. 3 ** M - 1 loop
+         for AC in 0 .. 3**N - 1 loop
+            for BC in 0 .. 3**M - 1 loop
                All_Alternatives (Decode (N, AC), Decode (M, BC));
             end loop;
          end loop;
       end loop;
    end loop;
    declare
-      A : constant Sequence := [1];
-      B : constant Sequence := [2];
-      W : Workspace (0 .. 2, -2 .. 2);
-      S : Script (1 .. 2);
-      Last : Natural;
+      A       : constant Sequence := [1];
+      B       : constant Sequence := [2];
+      W       : Workspace (0 .. 2, -2 .. 2);
+      S       : Script (1 .. 2);
+      Last    : Natural;
       Minimal : Boolean;
    begin
       Diff (A, B, W, S, Last, Minimal);
@@ -189,5 +195,6 @@ begin
    Check (not Valid ([7], Script'(2 => (Keep, 0, 0, 7))));
    Check (not Valid (Sequence'(2 => 7), Script'[]));
    Check (not Valid (Sequence'[], [(Insert, 0, Max_Length, 7)]));
-   Ada.Text_IO.Put_Line ("PASS:" & Cases'Image & " cases," & Checks'Image & " checks");
+   Ada.Text_IO.Put_Line
+     ("PASS:" & Cases'Image & " cases," & Checks'Image & " checks");
 end Test_Diff;

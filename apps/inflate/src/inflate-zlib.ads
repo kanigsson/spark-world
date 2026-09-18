@@ -5,7 +5,9 @@
 --  ZLib_Dictionary_Needed; they do not occur in the wild outside a few
 --  specialised protocols that supply the dictionary out of band.
 
-package Inflate.ZLib with SPARK_Mode => On is
+package Inflate.ZLib
+  with SPARK_Mode => On
+is
 
    --  Decompress the zlib stream starting at Input'First. Status = OK
    --  means well-formed *and* the Adler-32 checksum matched. Consumed
@@ -13,11 +15,11 @@ package Inflate.ZLib with SPARK_Mode => On is
    --  stream is the caller's to interpret. On error, Consumed and Produced
    --  report progress for diagnostics; the output bytes are not valid data.
    procedure Decompress
-     (Input    : in     Byte_Array;
+     (Input    : in Byte_Array;
       Output   : in out Byte_Array;
-      Consumed :    out Natural;
-      Produced :    out Natural;
-      Status   :    out Status_Type)
+      Consumed : out Natural;
+      Produced : out Natural;
+      Status   : out Status_Type)
    with
      Global => null,
      Post   => Consumed <= Input'Length and then Produced <= Output'Length;

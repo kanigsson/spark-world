@@ -1,6 +1,8 @@
 with Tui.Term.Output;
 
-package body Tui.Term.Clipboard with SPARK_Mode => On is
+package body Tui.Term.Clipboard
+  with SPARK_Mode => On
+is
 
    ESC : constant Character := Character'Val (16#1B#);
    BEL : constant Character := Character'Val (16#07#);
@@ -20,15 +22,22 @@ package body Tui.Term.Clipboard with SPARK_Mode => On is
          return;
       end if;
 
-      Output.Put (ESC & "]52;" & (case To is
-                                    when Clipboard => 'c',
-                                    when Primary   => 'p') & ";");
+      Output.Put
+        (ESC
+         & "]52;"
+         & (case To is
+              when Clipboard => 'c',
+              when Primary   => 'p')
+         & ";");
       for N in 1 .. Count loop
          Output.Put (Tui.Panes.Clip.Encode (Text, N));
       end loop;
       case Ends_With is
-         when Bell              => Output.Put ((1 => BEL));
-         when String_Terminator => Output.Put (ESC & "\");
+         when Bell              =>
+            Output.Put ((1 => BEL));
+
+         when String_Terminator =>
+            Output.Put (ESC & "\");
       end case;
    end Set;
 

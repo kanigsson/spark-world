@@ -7,19 +7,21 @@ with Git_Changes;
 with Git_Changes.History;
 with Git_Changes.Repositories;
 
-package body Git_View_Source.OS with SPARK_Mode => Off is
+package body Git_View_Source.OS
+  with SPARK_Mode => Off
+is
 
    package G renames Git_Changes;
 
    type Content_Buffer is access Tui.Text.Buffer;
 
-   procedure Free is
-     new Ada.Unchecked_Deallocation (Tui.Text.Buffer, Content_Buffer);
+   procedure Free is new
+     Ada.Unchecked_Deallocation (Tui.Text.Buffer, Content_Buffer);
 
    --  The staging buffer is heap allocated: a document-sized stack object
    --  overflows on long histories and large diffs.
    function Document (Value : String) return Tui.Text.Doc_Ref is
-      Raw : Content_Buffer := new Tui.Text.Buffer (1 .. Value'Length);
+      Raw    : Content_Buffer := new Tui.Text.Buffer (1 .. Value'Length);
       Result : Tui.Text.Doc_Ref;
    begin
       for K in Raw.all'Range loop
@@ -34,7 +36,8 @@ package body Git_View_Source.OS with SPARK_Mode => Off is
    -- Find_Git --
    --------------
 
-   function Find_Git return Boolean is (G.Repositories.Available);
+   function Find_Git return Boolean
+   is (G.Repositories.Available);
 
    --  The history walk runs before the alternate screen goes up, so its
    --  failure is worth explaining where the user can still read it — the
@@ -44,7 +47,8 @@ package body Git_View_Source.OS with SPARK_Mode => Off is
       Ada.Text_IO.Put_Line
         (Ada.Text_IO.Standard_Error, "git_view: " & G.Detail (Error));
    exception
-      when others => null;
+      when others =>
+         null;
    end Report;
 
    --  Open the repository the process was started in. Every query needs it,
@@ -69,12 +73,12 @@ package body Git_View_Source.OS with SPARK_Mode => Off is
       Doc    : out Tui.Text.Doc_Ref;
       Ok     : out Boolean)
    is
-      Repo    : G.Repository;
-      Error   : G.Error_Info;
-      Walk    : G.History.Log;
-      Query   : G.History.Filter;
-      Opened  : Boolean;
-      Text    : Unbounded_String;
+      Repo   : G.Repository;
+      Error  : G.Error_Info;
+      Walk   : G.History.Log;
+      Query  : G.History.Filter;
+      Opened : Boolean;
+      Text   : Unbounded_String;
    begin
       Doc := null;
       Open (Repo, Opened);
@@ -116,11 +120,17 @@ package body Git_View_Source.OS with SPARK_Mode => Off is
          declare
             Refs : constant String := G.History.References (Walk, I);
          begin
-            Append (Text, G.History.Abbreviated (Walk, I) & " "
-                    & G.History.Commit_Date (Walk, I)
-                    & (if Refs'Length = 0 then "" else " [" & Refs & "]")
-                    & " " & G.History.Author (Walk, I)
-                    & " " & G.History.Subject (Walk, I) & ASCII.LF);
+            Append
+              (Text,
+               G.History.Abbreviated (Walk, I)
+               & " "
+               & G.History.Commit_Date (Walk, I)
+               & (if Refs'Length = 0 then "" else " [" & Refs & "]")
+               & " "
+               & G.History.Author (Walk, I)
+               & " "
+               & G.History.Subject (Walk, I)
+               & ASCII.LF);
          end;
       end loop;
       Doc := Document (To_String (Text));
@@ -136,9 +146,7 @@ package body Git_View_Source.OS with SPARK_Mode => Off is
    -----------------
 
    procedure Load_Commit
-     (Id  : String;
-      Doc : out Tui.Text.Doc_Ref;
-      Ok  : out Boolean)
+     (Id : String; Doc : out Tui.Text.Doc_Ref; Ok : out Boolean)
    is
       Repo   : G.Repository;
       Error  : G.Error_Info;

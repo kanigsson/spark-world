@@ -22,24 +22,49 @@
 --  internal predicate also rules out arithmetic overflow during UTF-8 assembly.
 --  No I/O, no OS: a driver crate reads the raw bytes; this only interprets them.
 
-package Tui.Input with SPARK_Mode => On is
+package Tui.Input
+  with SPARK_Mode => On
+is
 
    --  A single octet as read from the terminal.
-   type Byte is mod 2 ** 8;
+   type Byte is mod 2**8;
 
    --  A Unicode scalar value (used only for Char events).
    subtype Code_Point is Natural range 0 .. 16#10_FFFF#;
 
    type Key_Kind is
      (Char,                                   --  a printable character (Code)
-      Enter, Tab, Backspace, Escape,          --  common editing keys
-      Up, Down, Left, Right,                   --  cursor keys
-      Home, End_Key, Page_Up, Page_Down,       --  navigation
-      Insert, Delete,
-      F1, F2, F3, F4, F5, F6,                  --  function keys
-      F7, F8, F9, F10, F11, F12,
-      Mouse_Press, Mouse_Release, Mouse_Motion, --  button down / up / drag
-      Wheel_Up, Wheel_Down,                    --  scroll-wheel notches
+      Enter,
+      Tab,
+      Backspace,
+      Escape,          --  common editing keys
+      Up,
+      Down,
+      Left,
+      Right,                   --  cursor keys
+      Home,
+      End_Key,
+      Page_Up,
+      Page_Down,       --  navigation
+      Insert,
+      Delete,
+      F1,
+      F2,
+      F3,
+      F4,
+      F5,
+      F6,                  --  function keys
+      F7,
+      F8,
+      F9,
+      F10,
+      F11,
+      F12,
+      Mouse_Press,
+      Mouse_Release,
+      Mouse_Motion, --  button down / up / drag
+      Wheel_Up,
+      Wheel_Down,                    --  scroll-wheel notches
       Unknown);                                --  recognised structure, no mapping
 
    type Modifiers is record
@@ -63,10 +88,10 @@ package Tui.Input with SPARK_Mode => On is
    --  their defaults and should be ignored. (A flat record rather than a
    --  discriminated one keeps `out` usage and aggregates trivial.)
    type Key_Event is record
-      Kind   : Key_Kind         := Unknown;
-      Mods   : Modifiers        := No_Modifiers;
-      Code   : Code_Point       := 0;
-      Button : Mouse_Button     := No_Button;
+      Kind   : Key_Kind := Unknown;
+      Mods   : Modifiers := No_Modifiers;
+      Code   : Code_Point := 0;
+      Button : Mouse_Button := No_Button;
       Col    : Mouse_Coordinate := 0;
       Row    : Mouse_Coordinate := 0;
    end record;
@@ -92,16 +117,16 @@ package Tui.Input with SPARK_Mode => On is
    --  A pending bare ESC becomes the Escape key; any other partial sequence is
    --  discarded. Always leaves the decoder in the Ground state.
    procedure Flush
-     (D         : in out Decoder;
-      Event     : out Key_Event;
-      Available : out Boolean)
-   with Global => null,
-        Post   => not Is_Pending (D)
-                  and then (if Available then Event.Kind = Escape);
+     (D : in out Decoder; Event : out Key_Event; Available : out Boolean)
+   with
+     Global => null,
+     Post   =>
+       not Is_Pending (D) and then (if Available then Event.Kind = Escape);
 
    --  True when the decoder is mid-sequence — i.e. a Flush could still produce
    --  an event. Drivers use this to decide whether to arm an ESC timeout.
-   function Is_Pending (D : Decoder) return Boolean with Global => null;
+   function Is_Pending (D : Decoder) return Boolean
+   with Global => null;
 
 private
 
@@ -110,29 +135,31 @@ private
    type Parser_State is (Ground, After_Esc, In_Csi, In_Ss3, In_Utf8);
 
    subtype Pending_Count is Natural range 0 .. 3;          --  UTF-8 bytes left
-   subtype Acc_Type      is Natural range 0 .. 2_097_151;  --  UTF-8 accumulator
-   subtype Param_Val     is Mouse_Coordinate;              --  one CSI parameter
-   subtype Param_Index   is Positive range 1 .. 3;         --  which param
+   subtype Acc_Type is Natural range 0 .. 2_097_151;  --  UTF-8 accumulator
+   subtype Param_Val is Mouse_Coordinate;              --  one CSI parameter
+   subtype Param_Index is Positive range 1 .. 3;         --  which param
 
    --  The predicate ties the UTF-8 accumulator to the number of continuation
    --  bytes still expected, so that each `Acc * 64 + ...` step is provably
    --  in range (max legitimate value is 0x1F_FFFF, the subtype's bound).
    type Decoder is record
-      St      : Parser_State  := Ground;
-      Acc     : Acc_Type      := 0;
+      St      : Parser_State := Ground;
+      Acc     : Acc_Type := 0;
       Pending : Pending_Count := 0;
-      P1      : Param_Val     := 0;
-      P2      : Param_Val     := 0;
-      P3      : Param_Val     := 0;
-      PIdx    : Param_Index   := 1;
-      Mouse   : Boolean       := False;   --  saw the SGR '<' marker after CSI
+      P1      : Param_Val := 0;
+      P2      : Param_Val := 0;
+      P3      : Param_Val := 0;
+      PIdx    : Param_Index := 1;
+      Mouse   : Boolean := False;   --  saw the SGR '<' marker after CSI
    end record
-     with Dynamic_Predicate =>
+   with
+     Dynamic_Predicate =>
        ((Decoder.St = In_Utf8) = (Decoder.Pending > 0))
        and then (if Decoder.Pending = 1 then Decoder.Acc <= 32_767)
        and then (if Decoder.Pending = 2 then Decoder.Acc <= 511)
        and then (if Decoder.Pending = 3 then Decoder.Acc <= 7);
 
-   function Is_Pending (D : Decoder) return Boolean is (D.St /= Ground);
+   function Is_Pending (D : Decoder) return Boolean
+   is (D.St /= Ground);
 
 end Tui.Input;

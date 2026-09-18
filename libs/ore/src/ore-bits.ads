@@ -333,9 +333,8 @@ is
      Post   =>
        (Static =>
           (for all I in 0 .. Amount - 1 => not Bit (Shift_Left'Result, I))
-          and then
-            (for all I in Amount .. 7 =>
-               Bit (Shift_Left'Result, I) = Bit (Value, I - Amount)));
+          and then (for all I in Amount .. 7 =>
+                      Bit (Shift_Left'Result, I) = Bit (Value, I - Amount)));
 
    function Shift_Left (Value : Word16; Amount : Bit_Count_16) return Word16
    with
@@ -343,9 +342,8 @@ is
      Post   =>
        (Static =>
           (for all I in 0 .. Amount - 1 => not Bit (Shift_Left'Result, I))
-          and then
-            (for all I in Amount .. 15 =>
-               Bit (Shift_Left'Result, I) = Bit (Value, I - Amount)));
+          and then (for all I in Amount .. 15 =>
+                      Bit (Shift_Left'Result, I) = Bit (Value, I - Amount)));
 
    function Shift_Left (Value : Word32; Amount : Bit_Count_32) return Word32
    with
@@ -353,9 +351,8 @@ is
      Post   =>
        (Static =>
           (for all I in 0 .. Amount - 1 => not Bit (Shift_Left'Result, I))
-          and then
-            (for all I in Amount .. 31 =>
-               Bit (Shift_Left'Result, I) = Bit (Value, I - Amount)));
+          and then (for all I in Amount .. 31 =>
+                      Bit (Shift_Left'Result, I) = Bit (Value, I - Amount)));
 
    function Shift_Left (Value : Word64; Amount : Bit_Count_64) return Word64
    with
@@ -363,9 +360,8 @@ is
      Post   =>
        (Static =>
           (for all I in 0 .. Amount - 1 => not Bit (Shift_Left'Result, I))
-          and then
-            (for all I in Amount .. 63 =>
-               Bit (Shift_Left'Result, I) = Bit (Value, I - Amount)));
+          and then (for all I in Amount .. 63 =>
+                      Bit (Shift_Left'Result, I) = Bit (Value, I - Amount)));
 
    --  Shift towards the less significant end, filling with zeroes. This is a
    --  logical shift: nothing here treats a word as signed.
@@ -376,8 +372,8 @@ is
        (Static =>
           (for all I in 0 .. 7 - Amount =>
              Bit (Shift_Right'Result, I) = Bit (Value, I + Amount))
-          and then
-            (for all I in 8 - Amount .. 7 => not Bit (Shift_Right'Result, I)));
+          and then (for all I in 8 - Amount .. 7 =>
+                      not Bit (Shift_Right'Result, I)));
 
    function Shift_Right (Value : Word16; Amount : Bit_Count_16) return Word16
    with
@@ -386,9 +382,8 @@ is
        (Static =>
           (for all I in 0 .. 15 - Amount =>
              Bit (Shift_Right'Result, I) = Bit (Value, I + Amount))
-          and then
-            (for all I in 16 - Amount .. 15 =>
-               not Bit (Shift_Right'Result, I)));
+          and then (for all I in 16 - Amount .. 15 =>
+                      not Bit (Shift_Right'Result, I)));
 
    function Shift_Right (Value : Word32; Amount : Bit_Count_32) return Word32
    with
@@ -397,9 +392,8 @@ is
        (Static =>
           (for all I in 0 .. 31 - Amount =>
              Bit (Shift_Right'Result, I) = Bit (Value, I + Amount))
-          and then
-            (for all I in 32 - Amount .. 31 =>
-               not Bit (Shift_Right'Result, I)));
+          and then (for all I in 32 - Amount .. 31 =>
+                      not Bit (Shift_Right'Result, I)));
 
    function Shift_Right (Value : Word64; Amount : Bit_Count_64) return Word64
    with
@@ -408,9 +402,8 @@ is
        (Static =>
           (for all I in 0 .. 63 - Amount =>
              Bit (Shift_Right'Result, I) = Bit (Value, I + Amount))
-          and then
-            (for all I in 64 - Amount .. 63 =>
-               not Bit (Shift_Right'Result, I)));
+          and then (for all I in 64 - Amount .. 63 =>
+                      not Bit (Shift_Right'Result, I)));
 
    --  Rotate: the bits leaving one end re-enter at the other. The
    --  postcondition takes the source position modulo the width, so a rotation
@@ -422,9 +415,9 @@ is
        (Static =>
           (for all I in Amount .. 7 =>
              Bit (Rotate_Left'Result, I) = Bit (Value, I - Amount))
-          and then
-            (for all I in 0 .. Amount - 1 =>
-               Bit (Rotate_Left'Result, I) = Bit (Value, I + 8 - Amount)));
+          and then (for all I in 0 .. Amount - 1 =>
+                      Bit (Rotate_Left'Result, I)
+                      = Bit (Value, I + 8 - Amount)));
 
    function Rotate_Left (Value : Word16; Amount : Bit_Count_16) return Word16
    with
@@ -433,9 +426,9 @@ is
        (Static =>
           (for all I in Amount .. 15 =>
              Bit (Rotate_Left'Result, I) = Bit (Value, I - Amount))
-          and then
-            (for all I in 0 .. Amount - 1 =>
-               Bit (Rotate_Left'Result, I) = Bit (Value, I + 16 - Amount)));
+          and then (for all I in 0 .. Amount - 1 =>
+                      Bit (Rotate_Left'Result, I)
+                      = Bit (Value, I + 16 - Amount)));
 
    function Rotate_Left (Value : Word32; Amount : Bit_Count_32) return Word32
    with
@@ -444,9 +437,9 @@ is
        (Static =>
           (for all I in Amount .. 31 =>
              Bit (Rotate_Left'Result, I) = Bit (Value, I - Amount))
-          and then
-            (for all I in 0 .. Amount - 1 =>
-               Bit (Rotate_Left'Result, I) = Bit (Value, I + 32 - Amount)));
+          and then (for all I in 0 .. Amount - 1 =>
+                      Bit (Rotate_Left'Result, I)
+                      = Bit (Value, I + 32 - Amount)));
 
    function Rotate_Left (Value : Word64; Amount : Bit_Count_64) return Word64
    with
@@ -455,9 +448,9 @@ is
        (Static =>
           (for all I in Amount .. 63 =>
              Bit (Rotate_Left'Result, I) = Bit (Value, I - Amount))
-          and then
-            (for all I in 0 .. Amount - 1 =>
-               Bit (Rotate_Left'Result, I) = Bit (Value, I + 64 - Amount)));
+          and then (for all I in 0 .. Amount - 1 =>
+                      Bit (Rotate_Left'Result, I)
+                      = Bit (Value, I + 64 - Amount)));
 
    function Rotate_Right (Value : Byte; Amount : Bit_Count_8) return Byte
    with
@@ -466,9 +459,9 @@ is
        (Static =>
           (for all I in 0 .. 7 - Amount =>
              Bit (Rotate_Right'Result, I) = Bit (Value, I + Amount))
-          and then
-            (for all I in 8 - Amount .. 7 =>
-               Bit (Rotate_Right'Result, I) = Bit (Value, I + Amount - 8)));
+          and then (for all I in 8 - Amount .. 7 =>
+                      Bit (Rotate_Right'Result, I)
+                      = Bit (Value, I + Amount - 8)));
 
    function Rotate_Right (Value : Word16; Amount : Bit_Count_16) return Word16
    with
@@ -477,9 +470,9 @@ is
        (Static =>
           (for all I in 0 .. 15 - Amount =>
              Bit (Rotate_Right'Result, I) = Bit (Value, I + Amount))
-          and then
-            (for all I in 16 - Amount .. 15 =>
-               Bit (Rotate_Right'Result, I) = Bit (Value, I + Amount - 16)));
+          and then (for all I in 16 - Amount .. 15 =>
+                      Bit (Rotate_Right'Result, I)
+                      = Bit (Value, I + Amount - 16)));
 
    function Rotate_Right (Value : Word32; Amount : Bit_Count_32) return Word32
    with
@@ -488,9 +481,9 @@ is
        (Static =>
           (for all I in 0 .. 31 - Amount =>
              Bit (Rotate_Right'Result, I) = Bit (Value, I + Amount))
-          and then
-            (for all I in 32 - Amount .. 31 =>
-               Bit (Rotate_Right'Result, I) = Bit (Value, I + Amount - 32)));
+          and then (for all I in 32 - Amount .. 31 =>
+                      Bit (Rotate_Right'Result, I)
+                      = Bit (Value, I + Amount - 32)));
 
    function Rotate_Right (Value : Word64; Amount : Bit_Count_64) return Word64
    with
@@ -499,9 +492,9 @@ is
        (Static =>
           (for all I in 0 .. 63 - Amount =>
              Bit (Rotate_Right'Result, I) = Bit (Value, I + Amount))
-          and then
-            (for all I in 64 - Amount .. 63 =>
-               Bit (Rotate_Right'Result, I) = Bit (Value, I + Amount - 64)));
+          and then (for all I in 64 - Amount .. 63 =>
+                      Bit (Rotate_Right'Result, I)
+                      = Bit (Value, I + Amount - 64)));
 
    ---------------------------------------------------------------------------
    --  Masks
@@ -527,12 +520,12 @@ is
      Post   =>
        (Runtime =>
           (if Count < 8
-           then Low_Mask_8'Result = 2 ** Count - 1
+           then Low_Mask_8'Result = 2**Count - 1
            else Low_Mask_8'Result = Byte'Last),
         Static  =>
           (for all I in 0 .. Count - 1 => Bit (Low_Mask_8'Result, I))
-          and then
-            (for all I in Count .. 7 => not Bit (Low_Mask_8'Result, I)));
+          and then (for all I in Count .. 7 =>
+                      not Bit (Low_Mask_8'Result, I)));
 
    function Low_Mask_16 (Count : Bit_Count_16) return Word16
    with
@@ -540,12 +533,12 @@ is
      Post   =>
        (Runtime =>
           (if Count < 16
-           then Low_Mask_16'Result = 2 ** Count - 1
+           then Low_Mask_16'Result = 2**Count - 1
            else Low_Mask_16'Result = Word16'Last),
         Static  =>
           (for all I in 0 .. Count - 1 => Bit (Low_Mask_16'Result, I))
-          and then
-            (for all I in Count .. 15 => not Bit (Low_Mask_16'Result, I)));
+          and then (for all I in Count .. 15 =>
+                      not Bit (Low_Mask_16'Result, I)));
 
    function Low_Mask_32 (Count : Bit_Count_32) return Word32
    with
@@ -553,12 +546,12 @@ is
      Post   =>
        (Runtime =>
           (if Count < 32
-           then Low_Mask_32'Result = 2 ** Count - 1
+           then Low_Mask_32'Result = 2**Count - 1
            else Low_Mask_32'Result = Word32'Last),
         Static  =>
           (for all I in 0 .. Count - 1 => Bit (Low_Mask_32'Result, I))
-          and then
-            (for all I in Count .. 31 => not Bit (Low_Mask_32'Result, I)));
+          and then (for all I in Count .. 31 =>
+                      not Bit (Low_Mask_32'Result, I)));
 
    function Low_Mask_64 (Count : Bit_Count_64) return Word64
    with
@@ -566,12 +559,12 @@ is
      Post   =>
        (Runtime =>
           (if Count < 64
-           then Low_Mask_64'Result = 2 ** Count - 1
+           then Low_Mask_64'Result = 2**Count - 1
            else Low_Mask_64'Result = Word64'Last),
         Static  =>
           (for all I in 0 .. Count - 1 => Bit (Low_Mask_64'Result, I))
-          and then
-            (for all I in Count .. 63 => not Bit (Low_Mask_64'Result, I)));
+          and then (for all I in Count .. 63 =>
+                      not Bit (Low_Mask_64'Result, I)));
 
    --  A value that fits under a low mask has no bits above the mask. This is
    --  the step from the arithmetic bound a client carries — the form a bound
@@ -659,27 +652,27 @@ is
    with
      Ghost  => Static,
      Global => null,
-     Post   => Natural (Low_Mask_8 (Count)) = 2 ** Count - 1;
+     Post   => Natural (Low_Mask_8 (Count)) = 2**Count - 1;
 
    procedure Lemma_Low_Mask_16_Natural (Count : Bit_Count_16)
    with
      Ghost  => Static,
      Global => null,
-     Post   => Natural (Low_Mask_16 (Count)) = 2 ** Count - 1;
+     Post   => Natural (Low_Mask_16 (Count)) = 2**Count - 1;
 
    procedure Lemma_Low_Mask_32_Natural (Count : Bit_Count_32)
    with
      Ghost  => Static,
      Global => null,
      Pre    => Count <= 30,
-     Post   => Natural (Low_Mask_32 (Count)) = 2 ** Count - 1;
+     Post   => Natural (Low_Mask_32 (Count)) = 2**Count - 1;
 
    procedure Lemma_Low_Mask_64_Natural (Count : Bit_Count_64)
    with
      Ghost  => Static,
      Global => null,
      Pre    => Count <= 30,
-     Post   => Natural (Low_Mask_64 (Count)) = 2 ** Count - 1;
+     Post   => Natural (Low_Mask_64 (Count)) = 2**Count - 1;
 
    --  Count bits set, starting at Offset: the mask of one field. The bound is
    --  in subtraction form, so the sum Offset + Count is never formed where it
@@ -696,15 +689,14 @@ is
      Global => null,
      Pre    => Count <= 8 - Offset,
      Post   =>
-       (Runtime => Field_Mask_8'Result = Low_Mask_8 (Count) * 2 ** Offset,
+       (Runtime => Field_Mask_8'Result = Low_Mask_8 (Count) * 2**Offset,
         Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Field_Mask_8'Result, I))
-          and then
-            (for all I in 0 .. Offset - 1 => not Bit (Field_Mask_8'Result, I))
-          and then
-            (for all I in Offset + Count .. 7 =>
-               not Bit (Field_Mask_8'Result, I)));
+          and then (for all I in 0 .. Offset - 1 =>
+                      not Bit (Field_Mask_8'Result, I))
+          and then (for all I in Offset + Count .. 7 =>
+                      not Bit (Field_Mask_8'Result, I)));
 
    function Field_Mask_16
      (Offset : Bit_Count_16; Count : Bit_Count_16) return Word16
@@ -712,15 +704,14 @@ is
      Global => null,
      Pre    => Count <= 16 - Offset,
      Post   =>
-       (Runtime => Field_Mask_16'Result = Low_Mask_16 (Count) * 2 ** Offset,
+       (Runtime => Field_Mask_16'Result = Low_Mask_16 (Count) * 2**Offset,
         Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Field_Mask_16'Result, I))
-          and then
-            (for all I in 0 .. Offset - 1 => not Bit (Field_Mask_16'Result, I))
-          and then
-            (for all I in Offset + Count .. 15 =>
-               not Bit (Field_Mask_16'Result, I)));
+          and then (for all I in 0 .. Offset - 1 =>
+                      not Bit (Field_Mask_16'Result, I))
+          and then (for all I in Offset + Count .. 15 =>
+                      not Bit (Field_Mask_16'Result, I)));
 
    function Field_Mask_32
      (Offset : Bit_Count_32; Count : Bit_Count_32) return Word32
@@ -728,15 +719,14 @@ is
      Global => null,
      Pre    => Count <= 32 - Offset,
      Post   =>
-       (Runtime => Field_Mask_32'Result = Low_Mask_32 (Count) * 2 ** Offset,
+       (Runtime => Field_Mask_32'Result = Low_Mask_32 (Count) * 2**Offset,
         Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Field_Mask_32'Result, I))
-          and then
-            (for all I in 0 .. Offset - 1 => not Bit (Field_Mask_32'Result, I))
-          and then
-            (for all I in Offset + Count .. 31 =>
-               not Bit (Field_Mask_32'Result, I)));
+          and then (for all I in 0 .. Offset - 1 =>
+                      not Bit (Field_Mask_32'Result, I))
+          and then (for all I in Offset + Count .. 31 =>
+                      not Bit (Field_Mask_32'Result, I)));
 
    function Field_Mask_64
      (Offset : Bit_Count_64; Count : Bit_Count_64) return Word64
@@ -744,15 +734,14 @@ is
      Global => null,
      Pre    => Count <= 64 - Offset,
      Post   =>
-       (Runtime => Field_Mask_64'Result = Low_Mask_64 (Count) * 2 ** Offset,
+       (Runtime => Field_Mask_64'Result = Low_Mask_64 (Count) * 2**Offset,
         Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Field_Mask_64'Result, I))
-          and then
-            (for all I in 0 .. Offset - 1 => not Bit (Field_Mask_64'Result, I))
-          and then
-            (for all I in Offset + Count .. 63 =>
-               not Bit (Field_Mask_64'Result, I)));
+          and then (for all I in 0 .. Offset - 1 =>
+                      not Bit (Field_Mask_64'Result, I))
+          and then (for all I in Offset + Count .. 63 =>
+                      not Bit (Field_Mask_64'Result, I)));
 
    ---------------------------------------------------------------------------
    --  Powers of two
@@ -775,7 +764,7 @@ is
    with
      Global => null,
      Post   =>
-       (Runtime => Power_Of_Two_8'Result = 2 ** Exponent,
+       (Runtime => Power_Of_Two_8'Result = 2**Exponent,
         Static  =>
           (for all I in Bit_Index_8 =>
              Bit (Power_Of_Two_8'Result, I) = (I = Exponent)));
@@ -784,7 +773,7 @@ is
    with
      Global => null,
      Post   =>
-       (Runtime => Power_Of_Two_16'Result = 2 ** Exponent,
+       (Runtime => Power_Of_Two_16'Result = 2**Exponent,
         Static  =>
           (for all I in Bit_Index_16 =>
              Bit (Power_Of_Two_16'Result, I) = (I = Exponent)));
@@ -793,7 +782,7 @@ is
    with
      Global => null,
      Post   =>
-       (Runtime => Power_Of_Two_32'Result = 2 ** Exponent,
+       (Runtime => Power_Of_Two_32'Result = 2**Exponent,
         Static  =>
           (for all I in Bit_Index_32 =>
              Bit (Power_Of_Two_32'Result, I) = (I = Exponent)));
@@ -802,7 +791,7 @@ is
    with
      Global => null,
      Post   =>
-       (Runtime => Power_Of_Two_64'Result = 2 ** Exponent,
+       (Runtime => Power_Of_Two_64'Result = 2**Exponent,
         Static  =>
           (for all I in Bit_Index_64 =>
              Bit (Power_Of_Two_64'Result, I) = (I = Exponent)));
@@ -818,27 +807,27 @@ is
    with
      Ghost  => Static,
      Global => null,
-     Post   => Natural (Power_Of_Two_8 (Exponent)) = 2 ** Exponent;
+     Post   => Natural (Power_Of_Two_8 (Exponent)) = 2**Exponent;
 
    procedure Lemma_Power_Of_Two_16_Natural (Exponent : Bit_Index_16)
    with
      Ghost  => Static,
      Global => null,
-     Post   => Natural (Power_Of_Two_16 (Exponent)) = 2 ** Exponent;
+     Post   => Natural (Power_Of_Two_16 (Exponent)) = 2**Exponent;
 
    procedure Lemma_Power_Of_Two_32_Natural (Exponent : Bit_Index_32)
    with
      Ghost  => Static,
      Global => null,
      Pre    => Exponent <= 30,
-     Post   => Natural (Power_Of_Two_32 (Exponent)) = 2 ** Exponent;
+     Post   => Natural (Power_Of_Two_32 (Exponent)) = 2**Exponent;
 
    procedure Lemma_Power_Of_Two_64_Natural (Exponent : Bit_Index_64)
    with
      Ghost  => Static,
      Global => null,
      Pre    => Exponent <= 30,
-     Post   => Natural (Power_Of_Two_64 (Exponent)) = 2 ** Exponent;
+     Post   => Natural (Power_Of_Two_64 (Exponent)) = 2**Exponent;
 
    ---------------------------------------------------------------------------
    --  Bit fields
@@ -915,12 +904,10 @@ is
         Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Insert'Result, I) = Bit (Field, I - Offset))
-          and then
-            (for all I in 0 .. Offset - 1 =>
-               Bit (Insert'Result, I) = Bit (Value, I))
-          and then
-            (for all I in Offset + Count .. 7 =>
-               Bit (Insert'Result, I) = Bit (Value, I)));
+          and then (for all I in 0 .. Offset - 1 =>
+                      Bit (Insert'Result, I) = Bit (Value, I))
+          and then (for all I in Offset + Count .. 7 =>
+                      Bit (Insert'Result, I) = Bit (Value, I)));
 
    function Insert
      (Value  : Word16;
@@ -935,12 +922,10 @@ is
         Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Insert'Result, I) = Bit (Field, I - Offset))
-          and then
-            (for all I in 0 .. Offset - 1 =>
-               Bit (Insert'Result, I) = Bit (Value, I))
-          and then
-            (for all I in Offset + Count .. 15 =>
-               Bit (Insert'Result, I) = Bit (Value, I)));
+          and then (for all I in 0 .. Offset - 1 =>
+                      Bit (Insert'Result, I) = Bit (Value, I))
+          and then (for all I in Offset + Count .. 15 =>
+                      Bit (Insert'Result, I) = Bit (Value, I)));
 
    function Insert
      (Value  : Word32;
@@ -955,12 +940,10 @@ is
         Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Insert'Result, I) = Bit (Field, I - Offset))
-          and then
-            (for all I in 0 .. Offset - 1 =>
-               Bit (Insert'Result, I) = Bit (Value, I))
-          and then
-            (for all I in Offset + Count .. 31 =>
-               Bit (Insert'Result, I) = Bit (Value, I)));
+          and then (for all I in 0 .. Offset - 1 =>
+                      Bit (Insert'Result, I) = Bit (Value, I))
+          and then (for all I in Offset + Count .. 31 =>
+                      Bit (Insert'Result, I) = Bit (Value, I)));
 
    function Insert
      (Value  : Word64;
@@ -975,12 +958,10 @@ is
         Static  =>
           (for all I in Offset .. Offset + Count - 1 =>
              Bit (Insert'Result, I) = Bit (Field, I - Offset))
-          and then
-            (for all I in 0 .. Offset - 1 =>
-               Bit (Insert'Result, I) = Bit (Value, I))
-          and then
-            (for all I in Offset + Count .. 63 =>
-               Bit (Insert'Result, I) = Bit (Value, I)));
+          and then (for all I in 0 .. Offset - 1 =>
+                      Bit (Insert'Result, I) = Bit (Value, I))
+          and then (for all I in Offset + Count .. 63 =>
+                      Bit (Insert'Result, I) = Bit (Value, I)));
 
    --  Inserting one field leaves another one alone, provided the two do not
    --  overlap. With the round trip in Insert's own postcondition, this is what
@@ -1000,9 +981,8 @@ is
        Count <= 8 - Offset
        and then Field <= Low_Mask_8 (Count)
        and then Other_Count <= 8 - Other_Offset
-       and then
-         (Other_Offset + Other_Count <= Offset
-          or else Offset + Count <= Other_Offset),
+       and then (Other_Offset + Other_Count <= Offset
+                 or else Offset + Count <= Other_Offset),
      Post   =>
        Extract
          (Insert (Value, Field, Offset, Count), Other_Offset, Other_Count)
@@ -1022,9 +1002,8 @@ is
        Count <= 16 - Offset
        and then Field <= Low_Mask_16 (Count)
        and then Other_Count <= 16 - Other_Offset
-       and then
-         (Other_Offset + Other_Count <= Offset
-          or else Offset + Count <= Other_Offset),
+       and then (Other_Offset + Other_Count <= Offset
+                 or else Offset + Count <= Other_Offset),
      Post   =>
        Extract
          (Insert (Value, Field, Offset, Count), Other_Offset, Other_Count)
@@ -1044,9 +1023,8 @@ is
        Count <= 32 - Offset
        and then Field <= Low_Mask_32 (Count)
        and then Other_Count <= 32 - Other_Offset
-       and then
-         (Other_Offset + Other_Count <= Offset
-          or else Offset + Count <= Other_Offset),
+       and then (Other_Offset + Other_Count <= Offset
+                 or else Offset + Count <= Other_Offset),
      Post   =>
        Extract
          (Insert (Value, Field, Offset, Count), Other_Offset, Other_Count)
@@ -1066,9 +1044,8 @@ is
        Count <= 64 - Offset
        and then Field <= Low_Mask_64 (Count)
        and then Other_Count <= 64 - Other_Offset
-       and then
-         (Other_Offset + Other_Count <= Offset
-          or else Offset + Count <= Other_Offset),
+       and then (Other_Offset + Other_Count <= Offset
+                 or else Offset + Count <= Other_Offset),
      Post   =>
        Extract
          (Insert (Value, Field, Offset, Count), Other_Offset, Other_Count)
@@ -1098,53 +1075,53 @@ is
    with
      Ghost  => Static,
      Global => null,
-     Post   => Shift_Left (Value, Amount) = Value * 2 ** Amount;
+     Post   => Shift_Left (Value, Amount) = Value * 2**Amount;
 
    procedure Lemma_Shift_Left_Value (Value : Word16; Amount : Bit_Count_16)
    with
      Ghost  => Static,
      Global => null,
-     Post   => Shift_Left (Value, Amount) = Value * 2 ** Amount;
+     Post   => Shift_Left (Value, Amount) = Value * 2**Amount;
 
    procedure Lemma_Shift_Left_Value (Value : Word32; Amount : Bit_Count_32)
    with
      Ghost  => Static,
      Global => null,
-     Post   => Shift_Left (Value, Amount) = Value * 2 ** Amount;
+     Post   => Shift_Left (Value, Amount) = Value * 2**Amount;
 
    procedure Lemma_Shift_Left_Value (Value : Word64; Amount : Bit_Count_64)
    with
      Ghost  => Static,
      Global => null,
-     Post   => Shift_Left (Value, Amount) = Value * 2 ** Amount;
+     Post   => Shift_Left (Value, Amount) = Value * 2**Amount;
 
    procedure Lemma_Shift_Right_Value (Value : Byte; Amount : Bit_Count_8)
    with
      Ghost  => Static,
      Global => null,
      Pre    => Amount < 8,
-     Post   => Shift_Right (Value, Amount) = Value / 2 ** Amount;
+     Post   => Shift_Right (Value, Amount) = Value / 2**Amount;
 
    procedure Lemma_Shift_Right_Value (Value : Word16; Amount : Bit_Count_16)
    with
      Ghost  => Static,
      Global => null,
      Pre    => Amount < 16,
-     Post   => Shift_Right (Value, Amount) = Value / 2 ** Amount;
+     Post   => Shift_Right (Value, Amount) = Value / 2**Amount;
 
    procedure Lemma_Shift_Right_Value (Value : Word32; Amount : Bit_Count_32)
    with
      Ghost  => Static,
      Global => null,
      Pre    => Amount < 32,
-     Post   => Shift_Right (Value, Amount) = Value / 2 ** Amount;
+     Post   => Shift_Right (Value, Amount) = Value / 2**Amount;
 
    procedure Lemma_Shift_Right_Value (Value : Word64; Amount : Bit_Count_64)
    with
      Ghost  => Static,
      Global => null,
      Pre    => Amount < 64,
-     Post   => Shift_Right (Value, Amount) = Value / 2 ** Amount;
+     Post   => Shift_Right (Value, Amount) = Value / 2**Amount;
 
    procedure Lemma_Extract_Value
      (Value : Byte; Offset : Bit_Count_8; Count : Bit_Count_8)
@@ -1153,7 +1130,7 @@ is
      Global => null,
      Pre    => Offset < 8 and then Count < 8 and then Count <= 8 - Offset,
      Post   =>
-       Extract (Value, Offset, Count) = (Value / 2 ** Offset) mod 2 ** Count;
+       Extract (Value, Offset, Count) = (Value / 2**Offset) mod 2**Count;
 
    procedure Lemma_Extract_Value
      (Value : Word16; Offset : Bit_Count_16; Count : Bit_Count_16)
@@ -1162,7 +1139,7 @@ is
      Global => null,
      Pre    => Offset < 16 and then Count < 16 and then Count <= 16 - Offset,
      Post   =>
-       Extract (Value, Offset, Count) = (Value / 2 ** Offset) mod 2 ** Count;
+       Extract (Value, Offset, Count) = (Value / 2**Offset) mod 2**Count;
 
    procedure Lemma_Extract_Value
      (Value : Word32; Offset : Bit_Count_32; Count : Bit_Count_32)
@@ -1171,7 +1148,7 @@ is
      Global => null,
      Pre    => Offset < 32 and then Count < 32 and then Count <= 32 - Offset,
      Post   =>
-       Extract (Value, Offset, Count) = (Value / 2 ** Offset) mod 2 ** Count;
+       Extract (Value, Offset, Count) = (Value / 2**Offset) mod 2**Count;
 
    procedure Lemma_Extract_Value
      (Value : Word64; Offset : Bit_Count_64; Count : Bit_Count_64)
@@ -1180,7 +1157,7 @@ is
      Global => null,
      Pre    => Offset < 64 and then Count < 64 and then Count <= 64 - Offset,
      Post   =>
-       Extract (Value, Offset, Count) = (Value / 2 ** Offset) mod 2 ** Count;
+       Extract (Value, Offset, Count) = (Value / 2**Offset) mod 2**Count;
 
    --  What the low Upto bits are worth, as a recurrence: each bit adds its own
    --  weight. This is to a value what Count_Bits is to a count — the form a
@@ -1191,7 +1168,7 @@ is
        then 0
        else
          Bits_Value (Value, Upto - 1)
-         + (if Bit (Value, Upto - 1) then 2 ** (Upto - 1) else 0))
+         + (if Bit (Value, Upto - 1) then 2**(Upto - 1) else 0))
    with
      Ghost              => Static,
      Global             => null,
@@ -1203,7 +1180,7 @@ is
        then 0
        else
          Bits_Value (Value, Upto - 1)
-         + (if Bit (Value, Upto - 1) then 2 ** (Upto - 1) else 0))
+         + (if Bit (Value, Upto - 1) then 2**(Upto - 1) else 0))
    with
      Ghost              => Static,
      Global             => null,
@@ -1215,7 +1192,7 @@ is
        then 0
        else
          Bits_Value (Value, Upto - 1)
-         + (if Bit (Value, Upto - 1) then 2 ** (Upto - 1) else 0))
+         + (if Bit (Value, Upto - 1) then 2**(Upto - 1) else 0))
    with
      Ghost              => Static,
      Global             => null,
@@ -1227,7 +1204,7 @@ is
        then 0
        else
          Bits_Value (Value, Upto - 1)
-         + (if Bit (Value, Upto - 1) then 2 ** (Upto - 1) else 0))
+         + (if Bit (Value, Upto - 1) then 2**(Upto - 1) else 0))
    with
      Ghost              => Static,
      Global             => null,
@@ -1375,9 +1352,8 @@ is
           and then (Leading_Zeroes'Result = 8) = (Value = 0),
         Static  =>
           (for all I in 8 - Leading_Zeroes'Result .. 7 => not Bit (Value, I))
-          and then
-            (if Leading_Zeroes'Result < 8
-             then Bit (Value, 7 - Leading_Zeroes'Result)));
+          and then (if Leading_Zeroes'Result < 8
+                    then Bit (Value, 7 - Leading_Zeroes'Result)));
 
    function Leading_Zeroes (Value : Word16) return Natural
    with
@@ -1388,9 +1364,8 @@ is
           and then (Leading_Zeroes'Result = 16) = (Value = 0),
         Static  =>
           (for all I in 16 - Leading_Zeroes'Result .. 15 => not Bit (Value, I))
-          and then
-            (if Leading_Zeroes'Result < 16
-             then Bit (Value, 15 - Leading_Zeroes'Result)));
+          and then (if Leading_Zeroes'Result < 16
+                    then Bit (Value, 15 - Leading_Zeroes'Result)));
 
    function Leading_Zeroes (Value : Word32) return Natural
    with
@@ -1401,9 +1376,8 @@ is
           and then (Leading_Zeroes'Result = 32) = (Value = 0),
         Static  =>
           (for all I in 32 - Leading_Zeroes'Result .. 31 => not Bit (Value, I))
-          and then
-            (if Leading_Zeroes'Result < 32
-             then Bit (Value, 31 - Leading_Zeroes'Result)));
+          and then (if Leading_Zeroes'Result < 32
+                    then Bit (Value, 31 - Leading_Zeroes'Result)));
 
    function Leading_Zeroes (Value : Word64) return Natural
    with
@@ -1414,9 +1388,8 @@ is
           and then (Leading_Zeroes'Result = 64) = (Value = 0),
         Static  =>
           (for all I in 64 - Leading_Zeroes'Result .. 63 => not Bit (Value, I))
-          and then
-            (if Leading_Zeroes'Result < 64
-             then Bit (Value, 63 - Leading_Zeroes'Result)));
+          and then (if Leading_Zeroes'Result < 64
+                    then Bit (Value, 63 - Leading_Zeroes'Result)));
 
    --  How many zero bits sit below the least significant bit that is set —
    --  the width for a zero word. This is the alignment of a value: the
@@ -1430,9 +1403,8 @@ is
           and then (Trailing_Zeroes'Result = 8) = (Value = 0),
         Static  =>
           (for all I in 0 .. Trailing_Zeroes'Result - 1 => not Bit (Value, I))
-          and then
-            (if Trailing_Zeroes'Result < 8
-             then Bit (Value, Trailing_Zeroes'Result)));
+          and then (if Trailing_Zeroes'Result < 8
+                    then Bit (Value, Trailing_Zeroes'Result)));
 
    function Trailing_Zeroes (Value : Word16) return Natural
    with
@@ -1443,9 +1415,8 @@ is
           and then (Trailing_Zeroes'Result = 16) = (Value = 0),
         Static  =>
           (for all I in 0 .. Trailing_Zeroes'Result - 1 => not Bit (Value, I))
-          and then
-            (if Trailing_Zeroes'Result < 16
-             then Bit (Value, Trailing_Zeroes'Result)));
+          and then (if Trailing_Zeroes'Result < 16
+                    then Bit (Value, Trailing_Zeroes'Result)));
 
    function Trailing_Zeroes (Value : Word32) return Natural
    with
@@ -1456,9 +1427,8 @@ is
           and then (Trailing_Zeroes'Result = 32) = (Value = 0),
         Static  =>
           (for all I in 0 .. Trailing_Zeroes'Result - 1 => not Bit (Value, I))
-          and then
-            (if Trailing_Zeroes'Result < 32
-             then Bit (Value, Trailing_Zeroes'Result)));
+          and then (if Trailing_Zeroes'Result < 32
+                    then Bit (Value, Trailing_Zeroes'Result)));
 
    function Trailing_Zeroes (Value : Word64) return Natural
    with
@@ -1469,9 +1439,8 @@ is
           and then (Trailing_Zeroes'Result = 64) = (Value = 0),
         Static  =>
           (for all I in 0 .. Trailing_Zeroes'Result - 1 => not Bit (Value, I))
-          and then
-            (if Trailing_Zeroes'Result < 64
-             then Bit (Value, Trailing_Zeroes'Result)));
+          and then (if Trailing_Zeroes'Result < 64
+                    then Bit (Value, Trailing_Zeroes'Result)));
 
    ---------------------------------------------------------------------------
    --  Truncation and extension
@@ -1483,27 +1452,27 @@ is
    --  meant to be truncated should not have to pass a range check first.
    --  These are expression functions: the arithmetic is the specification.
    function Truncate_To_Byte (Value : Word16) return Byte
-   is (Byte (Value mod 2 ** 8))
+   is (Byte (Value mod 2**8))
    with Global => null;
 
    function Truncate_To_Byte (Value : Word32) return Byte
-   is (Byte (Value mod 2 ** 8))
+   is (Byte (Value mod 2**8))
    with Global => null;
 
    function Truncate_To_Byte (Value : Word64) return Byte
-   is (Byte (Value mod 2 ** 8))
+   is (Byte (Value mod 2**8))
    with Global => null;
 
    function Truncate_To_Word16 (Value : Word32) return Word16
-   is (Word16 (Value mod 2 ** 16))
+   is (Word16 (Value mod 2**16))
    with Global => null;
 
    function Truncate_To_Word16 (Value : Word64) return Word16
-   is (Word16 (Value mod 2 ** 16))
+   is (Word16 (Value mod 2**16))
    with Global => null;
 
    function Truncate_To_Word32 (Value : Word64) return Word32
-   is (Word32 (Value mod 2 ** 32))
+   is (Word32 (Value mod 2**32))
    with Global => null;
 
    --  Widening keeps the value and clears the bits above it. A plain type

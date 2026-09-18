@@ -1,4 +1,6 @@
-package body Tui.App_Kit.Search_Input with SPARK_Mode => On is
+package body Tui.App_Kit.Search_Input
+  with SPARK_Mode => On
+is
 
    use type Tui.Text.Byte;
 
@@ -74,7 +76,7 @@ package body Tui.App_Kit.Search_Input with SPARK_Mode => On is
    -- Bytes --
    -----------
 
-   function Bytes (E : Editor) return Tui.Text.Buffer is
-      (E.Pat (1 .. E.Len));
+   function Bytes (E : Editor) return Tui.Text.Buffer
+   is (E.Pat (1 .. E.Len));
 
 end Tui.App_Kit.Search_Input;

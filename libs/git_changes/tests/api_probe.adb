@@ -18,8 +18,13 @@ procedure Api_Probe is
 
    procedure Fail (Where : String) is
    begin
-      Put_Line (Standard_Error, Where & ": " & Error_Code'Image (Code (Error))
-                & ": " & Detail (Error));
+      Put_Line
+        (Standard_Error,
+         Where
+         & ": "
+         & Error_Code'Image (Code (Error))
+         & ": "
+         & Detail (Error));
       Set_Exit_Status (Failure);
    end Fail;
 
@@ -32,8 +37,10 @@ procedure Api_Probe is
             Fail ("content");
             return;
          end if;
-         Put (" " & (if Which = Old_Side then "old=" else "new=")
-              & Length (Content)'Image);
+         Put
+           (" "
+            & (if Which = Old_Side then "old=" else "new=")
+            & Length (Content)'Image);
       end if;
    end Show_Content;
 begin
@@ -50,12 +57,14 @@ begin
    Options.Detect_Copies := True;
    if Argument_Count = 2 then
       Capture
-        (Repo, Tree_To_Worktree ("HEAD"),
+        (Repo,
+         Tree_To_Worktree ("HEAD"),
          Pathspecs => [1 => To_Unbounded_String (Argument (2))],
-         Options => Options, Changes => Changes, Error => Error);
+         Options   => Options,
+         Changes   => Changes,
+         Error     => Error);
    else
-      Capture
-        (Repo, Tree_To_Worktree ("HEAD"), Options, Changes, Error);
+      Capture (Repo, Tree_To_Worktree ("HEAD"), Options, Changes, Error);
    end if;
    if not Git_Changes.Success (Error) then
       Fail ("capture");

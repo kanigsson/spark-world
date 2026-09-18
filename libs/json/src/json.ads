@@ -22,7 +22,9 @@
 --  (document size, string lengths, member counts) is bounded only by the
 --  input buffer.
 
-package JSON with Pure, SPARK_Mode => On is
+package JSON
+  with Pure, SPARK_Mode => On
+is
 
    --  Containers may nest this deep; the document at depth Max_Depth + 1
    --  is rejected with Nesting_Too_Deep. Real-world JSON lives below
@@ -53,9 +55,7 @@ package JSON with Pure, SPARK_Mode => On is
    --  A bounds-safe view of a payload described by inclusive bounds.
    --  First .. Last may be the canonical null range First .. First - 1.
    function Payload
-     (Buffer : String;
-      First  : Positive;
-      Last   : Natural) return String
+     (Buffer : String; First : Positive; Last : Natural) return String
    is (if Last < First then "" else Buffer (First .. Last))
    with
      Pre =>

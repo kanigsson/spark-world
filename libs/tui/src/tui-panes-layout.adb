@@ -1,4 +1,6 @@
-package body Tui.Panes.Layout with SPARK_Mode => On is
+package body Tui.Panes.Layout
+  with SPARK_Mode => On
+is
 
    type Shown_Set is array (Pane_Index range <>) of Boolean;
 
@@ -10,13 +12,15 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
    --  What a set of panes cannot do without: each kept pane's minimum plus a
    --  separator column for every kept pane after the first.
    function Floor_Width
-     (Specs : Specs_Array;
-      Keep  : Shown_Set;
-      From  : Pane_Index;
-      Sep   : Natural) return Floor_Total
-   with Global => null,
-        Pre => Keep'First = Specs'First and then Keep'Last = Specs'Last
-               and then From in Specs'Range and then Sep <= 1
+     (Specs : Specs_Array; Keep : Shown_Set; From : Pane_Index; Sep : Natural)
+      return Floor_Total
+   with
+     Global => null,
+     Pre    =>
+       Keep'First = Specs'First
+       and then Keep'Last = Specs'Last
+       and then From in Specs'Range
+       and then Sep <= 1
    is
       Sum : Floor_Total := 0;
    begin
@@ -24,9 +28,11 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
          if Keep (I) then
             Sum := Sum + Specs (I).Min_Cols + Sep;
          end if;
-         pragma Loop_Invariant
-           (Sum <= (I - Specs'First + 1)
-                     * (Natural (Tui.Surface.Max_Extent) + 1));
+         pragma
+           Loop_Invariant
+             (Sum
+                <= (I - Specs'First + 1)
+                   * (Natural (Tui.Surface.Max_Extent) + 1));
       end loop;
       --  The leftmost kept pane has no separator to its left.
       return (if Sum >= Sep then Sum - Sep else 0);
@@ -70,17 +76,17 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
       loop
          declare
             Victim : Pane_Index := Specs'First;
-            Found  : Boolean    := False;
+            Found  : Boolean := False;
          begin
             for I in Specs'Range loop
                if Keep (I)
                  and then (Rule = Drop_By_Priority or else I /= Focused)
-                 and then
-                   (not Found
-                    or else Specs (I).Priority >= Specs (Victim).Priority)
+                 and then (not Found
+                           or else Specs (I).Priority
+                                   >= Specs (Victim).Priority)
                then
                   Victim := I;
-                  Found  := True;
+                  Found := True;
                end if;
                pragma Loop_Invariant (Victim in Specs'Range);
             end loop;
@@ -103,8 +109,8 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
       ------------------------------------------------------------------
       declare
          Col       : Positive := 1;
-         Remaining : Natural  := Total;
-         Placed    : Boolean  := False;
+         Remaining : Natural := Total;
+         Placed    : Boolean := False;
          First_Set : Pane_Index := Specs'First;
          Last_Set  : Pane_Index := Specs'First;
       begin
@@ -117,7 +123,8 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
                --  separator before each of them, must keep.
                Right   : constant Floor_Total :=
                  (if Keep (I) and then I < Specs'Last
-                  then Floor_Width (Specs, Keep, I + 1, Sep) else 0);
+                  then Floor_Width (Specs, Keep, I + 1, Sep)
+                  else 0);
                Reserve : constant Natural :=
                  (if Right > 0 then Right + Sep else 0);
                Avail   : constant Natural :=
@@ -151,69 +158,84 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
 
                if Width > 0 then
                   Remaining := Remaining - Lead - Width;
-                  Col       := Col + Lead;
+                  Col := Col + Lead;
                   Result (I) := (Start_Col => Col, Cols => Width);
-                  Col       := Col + Width;
+                  Col := Col + Width;
                   if not Placed then
                      First_Set := I;
                   end if;
-                  Placed    := True;
-                  Last_Set  := I;
+                  Placed := True;
+                  Last_Set := I;
                end if;
             end;
 
-            pragma Loop_Invariant
-              (First_Set in Specs'Range and then Last_Set in Specs'Range);
+            pragma
+              Loop_Invariant
+                (First_Set in Specs'Range and then Last_Set in Specs'Range);
             pragma Loop_Invariant (Col + Remaining = Total + 1);
             pragma Loop_Invariant (Col <= Total + 1);
-            pragma Loop_Invariant
-              (Placed = (for some J in Specs'First .. I
-                         => Result (J).Cols > 0));
-            pragma Loop_Invariant
-              (for all J in Specs'Range =>
-                 (if J > I then Result (J).Cols = 0));
-            pragma Loop_Invariant
-              (for all J in Specs'Range =>
-                 (Result (J).Cols > 0) = (Result (J).Start_Col > 0));
-            pragma Loop_Invariant
-              (if Placed then
-                 Last_Set <= I
-                 and then Result (Last_Set).Cols > 0
-                 and then Result (Last_Set).Start_Col
-                            + Result (Last_Set).Cols = Col
-                 and then (for all J in Specs'Range =>
-                             (if J > Last_Set then Result (J).Cols = 0)));
-            pragma Loop_Invariant
-              (if not Placed then Col = 1);
-            pragma Loop_Invariant
-              (if Placed then
-                 First_Set <= I
-                 and then First_Set <= Last_Set
-                 and then Result (First_Set).Cols > 0
-                 and then Result (First_Set).Start_Col = 1
-                 and then (for all J in Specs'Range =>
-                             (if J < First_Set then Result (J).Cols = 0)));
-            pragma Loop_Invariant
-              (for all J in Specs'Range =>
-                 (if Result (J).Cols > 0
-                  then Result (J).Start_Col + Result (J).Cols <= Col));
-            pragma Loop_Invariant
-              (for all J in Specs'Range =>
-                 (for all K in Specs'Range =>
-                    (if J < K and then Result (J).Cols > 0
-                        and then Result (K).Cols > 0
-                     then Result (J).Start_Col + Result (J).Cols
-                            + Sep <= Result (K).Start_Col)));
-            pragma Loop_Invariant
-              (for all J in Specs'Range =>
-                 (for all K in Specs'Range =>
-                    (if J < K and then Result (J).Cols > 0
-                        and then Result (K).Cols > 0
-                        and then (for all L in Specs'Range =>
-                                    (if L > J and then L < K
-                                     then Result (L).Cols = 0))
-                     then Result (K).Start_Col
-                            = Result (J).Start_Col + Result (J).Cols + Sep)));
+            pragma
+              Loop_Invariant
+                (Placed
+                   = (for some J in Specs'First .. I => Result (J).Cols > 0));
+            pragma
+              Loop_Invariant
+                (for all J in Specs'Range =>
+                   (if J > I then Result (J).Cols = 0));
+            pragma
+              Loop_Invariant
+                (for all J in Specs'Range =>
+                   (Result (J).Cols > 0) = (Result (J).Start_Col > 0));
+            pragma
+              Loop_Invariant
+                (if Placed
+                   then
+                     Last_Set <= I
+                     and then Result (Last_Set).Cols > 0
+                     and then Result (Last_Set).Start_Col
+                              + Result (Last_Set).Cols
+                              = Col
+                     and then (for all J in Specs'Range =>
+                                 (if J > Last_Set then Result (J).Cols = 0)));
+            pragma Loop_Invariant (if not Placed then Col = 1);
+            pragma
+              Loop_Invariant
+                (if Placed
+                   then
+                     First_Set <= I
+                     and then First_Set <= Last_Set
+                     and then Result (First_Set).Cols > 0
+                     and then Result (First_Set).Start_Col = 1
+                     and then (for all J in Specs'Range =>
+                                 (if J < First_Set then Result (J).Cols = 0)));
+            pragma
+              Loop_Invariant
+                (for all J in Specs'Range =>
+                   (if Result (J).Cols > 0
+                    then Result (J).Start_Col + Result (J).Cols <= Col));
+            pragma
+              Loop_Invariant
+                (for all J in Specs'Range =>
+                   (for all K in Specs'Range =>
+                      (if J < K
+                         and then Result (J).Cols > 0
+                         and then Result (K).Cols > 0
+                       then
+                         Result (J).Start_Col + Result (J).Cols + Sep
+                         <= Result (K).Start_Col)));
+            pragma
+              Loop_Invariant
+                (for all J in Specs'Range =>
+                   (for all K in Specs'Range =>
+                      (if J < K
+                         and then Result (J).Cols > 0
+                         and then Result (K).Cols > 0
+                         and then (for all L in Specs'Range =>
+                                     (if L > J and then L < K
+                                      then Result (L).Cols = 0))
+                       then
+                         Result (K).Start_Col
+                         = Result (J).Start_Col + Result (J).Cols + Sep)));
          end loop;
 
          if not Placed then
@@ -232,12 +254,13 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
 
             --  A shown pane with nothing shown to its left IS the leftmost
             --  one, which the loop placed at column 1.
-            pragma Assert
-              (for all I in Specs'Range =>
-                 (if Result (I).Cols > 0
-                    and then (for all J in Specs'Range =>
-                                (if J < I then Result (J).Cols = 0))
-                  then I = First_Set));
+            pragma
+              Assert
+                (for all I in Specs'Range =>
+                   (if Result (I).Cols > 0
+                      and then (for all J in Specs'Range =>
+                                  (if J < I then Result (J).Cols = 0))
+                    then I = First_Set));
          end if;
       end;
    end Compute;   ------------------
@@ -245,8 +268,7 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
    ------------------
 
    function Rescue_Focus
-     (P : Placement_Array; Focused : Pane_Index) return Pane_Index
-   is
+     (P : Placement_Array; Focused : Pane_Index) return Pane_Index is
    begin
       if Shown (P (Focused)) then
          return Focused;
@@ -272,7 +294,8 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
       Nothing : constant Hit :=
         (Kind => Nowhere, Pane => P'First, Local_Row => 0, Local_Col => 0);
    begin
-      if Col = 0 or else Row < First_Row
+      if Col = 0
+        or else Row < First_Row
         or else Row - First_Row + 1 > Content_Rows
         or else Content_Rows > Screen_Cols'Last
       then
@@ -284,20 +307,22 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
             if Col >= P (I).Start_Col
               and then Col - P (I).Start_Col < P (I).Cols
             then
-               return (Kind      => Pane_Hit,
-                       Pane      => I,
-                       Local_Row => Row - First_Row + 1,
-                       Local_Col => Col - P (I).Start_Col + 1);
+               return
+                 (Kind      => Pane_Hit,
+                  Pane      => I,
+                  Local_Row => Row - First_Row + 1,
+                  Local_Col => Col - P (I).Start_Col + 1);
 
             elsif Col = P (I).Start_Col + P (I).Cols then
                --  The column just past a pane is its separator, but only
                --  when there is a pane on the other side of it.
                for J in P'Range loop
                   if J > I and then Shown (P (J)) then
-                     return (Kind      => Separator_Hit,
-                             Pane      => I,
-                             Local_Row => 0,
-                             Local_Col => 0);
+                     return
+                       (Kind      => Separator_Hit,
+                        Pane      => I,
+                        Local_Row => 0,
+                        Local_Col => 0);
                   end if;
                end loop;
                return Nothing;
@@ -313,16 +338,14 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
    ------------
 
    function Adjust
-     (Current : Split_Percentage;
-      Grow    : Boolean) return Split_Percentage
-   is
+     (Current : Split_Percentage; Grow : Boolean) return Split_Percentage is
    begin
       if Grow then
-         return Split_Percentage'Min
-           (Split_Percentage'Last, Current + Split_Step);
+         return
+           Split_Percentage'Min (Split_Percentage'Last, Current + Split_Step);
       else
-         return Split_Percentage'Max
-           (Split_Percentage'First, Current - Split_Step);
+         return
+           Split_Percentage'Max (Split_Percentage'First, Current - Split_Step);
       end if;
    end Adjust;
 
@@ -331,17 +354,17 @@ package body Tui.Panes.Layout with SPARK_Mode => On is
    --------------
 
    function Split_At
-     (Column : Natural;
-      Total  : Tui.Surface.Col_Count) return Split_Percentage
+     (Column : Natural; Total : Tui.Surface.Col_Count) return Split_Percentage
    is
       Raw : constant Natural :=
         Natural'Min
-          (100, (Natural'Min (Column, Natural (Total)) * 100)
-                / Natural (Total));
+          (100,
+           (Natural'Min (Column, Natural (Total)) * 100) / Natural (Total));
    begin
-      return Split_Percentage'Max
-        (Split_Percentage'First,
-         Split_Percentage'Min (Split_Percentage'Last, Raw));
+      return
+        Split_Percentage'Max
+          (Split_Percentage'First,
+           Split_Percentage'Min (Split_Percentage'Last, Raw));
    end Split_At;
 
 end Tui.Panes.Layout;

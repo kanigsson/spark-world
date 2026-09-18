@@ -1,10 +1,11 @@
 --  Timing harness for worktree frames: what switching files in the
 --  uncommitted snapshot costs once the caches are as warm as they get.
-with Ada.Calendar; use Ada.Calendar;
+with Ada.Calendar;     use Ada.Calendar;
 with Ada.Command_Line; use Ada.Command_Line;
-with Ada.Text_IO; use Ada.Text_IO;
-with Git_View_Model; use Git_View_Model;
+with Ada.Text_IO;      use Ada.Text_IO;
+with Git_View_Model;   use Git_View_Model;
 with Git_View_Repository;
+
 procedure Worktree_Bench is
    V : View_State;
    F : Git_View_Repository.Frame;

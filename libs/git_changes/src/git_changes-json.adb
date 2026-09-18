@@ -16,15 +16,31 @@ package body Git_Changes.JSON is
       for C of Value loop
          Code := Character'Pos (C);
          case C is
-            when '"' => Put (Output, "\""");
-            when '\' => Put (Output, "\\");
-            when Character'Val (8) => Put (Output, "\b");
-            when Character'Val (9) => Put (Output, "\t");
-            when Character'Val (10) => Put (Output, "\n");
-            when Character'Val (12) => Put (Output, "\f");
-            when Character'Val (13) => Put (Output, "\r");
-            when ' ' .. '!' | '#' .. '[' | ']' .. '~' => Put (Output, C);
-            when others =>
+            when '"'                                  =>
+               Put (Output, "\""");
+
+            when '\'                                  =>
+               Put (Output, "\\");
+
+            when Character'Val (8)                    =>
+               Put (Output, "\b");
+
+            when Character'Val (9)                    =>
+               Put (Output, "\t");
+
+            when Character'Val (10)                   =>
+               Put (Output, "\n");
+
+            when Character'Val (12)                   =>
+               Put (Output, "\f");
+
+            when Character'Val (13)                   =>
+               Put (Output, "\r");
+
+            when ' ' .. '!' | '#' .. '[' | ']' .. '~' =>
+               Put (Output, C);
+
+            when others                               =>
                Put (Output, "\u00");
                Put (Output, Hex (Code / 16));
                Put (Output, Hex (Code mod 16));
@@ -63,8 +79,7 @@ package body Git_Changes.JSON is
       return Result;
    end Lower;
 
-   procedure Put_Endpoint
-     (Output : File_Type; Item : Endpoint_Info) is
+   procedure Put_Endpoint (Output : File_Type; Item : Endpoint_Info) is
    begin
       Put (Output, '{');
       Put_Name (Output, "kind");
@@ -79,10 +94,8 @@ package body Git_Changes.JSON is
    end Put_Endpoint;
 
    procedure Put_Content
-     (Output  : File_Type;
-      Changes : Change_Set;
-      File    : Positive;
-      Which   : Side) is
+     (Output : File_Type; Changes : Change_Set; File : Positive; Which : Side)
+   is
       Value : Unbounded_String;
       Error : Error_Info;
    begin
@@ -101,7 +114,8 @@ package body Git_Changes.JSON is
       Changes          : Change_Set;
       File             : Positive;
       Which            : Side;
-      Include_Contents : Boolean) is
+      Include_Contents : Boolean)
+   is
       Present : constant Boolean := Has_Path (Changes, File, Which);
    begin
       if not Present then
@@ -194,7 +208,8 @@ package body Git_Changes.JSON is
          Put_Quoted (Output, File_Id (Changes, File));
          Put (Output, ',');
          Put_Name (Output, "kind");
-         Put_Quoted (Output, Lower (Change_Kind'Image (File_Kind (Changes, File))));
+         Put_Quoted
+           (Output, Lower (Change_Kind'Image (File_Kind (Changes, File))));
          Put (Output, ',');
          Put_Name (Output, "old");
          Put_Side (Output, Changes, File, Old_Side, Include_Contents);

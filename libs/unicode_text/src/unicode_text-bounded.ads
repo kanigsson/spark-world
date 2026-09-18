@@ -6,9 +6,7 @@ with Unicode_Text.UTF_8;
 
 generic
    Capacity : Natural;
-package Unicode_Text.Bounded
-  with SPARK_Mode
-is
+package Unicode_Text.Bounded with SPARK_Mode is
    use type Scalar_Sequences.Sequence;
    use type Unicode_Text.UTF_8.Cursor_Index;
 
@@ -39,8 +37,8 @@ is
        and then S'Length <= Max_Byte_Length,
      Post =>
        (Runtime => Byte_Length (To_Bounded_String'Result) = S'Length,
-        Static  => Model (To_Bounded_String'Result)
-                   = Unicode_Text.UTF_8.Model (S));
+        Static  =>
+          Model (To_Bounded_String'Result) = Unicode_Text.UTF_8.Model (S));
 
    function To_String (S : Bounded_String) return String
    with
@@ -49,7 +47,7 @@ is
           To_String'Result'First = 1
           and then To_String'Result'Length = Byte_Length (S)
           and then Unicode_Text.UTF_8.Is_Valid_UTF_8 (To_String'Result),
-        Static => Unicode_Text.UTF_8.Model (To_String'Result) = Model (S));
+        Static  => Unicode_Text.UTF_8.Model (To_String'Result) = Model (S));
 
    function Code_Point_Length (S : Bounded_String) return Natural
    with
@@ -59,8 +57,7 @@ is
           To_Big_Integer (Code_Point_Length'Result)
           = Scalar_Sequences.Length (Model (S)));
 
-   function Element
-     (S : Bounded_String; Index : Positive) return Scalar_Value
+   function Element (S : Bounded_String; Index : Positive) return Scalar_Value
    with
      Pre  => Index <= Code_Point_Length (S),
      Post =>
@@ -148,9 +145,8 @@ is
              Result => To_Big_Integer (Reverse_Find'Result)));
 
    function Find
-     (Haystack : Bounded_String;
-      Needle   : String;
-      From     : Positive := 1) return Natural
+     (Haystack : Bounded_String; Needle : String; From : Positive := 1)
+      return Natural
    with
      Pre  =>
        Unicode_Text.UTF_8.Is_Valid_UTF_8 (Needle)
@@ -167,9 +163,8 @@ is
              Result   => To_Big_Integer (Find'Result)));
 
    function Find
-     (Haystack : Bounded_String;
-      Needle   : Bounded_String;
-      From     : Positive := 1) return Natural
+     (Haystack : Bounded_String; Needle : Bounded_String; From : Positive := 1)
+      return Natural
    with
      Pre  => From - 1 <= Code_Point_Length (Haystack),
      Post =>
@@ -214,7 +209,7 @@ is
           Byte_Length (S)
           = Byte_Length (S)'Old
             + Natural (Unicode_Text.UTF_8.Encoding_Width (Value)),
-        Static => Is_Append (Model (S)'Old, Value, Model (S)));
+        Static  => Is_Append (Model (S)'Old, Value, Model (S)));
 
    procedure Append (S : in out Bounded_String; Other : String)
    with
@@ -222,27 +217,21 @@ is
        Unicode_Text.UTF_8.Is_Valid_UTF_8 (Other)
        and then Other'Length <= Max_Byte_Length - Byte_Length (S),
      Post =>
-       (Runtime =>
-          Byte_Length (S) = Byte_Length (S)'Old + Other'Length,
-        Static =>
+       (Runtime => Byte_Length (S) = Byte_Length (S)'Old + Other'Length,
+        Static  =>
           Is_Concatenation
             (Model (S)'Old, Unicode_Text.UTF_8.Model (Other), Model (S)));
 
-   procedure Append
-     (S : in out Bounded_String; Other : Bounded_String)
+   procedure Append (S : in out Bounded_String; Other : Bounded_String)
    with
-     Pre  =>
-       Byte_Length (Other) <= Max_Byte_Length - Byte_Length (S),
+     Pre  => Byte_Length (Other) <= Max_Byte_Length - Byte_Length (S),
      Post =>
-       (Runtime =>
-          Byte_Length (S)
-          = Byte_Length (S)'Old + Byte_Length (Other),
-        Static =>
-          Is_Concatenation (Model (S)'Old, Model (Other), Model (S)));
+       (Runtime => Byte_Length (S) = Byte_Length (S)'Old + Byte_Length (Other),
+        Static  => Is_Concatenation (Model (S)'Old, Model (Other), Model (S)));
 
-   overriding function "=" (Left, Right : Bounded_String) return Boolean
-   with
-     Post => (Static => "="'Result = (Model (Left) = Model (Right)));
+   overriding
+   function "=" (Left, Right : Bounded_String) return Boolean
+   with Post => (Static => "="'Result = (Model (Left) = Model (Right)));
 
    subtype Cursor_Type is Unicode_Text.UTF_8.Cursor_Type;
    subtype Cursor_Index is Unicode_Text.UTF_8.Cursor_Index;
@@ -264,20 +253,18 @@ is
        (Runtime =>
           Byte_Offset (First'Result) = 0
           and then Model_Index (First'Result) = 1,
-        Static => Is_Valid_Cursor (S, First'Result));
+        Static  => Is_Valid_Cursor (S, First'Result));
 
    function Has_Element
      (S : Bounded_String; Cursor : Cursor_Type) return Boolean
    with
-     Pre  =>
-       (Static => Is_Valid_Cursor (S, Cursor)),
+     Pre  => (Static => Is_Valid_Cursor (S, Cursor)),
      Post =>
        (Runtime =>
           Has_Element'Result = (Byte_Offset (Cursor) < Byte_Length (S)),
-        Static =>
+        Static  =>
           Has_Element'Result
-          = (Big_Model_Index (Cursor)
-             <= Scalar_Sequences.Length (Model (S))));
+          = (Big_Model_Index (Cursor) <= Scalar_Sequences.Length (Model (S))));
 
    procedure Next
      (S      : Bounded_String;
@@ -288,9 +275,8 @@ is
        (Runtime => Byte_Offset (Cursor) < Byte_Length (S),
         Static  =>
           Is_Valid_Cursor (S, Cursor)
-          and then
-            Big_Model_Index (Cursor)
-            <= Scalar_Sequences.Length (Model (S))),
+          and then Big_Model_Index (Cursor)
+                   <= Scalar_Sequences.Length (Model (S))),
      Post =>
        (Runtime =>
           Model_Index (Cursor) = Model_Index (Cursor'Old) + 1
@@ -298,7 +284,7 @@ is
                    = Byte_Offset (Cursor'Old)
                      + Natural (Unicode_Text.UTF_8.Encoding_Width (Value))
           and then Byte_Offset (Cursor) > Byte_Offset (Cursor'Old),
-        Static =>
+        Static  =>
           Is_Valid_Cursor (S, Cursor)
           and then Value
                    = Scalar_Sequences.Get
@@ -320,16 +306,12 @@ private
        (Static =>
           Has_Valid_Representation'Result
           = (Used = 0
-             or else
-               Unicode_Text.UTF_8.Is_Valid_UTF_8 (Data (1 .. Used)))
-          and then
-            (not Has_Valid_Representation'Result
-             or else
-               Unicode_Text.UTF_8.Is_Valid_UTF_8 (Data (1 .. Used))));
+             or else Unicode_Text.UTF_8.Is_Valid_UTF_8 (Data (1 .. Used)))
+          and then (not Has_Valid_Representation'Result
+                    or else Unicode_Text.UTF_8.Is_Valid_UTF_8
+                              (Data (1 .. Used))));
 
    type Bounded_String is new Bounded_String_Representation
-   with
-     Dynamic_Predicate =>
-       Has_Valid_Representation (Data, Used);
+   with Dynamic_Predicate => Has_Valid_Representation (Data, Used);
 
 end Unicode_Text.Bounded;

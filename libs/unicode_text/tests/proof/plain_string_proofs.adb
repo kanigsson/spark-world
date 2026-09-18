@@ -14,9 +14,9 @@ is
       Count := 0;
       while Has_Element (S, Cursor) loop
          pragma Loop_Invariant (Static => Is_Valid_Cursor (S, Cursor));
-         pragma Loop_Invariant
-           (Static =>
-              Big_Model_Index (Cursor) = To_Big_Integer (Count) + 1);
+         pragma
+           Loop_Invariant
+             (Static => Big_Model_Index (Cursor) = To_Big_Integer (Count) + 1);
          pragma Loop_Variant (Decreases => S'Length - Byte_Offset (Cursor));
 
          Next (S, Cursor, Value);
@@ -38,16 +38,14 @@ is
             with Ghost => Static;
          begin
             Next (S, Cursor, Value);
-            pragma Assert
-              (Static =>
-                 Value = Scalar_Sequences.Get (Model (S), Index));
+            pragma
+              Assert
+                (Static => Value = Scalar_Sequences.Get (Model (S), Index));
          end;
       end loop;
    end Visit_In_Model_Order;
 
-   procedure Equal_Active_Prefixes
-     (Left, Right : String; Used : Natural)
-   is
+   procedure Equal_Active_Prefixes (Left, Right : String; Used : Natural) is
       Left_Active  : constant String := Prefix_Bytes (Left, Used)
       with Ghost => Static;
       Right_Active : constant String := Prefix_Bytes (Right, Used)
@@ -58,42 +56,44 @@ is
       Lemma_Equality (Left_Active, Right_Active);
    end Equal_Active_Prefixes;
 
-   procedure Append_Valid_String
-     (Before, Appended, After : String) is
+   procedure Append_Valid_String (Before, Appended, After : String) is
    begin
       Lemma_Concatenation (Before, Appended, After);
    end Append_Valid_String;
 
-   procedure Slice_Uses_Model
-     (S : String; First : Positive; Count : Natural)
+   procedure Slice_Uses_Model (S : String; First : Positive; Count : Natural)
    is
       Result : constant String := Slice (S, First, Count)
       with Ghost => Static;
    begin
-      pragma Assert
-        (Static =>
-           Is_Slice
-             (Source => Model (S),
-              First  => To_Big_Integer (First),
-              Count  => To_Big_Integer (Count),
-              Result => Model (Result)));
+      pragma
+        Assert
+          (Static =>
+             Is_Slice
+               (Source => Model (S),
+                First  => To_Big_Integer (First),
+                Count  => To_Big_Integer (Count),
+                Result => Model (Result)));
    end Slice_Uses_Model;
 
    procedure Search_Uses_Model
      (Haystack : String;
       Needle   : String;
       From     : Positive;
-      Result   : out Natural)
-   is
+      Result   : out Natural) is
    begin
       Result := Find (Haystack, Needle, From);
    end Search_Uses_Model;
 
    procedure Search_Witnesses is
-      Source          : constant String := "aba" with Ghost => Static;
-      Positive_Needle : constant String := "ba" with Ghost => Static;
-      Negative_Needle : constant String := "z" with Ghost => Static;
-      Empty_Needle    : constant String := "" with Ghost => Static;
+      Source          : constant String := "aba"
+      with Ghost => Static;
+      Positive_Needle : constant String := "ba"
+      with Ghost => Static;
+      Negative_Needle : constant String := "z"
+      with Ghost => Static;
+      Empty_Needle    : constant String := ""
+      with Ghost => Static;
    begin
       Lemma_ASCII_Valid (Source);
       Lemma_ASCII_Valid (Positive_Needle);
@@ -108,31 +108,35 @@ is
            Find (Source, Empty_Needle, From => 4)
          with Ghost => Static;
       begin
-         pragma Assert
-           (Static =>
-              Is_First_Occurrence
-                (Haystack => Model (Source),
-                 Needle   => Model (Positive_Needle),
-                 From     => 1,
-                 Result   => To_Big_Integer (Positive_Result)));
-         pragma Assert
-           (Static =>
-              Is_First_Occurrence
-                (Haystack => Model (Source),
-                 Needle   => Model (Negative_Needle),
-                 From     => 1,
-                 Result   => To_Big_Integer (Negative_Result)));
+         pragma
+           Assert
+             (Static =>
+                Is_First_Occurrence
+                  (Haystack => Model (Source),
+                   Needle   => Model (Positive_Needle),
+                   From     => 1,
+                   Result   => To_Big_Integer (Positive_Result)));
+         pragma
+           Assert
+             (Static =>
+                Is_First_Occurrence
+                  (Haystack => Model (Source),
+                   Needle   => Model (Negative_Needle),
+                   From     => 1,
+                   Result   => To_Big_Integer (Negative_Result)));
          pragma Assert (Static => Empty_Result = 4);
-         pragma Assert
-           (Static =>
-              Contains (Source, Positive_Needle)
-              = Unicode_Text.Models.Contains
-                  (Model (Source), Model (Positive_Needle)));
-         pragma Assert
-           (Static =>
-              Contains (Source, Negative_Needle)
-              = Unicode_Text.Models.Contains
-                  (Model (Source), Model (Negative_Needle)));
+         pragma
+           Assert
+             (Static =>
+                Contains (Source, Positive_Needle)
+                = Unicode_Text.Models.Contains
+                    (Model (Source), Model (Positive_Needle)));
+         pragma
+           Assert
+             (Static =>
+                Contains (Source, Negative_Needle)
+                = Unicode_Text.Models.Contains
+                    (Model (Source), Model (Negative_Needle)));
       end;
    end Search_Witnesses;
 
@@ -142,70 +146,76 @@ is
       Has_Value : Boolean;
    begin
       while not Split_Complete (State) loop
-         pragma Loop_Invariant
-           (Static => Is_Valid_Split_State (Source, State));
-         pragma Loop_Variant
-           (Decreases =>
-              Long_Long_Integer (Code_Point_Length (Source)) + 2
-              - Long_Long_Integer (Split_Model_Index (State)));
+         pragma
+           Loop_Invariant (Static => Is_Valid_Split_State (Source, State));
+         pragma
+           Loop_Variant
+             (Decreases =>
+                Long_Long_Integer (Code_Point_Length (Source))
+                + 2
+                - Long_Long_Integer (Split_Model_Index (State)));
          declare
             First : constant Big_Positive := Big_Split_Model_Index (State)
             with Ghost => Static;
          begin
             Next (Source, Separator, State, Segment, Has_Value);
             pragma Assert (Has_Value);
-            pragma Assert
-              (Static =>
-                 Is_Split_Step
-                   (Source     => Model (Source),
-                    Separator  => Model (Separator),
-                    Segment    => Model (Source, Segment),
-                    First      => First,
-                    Next_First => Big_Split_Model_Index (State),
-                    Final      => Split_Complete (State)));
+            pragma
+              Assert
+                (Static =>
+                   Is_Split_Step
+                     (Source     => Model (Source),
+                      Separator  => Model (Separator),
+                      Segment    => Model (Source, Segment),
+                      First      => First,
+                      Next_First => Big_Split_Model_Index (State),
+                      Final      => Split_Complete (State)));
          end;
       end loop;
-      pragma Assert
-        (Static =>
-           Big_Split_Model_Index (State)
-           = Scalar_Sequences.Length (Model (Source)) + 1);
+      pragma
+        Assert
+          (Static =>
+             Big_Split_Model_Index (State)
+             = Scalar_Sequences.Length (Model (Source)) + 1);
    end Split_By_Substring;
 
-   procedure Split_By_Scalar
-     (Source : String; Separator : Scalar_Value)
-   is
+   procedure Split_By_Scalar (Source : String; Separator : Scalar_Value) is
       State     : Split_State := Start_Split;
       Segment   : Byte_Span;
       Has_Value : Boolean;
    begin
       while not Split_Complete (State) loop
-         pragma Loop_Invariant
-           (Static => Is_Valid_Split_State (Source, State));
-         pragma Loop_Variant
-           (Decreases =>
-              Long_Long_Integer (Code_Point_Length (Source)) + 2
-              - Long_Long_Integer (Split_Model_Index (State)));
+         pragma
+           Loop_Invariant (Static => Is_Valid_Split_State (Source, State));
+         pragma
+           Loop_Variant
+             (Decreases =>
+                Long_Long_Integer (Code_Point_Length (Source))
+                + 2
+                - Long_Long_Integer (Split_Model_Index (State)));
          declare
             First : constant Big_Positive := Big_Split_Model_Index (State)
             with Ghost => Static;
          begin
             Next (Source, Separator, State, Segment, Has_Value);
             pragma Assert (Has_Value);
-            pragma Assert
-              (Static =>
-                 Is_Split_Step
-                   (Source     => Model (Source),
-                    Separator  => Separator,
-                    Segment    => Model (Source, Segment),
-                    First      => First,
-                    Next_First => Big_Split_Model_Index (State),
-                    Final      => Split_Complete (State)));
+            pragma
+              Assert
+                (Static =>
+                   Is_Split_Step
+                     (Source     => Model (Source),
+                      Separator  => Separator,
+                      Segment    => Model (Source, Segment),
+                      First      => First,
+                      Next_First => Big_Split_Model_Index (State),
+                      Final      => Split_Complete (State)));
          end;
       end loop;
-      pragma Assert
-        (Static =>
-           Big_Split_Model_Index (State)
-           = Scalar_Sequences.Length (Model (Source)) + 1);
+      pragma
+        Assert
+          (Static =>
+             Big_Split_Model_Index (State)
+             = Scalar_Sequences.Length (Model (Source)) + 1);
    end Split_By_Scalar;
 
 end Plain_String_Proofs;

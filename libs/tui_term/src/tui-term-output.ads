@@ -36,10 +36,11 @@
 with Tui.Surface;
 with Tui.Surface.Diff;
 
-package Tui.Term.Output with
-  SPARK_Mode     => On,
-  Abstract_State => Color_Config,
-  Initializes    => Color_Config
+package Tui.Term.Output
+  with
+    SPARK_Mode     => On,
+    Abstract_State => Color_Config,
+    Initializes    => Color_Config
 is
 
    --  How much colour the target terminal can render. The surface keeps full
@@ -70,9 +71,10 @@ is
 
    --  Move the cursor to a 1-based (Row, Col), within the surface extents.
    procedure Move_To (Row, Col : Positive)
-   with Global => null,
-        Pre    => Row <= Tui.Surface.Max_Extent
-                  and then Col <= Tui.Surface.Max_Extent;
+   with
+     Global => null,
+     Pre    =>
+       Row <= Tui.Surface.Max_Extent and then Col <= Tui.Surface.Max_Extent;
 
    procedure Hide_Cursor
    with Global => null;
@@ -100,10 +102,7 @@ is
    --  cells costs one move rather than one per cell; no change depends on a
    --  stale previous frame being on screen contiguously. Leaves the SGR
    --  state reset. Emits nothing at all for an empty change set.
-   procedure Apply
-     (Changes : Tui.Surface.Diff.Change_Array;
-      Count   : Natural)
-   with Global => (Input => Color_Config),
-        Pre    => Count <= Changes'Length;
+   procedure Apply (Changes : Tui.Surface.Diff.Change_Array; Count : Natural)
+   with Global => (Input => Color_Config), Pre => Count <= Changes'Length;
 
 end Tui.Term.Output;

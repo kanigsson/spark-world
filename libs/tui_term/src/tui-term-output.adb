@@ -1,9 +1,8 @@
 with Tui.Term.Sys;
 with Tui.Width;
 
-package body Tui.Term.Output with
-  SPARK_Mode    => On,
-  Refined_State => (Color_Config => Depth)
+package body Tui.Term.Output
+  with SPARK_Mode => On, Refined_State => (Color_Config => Depth)
 is
 
    ESC : constant Character := Character'Val (16#1B#);
@@ -19,7 +18,8 @@ is
       Depth := D;
    end Set_Color_Depth;
 
-   function Color_Depth_Setting return Color_Depth is (Depth);
+   function Color_Depth_Setting return Color_Depth
+   is (Depth);
 
    ---------------------------------------------------------------------------
    --  Raw write (the single syscall in this package, via the proved shim)
@@ -36,7 +36,7 @@ is
          Tui.Term.Sys.Write
            (Stdout_FD, Text (Text'First + Offset .. Text'Last), Written);
          exit when Written = 0;   --  error or closed pipe: give up, don't spin
-         Offset    := Offset    + Written;
+         Offset := Offset + Written;
          Remaining := Remaining - Written;
       end loop;
    end Put;
@@ -45,20 +45,25 @@ is
    --  Small formatting helpers
    ---------------------------------------------------------------------------
 
-   function Digit (D : Natural) return Character is
-     (Character'Val (Character'Pos ('0') + D))
+   function Digit (D : Natural) return Character
+   is (Character'Val (Character'Pos ('0') + D))
    with Pre => D <= 9;
 
    --  Decimal image with no leading space, length-bounded so every emitted
    --  fragment has a proved size. Four digits cover the largest values that
    --  reach here: surface extents and colour components.
    function Img (N : Natural) return String
-   with Pre  => N <= 9_999,
-        Post => Img'Result'First = 1
-                and then Img'Result'Length =
-                  (if N < 10 then 1
-                   elsif N < 100 then 2
-                   elsif N < 1_000 then 3
+   with
+     Pre  => N <= 9_999,
+     Post =>
+       Img'Result'First = 1
+       and then Img'Result'Length
+                = (if N < 10
+                   then 1
+                   elsif N < 100
+                   then 2
+                   elsif N < 1_000
+                   then 3
                    else 4);
 
    function Img (N : Natural) return String is
@@ -70,8 +75,11 @@ is
       elsif N < 1_000 then
          return (Digit (N / 100), Digit ((N / 10) mod 10), Digit (N mod 10));
       else
-         return (Digit (N / 1_000), Digit ((N / 100) mod 10),
-                 Digit ((N / 10) mod 10), Digit (N mod 10));
+         return
+           (Digit (N / 1_000),
+            Digit ((N / 100) mod 10),
+            Digit ((N / 10) mod 10),
+            Digit (N mod 10));
       end if;
    end Img;
 
@@ -85,7 +93,8 @@ is
    function Utf8 (G : Wide_Wide_Character) return String is
       Replacement : constant := 16#FFFD#;
 
-      function B (V : Natural) return Character is (Character'Val (V))
+      function B (V : Natural) return Character
+      is (Character'Val (V))
       with Pre => V <= 255;
 
       P : constant Natural :=
@@ -96,17 +105,18 @@ is
       if P < 16#80# then
          return (1 => B (P));
       elsif P < 16#800# then
-         return (B (16#C0# + P / 2**6),
-                 B (16#80# + P mod 2**6));
+         return (B (16#C0# + P / 2**6), B (16#80# + P mod 2**6));
       elsif P < 16#1_0000# then
-         return (B (16#E0# + P / 2**12),
-                 B (16#80# + (P / 2**6) mod 2**6),
-                 B (16#80# + P mod 2**6));
+         return
+           (B (16#E0# + P / 2**12),
+            B (16#80# + (P / 2**6) mod 2**6),
+            B (16#80# + P mod 2**6));
       else
-         return (B (16#F0# + P / 2**18),
-                 B (16#80# + (P / 2**12) mod 2**6),
-                 B (16#80# + (P / 2**6) mod 2**6),
-                 B (16#80# + P mod 2**6));
+         return
+           (B (16#F0# + P / 2**18),
+            B (16#80# + (P / 2**12) mod 2**6),
+            B (16#80# + (P / 2**6) mod 2**6),
+            B (16#80# + P mod 2**6));
       end if;
    end Utf8;
 
@@ -157,17 +167,29 @@ is
    ---------------------------------------------------------------------------
 
    subtype Ansi_16 is Natural range 0 .. 15;
-   type RGB_Triple is record R, G, B : Tui.Surface.Component; end record;
+   type RGB_Triple is record
+      R, G, B : Tui.Surface.Component;
+   end record;
 
    --  The conventional xterm RGB of the 16 base colours; used only to find a
    --  nearest match when downgrading, so the exact values are not critical.
    Base_16 : constant array (Ansi_16) of RGB_Triple :=
-     (0  => (0, 0, 0),       1  => (205, 0, 0),    2  => (0, 205, 0),
-      3  => (205, 205, 0),   4  => (0, 0, 238),    5  => (205, 0, 205),
-      6  => (0, 205, 205),   7  => (229, 229, 229),
-      8  => (127, 127, 127), 9  => (255, 0, 0),    10 => (0, 255, 0),
-      11 => (255, 255, 0),   12 => (92, 92, 255),  13 => (255, 0, 255),
-      14 => (0, 255, 255),   15 => (255, 255, 255));
+     (0  => (0, 0, 0),
+      1  => (205, 0, 0),
+      2  => (0, 205, 0),
+      3  => (205, 205, 0),
+      4  => (0, 0, 238),
+      5  => (205, 0, 205),
+      6  => (0, 205, 205),
+      7  => (229, 229, 229),
+      8  => (127, 127, 127),
+      9  => (255, 0, 0),
+      10 => (0, 255, 0),
+      11 => (255, 255, 0),
+      12 => (92, 92, 255),
+      13 => (255, 0, 255),
+      14 => (0, 255, 255),
+      15 => (255, 255, 255));
 
    --  Map a 256-palette index to its approximate RGB (16 base, 6x6x6 cube,
    --  24-step gray ramp), so any palette colour can be re-downgraded further.
@@ -181,9 +203,10 @@ is
          declare
             N : constant Natural := Natural (Index) - 16;
          begin
-            return (R => Levels ((N / 36) mod 6),
-                    G => Levels ((N / 6) mod 6),
-                    B => Levels (N mod 6));
+            return
+              (R => Levels ((N / 36) mod 6),
+               G => Levels ((N / 6) mod 6),
+               B => Levels (N mod 6));
          end;
       else
          declare
@@ -212,7 +235,7 @@ is
          begin
             if D < Best_D then
                Best_D := D;
-               Best   := I;
+               Best := I;
             end if;
          end;
       end loop;
@@ -234,8 +257,8 @@ is
       end if;
    end Cube_Level;
 
-   function Nearest_256 (C : RGB_Triple) return Natural is
-     (16 + 36 * Cube_Level (C.R) + 6 * Cube_Level (C.G) + Cube_Level (C.B))
+   function Nearest_256 (C : RGB_Triple) return Natural
+   is (16 + 36 * Cube_Level (C.R) + 6 * Cube_Level (C.G) + Cube_Level (C.B))
    with Post => Nearest_256'Result <= 255;
 
    ---------------------------------------------------------------------------
@@ -253,12 +276,13 @@ is
       Data : String (1 .. SGR_Capacity) := (others => ' ');
    end record;
 
-   function Same (A, B : SGR_Params) return Boolean is
-     (A.Len = B.Len and then A.Data (1 .. A.Len) = B.Data (1 .. B.Len));
+   function Same (A, B : SGR_Params) return Boolean
+   is (A.Len = B.Len and then A.Data (1 .. A.Len) = B.Data (1 .. B.Len));
 
    procedure Add (P : in out SGR_Params; Piece : String)
-   with Pre  => Piece'Length <= SGR_Capacity - P.Len,
-        Post => P.Len = P.Len'Old + Piece'Length;
+   with
+     Pre  => Piece'Length <= SGR_Capacity - P.Len,
+     Post => P.Len = P.Len'Old + Piece'Length;
 
    procedure Add (P : in out SGR_Params; Piece : String) is
    begin
@@ -269,34 +293,37 @@ is
    --  Append the SGR fragment selecting a colour, for the given role base
    --  codes: Foreground => (38, 30, 90); Background => (48, 40, 100).
    procedure Add_Color
-     (P           : in out SGR_Params;
-      C           : Tui.Surface.Color;
-      Ext, Lo, Hi : Natural)
-   with Pre  => Ext <= 48 and then Lo <= 40 and then Hi <= 100
-                and then P.Len <= SGR_Capacity - 17,
-        Post => P.Len <= P.Len'Old + 17;
+     (P : in out SGR_Params; C : Tui.Surface.Color; Ext, Lo, Hi : Natural)
+   with
+     Pre  =>
+       Ext <= 48
+       and then Lo <= 40
+       and then Hi <= 100
+       and then P.Len <= SGR_Capacity - 17,
+     Post => P.Len <= P.Len'Old + 17;
 
    procedure Add_Color
-     (P           : in out SGR_Params;
-      C           : Tui.Surface.Color;
-      Ext, Lo, Hi : Natural)
+     (P : in out SGR_Params; C : Tui.Surface.Color; Ext, Lo, Hi : Natural)
    is
       use Tui.Surface;
 
-      function To_RGB return RGB_Triple is
-        (case C.Kind is
+      function To_RGB return RGB_Triple
+      is (case C.Kind is
             when RGB     => (C.R, C.G, C.B),
             when Palette => Pal_To_RGB (C.Index),
-            when Default => (0, 0, 0));   --  unreachable; Default handled below
+            when Default =>
+              (0, 0, 0));   --  unreachable; Default handled below
    begin
       if C.Kind = Default or else Depth = Monochrome then
          return;   --  the leading SGR "0" reset already restored the default
+
       end if;
 
       case Depth is
-         when Monochrome =>
+         when Monochrome  =>
             null;
-         when Basic_16 =>
+
+         when Basic_16    =>
             declare
                Idx : constant Ansi_16 := Nearest_16 (To_RGB);
             begin
@@ -306,24 +333,37 @@ is
                   Add (P, ";" & Img (Hi + (Idx - 8)));
                end if;
             end;
+
          when Palette_256 =>
             case C.Kind is
                when Palette =>
                   Add (P, ";" & Img (Ext) & ";5;" & Img (Natural (C.Index)));
-               when RGB =>
-                  Add (P, ";" & Img (Ext) & ";5;" & Img (Nearest_256 (To_RGB)));
+
+               when RGB     =>
+                  Add
+                    (P, ";" & Img (Ext) & ";5;" & Img (Nearest_256 (To_RGB)));
+
                when Default =>
                   null;
             end case;
-         when Truecolor =>
+
+         when Truecolor   =>
             case C.Kind is
                when Palette =>
                   Add (P, ";" & Img (Ext) & ";5;" & Img (Natural (C.Index)));
-               when RGB =>
-                  Add (P, ";" & Img (Ext) & ";2;"
-                       & Img (Natural (C.R)) & ";"
-                       & Img (Natural (C.G)) & ";"
-                       & Img (Natural (C.B)));
+
+               when RGB     =>
+                  Add
+                    (P,
+                     ";"
+                     & Img (Ext)
+                     & ";2;"
+                     & Img (Natural (C.R))
+                     & ";"
+                     & Img (Natural (C.G))
+                     & ";"
+                     & Img (Natural (C.B)));
+
                when Default =>
                   null;
             end case;
@@ -339,10 +379,18 @@ is
    begin
       P := (Len => 0, Data => (others => ' '));
       Add (P, "0");
-      if C.Attributes.Bold      then Add (P, ";1"); end if;
-      if C.Attributes.Italic    then Add (P, ";3"); end if;
-      if C.Attributes.Underline then Add (P, ";4"); end if;
-      if C.Attributes.Inverse   then Add (P, ";7"); end if;
+      if C.Attributes.Bold then
+         Add (P, ";1");
+      end if;
+      if C.Attributes.Italic then
+         Add (P, ";3");
+      end if;
+      if C.Attributes.Underline then
+         Add (P, ";4");
+      end if;
+      if C.Attributes.Inverse then
+         Add (P, ";7");
+      end if;
       Add_Color (P, C.Foreground, 38, 30, 90);
       Add_Color (P, C.Background, 48, 40, 100);
    end Cell_SGR;
@@ -358,11 +406,12 @@ is
    ---------------------------------------------------------------------------
 
    function Move_Str (Row, Col : Positive) return String
-   with Pre  => Row <= 9_999 and then Col <= 9_999,
-        Post => Move_Str'Result'Length <= 12;
+   with
+     Pre  => Row <= 9_999 and then Col <= 9_999,
+     Post => Move_Str'Result'Length <= 12;
 
-   function Move_Str (Row, Col : Positive) return String is
-     (ESC & "[" & Img (Row) & ";" & Img (Col) & "H");
+   function Move_Str (Row, Col : Positive) return String
+   is (ESC & "[" & Img (Row) & ";" & Img (Col) & "H");
 
    procedure Move_To (Row, Col : Positive) is
    begin
@@ -428,7 +477,7 @@ is
                if First or else not Same (Here, Last_SGR) then
                   Emit_SGR (B, Here);
                   Last_SGR := Here;
-                  First    := False;
+                  First := False;
                end if;
                Emit (B, Utf8 (Cell_Here.Glyph));
             end;
@@ -439,9 +488,7 @@ is
       Flush (B);
    end Blit;
 
-   procedure Apply
-     (Changes : Tui.Surface.Diff.Change_Array;
-      Count   : Natural)
+   procedure Apply (Changes : Tui.Surface.Diff.Change_Array; Count : Natural)
    is
       B        : Stage;
       Here     : SGR_Params;
@@ -470,7 +517,7 @@ is
       Begin_Sync (B);
       for I in 1 .. Count loop
          declare
-            Ch : constant Tui.Surface.Diff.Cell_Change :=
+            Ch      : constant Tui.Surface.Diff.Cell_Change :=
               Changes (Changes'First + (I - 1));
             --  Columns the glyph will advance the cursor by. A run may only
             --  be continued across a glyph that advances exactly one: a wide
@@ -490,7 +537,7 @@ is
             if First or else not Same (Here, Last_SGR) then
                Emit_SGR (B, Here);
                Last_SGR := Here;
-               First    := False;
+               First := False;
             end if;
             Emit (B, Utf8 (Ch.Value.Glyph));
             if Advance = 1 then

@@ -4,7 +4,9 @@
 
 with Tui.Text;
 
-package Git_View_Refs with SPARK_Mode => On is
+package Git_View_Refs
+  with SPARK_Mode => On
+is
 
    procedure Decoration_Span
      (Line       : Tui.Text.Buffer;
@@ -12,9 +14,9 @@ package Git_View_Refs with SPARK_Mode => On is
       Found      : out Boolean;
       From       : out Tui.Text.Byte_Count;
       To         : out Tui.Text.Byte_Count)
-   with Global => null,
-        Pre    => Sha_Length <= 40,
-        Post   => (if Found
-                   then From <= To and then To < Line'Length);
+   with
+     Global => null,
+     Pre    => Sha_Length <= 40,
+     Post   => (if Found then From <= To and then To < Line'Length);
 
 end Git_View_Refs;

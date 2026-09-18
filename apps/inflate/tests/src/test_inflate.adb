@@ -12,17 +12,17 @@
 --  Output: one PASS/FAIL line per case plus a summary; exit status 1 if
 --  any case fails. A propagated exception is a FAIL of its own kind.
 
-with Ada.Command_Line;          use Ada.Command_Line;
-with Ada.Exceptions;            use Ada.Exceptions;
-with Ada.Streams;               use Ada.Streams;
+with Ada.Command_Line; use Ada.Command_Line;
+with Ada.Exceptions;   use Ada.Exceptions;
+with Ada.Streams;      use Ada.Streams;
 with Ada.Streams.Stream_IO;
-with Ada.Text_IO;               use Ada.Text_IO;
+with Ada.Text_IO;      use Ada.Text_IO;
 with Ada.Unchecked_Deallocation;
 with Ore;
 use type Ore.Word32;
 use type Ore.Byte_Array;
 
-with Inflate;                   use Inflate;
+with Inflate; use Inflate;
 with Inflate.Adler32;
 with Inflate.CRC32;
 with Inflate.Raw;
@@ -34,8 +34,8 @@ with Inflate.Model;
 procedure Test_Inflate is
 
    type Byte_Array_Access is access Byte_Array;
-   procedure Free is
-     new Ada.Unchecked_Deallocation (Byte_Array, Byte_Array_Access);
+   procedure Free is new
+     Ada.Unchecked_Deallocation (Byte_Array, Byte_Array_Access);
 
    function Load (Name : String) return Byte_Array_Access is
       use Ada.Streams.Stream_IO;
@@ -43,9 +43,9 @@ procedure Test_Inflate is
    begin
       Open (F, In_File, Name);
       declare
-         Len : constant Natural := Natural (Size (F));
-         Buf : constant Byte_Array_Access := new Byte_Array (1 .. Len);
-         SEA : Stream_Element_Array (1 .. Stream_Element_Offset (Len));
+         Len  : constant Natural := Natural (Size (F));
+         Buf  : constant Byte_Array_Access := new Byte_Array (1 .. Len);
+         SEA  : Stream_Element_Array (1 .. Stream_Element_Offset (Len));
          Last : Stream_Element_Offset;
       begin
          if Len > 0 then
@@ -62,12 +62,10 @@ procedure Test_Inflate is
    procedure Save (Name : String; Data : Byte_Array) is
       use Ada.Streams.Stream_IO;
       F   : Ada.Streams.Stream_IO.File_Type;
-      SEA : Stream_Element_Array
-              (1 .. Stream_Element_Offset (Data'Length));
+      SEA : Stream_Element_Array (1 .. Stream_Element_Offset (Data'Length));
    begin
       for I in SEA'Range loop
-         SEA (I) := Stream_Element
-           (Data (Data'First - 1 + Natural (I)));
+         SEA (I) := Stream_Element (Data (Data'First - 1 + Natural (I)));
       end loop;
       Create (F, Out_File, Name);
       if Data'Length > 0 then
@@ -86,14 +84,15 @@ procedure Test_Inflate is
       Out_Cap                 : Natural;
       Exp_Consumed            : Integer)
    is
-      Input    : Byte_Array_Access := Load (In_Path);
-      Output   : Byte_Array_Access := new Byte_Array (1 .. Out_Cap);
-      Expected : Byte_Array_Access :=
+      Input              : Byte_Array_Access := Load (In_Path);
+      Output             : Byte_Array_Access := new Byte_Array (1 .. Out_Cap);
+      Expected           : Byte_Array_Access :=
         (if Exp_Path = "-" or else Exp_Path = "?"
-         then null else Load (Exp_Path));
+         then null
+         else Load (Exp_Path));
       Consumed, Produced : Natural := 0;
-      Status   : Status_Type;
-      Label    : constant String := Mode & " " & In_Path;
+      Status             : Status_Type;
+      Label              : constant String := Mode & " " & In_Path;
 
       procedure Fail (Why : String) is
       begin
@@ -125,8 +124,11 @@ procedure Test_Inflate is
                Inflate.ZIP.Next (Input.all, C, E, Status);
                exit when Status /= OK;
                Inflate.ZIP.Extract
-                 (Input.all, E,
-                  Output (Produced + 1 .. Output'Last), P, Status);
+                 (Input.all,
+                  E,
+                  Output (Produced + 1 .. Output'Last),
+                  P,
+                  Status);
                Produced := Produced + P;
             end loop;
             Consumed := Input'Length;
@@ -140,8 +142,8 @@ procedure Test_Inflate is
             Fail ("input too large for the compressor");
          else
             declare
-               Comp : Byte_Array_Access := new Byte_Array
-                 (1 .. GZip.Compressed_Size (Input'Length));
+               Comp          : Byte_Array_Access :=
+                 new Byte_Array (1 .. GZip.Compressed_Size (Input'Length));
                Comp_Produced : Natural;
             begin
                GZip.Compress (Input.all, Comp.all, Comp_Produced);
@@ -152,14 +154,18 @@ procedure Test_Inflate is
                elsif Produced /= Input'Length
                  or else Output (1 .. Produced) /= Input.all
                then
-                  Fail ("round trip differs (produced" & Produced'Image
-                        & ")");
+                  Fail ("round trip differs (produced" & Produced'Image & ")");
                elsif Consumed /= Comp_Produced then
-                  Fail ("round trip consumed" & Consumed'Image
-                        & ", expected" & Comp_Produced'Image);
+                  Fail
+                    ("round trip consumed"
+                     & Consumed'Image
+                     & ", expected"
+                     & Comp_Produced'Image);
                elsif not Model.Is_Decoding
-                 (Comp (11 .. Comp_Produced), Input.all,
-                  Comp_Produced - 18, Input'Length)
+                           (Comp (11 .. Comp_Produced),
+                            Input.all,
+                            Comp_Produced - 18,
+                            Input'Length)
                then
                   Fail ("executable DEFLATE model does not hold");
                end if;
@@ -179,21 +185,32 @@ procedure Test_Inflate is
          null;  --  no expectation: the case only asserts "no exception"
       elsif Expected = null then
          if Status = OK then
-            Fail ("accepted, expected an error (produced"
-                  & Produced'Image & ")");
+            Fail
+              ("accepted, expected an error (produced" & Produced'Image & ")");
          end if;
       else
          if Status /= OK then
-            Fail ("rejected with " & Status'Image & ", expected"
-                  & Natural'Image (Expected'Length) & " bytes");
+            Fail
+              ("rejected with "
+               & Status'Image
+               & ", expected"
+               & Natural'Image (Expected'Length)
+               & " bytes");
          elsif Produced /= Expected'Length
            or else Output (1 .. Produced) /= Expected.all
          then
-            Fail ("output differs (produced" & Produced'Image
-                  & ", expected" & Natural'Image (Expected'Length) & ")");
+            Fail
+              ("output differs (produced"
+               & Produced'Image
+               & ", expected"
+               & Natural'Image (Expected'Length)
+               & ")");
          elsif Exp_Consumed >= 0 and then Consumed /= Exp_Consumed then
-            Fail ("consumed" & Consumed'Image & ", expected"
-                  & Exp_Consumed'Image);
+            Fail
+              ("consumed"
+               & Consumed'Image
+               & ", expected"
+               & Exp_Consumed'Image);
          end if;
       end if;
 
@@ -203,14 +220,18 @@ procedure Test_Inflate is
    exception
       when E : others =>
          Failures := Failures + 1;
-         Put_Line ("FAIL " & Label & ": EXCEPTION " & Exception_Name (E)
-                   & ": " & Exception_Message (E));
+         Put_Line
+           ("FAIL "
+            & Label
+            & ": EXCEPTION "
+            & Exception_Name (E)
+            & ": "
+            & Exception_Message (E));
    end Run_Case;
 
-   Manifest : Ada.Text_IO.File_Type;
+   Manifest        : Ada.Text_IO.File_Type;
    CRC_Check_Input : constant Byte_Array (1 .. 9) :=
-     (16#31#, 16#32#, 16#33#, 16#34#, 16#35#,
-      16#36#, 16#37#, 16#38#, 16#39#);
+     (16#31#, 16#32#, 16#33#, 16#34#, 16#35#, 16#36#, 16#37#, 16#38#, 16#39#);
 begin
    if Argument_Count /= 1 then
       Put_Line ("usage: test_inflate MANIFEST");
@@ -237,7 +258,8 @@ begin
 
    if Inflate.Adler32.Update
         (Inflate.Adler32.Update (1, CRC_Check_Input (1 .. 4)),
-         CRC_Check_Input (5 .. 9)) /= 16#091E_01DE#
+         CRC_Check_Input (5 .. 9))
+     /= 16#091E_01DE#
    then
       Put_Line ("FAIL incremental Adler-32 check vector");
       Set_Exit_Status (1);

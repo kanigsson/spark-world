@@ -1,6 +1,8 @@
 with Git_Changes.Core.Validation;
 
-package body Git_Changes.Core.Raw with SPARK_Mode is
+package body Git_Changes.Core.Raw
+  with SPARK_Mode
+is
 
    NUL : constant Character := Character'Val (0);
 
@@ -10,15 +12,18 @@ package body Git_Changes.Core.Raw with SPARK_Mode is
       Target   : Character;
       Position : out Natural;
       Found    : out Boolean)
-     with Pre => Input'First = 1
+   with
+     Pre  =>
+       Input'First = 1
        and then Input'Last < Positive'Last
        and then From <= Input'Last + 1,
-       Post =>
-         (if Found then
-            Position >= From
-            and then Position <= Input'Last
-            and then Input (Position) = Target
-          else Position = 0)
+     Post =>
+       (if Found
+        then
+          Position >= From
+          and then Position <= Input'Last
+          and then Input (Position) = Target
+        else Position = 0)
    is
       J : Positive := From;
    begin
@@ -42,27 +47,30 @@ package body Git_Changes.Core.Raw with SPARK_Mode is
       Item   : out Raw_Record;
       Result : out Parse_Result)
    is
-      Initial  : constant Positive := Cursor;
-      Pos      : Positive;
-      Stop     : Natural;
-      Found    : Boolean;
-      Score    : Natural;
-      Valid    : Boolean;
+      Initial       : constant Positive := Cursor;
+      Pos           : Positive;
+      Stop          : Natural;
+      Found         : Boolean;
+      Score         : Natural;
+      Valid         : Boolean;
       Status_Length : Natural;
 
       procedure Token_To_Space (Token : out Slice; OK : out Boolean)
-        with Pre => Input'First = 1
-            and then Input'Last < Positive'Last
-            and then Pos <= Input'Last + 1,
-          Post => Pos >= Pos'Old
-            and then Pos <= Input'Last + 1
-            and then
-              (if OK then
-                 Token.Length > 0
-                 and then Token.First >= Input'First
-                 and then Token.First <= Input'Last
-                 and then Token.Length <= Input'Last - Token.First + 1
-               else Pos = Pos'Old)
+      with
+        Pre  =>
+          Input'First = 1
+          and then Input'Last < Positive'Last
+          and then Pos <= Input'Last + 1,
+        Post =>
+          Pos >= Pos'Old
+          and then Pos <= Input'Last + 1
+          and then (if OK
+                    then
+                      Token.Length > 0
+                      and then Token.First >= Input'First
+                      and then Token.First <= Input'Last
+                      and then Token.Length <= Input'Last - Token.First + 1
+                    else Pos = Pos'Old)
       is
          Space   : Natural;
          Located : Boolean;
@@ -117,17 +125,17 @@ package body Git_Changes.Core.Raw with SPARK_Mode is
       end if;
 
       if not Git_Changes.Core.Validation.Is_Octal_Mode
-        (Value (Input, Item.Old_Mode))
+               (Value (Input, Item.Old_Mode))
         or else not Git_Changes.Core.Validation.Is_Octal_Mode
-          (Value (Input, Item.New_Mode))
+                      (Value (Input, Item.New_Mode))
       then
          Result := Invalid_Mode;
          return;
       end if;
       if not Git_Changes.Core.Validation.Is_Hex_Object_Id
-        (Value (Input, Item.Old_Object))
+               (Value (Input, Item.Old_Object))
         or else not Git_Changes.Core.Validation.Is_Hex_Object_Id
-          (Value (Input, Item.New_Object))
+                      (Value (Input, Item.New_Object))
         or else Item.Old_Object.Length /= Item.New_Object.Length
       then
          Result := Invalid_Object_Id;
@@ -141,15 +149,33 @@ package body Git_Changes.Core.Raw with SPARK_Mode is
       end if;
       Status_Length := Stop - Pos;
       case Input (Pos) is
-         when 'A' => Item.Status := Status_Added;
-         when 'C' => Item.Status := Status_Copied;
-         when 'D' => Item.Status := Status_Deleted;
-         when 'M' => Item.Status := Status_Modified;
-         when 'R' => Item.Status := Status_Renamed;
-         when 'T' => Item.Status := Status_Type_Changed;
-         when 'U' => Item.Status := Status_Unmerged;
-         when 'X' => Item.Status := Status_Unknown;
-         when 'B' => Item.Status := Status_Broken_Pair;
+         when 'A'    =>
+            Item.Status := Status_Added;
+
+         when 'C'    =>
+            Item.Status := Status_Copied;
+
+         when 'D'    =>
+            Item.Status := Status_Deleted;
+
+         when 'M'    =>
+            Item.Status := Status_Modified;
+
+         when 'R'    =>
+            Item.Status := Status_Renamed;
+
+         when 'T'    =>
+            Item.Status := Status_Type_Changed;
+
+         when 'U'    =>
+            Item.Status := Status_Unmerged;
+
+         when 'X'    =>
+            Item.Status := Status_Unknown;
+
+         when 'B'    =>
+            Item.Status := Status_Broken_Pair;
+
          when others =>
             Result := Invalid_Status;
             return;

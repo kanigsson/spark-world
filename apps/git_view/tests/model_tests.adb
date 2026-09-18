@@ -1,9 +1,10 @@
 with Ada.Text_IO;
 with Git_View_Model; use Git_View_Model;
 with Tui.Pager.Engine;
+
 procedure Model_Tests is
    V, Saved : View_State;
-   N : Navigation;
+   N        : Navigation;
 begin
    V.Snapshot := To_Text ("first");
    V.Base := To_Text ("base");
@@ -30,10 +31,12 @@ begin
    Push (N, V);
    pragma Assert (not Can_Forward (N));
    for I in 1 .. 140 loop
-      V.Scope := To_Text (I'Image); Push (N, V);
+      V.Scope := To_Text (I'Image);
+      Push (N, V);
    end loop;
    for I in reverse 13 .. 140 loop
-      Back (N, V); pragma Assert (V.Scope = To_Text (I'Image));
+      Back (N, V);
+      pragma Assert (V.Scope = To_Text (I'Image));
    end loop;
    pragma Assert (not Can_Back (N));
    pragma Assert (Deletion_Anchor (0, 0) = 1);

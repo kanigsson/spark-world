@@ -12,7 +12,9 @@
 
 with Tui.Panes.Clip;
 
-package Tui.Term.Clipboard with SPARK_Mode => On is
+package Tui.Term.Clipboard
+  with SPARK_Mode => On
+is
 
    --  OSC 52's selection targets: the clipboard proper, or the X11 primary
    --  selection that middle-click pastes.
@@ -23,8 +25,8 @@ package Tui.Term.Clipboard with SPARK_Mode => On is
    type Terminator is (Bell, String_Terminator);
 
    procedure Set
-     (Text     : Tui.Panes.Clip.Payload;
-      To       : Destination := Clipboard;
+     (Text      : Tui.Panes.Clip.Payload;
+      To        : Destination := Clipboard;
       Ends_With : Terminator := Bell)
    with Global => null;
 

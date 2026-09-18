@@ -18,7 +18,7 @@
 --  --no-mouse leaves the mouse to the terminal, so its native text
 --  selection works without holding Shift.
 
-with Ada.Command_Line;            use Ada.Command_Line;
+with Ada.Command_Line; use Ada.Command_Line;
 with Ada.Text_IO;
 with Tui.Term.Event_Loop;
 with Git_View_App;
@@ -31,9 +31,9 @@ with Git_View_Repository;
 --  The precondition restates the app package's initial condition: the tools
 --  check it at program start against that package's elaboration, and assume
 --  it here — which is what lets the Init call prove.
-procedure Git_View_Main with
-  SPARK_Mode => On,
-  Pre        => Git_View_App.Uninitialized
+
+procedure Git_View_Main
+with SPARK_Mode => On, Pre => Git_View_App.Uninitialized
 is
 
    --  The one piece that stays outside SPARK: the loop driver takes its
@@ -42,8 +42,9 @@ is
    --  obligation is hoisted onto this wrapper, where the proof discharges
    --  it at the call site instead of trusting the hookup.
    procedure Run (Mouse : Boolean)
-   with Global => (In_Out => Git_View_App.State),
-        Pre    => Git_View_App.Has_Documents;
+   with
+     Global => (In_Out => Git_View_App.State),
+     Pre    => Git_View_App.Has_Documents;
 
    procedure Run (Mouse : Boolean) with SPARK_Mode => Off is
    begin
@@ -54,7 +55,9 @@ is
    end Run;
 
    procedure Run_Explorer (Mouse : Boolean)
-     with Global => (In_Out => (Git_View_Explorer.State, Git_View_Repository.State));
+   with
+     Global =>
+       (In_Out => (Git_View_Explorer.State, Git_View_Repository.State));
    procedure Run_Explorer (Mouse : Boolean) with SPARK_Mode => Off is
    begin
       Git_View_Loop.Run (Mouse);
@@ -62,7 +65,8 @@ is
 
    --  Message output sits outside SPARK only because the standard-error
    --  handle is not a SPARK-visible entity in this runtime.
-   procedure Fail (Msg : String) with Global => null;
+   procedure Fail (Msg : String)
+   with Global => null;
 
    procedure Fail (Msg : String) with SPARK_Mode => Off is
    begin
@@ -73,7 +77,8 @@ is
    --  Reject an unusable command-line argument. Also outside SPARK: quoting
    --  the argument concatenates strings whose lengths the prover cannot
    --  bound.
-   procedure Fail_Usage (Arg : String) with Global => null;
+   procedure Fail_Usage (Arg : String)
+   with Global => null;
 
    procedure Fail_Usage (Arg : String) with SPARK_Mode => Off is
    begin
@@ -83,7 +88,8 @@ is
          "usage: git_view [OPTIONS] [REVISION] [-- PATH]");
    end Fail_Usage;
 
-   procedure Print_Help with Global => null;
+   procedure Print_Help
+   with Global => null;
 
    procedure Print_Help with SPARK_Mode => Off is
    begin
@@ -94,29 +100,33 @@ is
       Ada.Text_IO.Put_Line ("         --all  --first-parent  -- PATH");
       Ada.Text_IO.Put_Line ("Display: --no-mouse");
       Ada.Text_IO.Put_Line ("Explorer: --worktree  --index  --base REVISION");
-      Ada.Text_IO.Put_Line ("          --legacy (original two-pane diff viewer)");
+      Ada.Text_IO.Put_Line
+        ("          --legacy (original two-pane diff viewer)");
    end Print_Help;
 
    type Pending_Filter is
      (No_Filter, Need_Author, Need_Since, Need_Until, Need_Message);
 
-   Ok            : Boolean;
-   Use_Mouse     : Boolean := True;
-   From          : Git_View_Source.Revision;
+   Ok             : Boolean;
+   Use_Mouse      : Boolean := True;
+   From           : Git_View_Source.Revision;
    History_Filter : Git_View_Source.Filters;
-   Have_From     : Boolean := False;
-   Path_Mode     : Boolean := False;
-   Pending       : Pending_Filter := No_Filter;
-   Legacy        : Boolean := False;
-   Kind          : Git_View_Model.Snapshot_Kind := Git_View_Model.Commit;
-   Base          : Git_View_Source.Revision;
-   Need_Base     : Boolean := False;
+   Have_From      : Boolean := False;
+   Path_Mode      : Boolean := False;
+   Pending        : Pending_Filter := No_Filter;
+   Legacy         : Boolean := False;
+   Kind           : Git_View_Model.Snapshot_Kind := Git_View_Model.Commit;
+   Base           : Git_View_Source.Revision;
+   Need_Base      : Boolean := False;
 
 begin
    for I in 1 .. Argument_Count loop
       if Need_Base then
          Git_View_Source.Make_Revision (Argument (I), Base, Ok);
-         if not Ok then Fail ("base must contain 1 to 255 characters"); return; end if;
+         if not Ok then
+            Fail ("base must contain 1 to 255 characters");
+            return;
+         end if;
          Need_Base := False;
       elsif Pending /= No_Filter then
          declare
@@ -129,11 +139,20 @@ begin
                return;
             end if;
             case Pending is
-               when Need_Author  => History_Filter.Author := Value;
-               when Need_Since   => History_Filter.Since := Value;
-               when Need_Until   => History_Filter.Until_Date := Value;
-               when Need_Message => History_Filter.Message := Value;
-               when No_Filter    => null;
+               when Need_Author  =>
+                  History_Filter.Author := Value;
+
+               when Need_Since   =>
+                  History_Filter.Since := Value;
+
+               when Need_Until   =>
+                  History_Filter.Until_Date := Value;
+
+               when Need_Message =>
+                  History_Filter.Message := Value;
+
+               when No_Filter    =>
+                  null;
             end case;
             Pending := No_Filter;
          end;
@@ -162,8 +181,7 @@ begin
          Kind := Git_View_Model.Staging;
       elsif Argument (I) = "--base" then
          Need_Base := True;
-      elsif Argument (I) = "--help" or else Argument (I) = "-h"
-      then
+      elsif Argument (I) = "--help" or else Argument (I) = "-h" then
          Print_Help;
          return;
       elsif Argument (I) = "--all" then

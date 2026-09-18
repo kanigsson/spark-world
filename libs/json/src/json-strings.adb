@@ -4,21 +4,23 @@ with Unicode_Text;
 --  and equality. JSON escape syntax stays here; raw UTF-8 classification,
 --  scalar decoding, and scalar encoding come from Unicode_Text.UTF_8.
 
-package body JSON.Strings with SPARK_Mode => On is
+package body JSON.Strings
+  with SPARK_Mode => On
+is
 
    use type Unicode_Text.Scalar_Value;
 
-   function Cur (Input : String; Pos : Natural) return Character is
-     (Input (Input'First + Pos))
+   function Cur (Input : String; Pos : Natural) return Character
+   is (Input (Input'First + Pos))
    with Pre => Pos < Input'Length;
 
    --  Four hex digits of a \u escape, as a code unit.
 
    procedure Hex4
-     (Input  : in     String;
+     (Input  : in String;
       Pos    : in out Natural;
-      Code   :    out Natural;
-      Status :    out Status_Type)
+      Code   : out Natural;
+      Status : out Status_Type)
    with
      Global => null,
      Pre    => Pos <= Input'Length,
@@ -32,22 +34,20 @@ package body JSON.Strings with SPARK_Mode => On is
    --  consumed; this is the bound used by Decode's caller-buffer proof.
 
    procedure Next_Scalar
-     (Input  : in     String;
+     (Input  : in String;
       Pos    : in out Natural;
-      Value  :    out Unicode_Text.Scalar_Value;
-      Status :    out Status_Type)
+      Value  : out Unicode_Text.Scalar_Value;
+      Status : out Status_Type)
    with
      Global => null,
      Pre    => Pos < Input'Length,
      Post   =>
        Pos in Pos'Old .. Input'Length
-       and then
-         (if Status = OK
-          then
-            Pos > Pos'Old
-            and then
-              Natural (Unicode_Text.UTF_8.Encoding_Width (Value))
-                <= Pos - Pos'Old);
+       and then (if Status = OK
+                 then
+                   Pos > Pos'Old
+                   and then Natural (Unicode_Text.UTF_8.Encoding_Width (Value))
+                            <= Pos - Pos'Old);
 
    --  Append one complete canonical encoding. Out_Pos is advanced only
    --  after every byte has been written.
@@ -55,29 +55,27 @@ package body JSON.Strings with SPARK_Mode => On is
    procedure Append_Scalar
      (Output  : in out String;
       Out_Pos : in out Natural;
-      Value   : in     Unicode_Text.Scalar_Value)
+      Value   : in Unicode_Text.Scalar_Value)
    with
      Global => null,
      Pre    =>
        Output'Last < Positive'Last
        and then Out_Pos <= Output'Length
-       and then
-         Natural (Unicode_Text.UTF_8.Encoding_Width (Value))
-           <= Output'Length - Out_Pos,
+       and then Natural (Unicode_Text.UTF_8.Encoding_Width (Value))
+                <= Output'Length - Out_Pos,
      Post   =>
        Out_Pos
-         = Out_Pos'Old
-           + Natural (Unicode_Text.UTF_8.Encoding_Width (Value));
+       = Out_Pos'Old + Natural (Unicode_Text.UTF_8.Encoding_Width (Value));
 
    ----------
    -- Hex4 --
    ----------
 
    procedure Hex4
-     (Input  : in     String;
+     (Input  : in String;
       Pos    : in out Natural;
-      Code   :    out Natural;
-      Status :    out Status_Type)
+      Code   : out Natural;
+      Status : out Status_Type)
    is
       C : Character;
       V : Natural range 0 .. 15;
@@ -89,25 +87,32 @@ package body JSON.Strings with SPARK_Mode => On is
       end if;
       for I in 1 .. 4 loop
          pragma Loop_Invariant (Pos = Pos'Loop_Entry + (I - 1));
-         pragma Loop_Invariant
-           (Code <= (case I is
-                        when 1 => 0, when 2 => 15,
-                        when 3 => 255, when 4 => 4_095));
+         pragma
+           Loop_Invariant
+             (Code
+                <= (case I is
+                      when 1 => 0,
+                      when 2 => 15,
+                      when 3 => 255,
+                      when 4 => 4_095));
          C := Cur (Input, Pos);
          case C is
             when '0' .. '9' =>
                V := Character'Pos (C) - Character'Pos ('0');
+
             when 'a' .. 'f' =>
                V := Character'Pos (C) - Character'Pos ('a') + 10;
+
             when 'A' .. 'F' =>
                V := Character'Pos (C) - Character'Pos ('A') + 10;
-            when others =>
-               Code   := 0;
+
+            when others     =>
+               Code := 0;
                Status := Invalid_Escape;
                return;
          end case;
          Code := Code * 16 + V;
-         Pos  := Pos + 1;
+         Pos := Pos + 1;
       end loop;
       Status := OK;
    end Hex4;
@@ -117,10 +122,10 @@ package body JSON.Strings with SPARK_Mode => On is
    -----------------
 
    procedure Next_Scalar
-     (Input  : in     String;
+     (Input  : in String;
       Pos    : in out Natural;
-      Value  :    out Unicode_Text.Scalar_Value;
-      Status :    out Status_Type)
+      Value  : out Unicode_Text.Scalar_Value;
+      Status : out Status_Type)
    is
       C    : Character;
       High : Natural;
@@ -137,23 +142,28 @@ package body JSON.Strings with SPARK_Mode => On is
             return;
          end if;
 
-         C   := Cur (Input, Pos);
+         C := Cur (Input, Pos);
          Pos := Pos + 1;
          case C is
             when '"' | '\' | '/' =>
                Value := Unicode_Text.Scalar_Value (Character'Pos (C));
-            when 'b' =>
+
+            when 'b'             =>
                Value := 8;
-            when 'f' =>
+
+            when 'f'             =>
                Value := 12;
-            when 'n' =>
+
+            when 'n'             =>
                Value := 10;
-            when 'r' =>
+
+            when 'r'             =>
                Value := 13;
-            when 't' =>
+
+            when 't'             =>
                Value := 9;
 
-            when 'u' =>
+            when 'u'             =>
                Hex4 (Input, Pos, High, Status);
                if Status /= OK then
                   return;
@@ -191,7 +201,7 @@ package body JSON.Strings with SPARK_Mode => On is
                   Value := Unicode_Text.Scalar_Value (High);
                end if;
 
-            when others =>
+            when others          =>
                Status := Invalid_Escape;
                return;
          end case;
@@ -201,17 +211,17 @@ package body JSON.Strings with SPARK_Mode => On is
          Status := Invalid_String_Char;
 
       elsif Character'Pos (C) < 128 then
-         Value  := Unicode_Text.Scalar_Value (Character'Pos (C));
-         Pos    := Pos + 1;
+         Value := Unicode_Text.Scalar_Value (Character'Pos (C));
+         Pos := Pos + 1;
          Status := OK;
 
       elsif not Unicode_Text.UTF_8.Valid_At (Input, Pos) then
          Status := Invalid_UTF8;
 
       else
-         Unit   := Unicode_Text.UTF_8.Decode_One (Input, Pos);
-         Value  := Unit.Value;
-         Pos    := Pos + Natural (Unit.Width);
+         Unit := Unicode_Text.UTF_8.Decode_One (Input, Pos);
+         Value := Unit.Value;
+         Pos := Pos + Natural (Unit.Width);
          Status := OK;
       end if;
    end Next_Scalar;
@@ -223,7 +233,7 @@ package body JSON.Strings with SPARK_Mode => On is
    procedure Append_Scalar
      (Output  : in out String;
       Out_Pos : in out Natural;
-      Value   : in     Unicode_Text.Scalar_Value)
+      Value   : in Unicode_Text.Scalar_Value)
    is
       Encoded : constant String := Unicode_Text.UTF_8.Encode_One (Value);
    begin
@@ -239,10 +249,10 @@ package body JSON.Strings with SPARK_Mode => On is
    ------------
 
    procedure Decode
-     (Input  : in     String;
+     (Input  : in String;
       Output : in out String;
-      Length :    out Natural;
-      Status :    out Status_Type)
+      Length : out Natural;
+      Status : out Status_Type)
    is
       In_Pos  : Natural := 0;
       Out_Pos : Natural := 0;
@@ -263,16 +273,16 @@ package body JSON.Strings with SPARK_Mode => On is
             if Status /= OK then
                return;
             end if;
-            pragma Assert
-              (Natural (Unicode_Text.UTF_8.Encoding_Width (Value))
-                 <= In_Pos - Old_In);
+            pragma
+              Assert
+                (Natural (Unicode_Text.UTF_8.Encoding_Width (Value))
+                   <= In_Pos - Old_In);
          end;
 
          Append_Scalar (Output, Out_Pos, Value);
       end loop;
 
-      Check :=
-        Unicode_Text.UTF_8.Validate (Active_Prefix (Output, Out_Pos));
+      Check := Unicode_Text.UTF_8.Validate (Active_Prefix (Output, Out_Pos));
       if Check.Valid then
          Length := Out_Pos;
          Status := OK;

@@ -29,7 +29,9 @@ with Tui.Surface;
 with Tui.Text;
 with Tui.Pager.View;
 
-package Tui.Pager.Engine with SPARK_Mode => On is
+package Tui.Pager.Engine
+  with SPARK_Mode => On
+is
 
    --  Longest search pattern retained. Generous for interactive use; a pattern
    --  is a literal byte string (see Tui.Pager.Search).
@@ -43,12 +45,18 @@ package Tui.Pager.Engine with SPARK_Mode => On is
    ---------------------------------------------------------------------------
 
    type Command is
-     (Line_Up,   Line_Down,     --  one line
-      Half_Up,   Half_Down,     --  half a page
-      Page_Up,   Page_Down,     --  a full page
-      To_Top,    To_Bottom,     --  ends of the document
-      Col_Left,  Col_Right,     --  horizontal scroll
-      Find_Next, Find_Prev);    --  next/previous match of the current pattern
+     (Line_Up,
+      Line_Down,     --  one line
+      Half_Up,
+      Half_Down,     --  half a page
+      Page_Up,
+      Page_Down,     --  a full page
+      To_Top,
+      To_Bottom,     --  ends of the document
+      Col_Left,
+      Col_Right,     --  horizontal scroll
+      Find_Next,
+      Find_Prev);    --  next/previous match of the current pattern
 
    type Effect is
      (Unchanged,     --  the command was a no-op (already at the edge, etc.)
@@ -61,11 +69,14 @@ package Tui.Pager.Engine with SPARK_Mode => On is
    --  the operations below, which are stated in terms of it)
    ---------------------------------------------------------------------------
 
-   function Top_Line (E : Instance) return Line_Number with Global => null;
-   function Left_Col (E : Instance) return Dimension   with Global => null;
+   function Top_Line (E : Instance) return Line_Number
+   with Global => null;
+   function Left_Col (E : Instance) return Dimension
+   with Global => null;
    --  The viewport's visible height, as Resize last set it. A pane layered on
    --  the engine needs it to decide how far to scroll for a line off screen.
-   function Height (E : Instance) return Dimension     with Global => null;
+   function Height (E : Instance) return Dimension
+   with Global => null;
    function Last_Visible (E : Instance; Total : Line_Total) return Line_Total
    with Global => null;
 
@@ -78,9 +89,9 @@ package Tui.Pager.Engine with SPARK_Mode => On is
    --  on every resize. Rows is the CONTENT height: a host reserving a status
    --  row passes screen-rows minus one.
    procedure Resize
-     (E    : in out Instance;
-      Rows : Dimension;
-      Cols : Dimension;
+     (E     : in out Instance;
+      Rows  : Dimension;
+      Cols  : Dimension;
       Total : Line_Total)
    with Global => null;
 
@@ -91,20 +102,19 @@ package Tui.Pager.Engine with SPARK_Mode => On is
    --  full page. Unlike search this preserves the installed pattern and the
    --  horizontal offset, so hosts can implement structural navigation.
    procedure Go_To_Line
-     (E     : in out Instance;
-      Line  : Line_Number;
-      Total : Line_Total)
-   with Global => null,
-        Post => Height (E) = Height (E'Old)
-                and then Top_Line (E) =
-                  Line_Number'Min
+     (E : in out Instance; Line : Line_Number; Total : Line_Total)
+   with
+     Global => null,
+     Post   =>
+       Height (E) = Height (E'Old)
+       and then Top_Line (E)
+                = Line_Number'Min
                     (Line, Tui.Pager.View.Max_Top (Total, Height (E)));
 
    --  Install the literal search pattern (bytes). An empty Pattern clears it.
    --  At most Max_Pattern bytes are kept.
    procedure Set_Pattern (E : in out Instance; Pattern : Tui.Text.Buffer)
-   with Global => null,
-        Pre => Pattern'Length = 0 or else Pattern'First >= 1;
+   with Global => null, Pre => Pattern'Length = 0 or else Pattern'First >= 1;
 
    function Has_Pattern (E : Instance) return Boolean
    with Global => null;
@@ -119,21 +129,25 @@ package Tui.Pager.Engine with SPARK_Mode => On is
       Content : Tui.Text.Buffer;
       Index   : Tui.Text.Index;
       Result  : out Effect)
-   with Global => null,
-        Pre => Content'First = 1
-               and then Content'Last >= Tui.Text.Scanned_Bytes (Index);
+   with
+     Global => null,
+     Pre    =>
+       Content'First = 1
+       and then Content'Last >= Tui.Text.Scanned_Bytes (Index);
 
    procedure Render
      (E       : Instance;
       Target  : in out Tui.Surface.Surface;
       Content : Tui.Text.Buffer;
       Index   : Tui.Text.Index)
-   with Global => null,
-        Pre => Content'First = 1
-               and then Content'Last >= Tui.Text.Scanned_Bytes (Index),
-        --  A rendered pane carries text only. Whatever says "current row"
-        --  goes on top of it afterwards, and is the host's single call.
-        Post => Tui.Surface.No_Inverse (Target);
+   with
+     Global => null,
+     Pre    =>
+       Content'First = 1
+       and then Content'Last >= Tui.Text.Scanned_Bytes (Index),
+     --  A rendered pane carries text only. Whatever says "current row"
+     --  goes on top of it afterwards, and is the host's single call.
+     Post   => Tui.Surface.No_Inverse (Target);
 
 private
 
@@ -145,16 +159,20 @@ private
 
    type Instance is record
       View    : Tui.Pager.View.Viewport;
-      Tab     : Tab_Width      := Default_Tab_Width;
-      Pat     : Pattern_Bytes  := (others => 0);
+      Tab     : Tab_Width := Default_Tab_Width;
+      Pat     : Pattern_Bytes := (others => 0);
       Pat_Len : Pattern_Length := 0;
    end record;
 
-   function Has_Pattern (E : Instance) return Boolean is (E.Pat_Len > 0);
-   function Top_Line (E : Instance) return Line_Number is (E.View.Top);
-   function Height (E : Instance) return Dimension is (E.View.Height);
-   function Left_Col (E : Instance) return Dimension is (E.View.Left);
+   function Has_Pattern (E : Instance) return Boolean
+   is (E.Pat_Len > 0);
+   function Top_Line (E : Instance) return Line_Number
+   is (E.View.Top);
+   function Height (E : Instance) return Dimension
+   is (E.View.Height);
+   function Left_Col (E : Instance) return Dimension
+   is (E.View.Left);
    function Last_Visible (E : Instance; Total : Line_Total) return Line_Total
-     is (Tui.Pager.View.Last_Visible (E.View, Total));
+   is (Tui.Pager.View.Last_Visible (E.View, Total));
 
 end Tui.Pager.Engine;

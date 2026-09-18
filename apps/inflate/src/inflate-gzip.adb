@@ -1,17 +1,20 @@
-package body Inflate.GZip with SPARK_Mode => On is
+package body Inflate.GZip
+  with SPARK_Mode => On
+is
 
    --  The ghost bridges below invoke recursive lemmas whose evaluation
    --  cost grows with the data; this policy keeps them (and the local
    --  assertions) out of assertion-enabled executables. GNATprove proves
    --  Ignore-policy assertions all the same, and the contracts in the
    --  spec remain executable.
-   pragma Assertion_Policy
-     (Pre            => Ignore,
-      Post           => Ignore,
-      Ghost          => Ignore,
-      Assert         => Ignore,
-      Loop_Invariant => Ignore,
-      Loop_Variant   => Ignore);
+   pragma
+     Assertion_Policy
+       (Pre => Ignore,
+        Post => Ignore,
+        Ghost => Ignore,
+        Assert => Ignore,
+        Loop_Invariant => Ignore,
+        Loop_Variant => Ignore);
 
    --  Header flag bits (RFC 1952 §2.3.1)
    FHCRC    : constant Byte := 16#02#;
@@ -20,21 +23,23 @@ package body Inflate.GZip with SPARK_Mode => On is
    FCOMMENT : constant Byte := 16#10#;
 
    procedure Decompress
-     (Input    : in     Byte_Array;
+     (Input    : in Byte_Array;
       Output   : in out Byte_Array;
-      Consumed :    out Natural;
-      Produced :    out Natural;
-      Status   :    out Status_Type)
+      Consumed : out Natural;
+      Produced : out Natural;
+      Status   : out Status_Type)
    is
-      P   : Natural;  --  current offset from Input'First
-      FLG : Byte;
+      P                          :
+        Natural;  --  current offset from Input'First
+      FLG                        : Byte;
       Raw_Consumed, Raw_Produced : Natural;
       Stored_CRC, Stored_Size    : Word32;
 
       --  Ghost bridge for the decode-half postcondition.  Member fixes the
       --  body at offset ten, so the raw decoder's common-body contract can
       --  be carried without another stored/fixed case split.
-      procedure Relate_Member with Ghost;
+      procedure Relate_Member
+      with Ghost;
 
       procedure Relate_Member is
       begin
@@ -120,7 +125,7 @@ package body Inflate.GZip with SPARK_Mode => On is
             --  header bytes up to (not including) this field.
             Header_CRC : constant Word32 :=
               CRC32.Compute (Input (Input'First .. Input'First - 1 + P));
-            Stored : constant Natural :=
+            Stored     : constant Natural :=
               Natural (Load_16 (Input, Input'First + P, Little_Endian));
          begin
             P := P + 2;
@@ -136,8 +141,11 @@ package body Inflate.GZip with SPARK_Mode => On is
          return;
       end if;
       Raw.Decompress
-        (Input (Input'First + P .. Input'Last), Output,
-         Raw_Consumed, Raw_Produced, Status);
+        (Input (Input'First + P .. Input'Last),
+         Output,
+         Raw_Consumed,
+         Raw_Produced,
+         Status);
       Relate_Member;
       Consumed := P + Raw_Consumed;
       Produced := Raw_Produced;
@@ -150,14 +158,13 @@ package body Inflate.GZip with SPARK_Mode => On is
          Status := Truncated_Input;
          return;
       end if;
-      Stored_CRC  :=
-        Load_32 (Input, Input'First + Consumed, Little_Endian);
+      Stored_CRC := Load_32 (Input, Input'First + Consumed, Little_Endian);
       Stored_Size :=
         Load_32 (Input, Input'First + Consumed + 4, Little_Endian);
       Consumed := Consumed + 8;
 
-      if Stored_CRC /=
-        CRC32.Compute (Output (Output'First .. Output'First - 1 + Produced))
+      if Stored_CRC
+        /= CRC32.Compute (Output (Output'First .. Output'First - 1 + Produced))
       then
          Status := GZip_Checksum_Mismatch;
       elsif Stored_Size /= Word32 (Produced) then
@@ -166,10 +173,10 @@ package body Inflate.GZip with SPARK_Mode => On is
    end Decompress;
 
    procedure Decompress_All
-     (Input    : in     Byte_Array;
+     (Input    : in Byte_Array;
       Output   : in out Byte_Array;
-      Produced :    out Natural;
-      Status   :    out Status_Type)
+      Produced : out Natural;
+      Status   : out Status_Type)
    is
       In_Pos  : Natural := 0;
       Out_Pos : Natural := 0;
@@ -179,21 +186,26 @@ package body Inflate.GZip with SPARK_Mode => On is
       --  member in the compressor's image is consumed by the first
       --  iteration's Decompress, whose member contract fires on the
       --  identical-content slices and transfers back to the full buffers.
-      procedure Relate_First with Ghost;
+      procedure Relate_First
+      with Ghost;
 
       procedure Relate_First is
       begin
          if Member (Input, Output'Length)
-           and then In_Pos = 0 and then Out_Pos = 0
+           and then In_Pos = 0
+           and then Out_Pos = 0
          then
-            pragma Assert
-              (Member
-                 (Input (Input'First + In_Pos .. Input'Last),
-                  Output'Length - Out_Pos));
+            pragma
+              Assert
+                (Member
+                   (Input (Input'First + In_Pos .. Input'Last),
+                    Output'Length - Out_Pos));
             pragma Assert (C = Input'Length);
-            pragma Assert
-              (Pr = Bodies.Decoded_Size
-                      (Input (Input'First + 10 .. Input'Last)));
+            pragma
+              Assert
+                (Pr
+                   = Bodies.Decoded_Size
+                       (Input (Input'First + 10 .. Input'Last)));
          end if;
       end Relate_First;
    begin
@@ -205,16 +217,19 @@ package body Inflate.GZip with SPARK_Mode => On is
       loop
          pragma Loop_Invariant (In_Pos < Input'Length);
          pragma Loop_Invariant (Out_Pos <= Output'Length);
-         pragma Loop_Invariant
-           (if Member (Input, Output'Length)
-            then In_Pos = 0 and then Out_Pos = 0);
+         pragma
+           Loop_Invariant
+             (if Member (Input, Output'Length)
+                then In_Pos = 0 and then Out_Pos = 0);
          pragma Loop_Variant (Increases => In_Pos);
          Decompress
            (Input (Input'First + In_Pos .. Input'Last),
             Output (Output'First + Out_Pos .. Output'Last),
-            C, Pr, Status);
+            C,
+            Pr,
+            Status);
          Relate_First;
-         In_Pos  := In_Pos + C;
+         In_Pos := In_Pos + C;
          Out_Pos := Out_Pos + Pr;
          Produced := Out_Pos;
          exit when Status /= OK or else In_Pos >= Input'Length;
@@ -226,26 +241,29 @@ package body Inflate.GZip with SPARK_Mode => On is
    --------------
 
    procedure Compress
-     (Input    : in     Byte_Array;
+     (Input    : in Byte_Array;
       Output   : in out Byte_Array;
-      Produced :    out Natural)
+      Produced : out Natural)
    is
-      N           : constant Natural      := Input'Length;
-      Try_Dynamic : constant Boolean      :=
-        Dynamic.Selects_Byte_Run (Input);
-      Use_Fixed : Boolean :=
-        not Try_Dynamic and then N <= Fixed.Max_Input;
-      Body_Bound  : constant Positive     :=
-        (if Try_Dynamic then Dynamic.Max_Size (N)
-         elsif Use_Fixed then Fixed.Max_Size (N)
+      N           : constant Natural := Input'Length;
+      Try_Dynamic : constant Boolean := Dynamic.Selects_Byte_Run (Input);
+      Use_Fixed   : Boolean := not Try_Dynamic and then N <= Fixed.Max_Input;
+      Body_Bound  : constant Positive :=
+        (if Try_Dynamic
+         then Dynamic.Max_Size (N)
+         elsif Use_Fixed
+         then Fixed.Max_Size (N)
          else Raw.Stored_Size (N));
-      CRC         : constant Word32       := CRC32.Compute (Input);
+      CRC         : constant Word32 := CRC32.Compute (Input);
       F           : constant Buffer_Index := Output'First;
 
-      Raw_Produced   : Natural;
+      Raw_Produced    : Natural;
       Dynamic_Success : Boolean := False;
-      pragma Warnings (Off, Raw_Produced,
-                       Reason => "every selected body encoder initializes it");
+      pragma
+        Warnings
+          (Off,
+           Raw_Produced,
+           Reason => "every selected body encoder initializes it");
    begin
       --  Produce the selected body into its allocation bound. Dynamic bodies
       --  discover their exact size while serializing, so the trailer is framed
@@ -254,14 +272,13 @@ package body Inflate.GZip with SPARK_Mode => On is
          pragma Assert (N <= Dynamic.Max_Input);
          Dynamic.Compress_Byte_Run
            (Input,
-            Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced,
+            Output (F + 10 .. F + 9 + Body_Bound),
+            Raw_Produced,
             Dynamic_Success);
-         if Dynamic_Success
-           and then Raw_Produced < Fixed.Encoded_Size (Input)
+         if Dynamic_Success and then Raw_Produced < Fixed.Encoded_Size (Input)
          then
             Bodies.Lemma_Dynamic_Encoding
-              (Output (F + 10 .. F + 9 + Body_Bound),
-               Raw_Produced, Input);
+              (Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced, Input);
          else
             --  Retain totality if the checked canonical builder rejects, and
             --  retain the exact fixed image unless dynamic coding is smaller.
@@ -269,19 +286,17 @@ package body Inflate.GZip with SPARK_Mode => On is
             Use_Fixed := True;
             pragma Assert (Fixed.Max_Size (N) <= Dynamic.Max_Size (N));
             Fixed.Compress
-              (Input,
-               Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced);
+              (Input, Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced);
             Bodies.Lemma_Fixed_Encoding
-              (Output (F + 10 .. F + 9 + Body_Bound),
-               Raw_Produced, Input);
+              (Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced, Input);
          end if;
       elsif Use_Fixed then
-         pragma Assert
-           (Output (F + 10 .. F + 9 + Body_Bound)'Length <=
-              Fixed.Max_Stream_Bytes);
+         pragma
+           Assert
+             (Output (F + 10 .. F + 9 + Body_Bound)'Length
+                <= Fixed.Max_Stream_Bytes);
          Fixed.Compress
-           (Input,
-            Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced);
+           (Input, Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced);
          Bodies.Lemma_Fixed_Encoding
            (Output (F + 10 .. F + 9 + Body_Bound), Raw_Produced, Input);
       else
@@ -293,8 +308,9 @@ package body Inflate.GZip with SPARK_Mode => On is
 
       declare
          Body_Before_Trailer : constant Byte_Array :=
-           Output (F + 10 .. F + 9 + Body_Bound) with Ghost;
-         T : constant Buffer_Index := F + 10 + Raw_Produced;
+           Output (F + 10 .. F + 9 + Body_Bound)
+         with Ghost;
+         T                   : constant Buffer_Index := F + 10 + Raw_Produced;
       begin
          pragma Assert (Raw_Produced in 1 .. Body_Bound);
 
@@ -302,8 +318,9 @@ package body Inflate.GZip with SPARK_Mode => On is
          --  proof context is still just the body encoder's. Established
          --  after the trailer writes it is the same fact, but has to be
          --  found among their framing hypotheses.
-         pragma Assert
-           (Bodies.Body_Encodes (Body_Before_Trailer, Raw_Produced, Input));
+         pragma
+           Assert
+             (Bodies.Body_Encodes (Body_Before_Trailer, Raw_Produced, Input));
 
          --  Trailer: CRC-32 of the data, then its length, little-endian.
          --  The frame condition of Store_32 is what keeps the body bytes
@@ -314,7 +331,7 @@ package body Inflate.GZip with SPARK_Mode => On is
          --  Fixed header: deflate, no optional fields, MTIME unknown (0),
          --  no XFL hints, OS unknown. Writing it after the disjoint body and
          --  trailer regions keeps these public framing facts local.
-         Output (F)     := 16#1F#;
+         Output (F) := 16#1F#;
          Output (F + 1) := 16#8B#;
          Output (F + 2) := 8;
          Output (F + 3) := 0;
@@ -331,7 +348,8 @@ package body Inflate.GZip with SPARK_Mode => On is
          Bodies.Lemma_Encoding_Frame
            (Body_Before_Trailer,
             Output (F + 10 .. T + 7),
-            Raw_Produced, Input);
+            Raw_Produced,
+            Input);
          Bodies.Lemma_Encoding_Recognized
            (Output (F + 10 .. T + 7), Raw_Produced, Input);
 
@@ -340,12 +358,13 @@ package body Inflate.GZip with SPARK_Mode => On is
          pragma Assert (Output (F + 1) = 16#8B#);
          pragma Assert (Output (F + 2) = 8);
          pragma Assert (Output (F + 3) = 0);
-         pragma Assert
-           (if Dynamic_Success
-            then Raw_Produced <= Dynamic.Max_Size (N)
-            elsif Use_Fixed
-            then Raw_Produced = Fixed.Encoded_Size (Input)
-            else Raw_Produced = Raw.Stored_Size (N));
+         pragma
+           Assert
+             (if Dynamic_Success
+                then Raw_Produced <= Dynamic.Max_Size (N)
+                elsif Use_Fixed
+                then Raw_Produced = Fixed.Encoded_Size (Input)
+                else Raw_Produced = Raw.Stored_Size (N));
          pragma Assert (Produced <= Compressed_Size (N));
       end;
    end Compress;

@@ -11,7 +11,9 @@ with Tui.Text;
 with Tui.Pager;
 with Tui.Panes.Selection;
 
-package Tui.Panes.Highlight with SPARK_Mode => On is
+package Tui.Panes.Highlight
+  with SPARK_Mode => On
+is
 
    use type Tui.Surface.Row_Count;
    use type Tui.Surface.Col_Count;
@@ -24,10 +26,11 @@ package Tui.Panes.Highlight with SPARK_Mode => On is
    is (Glyph      => V.Glyph,
        Foreground => V.Foreground,
        Background => V.Background,
-       Attributes => (Bold      => V.Attributes.Bold,
-                      Italic    => V.Attributes.Italic,
-                      Underline => V.Attributes.Underline,
-                      Inverse   => True))
+       Attributes =>
+         (Bold      => V.Attributes.Bold,
+          Italic    => V.Attributes.Italic,
+          Underline => V.Attributes.Underline,
+          Inverse   => True))
    with Global => null;
 
    --  Row R is marked and nothing else is: what a list-shaped pane looks
@@ -42,20 +45,22 @@ package Tui.Panes.Highlight with SPARK_Mode => On is
    with Ghost, Pre => R <= S.Rows;
 
    --  The current row of a list-shaped pane: inverse video across its width.
-   procedure Row
-     (S : in out Tui.Surface.Surface;
-      R : Tui.Surface.Row_Index)
-   with Global => null,
-        Pre    => R <= S.Rows,
-        --  One row, and only that row: the cells of R gain inverse video and
-        --  keep everything else, and no other cell is touched at all.
-        Post   => (for all RR in Tui.Surface.Row_Index range 1 .. S.Rows =>
-                     (for all CC in Tui.Surface.Col_Index range 1 .. S.Cols =>
-                        (if RR = R
-                         then Tui.Surface.Get (S, RR, CC)
-                                = Inverted (Tui.Surface.Get (S'Old, RR, CC))
-                         else Tui.Surface.Get (S, RR, CC)
-                                = Tui.Surface.Get (S'Old, RR, CC))));
+   procedure Row (S : in out Tui.Surface.Surface; R : Tui.Surface.Row_Index)
+   with
+     Global => null,
+     Pre    => R <= S.Rows,
+     --  One row, and only that row: the cells of R gain inverse video and
+     --  keep everything else, and no other cell is touched at all.
+     Post   =>
+       (for all RR in Tui.Surface.Row_Index range 1 .. S.Rows =>
+          (for all CC in Tui.Surface.Col_Index range 1 .. S.Cols =>
+             (if RR = R
+              then
+                Tui.Surface.Get (S, RR, CC)
+                = Inverted (Tui.Surface.Get (S'Old, RR, CC))
+              else
+                Tui.Surface.Get (S, RR, CC)
+                = Tui.Surface.Get (S'Old, RR, CC))));
 
    --  A retained linear selection, in the pane's own frame: Top and Left are
    --  the viewport offsets the engine reports, First and Last the ordered
@@ -80,7 +85,6 @@ package Tui.Panes.Highlight with SPARK_Mode => On is
       Rows        : Tui.Surface.Row_Count;
       Points_Left : Boolean;
       Foreground  : Tui.Surface.Color)
-   with Global => null,
-        Pre    => At_Col <= S.Cols and then Rows <= S.Rows;
+   with Global => null, Pre => At_Col <= S.Cols and then Rows <= S.Rows;
 
 end Tui.Panes.Highlight;

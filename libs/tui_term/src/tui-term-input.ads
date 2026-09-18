@@ -19,7 +19,9 @@
 
 with Tui.Input;
 
-package Tui.Term.Input with SPARK_Mode => On is
+package Tui.Term.Input
+  with SPARK_Mode => On
+is
 
    --  How long (ms) to wait for an escape sequence's continuation before
    --  deciding a pending ESC was the Escape key. Long enough for a paste/keymap
@@ -40,8 +42,8 @@ package Tui.Term.Input with SPARK_Mode => On is
    --  to check Tui.Term.Signals and then calls Next again.
    procedure Next
      (D       : in out Tui.Input.Decoder;
-      Event   :    out Tui.Input.Key_Event;
-      Status  :    out Read_Status;
+      Event   : out Tui.Input.Key_Event;
+      Status  : out Read_Status;
       Timeout : Integer := -1);
 
 end Tui.Term.Input;

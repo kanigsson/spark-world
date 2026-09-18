@@ -25,8 +25,13 @@ procedure Snapshot_Probe is
 
    procedure Fail (Where : String) is
    begin
-      Put_Line (Standard_Error, Where & ": " & Error_Code'Image (Code (Error))
-                & ": " & Detail (Error));
+      Put_Line
+        (Standard_Error,
+         Where
+         & ": "
+         & Error_Code'Image (Code (Error))
+         & ": "
+         & Detail (Error));
       Set_Exit_Status (Failure);
    end Fail;
 begin
@@ -44,7 +49,7 @@ begin
 
    declare
       Head, Parent, Empty : Unbounded_String;
-      Found : Boolean;
+      Found               : Boolean;
    begin
       Git_Changes.Revisions.Resolve_Commit (Repo, "HEAD", Head, Error);
       if not Git_Changes.Success (Error) then
@@ -68,18 +73,22 @@ begin
 
       for Which in Endpoint_Kind loop
          declare
-            Snapshot : constant S.Snapshot :=
+            Snapshot  : constant S.Snapshot :=
               (case Which is
-                 when Tree_Endpoint => S.Tree (To_String (Head)),
-                 when Index_Endpoint => S.Index,
+                 when Tree_Endpoint     => S.Tree (To_String (Head)),
+                 when Index_Endpoint    => S.Index,
                  when Worktree_Endpoint => S.Worktree);
-            Listing : S.Inventory;
-            Content : Unbounded_String;
-            Matches : S.Match_List;
+            Listing   : S.Inventory;
+            Content   : Unbounded_String;
+            Matches   : S.Match_List;
             Untracked : Natural := 0;
          begin
-            S.List (Repo, Snapshot, Include_Untracked => True,
-                    Result => Listing, Error => Error);
+            S.List
+              (Repo,
+               Snapshot,
+               Include_Untracked => True,
+               Result            => Listing,
+               Error             => Error);
             if not Git_Changes.Success (Error) then
                Fail ("list");
                return;
@@ -90,42 +99,55 @@ begin
                end if;
             end loop;
             Put_Line
-              (Endpoint_Kind'Image (Which) & " paths="
+              (Endpoint_Kind'Image (Which)
+               & " paths="
                & S.Count (Listing)'Image
-               & " untracked=" & Untracked'Image);
-            S.Load (Repo, Snapshot, Argument (2), Content => Content,
-                    Error => Error);
+               & " untracked="
+               & Untracked'Image);
+            S.Load
+              (Repo,
+               Snapshot,
+               Argument (2),
+               Content => Content,
+               Error   => Error);
             if Git_Changes.Success (Error) then
                Put_Line
-                 (Endpoint_Kind'Image (Which) & " content="
+                 (Endpoint_Kind'Image (Which)
+                  & " content="
                   & Length (Content)'Image);
             else
                Put_Line
-                 (Endpoint_Kind'Image (Which) & " content-error="
+                 (Endpoint_Kind'Image (Which)
+                  & " content-error="
                   & Error_Code'Image (Code (Error)));
             end if;
-            S.Search (Repo, Snapshot, "needle", Result => Matches,
-                      Error => Error);
+            S.Search
+              (Repo, Snapshot, "needle", Result => Matches, Error => Error);
             if not Git_Changes.Success (Error) then
                Fail ("search");
                return;
             end if;
             Put_Line
-              (Endpoint_Kind'Image (Which) & " matches="
+              (Endpoint_Kind'Image (Which)
+               & " matches="
                & S.Count (Matches)'Image);
             for J in 1 .. S.Count (Matches) loop
                Put_Line
-                 ("  match " & S.Path (Matches, J) & ":"
-                  & S.Line (Matches, J)'Image & ":" & S.Text (Matches, J));
+                 ("  match "
+                  & S.Path (Matches, J)
+                  & ":"
+                  & S.Line (Matches, J)'Image
+                  & ":"
+                  & S.Text (Matches, J));
             end loop;
          end;
       end loop;
    end;
 
    declare
-      Walk : H.Log;
+      Walk   : H.Log;
       Filter : H.Filter;
-      Text : Unbounded_String;
+      Text   : Unbounded_String;
    begin
       Filter.Topological := True;
       H.Load (Repo, Filter, Result => Walk, Error => Error);
@@ -136,16 +158,26 @@ begin
       Put_Line ("commits=" & H.Count (Walk)'Image);
       for J in 1 .. H.Count (Walk) loop
          Put_Line
-           ("commit " & H.Abbreviated (Walk, J) & " " & H.Commit_Date (Walk, J)
-            & " merge=" & H.Is_Merge (Walk, J)'Image
-            & " refs=[" & H.References (Walk, J) & "]"
-            & " author=" & H.Author (Walk, J)
-            & " parents=[" & H.Parents (Walk, J) & "]"
-            & " subject=" & H.Subject (Walk, J));
+           ("commit "
+            & H.Abbreviated (Walk, J)
+            & " "
+            & H.Commit_Date (Walk, J)
+            & " merge="
+            & H.Is_Merge (Walk, J)'Image
+            & " refs=["
+            & H.References (Walk, J)
+            & "]"
+            & " author="
+            & H.Author (Walk, J)
+            & " parents=["
+            & H.Parents (Walk, J)
+            & "]"
+            & " subject="
+            & H.Subject (Walk, J));
       end loop;
       if H.Count (Walk) > 0 then
-         H.Show_Commit (Repo, H.Commit_Id (Walk, 1), Text => Text,
-                        Error => Error);
+         H.Show_Commit
+           (Repo, H.Commit_Id (Walk, 1), Text => Text, Error => Error);
          if not Git_Changes.Success (Error) then
             Fail ("show");
             return;
@@ -153,11 +185,15 @@ begin
          Put_Line ("patch-bytes=" & Length (Text)'Image);
          declare
             Who, When_Written, Message : Unbounded_String;
-            Stop : Natural;
+            Stop                       : Natural;
          begin
-            H.Describe (Repo, H.Commit_Id (Walk, 1), Author => Who,
-                        Date => When_Written, Message => Message,
-                        Error => Error);
+            H.Describe
+              (Repo,
+               H.Commit_Id (Walk, 1),
+               Author  => Who,
+               Date    => When_Written,
+               Message => Message,
+               Error   => Error);
             if not Git_Changes.Success (Error) then
                Fail ("describe");
                return;
@@ -169,9 +205,13 @@ begin
                   exit;
                end if;
             end loop;
-            Put_Line ("described=" & To_String (Who) & "|"
-                      & To_String (When_Written) & "|"
-                      & Slice (Message, 1, Stop));
+            Put_Line
+              ("described="
+               & To_String (Who)
+               & "|"
+               & To_String (When_Written)
+               & "|"
+               & Slice (Message, 1, Stop));
          end;
       end if;
       Filter.Pathspec := To_Unbounded_String (Argument (2));

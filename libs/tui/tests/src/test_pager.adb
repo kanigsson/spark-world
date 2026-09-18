@@ -45,7 +45,8 @@ procedure Test_Pager is
             P : constant Natural :=
               Wide_Wide_Character'Pos (Get (Surf, R, C).Glyph);
          begin
-            S (Natural (C)) := (if P in 32 .. 126 then Character'Val (P) else '?');
+            S (Natural (C)) :=
+              (if P in 32 .. 126 then Character'Val (P) else '?');
          end;
       end loop;
       return S;
@@ -89,9 +90,9 @@ begin
    declare
       Content : constant Tui.Text.Buffer :=
         Buf_Of ("abc" & LF & "hello world" & LF & "third");
-      Idx  : Tui.Text.Index (100);
-      Surf : Surface := Blank (3, 10);
-      V    : PV.Viewport;
+      Idx     : Tui.Text.Index (100);
+      Surf    : Surface := Blank (3, 10);
+      V       : PV.Viewport;
    begin
       Tui.Text.Scan (Idx, Content);
       Tui.Text.Seal (Idx, Content);     --  "third" has no trailing newline
@@ -105,15 +106,17 @@ begin
       V.Left := 6;
       PR.Draw (Surf, Content, Idx, V);
       Check (Row_Text (Surf, 2) = "world     ", "hscroll 6 shows 'world'");
-      Check (Row_Text (Surf, 1) = "          ", "hscroll past short line -> blank");
+      Check
+        (Row_Text (Surf, 1) = "          ",
+         "hscroll past short line -> blank");
    end;
 
    --  Rows past end-of-content are blanked.
    declare
       Content : constant Tui.Text.Buffer := Buf_Of ("one" & LF & "two" & LF);
-      Idx  : Tui.Text.Index (100);
-      Surf : Surface := Blank (4, 6);
-      V    : PV.Viewport;
+      Idx     : Tui.Text.Index (100);
+      Surf    : Surface := Blank (4, 6);
+      V       : PV.Viewport;
    begin
       Tui.Text.Scan (Idx, Content);
       PR.Draw (Surf, Content, Idx, V);
@@ -125,9 +128,9 @@ begin
    --  Tab expansion to the next 8-column stop.
    declare
       Content : constant Tui.Text.Buffer := Buf_Of ("a" & HT & "b");
-      Idx  : Tui.Text.Index (100);
-      Surf : Surface := Blank (1, 10);
-      V    : PV.Viewport;
+      Idx     : Tui.Text.Index (100);
+      Surf    : Surface := Blank (1, 10);
+      V       : PV.Viewport;
    begin
       Tui.Text.Scan (Idx, Content);
       Tui.Text.Seal (Idx, Content);
@@ -138,19 +141,26 @@ begin
    --  Wide (CJK) glyph occupies two columns; a continuation blank follows.
    declare
       Content : constant Tui.Text.Buffer :=
-        Buf_Of ("X" & Character'Val (16#E4#) & Character'Val (16#B8#)
-                & Character'Val (16#80#) & "Y");   --  X U+4E00 Y
-      Idx  : Tui.Text.Index (100);
-      Surf : Surface := Blank (1, 10);
-      V    : PV.Viewport;
+        Buf_Of
+          ("X"
+           & Character'Val (16#E4#)
+           & Character'Val (16#B8#)
+           & Character'Val (16#80#)
+           & "Y");   --  X U+4E00 Y
+      Idx     : Tui.Text.Index (100);
+      Surf    : Surface := Blank (1, 10);
+      V       : PV.Viewport;
    begin
       Tui.Text.Scan (Idx, Content);
       Tui.Text.Seal (Idx, Content);
       PR.Draw (Surf, Content, Idx, V);
-      Check (Wide_Wide_Character'Pos (Get (Surf, 1, 2).Glyph) = 16#4E00#,
-             "wide glyph U+4E00 placed at column 2");
-      Check (Get (Surf, 1, 3).Glyph = ' ', "wide glyph continuation at column 3");
-      Check (Get (Surf, 1, 4).Glyph = 'Y', "'Y' follows wide glyph at column 4");
+      Check
+        (Wide_Wide_Character'Pos (Get (Surf, 1, 2).Glyph) = 16#4E00#,
+         "wide glyph U+4E00 placed at column 2");
+      Check
+        (Get (Surf, 1, 3).Glyph = ' ', "wide glyph continuation at column 3");
+      Check
+        (Get (Surf, 1, 4).Glyph = 'Y', "'Y' follows wide glyph at column 4");
    end;
 
    New_Line;

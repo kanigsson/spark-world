@@ -1,12 +1,11 @@
 with Git_Changes.Backends;
 
-
 package body Git_Changes.History is
    use Ada.Strings.Unbounded;
 
    NUL : constant Character := Character'Val (0);
-   HT : constant Character := Character'Val (9);
-   LF : constant Character := Character'Val (10);
+   HT  : constant Character := Character'Val (9);
+   LF  : constant Character := Character'Val (10);
 
    Field_Count : constant := 7;
 
@@ -16,32 +15,34 @@ package body Git_Changes.History is
      "--format=%H%x09%p%x09%h%x09%ad%x09%D%x09%an%x09%s";
 
    function Arg (Value : String) return Unbounded_String
-     renames To_Unbounded_String;
+   renames To_Unbounded_String;
 
    --  Every command runs literally: a revision or path byte string is never
    --  reinterpreted as a glob, whatever the repository's configuration.
-   function Literal return Unbounded_String is
-     (To_Unbounded_String ("--literal-pathspecs"));
+   function Literal return Unbounded_String
+   is (To_Unbounded_String ("--literal-pathspecs"));
 
-   package Argument_Vectors is new Ada.Containers.Vectors
-     (Index_Type => Positive, Element_Type => Unbounded_String);
+   package Argument_Vectors is new
+     Ada.Containers.Vectors
+       (Index_Type   => Positive,
+        Element_Type => Unbounded_String);
 
-   function Count (Item : Log) return Natural is
-     (Natural (Item.Entries.Length));
-   function Commit_Id (Item : Log; Number : Positive) return String is
-     (To_String (Item.Entries (Number).Identity));
-   function Parents (Item : Log; Number : Positive) return String is
-     (To_String (Item.Entries (Number).Parent_List));
-   function Abbreviated (Item : Log; Number : Positive) return String is
-     (To_String (Item.Entries (Number).Short));
-   function Commit_Date (Item : Log; Number : Positive) return String is
-     (To_String (Item.Entries (Number).Date));
-   function Author (Item : Log; Number : Positive) return Byte_String is
-     (To_String (Item.Entries (Number).Wrote));
-   function References (Item : Log; Number : Positive) return Byte_String is
-     (To_String (Item.Entries (Number).Refs));
-   function Subject (Item : Log; Number : Positive) return Byte_String is
-     (To_String (Item.Entries (Number).Title));
+   function Count (Item : Log) return Natural
+   is (Natural (Item.Entries.Length));
+   function Commit_Id (Item : Log; Number : Positive) return String
+   is (To_String (Item.Entries (Number).Identity));
+   function Parents (Item : Log; Number : Positive) return String
+   is (To_String (Item.Entries (Number).Parent_List));
+   function Abbreviated (Item : Log; Number : Positive) return String
+   is (To_String (Item.Entries (Number).Short));
+   function Commit_Date (Item : Log; Number : Positive) return String
+   is (To_String (Item.Entries (Number).Date));
+   function Author (Item : Log; Number : Positive) return Byte_String
+   is (To_String (Item.Entries (Number).Wrote));
+   function References (Item : Log; Number : Positive) return Byte_String
+   is (To_String (Item.Entries (Number).Refs));
+   function Subject (Item : Log; Number : Positive) return Byte_String
+   is (To_String (Item.Entries (Number).Title));
 
    function Is_Merge (Item : Log; Number : Positive) return Boolean is
       Value : constant String := Parents (Item, Number);
@@ -109,15 +110,19 @@ package body Git_Changes.History is
       end if;
 
       declare
-         Arguments : Git_Changes.Backends.Argument_Array
-           (1 .. Natural (Wanted.Length));
+         Arguments :
+           Git_Changes.Backends.Argument_Array (1 .. Natural (Wanted.Length));
       begin
          for J in Arguments'Range loop
             Arguments (J) := Wanted (J);
          end loop;
          Git_Changes.Backends.Run_Git
-           (Root_Path (Repository), Arguments, Options.Max_Output_Bytes,
-            "walk history", Output, Error);
+           (Root_Path (Repository),
+            Arguments,
+            Options.Max_Output_Bytes,
+            "walk history",
+            Output,
+            Error);
       end;
       if not Success (Error) then
          return;
@@ -148,20 +153,26 @@ package body Git_Changes.History is
                return;
             end if;
             Result.Entries.Append
-              (Log_Entry'(Identity    => To_Unbounded_String
-                  (Line (Start .. Bounds (1) - 1)),
-                Parent_List => To_Unbounded_String
-                  (Line (Bounds (1) + 1 .. Bounds (2) - 1)),
-                Short       => To_Unbounded_String
-                  (Line (Bounds (2) + 1 .. Bounds (3) - 1)),
-                Date        => To_Unbounded_String
-                  (Line (Bounds (3) + 1 .. Bounds (4) - 1)),
-                Refs        => To_Unbounded_String
-                  (Line (Bounds (4) + 1 .. Bounds (5) - 1)),
-                Wrote       => To_Unbounded_String
-                  (Line (Bounds (5) + 1 .. Bounds (6) - 1)),
-                Title       => To_Unbounded_String
-                  (Line (Bounds (6) + 1 .. Line'Last))));
+              (Log_Entry'
+                 (Identity    =>
+                    To_Unbounded_String (Line (Start .. Bounds (1) - 1)),
+                  Parent_List =>
+                    To_Unbounded_String
+                      (Line (Bounds (1) + 1 .. Bounds (2) - 1)),
+                  Short       =>
+                    To_Unbounded_String
+                      (Line (Bounds (2) + 1 .. Bounds (3) - 1)),
+                  Date        =>
+                    To_Unbounded_String
+                      (Line (Bounds (3) + 1 .. Bounds (4) - 1)),
+                  Refs        =>
+                    To_Unbounded_String
+                      (Line (Bounds (4) + 1 .. Bounds (5) - 1)),
+                  Wrote       =>
+                    To_Unbounded_String
+                      (Line (Bounds (5) + 1 .. Bounds (6) - 1)),
+                  Title       =>
+                    To_Unbounded_String (Line (Bounds (6) + 1 .. Line'Last))));
          end Take;
       begin
          for J in Raw'Range loop
@@ -189,18 +200,26 @@ package body Git_Changes.History is
       --  can contain one: the message runs to the end of the output, so it
       --  keeps its own newlines without any escaping.
       Describe_Format : constant String := "--format=%an%x00%ad%x00%B";
-      Output : Unbounded_String;
-      First, Second : Natural := 0;
+      Output          : Unbounded_String;
+      First, Second   : Natural := 0;
    begin
       Author := Null_Unbounded_String;
       Date := Null_Unbounded_String;
       Message := Null_Unbounded_String;
       Git_Changes.Backends.Run_Git
         (Root_Path (Repository),
-         [Literal, Arg ("log"), Arg ("--max-count=1"), Arg ("--date=short"),
-          Arg (Describe_Format), Arg ("--end-of-options"), Arg (Revision),
+         [Literal,
+          Arg ("log"),
+          Arg ("--max-count=1"),
+          Arg ("--date=short"),
+          Arg (Describe_Format),
+          Arg ("--end-of-options"),
+          Arg (Revision),
           Arg ("--")],
-         Options.Max_Output_Bytes, "describe commit", Output, Error);
+         Options.Max_Output_Bytes,
+         "describe commit",
+         Output,
+         Error);
       if not Success (Error) then
          return;
       end if;
@@ -239,7 +258,10 @@ package body Git_Changes.History is
       Git_Changes.Backends.Run_Git
         (Root_Path (Repository),
          [Literal, Arg ("show"), Arg ("--end-of-options"), Arg (Revision)],
-         Options.Max_Output_Bytes, "show commit", Text, Error);
+         Options.Max_Output_Bytes,
+         "show commit",
+         Text,
+         Error);
    end Show_Commit;
 
 end Git_Changes.History;

@@ -1,4 +1,6 @@
-package body Git_View_Refs with SPARK_Mode => On is
+package body Git_View_Refs
+  with SPARK_Mode => On
+is
 
    use type Tui.Text.Byte;
 
@@ -19,8 +21,8 @@ package body Git_View_Refs with SPARK_Mode => On is
       Pos         : Tui.Text.Byte_Count;
    begin
       Found := False;
-      From  := 0;
-      To    := 0;
+      From := 0;
+      To := 0;
       if Open_Offset >= Line'Length
         or else Line (Line'First + Open_Offset) /= Character'Pos ('[')
       then
@@ -29,14 +31,13 @@ package body Git_View_Refs with SPARK_Mode => On is
 
       Pos := Open_Offset + 1;
       while Pos < Line'Length loop
-         pragma Loop_Invariant
-           (not Found and then From = 0 and then To = 0);
+         pragma Loop_Invariant (not Found and then From = 0 and then To = 0);
          pragma Loop_Invariant (Pos > Open_Offset);
          pragma Loop_Variant (Decreases => Line'Length - Pos);
          if Line (Line'First + Pos) = Character'Pos (']') then
             Found := True;
-            From  := Open_Offset;
-            To    := Pos;
+            From := Open_Offset;
+            To := Pos;
             return;
          end if;
          Pos := Pos + 1;

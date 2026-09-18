@@ -18,7 +18,9 @@
 
 with Tui.Text;
 
-package Tui.App_Kit.Status with SPARK_Mode => On is
+package Tui.App_Kit.Status
+  with SPARK_Mode => On
+is
 
    --  Upper bound on assembled status text. A surface row caps at 4096
    --  columns (the surface crate's extent cap) and the host truncates to the
@@ -33,8 +35,8 @@ package Tui.App_Kit.Status with SPARK_Mode => On is
 
    --  The assembled text, 1-based, ready for the host's painter.
    function Image (L : Line) return String
-   with Post => Image'Result'First = 1
-               and then Image'Result'Length = Length (L);
+   with
+     Post => Image'Result'First = 1 and then Image'Result'Length = Length (L);
 
    ---------------------------------------------------------------------------
    --  Building blocks. Every append truncates at Max_Status, so a formatter
@@ -58,20 +60,20 @@ package Tui.App_Kit.Status with SPARK_Mode => On is
    --  (which maps one byte to one cell); multibyte UTF-8 thus renders as its
    --  raw bytes, the pre-existing behaviour.
    procedure Format_Prompt
-     (L       : out Line;
-      Forward : Boolean;
-      Pattern : Tui.Text.Buffer)
+     (L : out Line; Forward : Boolean; Pattern : Tui.Text.Buffer)
    with Pre => Pattern'Length = 0 or else Pattern'First >= 1;
 
 private
 
    type Line is record
       Text : String (1 .. Max_Status) := (others => ' ');
-      Len  : Status_Length            := 0;
+      Len  : Status_Length := 0;
    end record;
 
-   function Length (L : Line) return Status_Length is (L.Len);
+   function Length (L : Line) return Status_Length
+   is (L.Len);
 
-   function Image (L : Line) return String is (L.Text (1 .. L.Len));
+   function Image (L : Line) return String
+   is (L.Text (1 .. L.Len));
 
 end Tui.App_Kit.Status;

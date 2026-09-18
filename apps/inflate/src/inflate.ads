@@ -33,7 +33,9 @@ with Ore;
 with Ore.Bit_Cursors;
 with Ore.Bits;
 
-package Inflate with Pure, SPARK_Mode => On is
+package Inflate
+  with Pure, SPARK_Mode => On
+is
 
    --  Ore declares the operators of the word types below; a use clause in
    --  the visible part of this package makes them directly visible in the
@@ -43,7 +45,7 @@ package Inflate with Pure, SPARK_Mode => On is
    use Ore;
    pragma Warnings (On, "use clause for package ""Ore"" has no effect");
 
-   subtype Byte   is Ore.Byte;
+   subtype Byte is Ore.Byte;
    subtype Word16 is Ore.Word16;
    subtype Word32 is Ore.Word32;
 
@@ -76,11 +78,10 @@ package Inflate with Pure, SPARK_Mode => On is
    --  reason about the *value* a shift produces, which is what GNATprove
    --  gets from the intrinsic directly. The shifts are for the children, not
    --  for this spec, which is what the warning is about.
-   pragma Warnings
-     (Off, "use clause for package ""Intrinsics"" has no effect");
+   pragma
+     Warnings (Off, "use clause for package ""Intrinsics"" has no effect");
    use Ore.Bits.Intrinsics;
-   pragma Warnings
-     (On, "use clause for package ""Intrinsics"" has no effect");
+   pragma Warnings (On, "use clause for package ""Intrinsics"" has no effect");
 
    --  Every way a decode can end. OK means the stream was well-formed and
    --  the output (and, for the containers, its checksum) is complete;

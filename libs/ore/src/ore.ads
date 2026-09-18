@@ -34,11 +34,11 @@ package Ore
   with Pure, SPARK_Mode => On
 is
 
-   type Byte is mod 2 ** 8 with Size => 8;
+   type Byte is mod 2**8 with Size => 8;
 
-   type Word16 is mod 2 ** 16 with Size => 16;
-   type Word32 is mod 2 ** 32 with Size => 32;
-   type Word64 is mod 2 ** 64 with Size => 64;
+   type Word16 is mod 2**16 with Size => 16;
+   type Word32 is mod 2**32 with Size => 32;
+   type Word64 is mod 2**64 with Size => 64;
 
    --  Byte positions are 1-based and stop one short of Positive'Last, so that
    --  the position one past the end of any array — the natural "everything
@@ -57,6 +57,6 @@ is
    --  nothing else — an array a caller owns is not built here and can be
    --  longer, so the bit-addressed layer imposes no ceiling of its own and
    --  writes each of its bounds as a division rather than that product.
-   Max_Capacity : constant := 2 ** 27;
+   Max_Capacity : constant := 2**27;
 
 end Ore;

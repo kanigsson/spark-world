@@ -3,10 +3,10 @@
 --  Surface framed so the rendering is observable with no terminal driver. Then
 --  it scrolls and renders again.
 
-with Ada.Text_IO;                          use Ada.Text_IO;
-with Ada.Characters.Latin_1;               use Ada.Characters.Latin_1;
+with Ada.Text_IO;            use Ada.Text_IO;
+with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
 with Ada.Strings.UTF_Encoding.Wide_Wide_Strings;
-with Tui.Surface;                          use Tui.Surface;
+with Tui.Surface;            use Tui.Surface;
 with Tui.Text;
 with Tui.Pager.View;
 with Tui.Pager.Render;
@@ -49,15 +49,28 @@ procedure Demo_Pager is
    end Frame;
 
    Document : constant Tui.Text.Buffer :=
-     Buf_Of ("The quick brown fox" & LF
-             & "jumps over the lazy dog" & LF
-             & "" & LF
-             & "wide: " & Character'Val (16#E4#) & Character'Val (16#B8#)
-                        & Character'Val (16#80#) & "  (U+4E00)" & LF
-             & "tab:" & HT & "after-tab" & LF
-             & "line six" & LF
-             & "line seven" & LF
-             & "the end (no newline)");
+     Buf_Of
+       ("The quick brown fox"
+        & LF
+        & "jumps over the lazy dog"
+        & LF
+        & ""
+        & LF
+        & "wide: "
+        & Character'Val (16#E4#)
+        & Character'Val (16#B8#)
+        & Character'Val (16#80#)
+        & "  (U+4E00)"
+        & LF
+        & "tab:"
+        & HT
+        & "after-tab"
+        & LF
+        & "line six"
+        & LF
+        & "line seven"
+        & LF
+        & "the end (no newline)");
 
    Idx  : Tui.Text.Index (1_000);
    Surf : Surface := Blank (5, 22);     --  a small 5x22 viewport
@@ -66,10 +79,14 @@ procedure Demo_Pager is
 begin
    Tui.Text.Scan (Idx, Document);
    Tui.Text.Seal (Idx, Document);
-   PV.Set_Size (V, Height => 5, Width => 22, Total => Tui.Text.Line_Count (Idx));
+   PV.Set_Size
+     (V, Height => 5, Width => 22, Total => Tui.Text.Line_Count (Idx));
 
-   Put_Line ("document has" & Tui.Text.Line_Count (Idx)'Image & " lines;"
-             & " viewport is 5 rows x 22 cols");
+   Put_Line
+     ("document has"
+      & Tui.Text.Line_Count (Idx)'Image
+      & " lines;"
+      & " viewport is 5 rows x 22 cols");
    New_Line;
 
    PR.Draw (Surf, Document, Idx, V);

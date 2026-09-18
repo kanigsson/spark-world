@@ -55,14 +55,17 @@ private
    type Termios_Blob is array (1 .. 16) of Interfaces.C.unsigned;
 
    type Session is new Ada.Finalization.Limited_Controlled with record
-      Is_Active : Boolean      := False;
-      Mouse_On  : Boolean      := False;
+      Is_Active : Boolean := False;
+      Mouse_On  : Boolean := False;
       Saved     : Termios_Blob := (others => 0);
    end record;
 
-   overriding procedure Initialize (S : in out Session);
-   overriding procedure Finalize   (S : in out Session);
+   overriding
+   procedure Initialize (S : in out Session);
+   overriding
+   procedure Finalize (S : in out Session);
 
-   function Active (S : Session) return Boolean is (S.Is_Active);
+   function Active (S : Session) return Boolean
+   is (S.Is_Active);
 
 end Tui.Term.Mode;

@@ -28,21 +28,23 @@
 with Inflate.Raw;
 with Inflate.GZip;
 
-package Inflate.Theorems with SPARK_Mode => On is
+package Inflate.Theorems
+  with SPARK_Mode => On
+is
 
    procedure GZip_Round_Trip
-     (Input      : in     Byte_Array;
+     (Input      : in Byte_Array;
       Compressed : in out Byte_Array;
       Restored   : in out Byte_Array;
-      C_Size     :    out Natural;
-      R_Size     :    out Natural)
+      C_Size     : out Natural;
+      R_Size     : out Natural)
    with
      Global => null,
-     Pre  =>
+     Pre    =>
        Input'Length <= Raw.Max_Compress_Input
        and then Compressed'Length >= GZip.Compressed_Size (Input'Length)
        and then Restored'Length >= Input'Length,
-     Post =>
+     Post   =>
        C_Size <= GZip.Compressed_Size (Input'Length)
        and then R_Size = Input'Length
        and then (for all K in 0 .. Input'Length - 1 =>

@@ -10,7 +10,10 @@ use type Tui.Term.Sys.Poll_Outcome;
 --  narrowing of read()'s raw return is now machine-checked. The raw bytes feed a
 --  decoder that is itself proved (Tui.Input); only the syscall behind Sys.Read
 --  stays trusted.
-package body Tui.Term.Input with SPARK_Mode => On is
+
+package body Tui.Term.Input
+  with SPARK_Mode => On
+is
 
    ---------------------------------------------------------------------------
    --  Raw-byte buffer, refilled by Tui.Term.Sys.Read and drained one byte at a
@@ -25,7 +28,7 @@ package body Tui.Term.Input with SPARK_Mode => On is
 
    Capacity : constant := 256;
 
-   subtype Length_Range is Natural  range 0 .. Capacity;
+   subtype Length_Range is Natural range 0 .. Capacity;
    subtype Cursor_Range is Positive range 1 .. Capacity + 1;
 
    Buf     : Tui.Term.Sys.Byte_Array (1 .. Capacity) := (others => 0);
@@ -38,8 +41,8 @@ package body Tui.Term.Input with SPARK_Mode => On is
 
    procedure Next
      (D       : in out Tui.Input.Decoder;
-      Event   :    out Tui.Input.Key_Event;
-      Status  :    out Read_Status;
+      Event   : out Tui.Input.Key_Event;
+      Status  : out Read_Status;
       Timeout : Integer := -1)
    is
       Avail     : Boolean;
@@ -70,14 +73,15 @@ package body Tui.Term.Input with SPARK_Mode => On is
          --  to the Escape key promptly (and never blocks forever on Timeout<0).
          if Tui.Input.Is_Pending (D) then
             Effective :=
-              (if Timeout < 0 then Default_Esc_Timeout_Ms
+              (if Timeout < 0
+               then Default_Esc_Timeout_Ms
                else Integer'Min (Timeout, Default_Esc_Timeout_Ms));
          else
             Effective := Timeout;
          end if;
 
          case Tui.Term.Sys.Poll (Stdin_FD, Effective) is
-            when Tui.Term.Sys.Poll_Timeout =>
+            when Tui.Term.Sys.Poll_Timeout     =>
                --  Timed out. A pending sequence becomes its resolved key (ESC).
                if Tui.Input.Is_Pending (D) then
                   Tui.Input.Flush (D, Event, Avail);
@@ -95,7 +99,7 @@ package body Tui.Term.Input with SPARK_Mode => On is
                Status := Timed_Out;
                return;
 
-            when Tui.Term.Sys.Poll_Ready =>
+            when Tui.Term.Sys.Poll_Ready       =>
                --  Data is ready: refill. Sys.Read bounds Count by Buf'Length, so
                --  Buf_Len := Count is in Length_Range with no narrowing of its
                --  own — the bound is discharged from the boundary contract.

@@ -11,47 +11,44 @@ package body Git_Changes.Snapshots is
 
    --  Every command runs literally: a revision or path byte string is never
    --  reinterpreted as a glob, whatever the repository's configuration.
-   function Literal return Unbounded_String is
-     (To_Unbounded_String ("--literal-pathspecs"));
+   function Literal return Unbounded_String
+   is (To_Unbounded_String ("--literal-pathspecs"));
 
    function Arg (Value : String) return Unbounded_String
-     renames To_Unbounded_String;
+   renames To_Unbounded_String;
 
-   function Tree (Revision : String) return Snapshot is
-     ((Snapshot_Type => Tree_Endpoint,
-       Named => To_Unbounded_String (Revision)));
-   function Index return Snapshot is
-     ((Snapshot_Type => Index_Endpoint, Named => Null_Unbounded_String));
-   function Worktree return Snapshot is
-     ((Snapshot_Type => Worktree_Endpoint, Named => Null_Unbounded_String));
-   function Kind (Item : Snapshot) return Endpoint_Kind is
-     (Item.Snapshot_Type);
-   function Revision (Item : Snapshot) return String is
-     (To_String (Item.Named));
+   function Tree (Revision : String) return Snapshot
+   is ((Snapshot_Type => Tree_Endpoint,
+        Named         => To_Unbounded_String (Revision)));
+   function Index return Snapshot
+   is ((Snapshot_Type => Index_Endpoint, Named => Null_Unbounded_String));
+   function Worktree return Snapshot
+   is ((Snapshot_Type => Worktree_Endpoint, Named => Null_Unbounded_String));
+   function Kind (Item : Snapshot) return Endpoint_Kind
+   is (Item.Snapshot_Type);
+   function Revision (Item : Snapshot) return String
+   is (To_String (Item.Named));
 
-   function Count (Item : Inventory) return Natural is
-     (Natural (Item.Paths.Length));
-   function Path (Item : Inventory; Number : Positive) return Byte_String is
-     (To_String (Item.Paths (Number).Name));
-   function Is_Untracked
-     (Item : Inventory; Number : Positive) return Boolean is
-     (Item.Paths (Number).Untracked);
+   function Count (Item : Inventory) return Natural
+   is (Natural (Item.Paths.Length));
+   function Path (Item : Inventory; Number : Positive) return Byte_String
+   is (To_String (Item.Paths (Number).Name));
+   function Is_Untracked (Item : Inventory; Number : Positive) return Boolean
+   is (Item.Paths (Number).Untracked);
 
-   function Count (Item : Match_List) return Natural is
-     (Natural (Item.Matches.Length));
-   function Path (Item : Match_List; Number : Positive) return Byte_String is
-     (To_String (Item.Matches (Number).Name));
-   function Line (Item : Match_List; Number : Positive) return Positive is
-     (Item.Matches (Number).Number);
-   function Text (Item : Match_List; Number : Positive) return Byte_String is
-     (To_String (Item.Matches (Number).Value));
+   function Count (Item : Match_List) return Natural
+   is (Natural (Item.Matches.Length));
+   function Path (Item : Match_List; Number : Positive) return Byte_String
+   is (To_String (Item.Matches (Number).Name));
+   function Line (Item : Match_List; Number : Positive) return Positive
+   is (Item.Matches (Number).Number);
+   function Text (Item : Match_List; Number : Positive) return Byte_String
+   is (To_String (Item.Matches (Number).Value));
 
    --  Collect the NUL-terminated entries of a Git listing. A trailing
    --  unterminated remnant is dropped rather than guessed at.
    procedure Each_Entry
-     (Raw       : String;
-      Untracked : Boolean;
-      Result    : in out Inventory)
+     (Raw : String; Untracked : Boolean; Result : in out Inventory)
    is
       First : Positive := Raw'First;
    begin
@@ -60,7 +57,7 @@ package body Git_Changes.Snapshots is
             if J > First then
                Result.Paths.Append
                  (Listed_Path'
-                    (Name => To_Unbounded_String (Raw (First .. J - 1)),
+                    (Name      => To_Unbounded_String (Raw (First .. J - 1)),
                      Untracked => Untracked));
             end if;
             First := J + 1;
@@ -80,23 +77,38 @@ package body Git_Changes.Snapshots is
    begin
       Result := (Paths => Path_Vectors.Empty_Vector);
       case Snapshot.Snapshot_Type is
-         when Tree_Endpoint =>
+         when Tree_Endpoint                      =>
             Git_Changes.Backends.Run_Git
               (Root_Path (Repository),
-               [Literal, Arg ("ls-tree"), Arg ("-r"), Arg ("--name-only"),
-                Arg ("-z"), Arg ("--full-tree"), Arg ("--end-of-options"),
+               [Literal,
+                Arg ("ls-tree"),
+                Arg ("-r"),
+                Arg ("--name-only"),
+                Arg ("-z"),
+                Arg ("--full-tree"),
+                Arg ("--end-of-options"),
                 Snapshot.Named],
-               Options.Max_Output_Bytes, "list tree", Output, Error);
+               Options.Max_Output_Bytes,
+               "list tree",
+               Output,
+               Error);
             if not Success (Error) then
                return;
             end if;
             Each_Entry (To_String (Output), False, Result);
+
          when Index_Endpoint | Worktree_Endpoint =>
             Git_Changes.Backends.Run_Git
               (Root_Path (Repository),
-               [Literal, Arg ("ls-files"), Arg ("--cached"),
-                Arg ("--full-name"), Arg ("-z")],
-               Options.Max_Output_Bytes, "list index", Output, Error);
+               [Literal,
+                Arg ("ls-files"),
+                Arg ("--cached"),
+                Arg ("--full-name"),
+                Arg ("-z")],
+               Options.Max_Output_Bytes,
+               "list index",
+               Output,
+               Error);
             if not Success (Error) then
                return;
             end if;
@@ -106,10 +118,16 @@ package body Git_Changes.Snapshots is
             then
                Git_Changes.Backends.Run_Git
                  (Root_Path (Repository),
-                  [Literal, Arg ("ls-files"), Arg ("--others"),
-                   Arg ("--exclude-standard"), Arg ("--full-name"),
+                  [Literal,
+                   Arg ("ls-files"),
+                   Arg ("--others"),
+                   Arg ("--exclude-standard"),
+                   Arg ("--full-name"),
                    Arg ("-z")],
-                  Options.Max_Output_Bytes, "list untracked", Output, Error);
+                  Options.Max_Output_Bytes,
+                  "list untracked",
+                  Output,
+                  Error);
                if not Success (Error) then
                   Result := (Paths => Path_Vectors.Empty_Vector);
                   return;
@@ -122,15 +140,12 @@ package body Git_Changes.Snapshots is
    --  Read a symbolic link's target. The link is not followed: the target
    --  text is the content a read-only view of the working tree shows.
    procedure Read_Link
-     (Name    : String;
-      Content : out Unbounded_String;
-      Error   : out Error_Info)
+     (Name : String; Content : out Unbounded_String; Error : out Error_Info)
    is
       use Interfaces.C;
       function C_Readlink
-        (Path : char_array; Buffer : out char_array; Size : size_t)
-         return long
-        with Import, Convention => C, External_Name => "readlink";
+        (Path : char_array; Buffer : out char_array; Size : size_t) return long
+      with Import, Convention => C, External_Name => "readlink";
       Buffer : char_array (1 .. 4096);
       Result : constant long :=
         C_Readlink (To_C (Name), Buffer, Buffer'Length);
@@ -139,13 +154,17 @@ package body Git_Changes.Snapshots is
       Error := (others => <>);
       if Result < 0 then
          Set_Error
-           (Error, Filesystem_Error, "load content",
+           (Error,
+            Filesystem_Error,
+            "load content",
             "cannot read symbolic link: " & Name);
          return;
       end if;
       if size_t (Result) >= Buffer'Length then
          Set_Error
-           (Error, Resource_Limit, "load content",
+           (Error,
+            Resource_Limit,
+            "load content",
             "symbolic link target too long: " & Name);
          return;
       end if;
@@ -177,15 +196,22 @@ package body Git_Changes.Snapshots is
                Git_Changes.Backends.Run_Git
                  (Root_Path (Repository),
                   [Literal, Arg ("cat-file"), Arg ("blob"), Arg (Object)],
-                  Options.Max_Content_Bytes, "load content", Content, Error);
+                  Options.Max_Content_Bytes,
+                  "load content",
+                  Content,
+                  Error);
                if not Success (Error) then
                   Set_Error
-                    (Error, Content_Unavailable, "load content",
-                     Detail (Error), Exit_Status (Error));
+                    (Error,
+                     Content_Unavailable,
+                     "load content",
+                     Detail (Error),
+                     Exit_Status (Error));
                   Content := Null_Unbounded_String;
                end if;
             end;
-         when Worktree_Endpoint =>
+
+         when Worktree_Endpoint              =>
             declare
                Name : constant String := Root_Path (Repository) & "/" & Path;
             begin
@@ -210,29 +236,50 @@ package body Git_Changes.Snapshots is
       Output : Unbounded_String;
       Prefix : constant String :=
         (if Snapshot.Snapshot_Type = Tree_Endpoint
-         then To_String (Snapshot.Named) & ":" else "");
+         then To_String (Snapshot.Named) & ":"
+         else "");
    begin
       Result := (Matches => Match_Vectors.Empty_Vector);
       declare
          Head : constant Git_Changes.Backends.Argument_Array :=
-           [Literal, Arg ("grep"), Arg ("-I"), Arg ("-n"), Arg ("-z"),
-            Arg ("-F"), Arg ("-e"), Arg (Pattern)];
+           [Literal,
+            Arg ("grep"),
+            Arg ("-I"),
+            Arg ("-n"),
+            Arg ("-z"),
+            Arg ("-F"),
+            Arg ("-e"),
+            Arg (Pattern)];
          Stop : constant Git_Changes.Backends.Argument_Array :=
            [1 => Arg ("--")];
       begin
          case Snapshot.Snapshot_Type is
-            when Tree_Endpoint =>
+            when Tree_Endpoint     =>
                Git_Changes.Backends.Run_Git
-                 (Root_Path (Repository), Head & [Snapshot.Named] & Stop,
-                  Options.Max_Output_Bytes, "search snapshot", Output, Error);
-            when Index_Endpoint =>
+                 (Root_Path (Repository),
+                  Head & [Snapshot.Named] & Stop,
+                  Options.Max_Output_Bytes,
+                  "search snapshot",
+                  Output,
+                  Error);
+
+            when Index_Endpoint    =>
                Git_Changes.Backends.Run_Git
-                 (Root_Path (Repository), Head & [Arg ("--cached")] & Stop,
-                  Options.Max_Output_Bytes, "search snapshot", Output, Error);
+                 (Root_Path (Repository),
+                  Head & [Arg ("--cached")] & Stop,
+                  Options.Max_Output_Bytes,
+                  "search snapshot",
+                  Output,
+                  Error);
+
             when Worktree_Endpoint =>
                Git_Changes.Backends.Run_Git
-                 (Root_Path (Repository), Head & Stop,
-                  Options.Max_Output_Bytes, "search snapshot", Output, Error);
+                 (Root_Path (Repository),
+                  Head & Stop,
+                  Options.Max_Output_Bytes,
+                  "search snapshot",
+                  Output,
+                  Error);
          end case;
       end;
       --  git grep reports "no match" as exit status 1 with no output. That
@@ -281,11 +328,11 @@ package body Git_Changes.Snapshots is
                   end if;
                end loop;
                declare
-                  Name : constant String := Raw (Pos .. Name_End - 1);
+                  Name        : constant String := Raw (Pos .. Name_End - 1);
                   Digits_Text : constant String :=
                     Raw (Name_End + 1 .. Line_End - 1);
-                  Number : Positive := 1;
-                  Valid : Boolean := Digits_Text'Length > 0;
+                  Number      : Positive := 1;
+                  Valid       : Boolean := Digits_Text'Length > 0;
                begin
                   for C of Digits_Text loop
                      Valid := Valid and then C in '0' .. '9';
@@ -293,16 +340,25 @@ package body Git_Changes.Snapshots is
                   if Valid then
                      Number := Positive'Value (Digits_Text);
                      Result.Matches.Append
-                       (Located_Match'(Name => To_Unbounded_String
-                           (if Prefix'Length > 0
-                              and then Name'Length > Prefix'Length
-                              and then Name (Name'First .. Name'First
-                                             + Prefix'Length - 1) = Prefix
-                            then Name (Name'First + Prefix'Length .. Name'Last)
-                            else Name),
-                         Number => Number,
-                         Value => To_Unbounded_String
-                           (Raw (Line_End + 1 .. Text_End - 1))));
+                       (Located_Match'
+                          (Name   =>
+                             To_Unbounded_String
+                               (if Prefix'Length > 0
+                                  and then Name'Length > Prefix'Length
+                                  and then Name
+                                             (Name'First
+                                              .. Name'First
+                                                 + Prefix'Length
+                                                 - 1)
+                                           = Prefix
+                                then
+                                  Name
+                                    (Name'First + Prefix'Length .. Name'Last)
+                                else Name),
+                           Number => Number,
+                           Value  =>
+                             To_Unbounded_String
+                               (Raw (Line_End + 1 .. Text_End - 1))));
                   end if;
                end;
                Pos := Text_End + 1;

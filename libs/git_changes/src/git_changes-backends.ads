@@ -1,8 +1,7 @@
 package Git_Changes.Backends is
    subtype Backend_String is Ada.Strings.Unbounded.Unbounded_String;
 
-   type Argument_Array is
-     array (Positive range <>) of Backend_String;
+   type Argument_Array is array (Positive range <>) of Backend_String;
 
    procedure Run_Git
      (Working_Directory : String;

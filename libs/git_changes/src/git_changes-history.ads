@@ -7,6 +7,7 @@ with Ada.Strings.Unbounded;
 --  The fields are returned separately rather than as a preformatted line.
 --  How a history reads on screen is the caller's decision; which commits it
 --  contains is Git's.
+
 package Git_Changes.History is
 
    --  A read-only history query. An empty text field means that filter is
@@ -14,15 +15,15 @@ package Git_Changes.History is
    --  current branch. Pathspec restricts the walk to commits touching one
    --  path, which is how history is scoped to a file or a subtree.
    type Filter is record
-      Start         : Ada.Strings.Unbounded.Unbounded_String;
-      Author        : Ada.Strings.Unbounded.Unbounded_String;
-      Since         : Ada.Strings.Unbounded.Unbounded_String;
-      Until_Date    : Ada.Strings.Unbounded.Unbounded_String;
-      Message       : Ada.Strings.Unbounded.Unbounded_String;
-      Pathspec      : Ada.Strings.Unbounded.Unbounded_String;
-      All_Refs      : Boolean := False;
-      First_Parent  : Boolean := False;
-      Topological   : Boolean := False;
+      Start        : Ada.Strings.Unbounded.Unbounded_String;
+      Author       : Ada.Strings.Unbounded.Unbounded_String;
+      Since        : Ada.Strings.Unbounded.Unbounded_String;
+      Until_Date   : Ada.Strings.Unbounded.Unbounded_String;
+      Message      : Ada.Strings.Unbounded.Unbounded_String;
+      Pathspec     : Ada.Strings.Unbounded.Unbounded_String;
+      All_Refs     : Boolean := False;
+      First_Parent : Boolean := False;
+      Topological  : Boolean := False;
    end record;
 
    No_Filter : constant Filter;
@@ -31,25 +32,25 @@ package Git_Changes.History is
    function Count (Item : Log) return Natural;
    --  The full object name of the commit.
    function Commit_Id (Item : Log; Number : Positive) return String
-     with Pre => Number <= Count (Item);
+   with Pre => Number <= Count (Item);
    --  The commit's parents, space separated in Git's order; empty for a
    --  root commit.
    function Parents (Item : Log; Number : Positive) return String
-     with Pre => Number <= Count (Item);
+   with Pre => Number <= Count (Item);
    function Is_Merge (Item : Log; Number : Positive) return Boolean
-     with Pre => Number <= Count (Item);
+   with Pre => Number <= Count (Item);
    function Abbreviated (Item : Log; Number : Positive) return String
-     with Pre => Number <= Count (Item);
+   with Pre => Number <= Count (Item);
    --  Author date in ISO short form.
    function Commit_Date (Item : Log; Number : Positive) return String
-     with Pre => Number <= Count (Item);
+   with Pre => Number <= Count (Item);
    function Author (Item : Log; Number : Positive) return Byte_String
-     with Pre => Number <= Count (Item);
+   with Pre => Number <= Count (Item);
    --  Ref names pointing at this commit, comma separated; empty when none.
    function References (Item : Log; Number : Positive) return Byte_String
-     with Pre => Number <= Count (Item);
+   with Pre => Number <= Count (Item);
    function Subject (Item : Log; Number : Positive) return Byte_String
-     with Pre => Number <= Count (Item);
+   with Pre => Number <= Count (Item);
 
    procedure Load
      (Repository : Git_Changes.Repository;
@@ -57,7 +58,7 @@ package Git_Changes.History is
       Options    : Capture_Options := Default_Options;
       Result     : out Log;
       Error      : out Error_Info)
-     with Pre => Is_Open (Repository);
+   with Pre => Is_Open (Repository);
 
    --  The message of one commit, with the author and date that identify
    --  it. The message is whatever Git stored, subject line first and body
@@ -71,7 +72,7 @@ package Git_Changes.History is
       Date       : out Ada.Strings.Unbounded.Unbounded_String;
       Message    : out Ada.Strings.Unbounded.Unbounded_String;
       Error      : out Error_Info)
-     with Pre => Is_Open (Repository);
+   with Pre => Is_Open (Repository);
 
    --  The patch text of one commit, as Git renders it. Text holds whatever
    --  Git wrote even when Error reports failure, so a caller can show the
@@ -82,7 +83,7 @@ package Git_Changes.History is
       Options    : Capture_Options := Default_Options;
       Text       : out Ada.Strings.Unbounded.Unbounded_String;
       Error      : out Error_Info)
-     with Pre => Is_Open (Repository);
+   with Pre => Is_Open (Repository);
 
 private
    No_Filter : constant Filter := (others => <>);
@@ -96,8 +97,10 @@ private
       Wrote       : Ada.Strings.Unbounded.Unbounded_String;
       Title       : Ada.Strings.Unbounded.Unbounded_String;
    end record;
-   package Entry_Vectors is new Ada.Containers.Vectors
-     (Index_Type => Positive, Element_Type => Log_Entry);
+   package Entry_Vectors is new
+     Ada.Containers.Vectors
+       (Index_Type   => Positive,
+        Element_Type => Log_Entry);
    type Log is record
       Entries : Entry_Vectors.Vector;
    end record;

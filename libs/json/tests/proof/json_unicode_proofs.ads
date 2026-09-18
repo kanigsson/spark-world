@@ -3,14 +3,16 @@ with JSON.Pull;
 with JSON.Walk;
 with Unicode_Text.UTF_8;
 
-package JSON_Unicode_Proofs with SPARK_Mode => On is
+package JSON_Unicode_Proofs
+  with SPARK_Mode => On
+is
 
    procedure Decode_Client
-     (Input      : in     String;
+     (Input      : in String;
       Output     : in out String;
-      Length     :    out Natural;
-      Codepoints :    out Natural;
-      Status     :    out JSON.Status_Type)
+      Length     : out Natural;
+      Codepoints : out Natural;
+      Status     : out JSON.Status_Type)
    with
      Global => null,
      Pre    =>
@@ -20,17 +22,15 @@ package JSON_Unicode_Proofs with SPARK_Mode => On is
 
    procedure Empty_Decode_Client
      (Output     : in out String;
-      Codepoints :    out Natural;
-      Status     :    out JSON.Status_Type)
-   with
-     Global => null,
-     Pre    => Output'Last < Positive'Last;
+      Codepoints : out Natural;
+      Status     : out JSON.Status_Type)
+   with Global => null, Pre => Output'Last < Positive'Last;
 
    procedure Pull_Payload_Client
-     (Input      : in     String;
+     (Input      : in String;
       P          : in out JSON.Pull.Parser;
-      Codepoints :    out Natural;
-      Status     :    out JSON.Status_Type)
+      Codepoints : out Natural;
+      Status     : out JSON.Status_Type)
    with
      Global => null,
      Pre    =>
@@ -40,11 +40,11 @@ package JSON_Unicode_Proofs with SPARK_Mode => On is
        and then P.State not in JSON.Pull.Finished | JSON.Pull.Failed;
 
    procedure Walk_Find_Client
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out JSON.Pull.Parser;
-      Name   : in     String;
-      Found  :    out Boolean;
-      Status :    out JSON.Walk.Step_Status)
+      Name   : in String;
+      Found  : out Boolean;
+      Status : out JSON.Walk.Step_Status)
    with
      Global => null,
      Pre    =>

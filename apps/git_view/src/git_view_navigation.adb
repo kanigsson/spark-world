@@ -1,4 +1,6 @@
-package body Git_View_Navigation with SPARK_Mode => On is
+package body Git_View_Navigation
+  with SPARK_Mode => On
+is
 
    use type Tui.Text.Byte;
 
@@ -16,22 +18,24 @@ package body Git_View_Navigation with SPARK_Mode => On is
    begin
       case Kind is
          when Hunk_Header =>
-            return S.Length >= 2
+            return
+              S.Length >= 2
               and then Content (S.Start) = Character'Pos ('@')
               and then Content (S.Start + 1) = Character'Pos ('@');
 
          when File_Header =>
-            return S.Length >= 11
-              and then Content (S.Start)      = Character'Pos ('d')
-              and then Content (S.Start + 1)  = Character'Pos ('i')
-              and then Content (S.Start + 2)  = Character'Pos ('f')
-              and then Content (S.Start + 3)  = Character'Pos ('f')
-              and then Content (S.Start + 4)  = Character'Pos (' ')
-              and then Content (S.Start + 5)  = Character'Pos ('-')
-              and then Content (S.Start + 6)  = Character'Pos ('-')
-              and then Content (S.Start + 7)  = Character'Pos ('g')
-              and then Content (S.Start + 8)  = Character'Pos ('i')
-              and then Content (S.Start + 9)  = Character'Pos ('t')
+            return
+              S.Length >= 11
+              and then Content (S.Start) = Character'Pos ('d')
+              and then Content (S.Start + 1) = Character'Pos ('i')
+              and then Content (S.Start + 2) = Character'Pos ('f')
+              and then Content (S.Start + 3) = Character'Pos ('f')
+              and then Content (S.Start + 4) = Character'Pos (' ')
+              and then Content (S.Start + 5) = Character'Pos ('-')
+              and then Content (S.Start + 6) = Character'Pos ('-')
+              and then Content (S.Start + 7) = Character'Pos ('g')
+              and then Content (S.Start + 8) = Character'Pos ('i')
+              and then Content (S.Start + 9) = Character'Pos ('t')
               and then Content (S.Start + 10) = Character'Pos (' ');
       end case;
    end Is_Landmark;
@@ -52,14 +56,14 @@ package body Git_View_Navigation with SPARK_Mode => On is
       Count : constant Tui.Text.Line_Total := Tui.Text.Line_Count (Index);
    begin
       Found := False;
-      Line  := From;
+      Line := From;
 
       if Forward then
          if From < Count then
             for L in From + 1 .. Count loop
                if Is_Landmark (Content, Index, L, Kind) then
                   Found := True;
-                  Line  := L;
+                  Line := L;
                   return;
                end if;
             end loop;
@@ -68,7 +72,7 @@ package body Git_View_Navigation with SPARK_Mode => On is
          for L in reverse 1 .. From - 1 loop
             if Is_Landmark (Content, Index, L, Kind) then
                Found := True;
-               Line  := L;
+               Line := L;
                return;
             end if;
          end loop;

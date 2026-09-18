@@ -19,7 +19,9 @@
 with Tui.Text;
 with Git_View_Sha;
 
-package Git_View_Source with SPARK_Mode => On is
+package Git_View_Source
+  with SPARK_Mode => On
+is
 
    use type Tui.Text.Doc_Ref;
 
@@ -35,17 +37,17 @@ package Git_View_Source with SPARK_Mode => On is
    end record;
 
    procedure Make_Revision
-     (Text  : String;
-      Value : out Revision;
-      Ok    : out Boolean)
-   with Global => null,
-        Post   => Ok = (Text'Length in 1 .. Max_Revision_Length)
-                  and then (if Ok then Value.Len = Text'Length);
+     (Text : String; Value : out Revision; Ok : out Boolean)
+   with
+     Global => null,
+     Post   =>
+       Ok = (Text'Length in 1 .. Max_Revision_Length)
+       and then (if Ok then Value.Len = Text'Length);
 
-   function Image (Value : Revision) return String is
-     (Value.Text (1 .. Value.Len))
-   with Post => Image'Result'First = 1
-                and then Image'Result'Length = Value.Len;
+   function Image (Value : Revision) return String
+   is (Value.Text (1 .. Value.Len))
+   with
+     Post => Image'Result'First = 1 and then Image'Result'Length = Value.Len;
 
    --  Read-only history filters. Bounded strings keep the query policy in
    --  SPARK and cross the repository edge as typed fields, never as a shell
@@ -59,17 +61,17 @@ package Git_View_Source with SPARK_Mode => On is
    end record;
 
    procedure Make_Filter
-     (Text  : String;
-      Value : out Filter_Value;
-      Ok    : out Boolean)
-   with Global => null,
-        Post   => Ok = (Text'Length in 1 .. Max_Filter_Length)
-                  and then (if Ok then Value.Len = Text'Length);
+     (Text : String; Value : out Filter_Value; Ok : out Boolean)
+   with
+     Global => null,
+     Post   =>
+       Ok = (Text'Length in 1 .. Max_Filter_Length)
+       and then (if Ok then Value.Len = Text'Length);
 
-   function Image (Value : Filter_Value) return String is
-     (Value.Text (1 .. Value.Len))
-   with Post => Image'Result'First = 1
-                and then Image'Result'Length = Value.Len;
+   function Image (Value : Filter_Value) return String
+   is (Value.Text (1 .. Value.Len))
+   with
+     Post => Image'Result'First = 1 and then Image'Result'Length = Value.Len;
 
    type Filters is record
       Author       : Filter_Value;
@@ -83,7 +85,8 @@ package Git_View_Source with SPARK_Mode => On is
 
    --  True when a git executable can be found on PATH. A host checks this
    --  once at startup to fail with a clear message instead of a dead screen.
-   function Available return Boolean with Global => null;
+   function Available return Boolean
+   with Global => null;
 
    --  Walk the history of the repository in the current directory into a
    --  fresh document: one line per commit, the abbreviated id first. Ok is
@@ -91,12 +94,11 @@ package Git_View_Source with SPARK_Mode => On is
    --  repository); the backend's own message goes to standard error, which
    --  is still the terminal at startup.
    procedure Load_Log
-     (From    : Revision;
-      Filter  : Filters;
-      Doc     : out Tui.Text.Doc_Ref;
-      Ok      : out Boolean)
-   with Global => null,
-        Post   => Ok = (Doc /= null);
+     (From   : Revision;
+      Filter : Filters;
+      Doc    : out Tui.Text.Doc_Ref;
+      Ok     : out Boolean)
+   with Global => null, Post => Ok = (Doc /= null);
 
    --  Replace Doc with the patch text of one commit: any document it held
    --  is reclaimed, then the commit is loaded fresh. Never null on return:
@@ -104,11 +106,7 @@ package Git_View_Source with SPARK_Mode => On is
    --  fallback) and Ok is False, so the caller can post a note while the
    --  diff pane stays well-formed.
    procedure Load_Diff
-     (Id  : Git_View_Sha.Sha;
-      Doc : in out Tui.Text.Doc_Ref;
-      Ok  : out Boolean)
-   with Global => null,
-        Pre    => Git_View_Sha.Valid (Id),
-        Post   => Doc /= null;
+     (Id : Git_View_Sha.Sha; Doc : in out Tui.Text.Doc_Ref; Ok : out Boolean)
+   with Global => null, Pre => Git_View_Sha.Valid (Id), Post => Doc /= null;
 
 end Git_View_Source;

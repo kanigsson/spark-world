@@ -1,9 +1,9 @@
 --  Behavioural tests for display width. Complements gnatprove: proof shows the
 --  lookup cannot crash; these pin concrete widths against known code points.
 
-with Ada.Text_IO;       use Ada.Text_IO;
+with Ada.Text_IO; use Ada.Text_IO;
 with Ada.Command_Line;
-with Tui.Width;         use Tui.Width;
+with Tui.Width;   use Tui.Width;
 
 procedure Test_Width is
 
@@ -21,7 +21,8 @@ procedure Test_Width is
 
 begin
    --  The tables must be sorted/non-overlapping for the search to be meaningful.
-   Check (Tables_Well_Formed, "interval tables are sorted and non-overlapping");
+   Check
+     (Tables_Well_Formed, "interval tables are sorted and non-overlapping");
 
    --  Normal width 1.
    Check (Char_Width (Character'Pos ('A')) = 1, "'A' -> 1");
@@ -34,14 +35,16 @@ begin
    Check (Char_Width (16#7F#) = 0 and then Is_Control (16#7F#), "DEL -> 0");
 
    --  Combining / zero-width -> 0.
-   Check (Char_Width (16#0301#) = 0 and then Is_Zero_Width (16#0301#),
-          "U+0301 combining acute -> 0");
+   Check
+     (Char_Width (16#0301#) = 0 and then Is_Zero_Width (16#0301#),
+      "U+0301 combining acute -> 0");
    Check (Char_Width (16#200D#) = 0, "U+200D ZWJ -> 0");
    Check (Char_Width (16#FE0F#) = 0, "U+FE0F variation selector -> 0");
 
    --  East-Asian wide / fullwidth / emoji -> 2.
-   Check (Char_Width (16#4E00#) = 2 and then Is_Wide (16#4E00#),
-          "U+4E00 CJK -> 2");
+   Check
+     (Char_Width (16#4E00#) = 2 and then Is_Wide (16#4E00#),
+      "U+4E00 CJK -> 2");
    Check (Char_Width (16#3042#) = 2, "U+3042 hiragana A -> 2");
    Check (Char_Width (16#AC00#) = 2, "U+AC00 hangul -> 2");
    Check (Char_Width (16#FF21#) = 2, "U+FF21 fullwidth A -> 2");

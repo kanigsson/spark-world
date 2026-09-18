@@ -1,4 +1,6 @@
-package body Tui.App_Kit.Status with SPARK_Mode => On is
+package body Tui.App_Kit.Status
+  with SPARK_Mode => On
+is
 
    -----------
    -- Reset --
@@ -60,10 +62,7 @@ package body Tui.App_Kit.Status with SPARK_Mode => On is
    -------------------
 
    procedure Format_Prompt
-     (L       : out Line;
-      Forward : Boolean;
-      Pattern : Tui.Text.Buffer)
-   is
+     (L : out Line; Forward : Boolean; Pattern : Tui.Text.Buffer) is
    begin
       Reset (L);
       Put_Char (L, (if Forward then '/' else '?'));

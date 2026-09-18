@@ -1,6 +1,8 @@
 with JSON.Numbers;
 
-package body JSON.Walk with SPARK_Mode => On is
+package body JSON.Walk
+  with SPARK_Mode => On
+is
 
    use type JSON.Pull.Event_Kind;
    use type JSON.Pull.State_Type;
@@ -9,32 +11,32 @@ package body JSON.Walk with SPARK_Mode => On is
    --  and Get_Boolean wrappers (the getters with payloads keep their own
    --  bodies, they need the event).
    procedure Expect
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out JSON.Pull.Parser;
-      Kind   : in     JSON.Pull.Event_Kind;
-      Ev     :    out JSON.Pull.Event;
-      Status :    out Step_Status)
+      Kind   : in JSON.Pull.Event_Kind;
+      Ev     : out JSON.Pull.Event;
+      Status : out Step_Status)
    with
      Global => null,
-     Pre    => Ready (Input, P)
-               and then Kind /= JSON.Pull.Document_End,
-     Post   => (if Status = OK
-                then Ready (Input, P)
-                     and then P.Pos > P.Pos'Old
-                     and then Ev.Kind = Kind
-                     and then (if Kind in JSON.Pull.Member_Key
-                                        | JSON.Pull.String_Value
-                                        | JSON.Pull.Number_Value
-                               then Ev.First >= Input'First
-                                    and then Ev.Last <= Input'Last
-                                    and then Ev.First - 1 <= Ev.Last)
-                     and then
-                       (if Kind in JSON.Pull.Member_Key
-                                  | JSON.Pull.String_Value
-                        then
-                          Unicode_Text.UTF_8.Is_Valid_UTF_8
-                            (JSON.Payload
-                               (Input, Ev.First, Ev.Last))))
+     Pre    => Ready (Input, P) and then Kind /= JSON.Pull.Document_End,
+     Post   =>
+       (if Status = OK
+        then
+          Ready (Input, P)
+          and then P.Pos > P.Pos'Old
+          and then Ev.Kind = Kind
+          and then (if Kind
+                       in JSON.Pull.Member_Key
+                        | JSON.Pull.String_Value
+                        | JSON.Pull.Number_Value
+                    then
+                      Ev.First >= Input'First
+                      and then Ev.Last <= Input'Last
+                      and then Ev.First - 1 <= Ev.Last)
+          and then (if Kind in JSON.Pull.Member_Key | JSON.Pull.String_Value
+                    then
+                      Unicode_Text.UTF_8.Is_Valid_UTF_8
+                        (JSON.Payload (Input, Ev.First, Ev.Last))))
    is
       St : JSON.Status_Type;
    begin
@@ -53,9 +55,7 @@ package body JSON.Walk with SPARK_Mode => On is
    -----------------
 
    procedure Open_Object
-     (Input  : in     String;
-      P      : in out JSON.Pull.Parser;
-      Status :    out Step_Status)
+     (Input : in String; P : in out JSON.Pull.Parser; Status : out Step_Status)
    is
       Ev : JSON.Pull.Event;
    begin
@@ -67,9 +67,7 @@ package body JSON.Walk with SPARK_Mode => On is
    ----------------
 
    procedure Open_Array
-     (Input  : in     String;
-      P      : in out JSON.Pull.Parser;
-      Status :    out Step_Status)
+     (Input : in String; P : in out JSON.Pull.Parser; Status : out Step_Status)
    is
       Ev : JSON.Pull.Event;
    begin
@@ -81,26 +79,25 @@ package body JSON.Walk with SPARK_Mode => On is
    -----------------
 
    procedure Next_Member
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out JSON.Pull.Parser;
-      Key    :    out Span;
-      Done   :    out Boolean;
-      Status :    out Step_Status)
+      Key    : out Span;
+      Done   : out Boolean;
+      Status : out Step_Status)
    is
       Ev : JSON.Pull.Event;
       St : JSON.Status_Type;
    begin
-      Key  := (others => <>);
+      Key := (others => <>);
       Done := False;
       JSON.Pull.Next (Input, P, Ev, St);
       if St /= JSON.OK then
          Status := Bad_JSON;
       elsif Ev.Kind = JSON.Pull.Member_Key then
-         Key    := (First => Ev.First, Last => Ev.Last,
-                    Escaped => Ev.Escaped);
+         Key := (First => Ev.First, Last => Ev.Last, Escaped => Ev.Escaped);
          Status := OK;
       elsif Ev.Kind = JSON.Pull.Object_End then
-         Done   := True;
+         Done := True;
          Status := OK;
       else
          Status := Wrong_Shape;
@@ -112,13 +109,14 @@ package body JSON.Walk with SPARK_Mode => On is
    -----------------
 
    procedure Find_Member
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out JSON.Pull.Parser;
-      Name   : in     String;
-      Found  :    out Boolean;
-      Status :    out Step_Status)
+      Name   : in String;
+      Found  : out Boolean;
+      Status : out Step_Status)
    is
-      Pos0 : constant Natural := P.Pos with Ghost;
+      Pos0 : constant Natural := P.Pos
+      with Ghost;
       Key  : Span;
       Done : Boolean;
    begin
@@ -131,10 +129,12 @@ package body JSON.Walk with SPARK_Mode => On is
          Next_Member (Input, P, Key, Done, Status);
          if Status /= OK or else Done then
             return;   --  not found: the object is consumed, or the walk died
+
          end if;
          if Matches (Input, Key, Name) then
             Found := True;
             return;   --  the cursor stands before the member's value
+
          end if;
          Skip_Value (Input, P, Status);
          if Status /= OK then
@@ -148,12 +148,11 @@ package body JSON.Walk with SPARK_Mode => On is
    ----------------
 
    procedure Skip_Value
-     (Input  : in     String;
-      P      : in out JSON.Pull.Parser;
-      Status :    out Step_Status)
+     (Input : in String; P : in out JSON.Pull.Parser; Status : out Step_Status)
    is
       Base : constant Natural := P.Depth;
-      Pos0 : constant Natural := P.Pos with Ghost;
+      Pos0 : constant Natural := P.Pos
+      with Ghost;
       Ev   : JSON.Pull.Event;
       St   : JSON.Status_Type;
    begin
@@ -164,8 +163,10 @@ package body JSON.Walk with SPARK_Mode => On is
       end if;
 
       case Ev.Kind is
-         when JSON.Pull.String_Value | JSON.Pull.Number_Value
-            | JSON.Pull.Boolean_Value | JSON.Pull.Null_Value =>
+         when JSON.Pull.String_Value
+            | JSON.Pull.Number_Value
+            | JSON.Pull.Boolean_Value
+            | JSON.Pull.Null_Value                           =>
             Status := OK;
 
          when JSON.Pull.Object_Start | JSON.Pull.Array_Start =>
@@ -175,11 +176,12 @@ package body JSON.Walk with SPARK_Mode => On is
             --  delivered while a container is open), so the loop
             --  terminates.
             while P.Depth > Base loop
-               pragma Loop_Invariant
-                 (P.Pos <= Input'Length
-                  and then JSON.Pull.Well_Formed (P)
-                  and then P.State /= JSON.Pull.Failed
-                  and then P.Pos > Pos0);
+               pragma
+                 Loop_Invariant
+                   (P.Pos <= Input'Length
+                      and then JSON.Pull.Well_Formed (P)
+                      and then P.State /= JSON.Pull.Failed
+                      and then P.Pos > Pos0);
                pragma Loop_Variant (Increases => P.Pos);
 
                JSON.Pull.Next (Input, P, Ev, St);
@@ -190,8 +192,10 @@ package body JSON.Walk with SPARK_Mode => On is
             end loop;
             Status := OK;
 
-         when JSON.Pull.Member_Key | JSON.Pull.Object_End
-            | JSON.Pull.Array_End | JSON.Pull.Document_End =>
+         when JSON.Pull.Member_Key
+            | JSON.Pull.Object_End
+            | JSON.Pull.Array_End
+            | JSON.Pull.Document_End                         =>
             --  Not a value: the caller is lost (or the container just
             --  ended where a value was expected).
             Status := Wrong_Shape;
@@ -203,18 +207,17 @@ package body JSON.Walk with SPARK_Mode => On is
    ----------------
 
    procedure Get_String
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out JSON.Pull.Parser;
-      Value  :    out Span;
-      Status :    out Step_Status)
+      Value  : out Span;
+      Status : out Step_Status)
    is
       Ev : JSON.Pull.Event;
    begin
       Value := (others => <>);
       Expect (Input, P, JSON.Pull.String_Value, Ev, Status);
       if Status = OK then
-         Value := (First => Ev.First, Last => Ev.Last,
-                   Escaped => Ev.Escaped);
+         Value := (First => Ev.First, Last => Ev.Last, Escaped => Ev.Escaped);
       end if;
    end Get_String;
 
@@ -223,10 +226,10 @@ package body JSON.Walk with SPARK_Mode => On is
    -----------------
 
    procedure Get_Integer
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out JSON.Pull.Parser;
-      Value  :    out Interfaces.Integer_64;
-      Status :    out Step_Status)
+      Value  : out Interfaces.Integer_64;
+      Status : out Step_Status)
    is
       Ev   : JSON.Pull.Event;
       St   : JSON.Status_Type;
@@ -241,7 +244,7 @@ package body JSON.Walk with SPARK_Mode => On is
          if Fits then
             Status := OK;
          else
-            Value  := 0;
+            Value := 0;
             Status := Wrong_Shape;
          end if;
       else
@@ -254,10 +257,10 @@ package body JSON.Walk with SPARK_Mode => On is
    -----------------
 
    procedure Get_Boolean
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out JSON.Pull.Parser;
-      Value  :    out Boolean;
-      Status :    out Step_Status)
+      Value  : out Boolean;
+      Status : out Step_Status)
    is
       Ev : JSON.Pull.Event;
    begin
@@ -270,10 +273,10 @@ package body JSON.Walk with SPARK_Mode => On is
    -------------------------
 
    procedure Next_Element_Object
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out JSON.Pull.Parser;
-      Done   :    out Boolean;
-      Status :    out Step_Status)
+      Done   : out Boolean;
+      Status : out Step_Status)
    is
       Ev : JSON.Pull.Event;
       St : JSON.Status_Type;
@@ -285,7 +288,7 @@ package body JSON.Walk with SPARK_Mode => On is
       elsif Ev.Kind = JSON.Pull.Object_Start then
          Status := OK;
       elsif Ev.Kind = JSON.Pull.Array_End then
-         Done   := True;
+         Done := True;
          Status := OK;
       else
          Status := Wrong_Shape;
@@ -297,26 +300,25 @@ package body JSON.Walk with SPARK_Mode => On is
    -------------------------
 
    procedure Next_Element_String
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out JSON.Pull.Parser;
-      Value  :    out Span;
-      Done   :    out Boolean;
-      Status :    out Step_Status)
+      Value  : out Span;
+      Done   : out Boolean;
+      Status : out Step_Status)
    is
       Ev : JSON.Pull.Event;
       St : JSON.Status_Type;
    begin
       Value := (others => <>);
-      Done  := False;
+      Done := False;
       JSON.Pull.Next (Input, P, Ev, St);
       if St /= JSON.OK then
          Status := Bad_JSON;
       elsif Ev.Kind = JSON.Pull.String_Value then
-         Value  := (First => Ev.First, Last => Ev.Last,
-                    Escaped => Ev.Escaped);
+         Value := (First => Ev.First, Last => Ev.Last, Escaped => Ev.Escaped);
          Status := OK;
       elsif Ev.Kind = JSON.Pull.Array_End then
-         Done   := True;
+         Done := True;
          Status := OK;
       else
          Status := Wrong_Shape;

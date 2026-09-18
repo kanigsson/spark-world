@@ -27,7 +27,9 @@ with Unicode_Text.UTF_8;
 --  The Parser record is public so that its validity can be stated in
 --  contracts; treat it as opaque and only read State.
 
-package JSON.Pull with SPARK_Mode => On is
+package JSON.Pull
+  with SPARK_Mode => On
+is
 
    type Event_Kind is
      (Object_Start,    --  '{' consumed; expect keys
@@ -50,11 +52,11 @@ package JSON.Pull with SPARK_Mode => On is
    --  so JSON.Numbers.To_Integer applies.
    type Event is record
       Kind       : Event_Kind := Null_Value;
-      First      : Positive   := 1;
-      Last       : Natural    := 0;
-      Bool       : Boolean    := False;
-      Escaped    : Boolean    := False;
-      Is_Integer : Boolean    := False;
+      First      : Positive := 1;
+      Last       : Natural := 0;
+      Bool       : Boolean := False;
+      Escaped    : Boolean := False;
+      Is_Integer : Boolean := False;
    end record;
 
    type Container is (In_Array, In_Object);
@@ -73,8 +75,8 @@ package JSON.Pull with SPARK_Mode => On is
       Failed);              --  a non-OK status was delivered
 
    type Parser is record
-      Pos   : Natural    := 0;   --  consumed characters (offset from 'First)
-      Depth : Natural    := 0;   --  open containers
+      Pos   : Natural := 0;   --  consumed characters (offset from 'First)
+      Depth : Natural := 0;   --  open containers
       Stack : Container_Stack := [others => In_Array];
       State : State_Type := Expect_Value;
    end record;
@@ -82,14 +84,15 @@ package JSON.Pull with SPARK_Mode => On is
    --  The structural invariant Next preserves: the depth is in range and
    --  matches what the state implies (inside-a-container states need an
    --  open container; the end states close them all).
-   function Well_Formed (P : Parser) return Boolean is
-     (P.Depth <= Max_Depth
-      and then
-        (case P.State is
-            when Expect_Value_Or_End | Expect_First_Key
-               | Expect_Key | Expect_Comma_Or_End => P.Depth >= 1,
-            when Expect_EOF | Finished            => P.Depth = 0,
-            when Expect_Value | Failed            => True));
+   function Well_Formed (P : Parser) return Boolean
+   is (P.Depth <= Max_Depth
+       and then (case P.State is
+                   when Expect_Value_Or_End
+                      | Expect_First_Key
+                      | Expect_Key
+                      | Expect_Comma_Or_End   => P.Depth >= 1,
+                   when Expect_EOF | Finished => P.Depth = 0,
+                   when Expect_Value | Failed => True));
 
    --  Deliver the next event. On OK every payload slice lies within
    --  Input, and string/key payload bytes are valid UTF-8 even when they
@@ -99,48 +102,43 @@ package JSON.Pull with SPARK_Mode => On is
    --  is only delivered once every container is closed, so a loop that
    --  runs while a container is open advances on every step.
    procedure Next
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out Parser;
-      Ev     :    out Event;
-      Status :    out Status_Type)
+      Ev     : out Event;
+      Status : out Status_Type)
    with
      Global => null,
-     Pre    => Input'Last < Positive'Last
-               and then P.Pos <= Input'Length
-               and then Well_Formed (P)
-               and then P.State not in Finished | Failed,
+     Pre    =>
+       Input'Last < Positive'Last
+       and then P.Pos <= Input'Length
+       and then Well_Formed (P)
+       and then P.State not in Finished | Failed,
      Post   =>
        P.Pos <= Input'Length
        and then P.Pos >= P.Pos'Old
        and then Well_Formed (P)
        and then (if Status = OK
-                 then P.State /= Failed
-                      and then (P.State = Finished) = (Ev.Kind = Document_End)
-                      and then (if Ev.Kind /= Document_End
-                                then P.Pos > P.Pos'Old)
-                      and then (if Ev.Kind = Document_End
-                                then P.Depth'Old = 0)
-                      and then (if Ev.Kind in
-                                  Member_Key | String_Value | Number_Value
-                                then Ev.First >= Input'First
-                                     and then Ev.Last <= Input'Last
-                                     and then Ev.First - 1 <= Ev.Last)
-                      and then
-                        (if Ev.Kind in Member_Key | String_Value
-                         then
-                           Unicode_Text.UTF_8.Is_Valid_UTF_8
-                             (JSON.Payload
-                                (Input, Ev.First, Ev.Last)))
+                 then
+                   P.State /= Failed
+                   and then (P.State = Finished) = (Ev.Kind = Document_End)
+                   and then (if Ev.Kind /= Document_End then P.Pos > P.Pos'Old)
+                   and then (if Ev.Kind = Document_End then P.Depth'Old = 0)
+                   and then (if Ev.Kind
+                                in Member_Key | String_Value | Number_Value
+                             then
+                               Ev.First >= Input'First
+                               and then Ev.Last <= Input'Last
+                               and then Ev.First - 1 <= Ev.Last)
+                   and then (if Ev.Kind in Member_Key | String_Value
+                             then
+                               Unicode_Text.UTF_8.Is_Valid_UTF_8
+                                 (JSON.Payload (Input, Ev.First, Ev.Last)))
                  else P.State = Failed);
 
    --  Run the cursor over the whole document: Status = OK means Input is
    --  one RFC 8259 conformant JSON text (with valid UTF-8 and escapes
    --  throughout) within the nesting limit.
-   procedure Validate
-     (Input  : in     String;
-      Status :    out Status_Type)
-   with
-     Global => null,
-     Pre    => Input'Last < Positive'Last;
+   procedure Validate (Input : in String; Status : out Status_Type)
+   with Global => null, Pre => Input'Last < Positive'Last;
 
 end JSON.Pull;

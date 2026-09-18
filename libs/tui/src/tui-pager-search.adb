@@ -1,4 +1,6 @@
-package body Tui.Pager.Search with SPARK_Mode => On is
+package body Tui.Pager.Search
+  with SPARK_Mode => On
+is
 
    use type Tui.Text.Byte;
 
@@ -57,13 +59,13 @@ package body Tui.Pager.Search with SPARK_Mode => On is
       Count : constant Line_Total := Tui.Text.Line_Count (Index);
    begin
       Found := False;
-      Line  := From;
+      Line := From;
 
       if Forward then
          for L in From .. Count loop
             if Line_Matches (Content, Index, Pattern, L) then
                Found := True;
-               Line  := L;
+               Line := L;
                return;
             end if;
          end loop;
@@ -71,7 +73,7 @@ package body Tui.Pager.Search with SPARK_Mode => On is
          for L in reverse 1 .. From loop
             if Line_Matches (Content, Index, Pattern, L) then
                Found := True;
-               Line  := L;
+               Line := L;
                return;
             end if;
          end loop;

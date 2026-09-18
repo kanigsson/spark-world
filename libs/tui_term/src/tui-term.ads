@@ -35,6 +35,7 @@ package Tui.Term is
       Cols : Natural := 0;
    end record;
 
-   function Is_Known (S : Size) return Boolean is (S.Rows > 0 and then S.Cols > 0);
+   function Is_Known (S : Size) return Boolean
+   is (S.Rows > 0 and then S.Cols > 0);
 
 end Tui.Term;

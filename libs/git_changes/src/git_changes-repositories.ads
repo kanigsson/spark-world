@@ -5,7 +5,5 @@ package Git_Changes.Repositories is
    function Available return Boolean;
 
    procedure Open
-     (Path  : String;
-      Item  : out Repository;
-      Error : out Error_Info);
+     (Path : String; Item : out Repository; Error : out Error_Info);
 end Git_Changes.Repositories;

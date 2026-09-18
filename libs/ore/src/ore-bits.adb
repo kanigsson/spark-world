@@ -668,7 +668,7 @@ is
       pragma
         Assert
           ((Shift_Right (Value, Offset) and Low_Mask_8 (Count))
-           = Shift_Right (Value, Offset) mod 2 ** Count);
+             = Shift_Right (Value, Offset) mod 2**Count);
    end Lemma_Extract_Value;
 
    procedure Lemma_Extract_Value
@@ -678,7 +678,7 @@ is
       pragma
         Assert
           ((Shift_Right (Value, Offset) and Low_Mask_16 (Count))
-           = Shift_Right (Value, Offset) mod 2 ** Count);
+             = Shift_Right (Value, Offset) mod 2**Count);
    end Lemma_Extract_Value;
 
    procedure Lemma_Extract_Value
@@ -688,7 +688,7 @@ is
       pragma
         Assert
           ((Shift_Right (Value, Offset) and Low_Mask_32 (Count))
-           = Shift_Right (Value, Offset) mod 2 ** Count);
+             = Shift_Right (Value, Offset) mod 2**Count);
    end Lemma_Extract_Value;
 
    procedure Lemma_Extract_Value
@@ -698,7 +698,7 @@ is
       pragma
         Assert
           ((Shift_Right (Value, Offset) and Low_Mask_64 (Count))
-           = Shift_Right (Value, Offset) mod 2 ** Count);
+             = Shift_Right (Value, Offset) mod 2**Count);
    end Lemma_Extract_Value;
 
    --  The recurrence against the operation, by induction on the count: one more
@@ -716,8 +716,8 @@ is
       pragma
         Assert
           (Extract (Value, 0, Count)
-           = Extract (Value, 0, Count - 1)
-             + (if Bit (Value, Count - 1) then 2 ** (Count - 1) else 0));
+             = Extract (Value, 0, Count - 1)
+               + (if Bit (Value, Count - 1) then 2**(Count - 1) else 0));
    end Lemma_Bits_Value;
 
    procedure Lemma_Bits_Value (Value : Word16; Count : Bit_Count_16) is
@@ -731,8 +731,8 @@ is
       pragma
         Assert
           (Extract (Value, 0, Count)
-           = Extract (Value, 0, Count - 1)
-             + (if Bit (Value, Count - 1) then 2 ** (Count - 1) else 0));
+             = Extract (Value, 0, Count - 1)
+               + (if Bit (Value, Count - 1) then 2**(Count - 1) else 0));
    end Lemma_Bits_Value;
 
    procedure Lemma_Bits_Value (Value : Word32; Count : Bit_Count_32) is
@@ -746,8 +746,8 @@ is
       pragma
         Assert
           (Extract (Value, 0, Count)
-           = Extract (Value, 0, Count - 1)
-             + (if Bit (Value, Count - 1) then 2 ** (Count - 1) else 0));
+             = Extract (Value, 0, Count - 1)
+               + (if Bit (Value, Count - 1) then 2**(Count - 1) else 0));
    end Lemma_Bits_Value;
 
    procedure Lemma_Bits_Value (Value : Word64; Count : Bit_Count_64) is
@@ -761,8 +761,8 @@ is
       pragma
         Assert
           (Extract (Value, 0, Count)
-           = Extract (Value, 0, Count - 1)
-             + (if Bit (Value, Count - 1) then 2 ** (Count - 1) else 0));
+             = Extract (Value, 0, Count - 1)
+               + (if Bit (Value, Count - 1) then 2**(Count - 1) else 0));
    end Lemma_Bits_Value;
 
    ---------------------------------------------------------------------------
@@ -1014,11 +1014,11 @@ is
       pragma
         Assert
           (Byte_At (Left, 0, Little_Endian)
-           = Byte_At (Right, 0, Little_Endian));
+             = Byte_At (Right, 0, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 1, Little_Endian)
-           = Byte_At (Right, 1, Little_Endian));
+             = Byte_At (Right, 1, Little_Endian));
    end Lemma_Bytes_Equal;
 
    procedure Lemma_Bytes_Equal (Left, Right : Word32) is
@@ -1029,19 +1029,19 @@ is
       pragma
         Assert
           (Byte_At (Left, 0, Little_Endian)
-           = Byte_At (Right, 0, Little_Endian));
+             = Byte_At (Right, 0, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 1, Little_Endian)
-           = Byte_At (Right, 1, Little_Endian));
+             = Byte_At (Right, 1, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 2, Little_Endian)
-           = Byte_At (Right, 2, Little_Endian));
+             = Byte_At (Right, 2, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 3, Little_Endian)
-           = Byte_At (Right, 3, Little_Endian));
+             = Byte_At (Right, 3, Little_Endian));
    end Lemma_Bytes_Equal;
 
    procedure Lemma_Bytes_Equal (Left, Right : Word64) is
@@ -1052,35 +1052,35 @@ is
       pragma
         Assert
           (Byte_At (Left, 0, Little_Endian)
-           = Byte_At (Right, 0, Little_Endian));
+             = Byte_At (Right, 0, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 1, Little_Endian)
-           = Byte_At (Right, 1, Little_Endian));
+             = Byte_At (Right, 1, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 2, Little_Endian)
-           = Byte_At (Right, 2, Little_Endian));
+             = Byte_At (Right, 2, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 3, Little_Endian)
-           = Byte_At (Right, 3, Little_Endian));
+             = Byte_At (Right, 3, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 4, Little_Endian)
-           = Byte_At (Right, 4, Little_Endian));
+             = Byte_At (Right, 4, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 5, Little_Endian)
-           = Byte_At (Right, 5, Little_Endian));
+             = Byte_At (Right, 5, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 6, Little_Endian)
-           = Byte_At (Right, 6, Little_Endian));
+             = Byte_At (Right, 6, Little_Endian));
       pragma
         Assert
           (Byte_At (Left, 7, Little_Endian)
-           = Byte_At (Right, 7, Little_Endian));
+             = Byte_At (Right, 7, Little_Endian));
    end Lemma_Bytes_Equal;
 
 end Ore.Bits;

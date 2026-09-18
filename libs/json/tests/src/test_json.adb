@@ -28,7 +28,7 @@ with Ada.Streams.Stream_IO;
 with Ada.Text_IO;
 with Interfaces;
 
-with JSON;         use JSON;
+with JSON; use JSON;
 with JSON.Numbers;
 with JSON.Pull;
 with JSON.Strings;
@@ -42,8 +42,7 @@ procedure Test_JSON is
    function Read_File (Path : String) return String_Access is
       use Ada.Streams.Stream_IO;
       F : File_Type;
-      L : constant Natural :=
-        Natural (Ada.Directories.Size (Path));
+      L : constant Natural := Natural (Ada.Directories.Size (Path));
       R : constant String_Access := new String (1 .. L);
    begin
       Open (F, In_File, Path);
@@ -88,8 +87,8 @@ procedure Test_JSON is
          return True;
       end Emit_Str;
 
-      procedure Emit_Number (First : Positive; Last : Natural;
-                             Is_Int : Boolean)
+      procedure Emit_Number
+        (First : Positive; Last : Natural; Is_Int : Boolean)
       is
          Tok : String renames Doc.all (First .. Last);
          I   : Interfaces.Integer_64;
@@ -125,25 +124,34 @@ procedure Test_JSON is
             exit;
          end if;
          case Ev.Kind is
-            when JSON.Pull.Object_Start =>
+            when JSON.Pull.Object_Start  =>
                W ("OBJ");
-            when JSON.Pull.Object_End =>
+
+            when JSON.Pull.Object_End    =>
                W ("ENDOBJ");
-            when JSON.Pull.Array_Start =>
+
+            when JSON.Pull.Array_Start   =>
                W ("ARR");
-            when JSON.Pull.Array_End =>
+
+            when JSON.Pull.Array_End     =>
                W ("ENDARR");
-            when JSON.Pull.Member_Key =>
+
+            when JSON.Pull.Member_Key    =>
                exit when not Emit_Str ("KEY", Ev.First, Ev.Last);
-            when JSON.Pull.String_Value =>
+
+            when JSON.Pull.String_Value  =>
                exit when not Emit_Str ("STR", Ev.First, Ev.Last);
-            when JSON.Pull.Number_Value =>
+
+            when JSON.Pull.Number_Value  =>
                Emit_Number (Ev.First, Ev.Last, Ev.Is_Integer);
+
             when JSON.Pull.Boolean_Value =>
                W ((if Ev.Bool then "BOOL true" else "BOOL false"));
-            when JSON.Pull.Null_Value =>
+
+            when JSON.Pull.Null_Value    =>
                W ("NULL");
-            when JSON.Pull.Document_End =>
+
+            when JSON.Pull.Document_End  =>
                W ("ACCEPT");
                exit;
          end case;

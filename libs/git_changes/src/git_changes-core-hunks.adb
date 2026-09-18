@@ -1,6 +1,8 @@
 with Git_Changes.Core.Validation;
 
-package body Git_Changes.Core.Hunks with SPARK_Mode is
+package body Git_Changes.Core.Hunks
+  with SPARK_Mode
+is
 
    LF : constant Character := Character'Val (10);
 
@@ -114,7 +116,9 @@ package body Git_Changes.Core.Hunks with SPARK_Mode is
       end if;
       Pos := Pos + 1;
       Range_After ('+', New_Range, OK);
-      if not OK or else Line_End < 3 or else Pos > Line_End - 2
+      if not OK
+        or else Line_End < 3
+        or else Pos > Line_End - 2
         or else Input (Pos .. Pos + 2) /= " @@"
         or else (Old_Range.Count = 0 and then New_Range.Count = 0)
       then

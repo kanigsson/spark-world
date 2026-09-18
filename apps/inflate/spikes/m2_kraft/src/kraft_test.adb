@@ -23,19 +23,27 @@ procedure Kraft_Test is
    --  Incomplete: one code of length 2.
    Incomplete : constant Code_Length_Array (0 .. 0) := (0 => 2);
 
-   Sym : Symbol_Value;
+   Sym   : Symbol_Value;
    Found : Boolean;
 begin
    for I in Fixed_Lit'Range loop
       Fixed_Lit (I) :=
-        (if I <= 143 then 8 elsif I <= 255 then 9
-         elsif I <= 279 then 7 else 8);
+        (if I <= 143
+         then 8
+         elsif I <= 255
+         then 9
+         elsif I <= 279
+         then 7
+         else 8);
    end loop;
 
    Construct (Fixed_Lit, Counts, Symbols, Complete, Valid);
    pragma Assert (Valid and Complete);
-   Put_Line ("fixed literal code: valid=" & Valid'Image
-             & " complete=" & Complete'Image);
+   Put_Line
+     ("fixed literal code: valid="
+      & Valid'Image
+      & " complete="
+      & Complete'Image);
 
    --  Decode a few codes of the fixed literal table: 8 zero bits are the
    --  code for symbol 0 (canonical: shortest codes first, 7-bit codes
@@ -46,18 +54,21 @@ begin
 
    Construct (Small, Counts, Symbols, Complete, Valid);
    pragma Assert (Valid and Complete);
-   Put_Line ("small code: valid=" & Valid'Image
-             & " complete=" & Complete'Image);
+   Put_Line
+     ("small code: valid=" & Valid'Image & " complete=" & Complete'Image);
 
    Construct (Bad, Counts, Symbols, Complete, Valid);
    pragma Assert (not Valid and not Complete);
-   Put_Line ("over-subscribed code: valid=" & Valid'Image
-             & " complete=" & Complete'Image);
+   Put_Line
+     ("over-subscribed code: valid="
+      & Valid'Image
+      & " complete="
+      & Complete'Image);
 
    Construct (Incomplete, Counts, Symbols, Complete, Valid);
    pragma Assert (Valid and not Complete);
-   Put_Line ("incomplete code: valid=" & Valid'Image
-             & " complete=" & Complete'Image);
+   Put_Line
+     ("incomplete code: valid=" & Valid'Image & " complete=" & Complete'Image);
 
    Put_Line ("all runtime checks passed");
 end Kraft_Test;

@@ -3,9 +3,9 @@
 --  expectations and double as runnable documentation. -gnata makes the
 --  contracts themselves execute here too.
 
-with Ada.Text_IO;        use Ada.Text_IO;
+with Ada.Text_IO; use Ada.Text_IO;
 with Ada.Command_Line;
-with Tui.Surface;        use Tui.Surface;
+with Tui.Surface; use Tui.Surface;
 with Tui.Surface.Diff;
 
 procedure Test_Surface is
@@ -64,10 +64,12 @@ begin
       Set (C, 3, 4, (Glyph => 'Z', others => <>));
       Diff.Compute (P, C, Buf, N);
       Check (N = 1, "one changed cell -> 1 change");
-      Check (N >= 1 and then Buf (1).Row = 3 and then Buf (1).Column = 4,
-             "change carries the right coordinates");
-      Check (N >= 1 and then Buf (1).Value.Glyph = 'Z',
-             "change carries the new value");
+      Check
+        (N >= 1 and then Buf (1).Row = 3 and then Buf (1).Column = 4,
+         "change carries the right coordinates");
+      Check
+        (N >= 1 and then Buf (1).Value.Glyph = 'Z',
+         "change carries the new value");
    end;
 
    --  Diff: total repaint reports every cell.
@@ -90,14 +92,17 @@ begin
       Clear (Pane, (Glyph => 'P', others => <>));
       Set (Screen, 1, 1, (Glyph => 'A', others => <>));
       Copy (Pane, Screen, At_Row => 2, At_Col => 3);
-      Check (Get (Screen, 2, 3).Glyph = 'P'
-             and then Get (Screen, 3, 4).Glyph = 'P',
-             "Copy fills the target rectangle");
-      Check (Get (Screen, 1, 1).Glyph = 'A',
-             "cell outside the rectangle untouched");
-      Check (Get (Screen, 2, 2) = Blank_Cell
-             and then Get (Screen, 4, 4) = Blank_Cell,
-             "rectangle borders untouched");
+      Check
+        (Get (Screen, 2, 3).Glyph = 'P'
+         and then Get (Screen, 3, 4).Glyph = 'P',
+         "Copy fills the target rectangle");
+      Check
+        (Get (Screen, 1, 1).Glyph = 'A',
+         "cell outside the rectangle untouched");
+      Check
+        (Get (Screen, 2, 2) = Blank_Cell
+         and then Get (Screen, 4, 4) = Blank_Cell,
+         "rectangle borders untouched");
    end;
 
    --  Copy: an empty source is a no-op.

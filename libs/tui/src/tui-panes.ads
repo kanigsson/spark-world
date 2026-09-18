@@ -18,14 +18,16 @@
 --  `Pane'Pos (P) + 1`. A runtime pane tree would be a different and much
 --  larger library, and nothing asks for one.
 
-package Tui.Panes with Pure, SPARK_Mode => On is
+package Tui.Panes
+  with Pure, SPARK_Mode => On
+is
 
    --  Enough for any row of panes a terminal can usefully show; the bound
    --  exists so that every array here is statically sized.
    Max_Panes : constant := 8;
 
    subtype Pane_Index is Positive range 1 .. Max_Panes;
-   subtype Pane_Count is Natural  range 0 .. Max_Panes;
+   subtype Pane_Count is Natural range 0 .. Max_Panes;
 
    --  A pane's requested share of the terminal width.
    subtype Weight_Percent is Natural range 0 .. 100;

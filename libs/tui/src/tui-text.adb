@@ -1,6 +1,8 @@
 with Ada.Unchecked_Deallocation;
 
-package body Tui.Text with SPARK_Mode => On is
+package body Tui.Text
+  with SPARK_Mode => On
+is
 
    ----------
    -- Line --
@@ -20,19 +22,25 @@ package body Tui.Text with SPARK_Mode => On is
    --  slot Count+1, then advance Scanned, then bump Count to admit it. (A
    --  whole-record assignment would copy the entire Spans array per line.)
    procedure Append
-     (Idx : in out Index; Start : Byte_Index; Length : Byte_Count; Upto : Byte_Count)
-   with Pre  => Idx.Count < Idx.Capacity
-                and then Start + Length <= Upto + 1
-                and then Upto >= Idx.Scanned,
-        Post => Idx.Count = Idx.Count'Old + 1
-                and then Idx.Scanned = Upto;
+     (Idx    : in out Index;
+      Start  : Byte_Index;
+      Length : Byte_Count;
+      Upto   : Byte_Count)
+   with
+     Pre  =>
+       Idx.Count < Idx.Capacity
+       and then Start + Length <= Upto + 1
+       and then Upto >= Idx.Scanned,
+     Post => Idx.Count = Idx.Count'Old + 1 and then Idx.Scanned = Upto;
    procedure Append
-     (Idx : in out Index; Start : Byte_Index; Length : Byte_Count; Upto : Byte_Count)
-   is
+     (Idx    : in out Index;
+      Start  : Byte_Index;
+      Length : Byte_Count;
+      Upto   : Byte_Count) is
    begin
       Idx.Spans (Idx.Count + 1) := (Start => Start, Length => Length);
       Idx.Scanned := Upto;
-      Idx.Count   := Idx.Count + 1;
+      Idx.Count := Idx.Count + 1;
    end Append;
 
    ----------
@@ -44,9 +52,11 @@ package body Tui.Text with SPARK_Mode => On is
    begin
       if Idx.Scanned >= Buf'Last then
          return;                          --  nothing new to scan
+
       end if;
 
-      Line_Start := Idx.Scanned + 1;      --  invariant: = Idx.Scanned + 1 throughout
+      Line_Start :=
+        Idx.Scanned + 1;      --  invariant: = Idx.Scanned + 1 throughout
 
       for P in Byte_Index range Idx.Scanned + 1 .. Buf'Last loop
 
@@ -54,6 +64,7 @@ package body Tui.Text with SPARK_Mode => On is
             if Idx.Count = Idx.Capacity then
                Idx.Truncated := True;
                return;                     --  out of room; keep cursor put
+
             end if;
 
             declare
@@ -61,23 +72,27 @@ package body Tui.Text with SPARK_Mode => On is
             begin
                if CE >= Line_Start and then Buf (CE) = CR then
                   CE := CE - 1;            --  strip a CRLF's CR
+
                end if;
                --  CE + 1 >= Line_Start here, so the length is non-negative.
-               Append (Idx,
-                       Start  => Line_Start,
-                       Length => (CE + 1) - Line_Start,
-                       Upto   => P);
+               Append
+                 (Idx,
+                  Start  => Line_Start,
+                  Length => (CE + 1) - Line_Start,
+                  Upto   => P);
             end;
 
             Line_Start := P + 1;           --  next line begins after the LF
+
          end if;
 
          pragma Loop_Invariant (Idx.Count <= Idx.Capacity);
          pragma Loop_Invariant (Idx.Scanned <= P);
          pragma Loop_Invariant (Line_Start = Idx.Scanned + 1);
-         pragma Loop_Invariant
-           (for all I in 1 .. Idx.Count =>
-              Idx.Spans (I).Start + Idx.Spans (I).Length <= Idx.Scanned + 1);
+         pragma
+           Loop_Invariant
+             (for all I in 1 .. Idx.Count =>
+                Idx.Spans (I).Start + Idx.Spans (I).Length <= Idx.Scanned + 1);
       end loop;
    end Scan;
 
@@ -89,6 +104,7 @@ package body Tui.Text with SPARK_Mode => On is
    begin
       if Idx.Scanned >= Buf'Last then
          return;                          --  no pending tail
+
       end if;
       if Idx.Count = Idx.Capacity then
          Idx.Truncated := True;
@@ -96,10 +112,11 @@ package body Tui.Text with SPARK_Mode => On is
       end if;
 
       --  Pending tail is Buf (Scanned + 1 .. Buf'Last), recorded verbatim.
-      Append (Idx,
-              Start  => Idx.Scanned + 1,
-              Length => (Buf'Last + 1) - (Idx.Scanned + 1),
-              Upto   => Buf'Last);
+      Append
+        (Idx,
+         Start  => Idx.Scanned + 1,
+         Length => (Buf'Last + 1) - (Idx.Scanned + 1),
+         Upto   => Buf'Last);
    end Seal;
 
    ------------------
@@ -119,7 +136,8 @@ package body Tui.Text with SPARK_Mode => On is
    procedure Dealloc is new Ada.Unchecked_Deallocation (Document, Doc_Ref);
 
    function New_Document (Content : Buffer) return Doc_Ref is
-      Lines : Byte_Count := 0;   --  newline count; <= bytes seen, so <= Max_Bytes
+      Lines : Byte_Count :=
+        0;   --  newline count; <= bytes seen, so <= Max_Bytes
    begin
       --  Size the index from the line count (newlines + 1), capped.
       for I in Content'Range loop
@@ -133,16 +151,18 @@ package body Tui.Text with SPARK_Mode => On is
       --  Allocate fully initialised (SPARK forbids an uninitialised allocator):
       --  the buffer is filled from Content directly -- the one content copy, no
       --  prior zeroing -- and the index starts empty, then Index_All scans it.
-      return R : constant Doc_Ref :=
-        new Document'
-          (Size     => Content'Length,
-           Capacity => Line_Total (Lines),
-           Bytes    => Content,
-           Idx      => (Capacity  => Line_Total (Lines),
-                        Spans     => (others => (Start => 1, Length => 0)),
-                        Count     => 0,
-                        Scanned   => 0,
-                        Truncated => False))
+      return
+         R : constant Doc_Ref :=
+           new Document'
+             (Size     => Content'Length,
+              Capacity => Line_Total (Lines),
+              Bytes    => Content,
+              Idx      =>
+                (Capacity  => Line_Total (Lines),
+                 Spans     => (others => (Start => 1, Length => 0)),
+                 Count     => 0,
+                 Scanned   => 0,
+                 Truncated => False))
       do
          Index_All (R.all);
       end return;

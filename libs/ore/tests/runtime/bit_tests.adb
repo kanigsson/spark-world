@@ -30,7 +30,7 @@ procedure Bit_Tests is
       Check (not Bit (Byte'(16#A5#), 1), "bit 1 of A5");
       Check (Bit (Byte'(16#A5#), 7), "bit 7 of A5");
       Check (not Bit (Word64'(1), 63), "top bit of one");
-      Check (Bit (Word64'(2 ** 63), 63), "top bit of the top power");
+      Check (Bit (Word64'(2**63), 63), "top bit of the top power");
    end Test_Bit;
 
    procedure Test_Shifts is
@@ -60,8 +60,7 @@ procedure Bit_Tests is
       Check
         (Rotate_Right (Word32'(16#1234_5678#), 8) = 16#7812_3456#,
          "rotate 32 back");
-      Check
-        (Rotate_Left (Word64'(1), 63) = 2 ** 63, "rotate 64 to the top bit");
+      Check (Rotate_Left (Word64'(1), 63) = 2**63, "rotate 64 to the top bit");
    end Test_Rotates;
 
    procedure Test_Masks is
@@ -83,13 +82,13 @@ procedure Bit_Tests is
       --  writes a bound, against the mask it would otherwise tabulate.
       for Count in Bit_Count_32 range 0 .. 31 loop
          Check
-           (Low_Mask_32 (Count) = 2 ** Count - 1,
+           (Low_Mask_32 (Count) = 2**Count - 1,
             "the low 32-bit mask is two to the count less one");
       end loop;
       Check
         (Low_Mask_32 (32) = Word32'Last, "the full-width mask is every bit");
       Check
-        (Field_Mask_32 (8, 8) = Low_Mask_32 (8) * 2 ** 8,
+        (Field_Mask_32 (8, 8) = Low_Mask_32 (8) * 2**8,
          "a field mask is its low mask moved up");
    end Test_Masks;
 
@@ -99,13 +98,13 @@ procedure Bit_Tests is
       Check (Power_Of_Two_8 (7) = 128, "the top bit of a byte");
       Check (Power_Of_Two_16 (15) = 16#8000#, "the top bit of a 16-bit word");
       Check (Power_Of_Two_32 (31) = 16#8000_0000#, "the top bit of a word");
-      Check (Power_Of_Two_64 (63) = 2 ** 63, "the top bit of a 64-bit word");
+      Check (Power_Of_Two_64 (63) = 2**63, "the top bit of a 64-bit word");
 
       --  The value clause across the whole range, which is what replaces a
       --  table of powers beside the arithmetic that needs one.
       for Exponent in Bit_Index_32 loop
          Check
-           (Power_Of_Two_32 (Exponent) = 2 ** Exponent,
+           (Power_Of_Two_32 (Exponent) = 2**Exponent,
             "a power of two is its exponent's power");
          Check
            (Power_Of_Two_32 (Exponent) = Low_Mask_32 (Exponent) + 1,
@@ -164,7 +163,7 @@ procedure Bit_Tests is
         (Trailing_Zeroes (Byte'(16#80#)) = 7, "trailing zeroes of the top");
       Check
         (Trailing_Zeroes (Word32'(16#0001_0000#)) = 16, "trailing zeroes 32");
-      Check (Trailing_Zeroes (Word64'(2 ** 63)) = 63, "trailing zeroes 64");
+      Check (Trailing_Zeroes (Word64'(2**63)) = 63, "trailing zeroes 64");
    end Test_Counting;
 
    procedure Test_Bytes is

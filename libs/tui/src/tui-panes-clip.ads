@@ -12,7 +12,9 @@
 with Tui.Text;
 with Tui.Panes.Selection;
 
-package Tui.Panes.Clip with SPARK_Mode => On is
+package Tui.Panes.Clip
+  with SPARK_Mode => On
+is
 
    Max_Payload : constant := 65_536;
 
@@ -20,7 +22,8 @@ package Tui.Panes.Clip with SPARK_Mode => On is
 
    type Payload is private;
 
-   function Length (P : Payload) return Payload_Length with Global => null;
+   function Length (P : Payload) return Payload_Length
+   with Global => null;
 
    --  Copy the selected text out of a document. Tabs count as their expanded
    --  cells when the ends are resolved but stay tabs in the copied bytes,
@@ -31,11 +34,13 @@ package Tui.Panes.Clip with SPARK_Mode => On is
       First, Last : Selection.Position;
       Text        : out Payload;
       Truncated   : out Boolean)
-   with Global => null,
-        Pre    => Selection.Before_Or_Equal (First, Last)
-                  and then Last.Line <= Tui.Text.Line_Count (Idx)
-                  and then Content'First = 1
-                  and then Content'Last >= Tui.Text.Scanned_Bytes (Idx);
+   with
+     Global => null,
+     Pre    =>
+       Selection.Before_Or_Equal (First, Last)
+       and then Last.Line <= Tui.Text.Line_Count (Idx)
+       and then Content'First = 1
+       and then Content'Last >= Tui.Text.Scanned_Bytes (Idx);
 
    ---------------------------------------------------------------------------
    --  Base64, a quartet at a time
@@ -48,24 +53,24 @@ package Tui.Panes.Clip with SPARK_Mode => On is
    subtype Quartet is String (1 .. 4);
 
    function Quartet_Count (P : Payload) return Natural
-   with Global => null,
-        Post   => Quartet_Count'Result = (Length (P) + 2) / 3;
+   with Global => null, Post => Quartet_Count'Result = (Length (P) + 2) / 3;
 
    function Encode (P : Payload; N : Positive) return Quartet
-   with Global => null,
-        Pre    => N <= Quartet_Count (P);
+   with Global => null, Pre => N <= Quartet_Count (P);
 
 private
 
    type Byte_Store is array (Positive range 1 .. Max_Payload) of Tui.Text.Byte;
 
    type Payload is record
-      Bytes : Byte_Store     := (others => 0);
+      Bytes : Byte_Store := (others => 0);
       Len   : Payload_Length := 0;
    end record;
 
-   function Length (P : Payload) return Payload_Length is (P.Len);
+   function Length (P : Payload) return Payload_Length
+   is (P.Len);
 
-   function Quartet_Count (P : Payload) return Natural is ((P.Len + 2) / 3);
+   function Quartet_Count (P : Payload) return Natural
+   is ((P.Len + 2) / 3);
 
 end Tui.Panes.Clip;

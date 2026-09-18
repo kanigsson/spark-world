@@ -20,42 +20,60 @@ package body Git_Changes.Contents is
       if Which = Old_Side and then Stored.Old_Object_Present then
          Args :=
            [To_Unbounded_String ("cat-file"),
-            To_Unbounded_String ("blob"), Stored.Old_Object];
+            To_Unbounded_String ("blob"),
+            Stored.Old_Object];
          Git_Changes.Backends.Run_Git
-           (Root_Path (Changes.Repo), Args, Changes.Limits.Max_Content_Bytes,
-            "load old content", Content, Error);
+           (Root_Path (Changes.Repo),
+            Args,
+            Changes.Limits.Max_Content_Bytes,
+            "load old content",
+            Content,
+            Error);
       elsif Which = New_Side
         and then Changes.New_State.Endpoint_Type = Worktree_Endpoint
         and then Stored.New_Path_Present
       then
          Name := Changes.Repo.Root;
-         if Length (Name) > 0 and then Element (Name, Length (Name)) /= '/' then
+         if Length (Name) > 0 and then Element (Name, Length (Name)) /= '/'
+         then
             Append (Name, '/');
          end if;
          Append (Name, Stored.New_Path);
          Git_Changes.Backends.Read_File
-           (To_String (Name), Changes.Limits.Max_Content_Bytes, Content, Error);
+           (To_String (Name),
+            Changes.Limits.Max_Content_Bytes,
+            Content,
+            Error);
          if Success (Error)
            and then Length (Stored.Worktree_Fingerprint) > 0
            and then Git_Changes.Backends.Git_Blob_Id
-             (Object_Format (Changes.Repo), To_String (Content))
-             /= To_String (Stored.Worktree_Fingerprint)
+                      (Object_Format (Changes.Repo), To_String (Content))
+                    /= To_String (Stored.Worktree_Fingerprint)
          then
             Content := Null_Unbounded_String;
             Set_Error
-              (Error, Content_Changed, "load content",
+              (Error,
+               Content_Changed,
+               "load content",
                "worktree content changed after capture");
          end if;
       elsif Which = New_Side and then Stored.New_Object_Present then
          Args :=
            [To_Unbounded_String ("cat-file"),
-            To_Unbounded_String ("blob"), Stored.New_Object];
+            To_Unbounded_String ("blob"),
+            Stored.New_Object];
          Git_Changes.Backends.Run_Git
-           (Root_Path (Changes.Repo), Args, Changes.Limits.Max_Content_Bytes,
-            "load new content", Content, Error);
+           (Root_Path (Changes.Repo),
+            Args,
+            Changes.Limits.Max_Content_Bytes,
+            "load new content",
+            Content,
+            Error);
       else
          Set_Error
-           (Error, Content_Unavailable, "load content",
+           (Error,
+            Content_Unavailable,
+            "load content",
             "the selected side has no available content");
       end if;
    end Load;

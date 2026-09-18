@@ -11,12 +11,12 @@ procedure Stale_Content_Probe is
    use Ada.Text_IO;
    use Git_Changes;
 
-   Repo       : Repository;
-   Changes    : Change_Set;
-   Error      : Error_Info;
-   Content    : Unbounded_String;
-   Target     : Natural := 0;
-   Mutated    : File_Type;
+   Repo    : Repository;
+   Changes : Change_Set;
+   Error   : Error_Info;
+   Content : Unbounded_String;
+   Target  : Natural := 0;
+   Mutated : File_Type;
 begin
    if Argument_Count /= 2 then
       Set_Exit_Status (Failure);
@@ -27,7 +27,8 @@ begin
       Set_Exit_Status (Failure);
       return;
    end if;
-   Capture (Repo, Tree_To_Worktree ("HEAD"), Changes => Changes, Error => Error);
+   Capture
+     (Repo, Tree_To_Worktree ("HEAD"), Changes => Changes, Error => Error);
    if not Git_Changes.Success (Error) then
       Set_Exit_Status (Failure);
       return;
@@ -39,9 +40,7 @@ begin
          Target := File;
       end if;
    end loop;
-   if Target = 0
-     or else not Content_Available (Changes, Target, New_Side)
-   then
+   if Target = 0 or else not Content_Available (Changes, Target, New_Side) then
       Set_Exit_Status (Failure);
       return;
    end if;
@@ -49,8 +48,7 @@ begin
    Create (Mutated, Out_File, Root_Path (Repo) & "/" & Argument (2));
    Put_Line (Mutated, "mutated after capture");
    Close (Mutated);
-   Git_Changes.Contents.Load
-     (Changes, Target, New_Side, Content, Error);
+   Git_Changes.Contents.Load (Changes, Target, New_Side, Content, Error);
    Put_Line (Error_Code'Image (Code (Error)));
    if Code (Error) /= Content_Changed then
       Set_Exit_Status (Failure);

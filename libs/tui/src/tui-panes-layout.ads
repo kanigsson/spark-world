@@ -14,7 +14,9 @@
 
 with Tui.Surface;
 
-package Tui.Panes.Layout with SPARK_Mode => On is
+package Tui.Panes.Layout
+  with SPARK_Mode => On
+is
 
    --  Screen extents. Bounded by the surface's own limit so that every sum
    --  of a start column and a width is provably in range.
@@ -25,12 +27,13 @@ package Tui.Panes.Layout with SPARK_Mode => On is
 
    --  A pane's floor, bounded for the same reason: a whole row of minima
    --  still fits in a Natural.
-   subtype Pane_Min_Cols is Positive range 1 .. Natural (Tui.Surface.Max_Extent);
+   subtype Pane_Min_Cols is
+     Positive range 1 .. Natural (Tui.Surface.Max_Extent);
 
    type Pane_Spec is record
       Weight   : Weight_Percent := 0;   --  share of the terminal width
-      Min_Cols : Pane_Min_Cols  := 1;   --  never painted narrower than this
-      Priority : Natural        := 0;   --  higher gives up its place first
+      Min_Cols : Pane_Min_Cols := 1;   --  never painted narrower than this
+      Priority : Natural := 0;   --  higher gives up its place first
    end record;
 
    type Specs_Array is array (Pane_Index range <>) of Pane_Spec;
@@ -44,7 +47,8 @@ package Tui.Panes.Layout with SPARK_Mode => On is
 
    type Placement_Array is array (Pane_Index range <>) of Placement;
 
-   function Shown (P : Placement) return Boolean is (P.Cols > 0);
+   function Shown (P : Placement) return Boolean
+   is (P.Cols > 0);
 
    --  Which pane gives up its place when the panes cannot all fit.
    --
@@ -65,19 +69,18 @@ package Tui.Panes.Layout with SPARK_Mode => On is
    --  terminal's last column.
    function Disjoint_And_Ordered
      (P : Placement_Array; Total : Natural) return Boolean
-   is
-     ((for all I in P'Range =>
-         (Shown (P (I))) = (P (I).Start_Col > 0))
-      and then (for all I in P'Range =>
-                  (if Shown (P (I))
-                   then P (I).Start_Col + P (I).Cols - 1 <= Total))
-      and then (for all I in P'Range =>
-                  (for all J in P'Range =>
-                     (if I < J and then Shown (P (I)) and then Shown (P (J))
-                      then P (I).Start_Col + P (I).Cols <= P (J).Start_Col))));
+   is ((for all I in P'Range => (Shown (P (I))) = (P (I).Start_Col > 0))
+       and then (for all I in P'Range =>
+                   (if Shown (P (I))
+                    then P (I).Start_Col + P (I).Cols - 1 <= Total))
+       and then (for all I in P'Range =>
+                   (for all J in P'Range =>
+                      (if I < J and then Shown (P (I)) and then Shown (P (J))
+                       then
+                         P (I).Start_Col + P (I).Cols <= P (J).Start_Col))));
 
-   function Any_Shown (P : Placement_Array) return Boolean is
-     (for some I in P'Range => Shown (P (I)));
+   function Any_Shown (P : Placement_Array) return Boolean
+   is (for some I in P'Range => Shown (P (I)));
 
    --  The shown panes and the separators between them cover the width with
    --  nothing left over: the leftmost starts at column 1, each next one
@@ -86,25 +89,27 @@ package Tui.Panes.Layout with SPARK_Mode => On is
    function Covers_Exactly
      (P : Placement_Array; Total : Natural; Sep : Separator_Cols)
       return Boolean
-   is
-     ((for all I in P'Range =>
-         (if Shown (P (I))
-            and then (for all J in P'Range =>
-                        (if J < I then not Shown (P (J))))
-          then P (I).Start_Col = 1))
-      and then (for all I in P'Range =>
-                  (if Shown (P (I))
-                     and then (for all J in P'Range =>
-                                 (if J > I then not Shown (P (J))))
-                   then P (I).Start_Col + P (I).Cols - 1 = Total))
-      and then (for all I in P'Range =>
-                  (for all J in P'Range =>
-                     (if I < J and then Shown (P (I)) and then Shown (P (J))
-                        and then (for all K in P'Range =>
-                                    (if K > I and then K < J
-                                     then not Shown (P (K))))
-                      then P (J).Start_Col
-                             = P (I).Start_Col + P (I).Cols + Sep))));
+   is ((for all I in P'Range =>
+          (if Shown (P (I))
+             and then (for all J in P'Range =>
+                         (if J < I then not Shown (P (J))))
+           then P (I).Start_Col = 1))
+       and then (for all I in P'Range =>
+                   (if Shown (P (I))
+                      and then (for all J in P'Range =>
+                                  (if J > I then not Shown (P (J))))
+                    then P (I).Start_Col + P (I).Cols - 1 = Total))
+       and then (for all I in P'Range =>
+                   (for all J in P'Range =>
+                      (if I < J
+                         and then Shown (P (I))
+                         and then Shown (P (J))
+                         and then (for all K in P'Range =>
+                                     (if K > I and then K < J
+                                      then not Shown (P (K))))
+                       then
+                         P (J).Start_Col
+                         = P (I).Start_Col + P (I).Cols + Sep))));
 
    ---------------------------------------------------------------------------
 
@@ -120,28 +125,30 @@ package Tui.Panes.Layout with SPARK_Mode => On is
       Separators : Boolean;
       Rule       : Drop_Rule;
       Result     : out Placement_Array)
-   with Global => null,
-        Pre    => Specs'Length > 0
-                  and then Result'First = Specs'First
-                  and then Result'Last = Specs'Last
-                  and then Focused in Specs'Range,
-        Post   =>
-          Disjoint_And_Ordered (Result, Natural (Total_Cols))
-          and then Covers_Exactly
-                     (Result, Natural (Total_Cols),
-                      (if Separators then 1 else 0))
-          and then (Any_Shown (Result) = (Natural (Total_Cols) > 0));
+   with
+     Global => null,
+     Pre    =>
+       Specs'Length > 0
+       and then Result'First = Specs'First
+       and then Result'Last = Specs'Last
+       and then Focused in Specs'Range,
+     Post   =>
+       Disjoint_And_Ordered (Result, Natural (Total_Cols))
+       and then Covers_Exactly
+                  (Result, Natural (Total_Cols), (if Separators then 1 else 0))
+       and then (Any_Shown (Result) = (Natural (Total_Cols) > 0));
 
    --  A focus that survived the layout: the focused pane when it is shown,
    --  otherwise the leftmost shown pane. Hosts using Drop_By_Priority call
    --  this after Compute so the keyboard never addresses an invisible pane.
    function Rescue_Focus
      (P : Placement_Array; Focused : Pane_Index) return Pane_Index
-   with Global => null,
-        Pre    => P'Length > 0 and then Focused in P'Range,
-        Post   => Rescue_Focus'Result in P'Range
-                  and then (if Shown (P (Focused))
-                            then Rescue_Focus'Result = Focused);
+   with
+     Global => null,
+     Pre    => P'Length > 0 and then Focused in P'Range,
+     Post   =>
+       Rescue_Focus'Result in P'Range
+       and then (if Shown (P (Focused)) then Rescue_Focus'Result = Focused);
 
    ---------------------------------------------------------------------------
    --  Hit-testing
@@ -154,10 +161,10 @@ package Tui.Panes.Layout with SPARK_Mode => On is
    type Hit_Kind is (Pane_Hit, Separator_Hit, Nowhere);
 
    type Hit is record
-      Kind      : Hit_Kind   := Nowhere;
+      Kind      : Hit_Kind := Nowhere;
       --  Pane_Hit: the pane hit. Separator_Hit: the pane to the separator's
       --  left, which is the boundary a drag would move.
-      Pane      : Pane_Index  := 1;
+      Pane      : Pane_Index := 1;
       Local_Row : Screen_Cols := 0;
       Local_Col : Screen_Cols := 0;
    end record;
@@ -171,16 +178,18 @@ package Tui.Panes.Layout with SPARK_Mode => On is
       First_Row    : Positive;
       Content_Rows : Natural;
       Col, Row     : Natural) return Hit
-   with Global => null,
-        Pre    => P'Length > 0,
-        Post   => Locate'Result.Pane in P'Range
-                  and then (if Locate'Result.Kind = Pane_Hit
-                            then Locate'Result.Local_Row
-                                   in 1 .. Content_Rows
-                              and then Locate'Result.Local_Col
-                                   in 1 .. P (Locate'Result.Pane).Cols)
-                  and then (if Locate'Result.Kind = Separator_Hit
-                            then Shown (P (Locate'Result.Pane)));
+   with
+     Global => null,
+     Pre    => P'Length > 0,
+     Post   =>
+       Locate'Result.Pane in P'Range
+       and then (if Locate'Result.Kind = Pane_Hit
+                 then
+                   Locate'Result.Local_Row in 1 .. Content_Rows
+                   and then Locate'Result.Local_Col
+                            in 1 .. P (Locate'Result.Pane).Cols)
+       and then (if Locate'Result.Kind = Separator_Hit
+                 then Shown (P (Locate'Result.Pane)));
 
    ---------------------------------------------------------------------------
    --  Adjusting a two-pane split
@@ -193,17 +202,14 @@ package Tui.Panes.Layout with SPARK_Mode => On is
    Split_Step : constant := 5;
 
    function Adjust
-     (Current : Split_Percentage;
-      Grow    : Boolean) return Split_Percentage
+     (Current : Split_Percentage; Grow : Boolean) return Split_Percentage
    with Global => null;
 
    --  Convert a dragged separator column to a bounded percentage. Column is
    --  a screen coordinate and may lie beyond Total in a malformed mouse
    --  report; clamping makes that harmless.
    function Split_At
-     (Column : Natural;
-      Total  : Tui.Surface.Col_Count) return Split_Percentage
-   with Global => null,
-        Pre    => Natural (Total) > 0;
+     (Column : Natural; Total : Tui.Surface.Col_Count) return Split_Percentage
+   with Global => null, Pre => Natural (Total) > 0;
 
 end Tui.Panes.Layout;

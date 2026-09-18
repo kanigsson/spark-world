@@ -9,7 +9,9 @@
 with Inflate.Codebooks;
 with Inflate.Fixed;
 
-package Inflate.Payload with Pure, SPARK_Mode => On is
+package Inflate.Payload
+  with Pure, SPARK_Mode => On
+is
 
    use type Fixed.Symbol_Kind;
    use type Codebooks.Codebook_Kind;
@@ -18,13 +20,12 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
 
    pragma Assertion_Policy (Ghost => Ignore);
 
-   function Length_Symbol (Length : Natural) return Codebooks.Symbol_Index is
-     (Codebooks.Symbol_Index (Length + 254))
+   function Length_Symbol (Length : Natural) return Codebooks.Symbol_Index
+   is (Codebooks.Symbol_Index (Length + 254))
    with Pre => Length in 3 .. 10;
 
-   function Distance_Symbol
-     (Distance : Natural) return Codebooks.Symbol_Index is
-     (Codebooks.Symbol_Index (Distance - 1))
+   function Distance_Symbol (Distance : Natural) return Codebooks.Symbol_Index
+   is (Codebooks.Symbol_Index (Distance - 1))
    with Pre => Distance in 1 .. 4;
 
    --  Every symbol selected by the shared token plan, plus end-of-block, has
@@ -33,78 +34,81 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
      (Literal_Lengths : Codebooks.Codebook;
       Distances       : Codebooks.Codebook;
       Data            : Byte_Array) return Boolean
-   is
-     (Codebooks.Length_Of (Literal_Lengths, 256) > 0
-      and then
-        (for all I in 0 .. Data'Length - 1 =>
-           (if Fixed.Token_Boundary (Data, I)
-            then
-              (if Fixed.Selected_Token (Data, I).Kind = Fixed.Match
-               then Codebooks.Length_Of
-                      (Literal_Lengths,
-                       Length_Symbol (Fixed.Selected_Token (Data, I).Length)) > 0
-                    and then Codebooks.Length_Of
-                      (Distances,
-                       Distance_Symbol
-                         (Fixed.Selected_Token (Data, I).Distance)) > 0
-               else Codebooks.Length_Of
-                      (Literal_Lengths,
-                       Natural (Data (Data'First + I))) > 0))))
-   with
-     Ghost,
-     Pre => Data'Length <= Fixed.Max_Input;
+   is (Codebooks.Length_Of (Literal_Lengths, 256) > 0
+       and then (for all I in 0 .. Data'Length - 1 =>
+                   (if Fixed.Token_Boundary (Data, I)
+                    then
+                      (if Fixed.Selected_Token (Data, I).Kind = Fixed.Match
+                       then
+                         Codebooks.Length_Of
+                           (Literal_Lengths,
+                            Length_Symbol
+                              (Fixed.Selected_Token (Data, I).Length))
+                         > 0
+                         and then Codebooks.Length_Of
+                                    (Distances,
+                                     Distance_Symbol
+                                       (Fixed.Selected_Token (Data, I)
+                                          .Distance))
+                                  > 0
+                       else
+                         Codebooks.Length_Of
+                           (Literal_Lengths, Natural (Data (Data'First + I)))
+                         > 0))))
+   with Ghost, Pre => Data'Length <= Fixed.Max_Input;
 
    function Token_Bit_Cost
      (Literal_Lengths : Codebooks.Codebook;
       Distances       : Codebooks.Codebook;
       Data            : Byte_Array;
       Position        : Natural) return Positive
-   is
-     (if Fixed.Selected_Token (Data, Position).Kind = Fixed.Match
-      then Codebooks.Length_Of
-             (Literal_Lengths,
-              Length_Symbol (Fixed.Selected_Token (Data, Position).Length))
-        + Codebooks.Length_Of
+   is (if Fixed.Selected_Token (Data, Position).Kind = Fixed.Match
+       then
+         Codebooks.Length_Of
+           (Literal_Lengths,
+            Length_Symbol (Fixed.Selected_Token (Data, Position).Length))
+         + Codebooks.Length_Of
              (Distances,
-              Distance_Symbol
-                (Fixed.Selected_Token (Data, Position).Distance))
-      else Codebooks.Length_Of
-             (Literal_Lengths,
-              Natural (Data (Data'First + Position))))
+              Distance_Symbol (Fixed.Selected_Token (Data, Position).Distance))
+       else
+         Codebooks.Length_Of
+           (Literal_Lengths, Natural (Data (Data'First + Position))))
    with
      Ghost,
-     Pre  => Data'Length <= Fixed.Max_Input
-               and then Position < Data'Length
-               and then Fixed.Token_Boundary (Data, Position)
-               and then Covers (Literal_Lengths, Distances, Data)
-               and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
-               and then Codebooks.Lengths_At_Most (Distances, 9),
-     Post => Token_Bit_Cost'Result <=
-               9 * (Fixed.Next_Position (Data, Position) - Position);
+     Pre  =>
+       Data'Length <= Fixed.Max_Input
+       and then Position < Data'Length
+       and then Fixed.Token_Boundary (Data, Position)
+       and then Covers (Literal_Lengths, Distances, Data)
+       and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+       and then Codebooks.Lengths_At_Most (Distances, 9),
+     Post =>
+       Token_Bit_Cost'Result
+       <= 9 * (Fixed.Next_Position (Data, Position) - Position);
 
    function Data_Bits
      (Literal_Lengths : Codebooks.Codebook;
       Distances       : Codebooks.Codebook;
       Data            : Byte_Array;
       Count           : Natural) return Natural
-   is
-     (if Count = 0 then 0
-      elsif Fixed.Token_Boundary (Data, Count)
-      then Data_Bits
-             (Literal_Lengths, Distances, Data,
-              Fixed.Plan_Start (Data, Count))
-        + Token_Bit_Cost
-             (Literal_Lengths, Distances, Data,
-              Fixed.Plan_Start (Data, Count))
-      else Data_Bits (Literal_Lengths, Distances, Data, Count - 1))
+   is (if Count = 0
+       then 0
+       elsif Fixed.Token_Boundary (Data, Count)
+       then
+         Data_Bits
+           (Literal_Lengths, Distances, Data, Fixed.Plan_Start (Data, Count))
+         + Token_Bit_Cost
+             (Literal_Lengths, Distances, Data, Fixed.Plan_Start (Data, Count))
+       else Data_Bits (Literal_Lengths, Distances, Data, Count - 1))
    with
      Ghost,
-     Pre  => Data'Length <= Fixed.Max_Input
-               and then Count <= Data'Length
-               and then Covers (Literal_Lengths, Distances, Data)
-               and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
-               and then Codebooks.Lengths_At_Most (Distances, 9),
-     Post => Data_Bits'Result <= 9 * Count,
+     Pre                =>
+       Data'Length <= Fixed.Max_Input
+       and then Count <= Data'Length
+       and then Covers (Literal_Lengths, Distances, Data)
+       and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+       and then Codebooks.Lengths_At_Most (Distances, 9),
+     Post               => Data_Bits'Result <= 9 * Count,
      Subprogram_Variant => (Decreases => Count);
 
    --  Advancing one token in the shared plan advances the codebook-specific
@@ -119,36 +123,33 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
    with
      Ghost,
      Global => null,
-     Pre    => Data'Length <= Fixed.Max_Input
-                 and then Position < Data'Length
-                 and then Fixed.Token_Boundary (Data, Position)
-                 and then Covers (Literal_Lengths, Distances, Data)
-                 and then Codebooks.Lengths_At_Most
-                   (Literal_Lengths, 9)
-                 and then Codebooks.Lengths_At_Most (Distances, 9),
-     Post   => Fixed.Token_Boundary
-                 (Data, Fixed.Next_Position (Data, Position))
-                 and then Data_Bits
-                   (Literal_Lengths, Distances, Data,
-                    Fixed.Next_Position (Data, Position)) =
-                      Data_Bits
-                        (Literal_Lengths, Distances, Data, Position)
-                        + Token_Bit_Cost
-                            (Literal_Lengths, Distances, Data, Position);
+     Pre    =>
+       Data'Length <= Fixed.Max_Input
+       and then Position < Data'Length
+       and then Fixed.Token_Boundary (Data, Position)
+       and then Covers (Literal_Lengths, Distances, Data)
+       and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+       and then Codebooks.Lengths_At_Most (Distances, 9),
+     Post   =>
+       Fixed.Token_Boundary (Data, Fixed.Next_Position (Data, Position))
+       and then Data_Bits
+                  (Literal_Lengths,
+                   Distances,
+                   Data,
+                   Fixed.Next_Position (Data, Position))
+                = Data_Bits (Literal_Lengths, Distances, Data, Position)
+                  + Token_Bit_Cost
+                      (Literal_Lengths, Distances, Data, Position);
 
    --  An interval at Start + Offset lies within Output.  Keeping the
    --  arithmetic in subtraction form gives callers the facts needed to form
    --  bit positions without overflowing Natural.
    function Fits_At
-     (Output : Byte_Array;
-      Start, Offset, Length : Natural) return Boolean
-   is
-     (Start <= 8 * Output'Length
-      and then Offset <= 8 * Output'Length - Start
-      and then Length <= 8 * Output'Length - Start - Offset)
-   with
-     Ghost,
-     Pre => Output'Length <= Fixed.Max_Stream_Bytes;
+     (Output : Byte_Array; Start, Offset, Length : Natural) return Boolean
+   is (Start <= 8 * Output'Length
+       and then Offset <= 8 * Output'Length - Start
+       and then Length <= 8 * Output'Length - Start - Offset)
+   with Ghost, Pre => Output'Length <= Fixed.Max_Stream_Bytes;
 
    function Token_Encoded
      (Output          : Byte_Array;
@@ -157,74 +158,76 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
       Distances       : Codebooks.Codebook;
       Data            : Byte_Array;
       Position        : Natural) return Boolean
-   is
-     (if Fixed.Selected_Token (Data, Position).Kind = Fixed.Match
-      then Fits_At
-             (Output, Start,
-              Data_Bits (Literal_Lengths, Distances, Data, Position),
-              Codebooks.Length_Of
-                (Literal_Lengths,
-                 Length_Symbol
-                   (Fixed.Selected_Token (Data, Position).Length))
-                + Codebooks.Length_Of
-                    (Distances,
-                     Distance_Symbol
-                       (Fixed.Selected_Token (Data, Position).Distance)))
-           and then Fixed.Prefix_Value
-             (Output,
-              Start + Data_Bits
-                (Literal_Lengths, Distances, Data, Position),
-              Codebooks.Length_Of
-                (Literal_Lengths,
-                 Length_Symbol
-                   (Fixed.Selected_Token (Data, Position).Length))) =
-             Codebooks.Code_Of
-               (Literal_Lengths,
-                Length_Symbol
-                  (Fixed.Selected_Token (Data, Position).Length))
-           and then Fixed.Prefix_Value
-             (Output,
-              Start + Data_Bits
-                (Literal_Lengths, Distances, Data, Position)
-                + Codebooks.Length_Of
-                    (Literal_Lengths,
-                     Length_Symbol
-                       (Fixed.Selected_Token (Data, Position).Length)),
-              Codebooks.Length_Of
+   is (if Fixed.Selected_Token (Data, Position).Kind = Fixed.Match
+       then
+         Fits_At
+           (Output,
+            Start,
+            Data_Bits (Literal_Lengths, Distances, Data, Position),
+            Codebooks.Length_Of
+              (Literal_Lengths,
+               Length_Symbol (Fixed.Selected_Token (Data, Position).Length))
+            + Codebooks.Length_Of
                 (Distances,
                  Distance_Symbol
-                   (Fixed.Selected_Token (Data, Position).Distance))) =
-             Codebooks.Code_Of
-               (Distances,
-                Distance_Symbol
-                  (Fixed.Selected_Token (Data, Position).Distance))
-      else Fits_At
-             (Output, Start,
-              Data_Bits (Literal_Lengths, Distances, Data, Position),
-              Codebooks.Length_Of
-                (Literal_Lengths,
-                 Natural (Data (Data'First + Position))))
-           and then Fixed.Prefix_Value
-             (Output,
-              Start + Data_Bits
-                (Literal_Lengths, Distances, Data, Position),
-              Codebooks.Length_Of
-                (Literal_Lengths,
-                 Natural (Data (Data'First + Position)))) =
-             Codebooks.Code_Of
-               (Literal_Lengths,
-                Natural (Data (Data'First + Position))))
+                   (Fixed.Selected_Token (Data, Position).Distance)))
+         and then Fixed.Prefix_Value
+                    (Output,
+                     Start
+                     + Data_Bits (Literal_Lengths, Distances, Data, Position),
+                     Codebooks.Length_Of
+                       (Literal_Lengths,
+                        Length_Symbol
+                          (Fixed.Selected_Token (Data, Position).Length)))
+                  = Codebooks.Code_Of
+                      (Literal_Lengths,
+                       Length_Symbol
+                         (Fixed.Selected_Token (Data, Position).Length))
+         and then Fixed.Prefix_Value
+                    (Output,
+                     Start
+                     + Data_Bits (Literal_Lengths, Distances, Data, Position)
+                     + Codebooks.Length_Of
+                         (Literal_Lengths,
+                          Length_Symbol
+                            (Fixed.Selected_Token (Data, Position).Length)),
+                     Codebooks.Length_Of
+                       (Distances,
+                        Distance_Symbol
+                          (Fixed.Selected_Token (Data, Position).Distance)))
+                  = Codebooks.Code_Of
+                      (Distances,
+                       Distance_Symbol
+                         (Fixed.Selected_Token (Data, Position).Distance))
+       else
+         Fits_At
+           (Output,
+            Start,
+            Data_Bits (Literal_Lengths, Distances, Data, Position),
+            Codebooks.Length_Of
+              (Literal_Lengths, Natural (Data (Data'First + Position))))
+         and then Fixed.Prefix_Value
+                    (Output,
+                     Start
+                     + Data_Bits (Literal_Lengths, Distances, Data, Position),
+                     Codebooks.Length_Of
+                       (Literal_Lengths,
+                        Natural (Data (Data'First + Position))))
+                  = Codebooks.Code_Of
+                      (Literal_Lengths,
+                       Natural (Data (Data'First + Position))))
    with
      Ghost,
-     Pre => Output'Length <= Fixed.Max_Stream_Bytes
-              and then Data'Length <= Fixed.Max_Input
-              and then Position < Data'Length
-              and then Fixed.Token_Boundary (Data, Position)
-              and then Covers (Literal_Lengths, Distances, Data)
-              and then Codebooks.Ready (Literal_Lengths)
-              and then Codebooks.Ready (Distances)
-              and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
-              and then Codebooks.Lengths_At_Most (Distances, 9);
+     Pre =>
+       Output'Length <= Fixed.Max_Stream_Bytes
+       and then Data'Length <= Fixed.Max_Input
+       and then Position < Data'Length
+       and then Fixed.Token_Boundary (Data, Position)
+       and then Covers (Literal_Lengths, Distances, Data)
+       and then Codebooks.Ready (Literal_Lengths)
+       and then Codebooks.Ready (Distances)
+       and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+       and then Codebooks.Lengths_At_Most (Distances, 9);
 
    function Encodes_Prefix
      (Output          : Byte_Array;
@@ -233,25 +236,27 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
       Distances       : Codebooks.Codebook;
       Data            : Byte_Array;
       Count           : Natural) return Boolean
-   is
-     (Fits_At
-        (Output, Start,
-         Data_Bits (Literal_Lengths, Distances, Data, Count), 0)
-      and then
-        (for all I in 0 .. Count - 1 =>
-           (if Fixed.Token_Boundary (Data, I)
-            then Token_Encoded
-              (Output, Start, Literal_Lengths, Distances, Data, I))))
+   is (Fits_At
+         (Output,
+          Start,
+          Data_Bits (Literal_Lengths, Distances, Data, Count),
+          0)
+       and then (for all I in 0 .. Count - 1 =>
+                   (if Fixed.Token_Boundary (Data, I)
+                    then
+                      Token_Encoded
+                        (Output, Start, Literal_Lengths, Distances, Data, I))))
    with
      Ghost,
-     Pre => Output'Length <= Fixed.Max_Stream_Bytes
-              and then Data'Length <= Fixed.Max_Input
-              and then Count <= Data'Length
-              and then Covers (Literal_Lengths, Distances, Data)
-              and then Codebooks.Ready (Literal_Lengths)
-              and then Codebooks.Ready (Distances)
-              and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
-              and then Codebooks.Lengths_At_Most (Distances, 9);
+     Pre =>
+       Output'Length <= Fixed.Max_Stream_Bytes
+       and then Data'Length <= Fixed.Max_Input
+       and then Count <= Data'Length
+       and then Covers (Literal_Lengths, Distances, Data)
+       and then Codebooks.Ready (Literal_Lengths)
+       and then Codebooks.Ready (Distances)
+       and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+       and then Codebooks.Lengths_At_Most (Distances, 9);
 
    function Is_Encoding
      (Output          : Byte_Array;
@@ -259,28 +264,29 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
       Literal_Lengths : Codebooks.Codebook;
       Distances       : Codebooks.Codebook;
       Data            : Byte_Array) return Boolean
-   is
-     (Encodes_Prefix
-        (Output, Start, Literal_Lengths, Distances, Data, Data'Length)
-      and then Fits_At
-        (Output, Start,
-         Data_Bits (Literal_Lengths, Distances, Data, Data'Length),
-         Codebooks.Length_Of (Literal_Lengths, 256))
-      and then Fixed.Prefix_Value
-        (Output,
-         Start + Data_Bits
-           (Literal_Lengths, Distances, Data, Data'Length),
-         Codebooks.Length_Of (Literal_Lengths, 256)) =
-           Codebooks.Code_Of (Literal_Lengths, 256))
+   is (Encodes_Prefix
+         (Output, Start, Literal_Lengths, Distances, Data, Data'Length)
+       and then Fits_At
+                  (Output,
+                   Start,
+                   Data_Bits (Literal_Lengths, Distances, Data, Data'Length),
+                   Codebooks.Length_Of (Literal_Lengths, 256))
+       and then Fixed.Prefix_Value
+                  (Output,
+                   Start
+                   + Data_Bits (Literal_Lengths, Distances, Data, Data'Length),
+                   Codebooks.Length_Of (Literal_Lengths, 256))
+                = Codebooks.Code_Of (Literal_Lengths, 256))
    with
      Ghost,
-     Pre => Output'Length <= Fixed.Max_Stream_Bytes
-              and then Data'Length <= Fixed.Max_Input
-              and then Covers (Literal_Lengths, Distances, Data)
-              and then Codebooks.Ready (Literal_Lengths)
-              and then Codebooks.Ready (Distances)
-              and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
-              and then Codebooks.Lengths_At_Most (Distances, 9);
+     Pre =>
+       Output'Length <= Fixed.Max_Stream_Bytes
+       and then Data'Length <= Fixed.Max_Input
+       and then Covers (Literal_Lengths, Distances, Data)
+       and then Codebooks.Ready (Literal_Lengths)
+       and then Codebooks.Ready (Distances)
+       and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+       and then Codebooks.Lengths_At_Most (Distances, 9);
 
    procedure Lemma_Covers_From_Lengths
      (Before_Literals, Before_Distances : Codebooks.Codebook;
@@ -289,17 +295,15 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
    with
      Ghost,
      Global => null,
-     Pre    => Data'Length <= Fixed.Max_Input
-                 and then
-               (for all Symbol in Codebooks.Symbol_Index =>
-                  Codebooks.Length_Of (Before_Literals, Symbol) =
-                    Codebooks.Length_Of (After_Literals, Symbol))
-                 and then
-               (for all Symbol in Codebooks.Symbol_Index =>
-                  Codebooks.Length_Of (Before_Distances, Symbol) =
-                    Codebooks.Length_Of (After_Distances, Symbol))
-                 and then Covers
-                   (Before_Literals, Before_Distances, Data),
+     Pre    =>
+       Data'Length <= Fixed.Max_Input
+       and then (for all Symbol in Codebooks.Symbol_Index =>
+                   Codebooks.Length_Of (Before_Literals, Symbol)
+                   = Codebooks.Length_Of (After_Literals, Symbol))
+       and then (for all Symbol in Codebooks.Symbol_Index =>
+                   Codebooks.Length_Of (Before_Distances, Symbol)
+                   = Codebooks.Length_Of (After_Distances, Symbol))
+       and then Covers (Before_Literals, Before_Distances, Data),
      Post   => Covers (After_Literals, After_Distances, Data);
 
    procedure Lemma_Encoding_From_Book_Fields
@@ -311,35 +315,32 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
    with
      Ghost,
      Global => null,
-     Pre    => Output'Length <= Fixed.Max_Stream_Bytes
-                 and then Data'Length <= Fixed.Max_Input
-                 and then Start <= 8 * Output'Length
-                 and then Before_Literals.Kind = Codebooks.Canonical
-                 and then After_Literals.Kind = Codebooks.Canonical
-                 and then Before_Distances.Kind = Codebooks.Canonical
-                 and then After_Distances.Kind = Codebooks.Canonical
-                 and then Before_Literals.Lengths = After_Literals.Lengths
-                 and then Before_Literals.Counts = After_Literals.Counts
-                 and then Before_Distances.Lengths = After_Distances.Lengths
-                 and then Before_Distances.Counts = After_Distances.Counts
-                 and then Codebooks.Ready (Before_Literals)
-                 and then Codebooks.Ready (After_Literals)
-                 and then Codebooks.Ready (Before_Distances)
-                 and then Codebooks.Ready (After_Distances)
-                 and then Codebooks.Lengths_At_Most (Before_Literals, 9)
-                 and then Codebooks.Lengths_At_Most (After_Literals, 9)
-                 and then Codebooks.Lengths_At_Most (Before_Distances, 9)
-                 and then Codebooks.Lengths_At_Most (After_Distances, 9)
-                 and then Covers
-                   (Before_Literals, Before_Distances, Data)
-                 and then Covers
-                   (After_Literals, After_Distances, Data)
-                 and then Is_Encoding
-                   (Output, Start,
-                    Before_Literals, Before_Distances, Data),
-     Post   => Is_Encoding
-                 (Output, Start,
-                  After_Literals, After_Distances, Data);
+     Pre    =>
+       Output'Length <= Fixed.Max_Stream_Bytes
+       and then Data'Length <= Fixed.Max_Input
+       and then Start <= 8 * Output'Length
+       and then Before_Literals.Kind = Codebooks.Canonical
+       and then After_Literals.Kind = Codebooks.Canonical
+       and then Before_Distances.Kind = Codebooks.Canonical
+       and then After_Distances.Kind = Codebooks.Canonical
+       and then Before_Literals.Lengths = After_Literals.Lengths
+       and then Before_Literals.Counts = After_Literals.Counts
+       and then Before_Distances.Lengths = After_Distances.Lengths
+       and then Before_Distances.Counts = After_Distances.Counts
+       and then Codebooks.Ready (Before_Literals)
+       and then Codebooks.Ready (After_Literals)
+       and then Codebooks.Ready (Before_Distances)
+       and then Codebooks.Ready (After_Distances)
+       and then Codebooks.Lengths_At_Most (Before_Literals, 9)
+       and then Codebooks.Lengths_At_Most (After_Literals, 9)
+       and then Codebooks.Lengths_At_Most (Before_Distances, 9)
+       and then Codebooks.Lengths_At_Most (After_Distances, 9)
+       and then Covers (Before_Literals, Before_Distances, Data)
+       and then Covers (After_Literals, After_Distances, Data)
+       and then Is_Encoding
+                  (Output, Start, Before_Literals, Before_Distances, Data),
+     Post   =>
+       Is_Encoding (Output, Start, After_Literals, After_Distances, Data);
 
    procedure Lemma_Data_Bits_Equal_From_Book_Fields
      (Before_Literals, Before_Distances : Codebooks.Codebook;
@@ -349,98 +350,97 @@ package Inflate.Payload with Pure, SPARK_Mode => On is
    with
      Ghost,
      Global => null,
-     Pre    => Data'Length <= Fixed.Max_Input
-                 and then Count <= Data'Length
-                 and then Before_Literals.Kind = Codebooks.Canonical
-                 and then After_Literals.Kind = Codebooks.Canonical
-                 and then Before_Distances.Kind = Codebooks.Canonical
-                 and then After_Distances.Kind = Codebooks.Canonical
-                 and then Before_Literals.Lengths = After_Literals.Lengths
-                 and then Before_Distances.Lengths = After_Distances.Lengths
-                 and then Covers
-                   (Before_Literals, Before_Distances, Data)
-                 and then Covers
-                   (After_Literals, After_Distances, Data)
-                 and then Codebooks.Lengths_At_Most (Before_Literals, 9)
-                 and then Codebooks.Lengths_At_Most (After_Literals, 9)
-                 and then Codebooks.Lengths_At_Most (Before_Distances, 9)
-                 and then Codebooks.Lengths_At_Most (After_Distances, 9),
-     Post   => Data_Bits
-                 (Before_Literals, Before_Distances, Data, Count) =
-                 Data_Bits
-                   (After_Literals, After_Distances, Data, Count);
+     Pre    =>
+       Data'Length <= Fixed.Max_Input
+       and then Count <= Data'Length
+       and then Before_Literals.Kind = Codebooks.Canonical
+       and then After_Literals.Kind = Codebooks.Canonical
+       and then Before_Distances.Kind = Codebooks.Canonical
+       and then After_Distances.Kind = Codebooks.Canonical
+       and then Before_Literals.Lengths = After_Literals.Lengths
+       and then Before_Distances.Lengths = After_Distances.Lengths
+       and then Covers (Before_Literals, Before_Distances, Data)
+       and then Covers (After_Literals, After_Distances, Data)
+       and then Codebooks.Lengths_At_Most (Before_Literals, 9)
+       and then Codebooks.Lengths_At_Most (After_Literals, 9)
+       and then Codebooks.Lengths_At_Most (Before_Distances, 9)
+       and then Codebooks.Lengths_At_Most (After_Distances, 9),
+     Post   =>
+       Data_Bits (Before_Literals, Before_Distances, Data, Count)
+       = Data_Bits (After_Literals, After_Distances, Data, Count);
 
    --  Only the bits through the end-of-block code participate in the payload
    --  relation.  This is the codebook-independent framing consequence used
    --  when a DEFLATE body is copied into a larger container buffer.
    procedure Lemma_Payload_Frame
-     (Before, After  : Byte_Array;
-      Start          : Natural;
+     (Before, After   : Byte_Array;
+      Start           : Natural;
       Literal_Lengths : Codebooks.Codebook;
-      Distances      : Codebooks.Codebook;
-      Data           : Byte_Array)
+      Distances       : Codebooks.Codebook;
+      Data            : Byte_Array)
    with
      Ghost,
      Global => null,
-     Pre    => Before'Length <= Fixed.Max_Stream_Bytes
-                 and then After'Length <= Fixed.Max_Stream_Bytes
-                 and then Data'Length <= Fixed.Max_Input
-                 and then Covers (Literal_Lengths, Distances, Data)
-                 and then Codebooks.Ready (Literal_Lengths)
-                 and then Codebooks.Ready (Distances)
-                 and then Codebooks.Lengths_At_Most
-                   (Literal_Lengths, 9)
-                 and then Codebooks.Lengths_At_Most (Distances, 9)
-                 and then Is_Encoding
-                   (Before, Start, Literal_Lengths, Distances, Data)
-                 and then Start + Data_Bits
-                   (Literal_Lengths, Distances, Data, Data'Length)
-                   + Codebooks.Length_Of (Literal_Lengths, 256) <=
-                     8 * After'Length
-                 and then
-               (for all Position in 0 ..
-                  Start + Data_Bits
-                    (Literal_Lengths, Distances, Data, Data'Length)
-                    + Codebooks.Length_Of (Literal_Lengths, 256) - 1 =>
-                      Fixed.Bit_Value (After, Position) =
-                        Fixed.Bit_Value (Before, Position)),
-     Post   => Is_Encoding
-                 (After, Start, Literal_Lengths, Distances, Data);
+     Pre    =>
+       Before'Length <= Fixed.Max_Stream_Bytes
+       and then After'Length <= Fixed.Max_Stream_Bytes
+       and then Data'Length <= Fixed.Max_Input
+       and then Covers (Literal_Lengths, Distances, Data)
+       and then Codebooks.Ready (Literal_Lengths)
+       and then Codebooks.Ready (Distances)
+       and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+       and then Codebooks.Lengths_At_Most (Distances, 9)
+       and then Is_Encoding (Before, Start, Literal_Lengths, Distances, Data)
+       and then Start
+                + Data_Bits (Literal_Lengths, Distances, Data, Data'Length)
+                + Codebooks.Length_Of (Literal_Lengths, 256)
+                <= 8 * After'Length
+       and then (for all Position in
+                   0
+                   .. Start
+                      + Data_Bits
+                          (Literal_Lengths, Distances, Data, Data'Length)
+                      + Codebooks.Length_Of (Literal_Lengths, 256)
+                      - 1 =>
+                   Fixed.Bit_Value (After, Position)
+                   = Fixed.Bit_Value (Before, Position)),
+     Post   => Is_Encoding (After, Start, Literal_Lengths, Distances, Data);
 
    --  Append the token payload and end-of-block code at Start.  Bits outside
    --  the returned half-open interval are preserved.
    pragma Assertion_Policy (Pre => Ignore, Post => Ignore);
    procedure Serialize
-     (Data            : in     Byte_Array;
-      Literal_Lengths : in     Codebooks.Codebook;
-      Distances       : in     Codebooks.Codebook;
+     (Data            : in Byte_Array;
+      Literal_Lengths : in Codebooks.Codebook;
+      Distances       : in Codebooks.Codebook;
       Output          : in out Byte_Array;
-      Start           : in     Natural;
-      Next_Bit        :    out Natural)
+      Start           : in Natural;
+      Next_Bit        : out Natural)
    with
      Global => null,
-     Pre    => Output'Length <= Fixed.Max_Stream_Bytes
-                 and then Data'Length <= Fixed.Max_Input
-                 and then Codebooks.Ready (Literal_Lengths)
-                 and then Codebooks.Ready (Distances)
-                 and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
-                 and then Codebooks.Lengths_At_Most (Distances, 9)
-                 and then Covers (Literal_Lengths, Distances, Data)
-                 and then Start <= 8 * Output'Length
-                 and then Data_Bits
-                   (Literal_Lengths, Distances, Data, Data'Length)
-                   + Codebooks.Length_Of (Literal_Lengths, 256) <=
-                     8 * Output'Length - Start,
-     Post   => Next_Bit = Start + Data_Bits
-                 (Literal_Lengths, Distances, Data, Data'Length)
-                   + Codebooks.Length_Of (Literal_Lengths, 256)
-                 and then Is_Encoding
-                   (Output, Start, Literal_Lengths, Distances, Data)
-                 and then
-               (for all Position in 0 .. 8 * Output'Length - 1 =>
-                  (if Position < Start or else Position >= Next_Bit
-                   then Fixed.Bit_Value (Output, Position) =
-                          Fixed.Bit_Value (Output'Old, Position)));
+     Pre    =>
+       Output'Length <= Fixed.Max_Stream_Bytes
+       and then Data'Length <= Fixed.Max_Input
+       and then Codebooks.Ready (Literal_Lengths)
+       and then Codebooks.Ready (Distances)
+       and then Codebooks.Lengths_At_Most (Literal_Lengths, 9)
+       and then Codebooks.Lengths_At_Most (Distances, 9)
+       and then Covers (Literal_Lengths, Distances, Data)
+       and then Start <= 8 * Output'Length
+       and then Data_Bits (Literal_Lengths, Distances, Data, Data'Length)
+                + Codebooks.Length_Of (Literal_Lengths, 256)
+                <= 8 * Output'Length - Start,
+     Post   =>
+       Next_Bit
+       = Start
+         + Data_Bits (Literal_Lengths, Distances, Data, Data'Length)
+         + Codebooks.Length_Of (Literal_Lengths, 256)
+       and then Is_Encoding (Output, Start, Literal_Lengths, Distances, Data)
+       and then (for all Position in 0 .. 8 * Output'Length - 1 =>
+                   (if Position < Start or else Position >= Next_Bit
+                    then
+                      Fixed.Bit_Value (Output, Position)
+                      = Fixed.Bit_Value (Output'Old, Position)));
    pragma Assertion_Policy (Pre => Check, Post => Check);
 
 end Inflate.Payload;

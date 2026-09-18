@@ -33,9 +33,8 @@ is
           Length (B) = Length (B)'Old + Header_Size + Payload'Length
           and then Read_Position (B) = Read_Position (B)'Old
           and then Element (B, Length (B)'Old + 1) = Tag
-          and then
-            Load_16 (B, Length (B)'Old + 2, Little_Endian)
-            = Word16 (Payload'Length),
+          and then Load_16 (B, Length (B)'Old + 2, Little_Endian)
+                   = Word16 (Payload'Length),
         Static  =>
           Same_Prefix (B'Old, B, Length (B)'Old)
           and then Matches_At (B, Length (B)'Old + Header_Size + 1, Payload));
@@ -55,26 +54,29 @@ is
      Post   =>
        (Runtime =>
           Length (B) = Length (B)'Old
-          and then
-            Size
-            = Natural (Load_16 (B, Read_Position (B)'Old + 2, Little_Endian))
+          and then Size
+                   = Natural
+                       (Load_16 (B, Read_Position (B)'Old + 2, Little_Endian))
           and then Tag = Element (B, Read_Position (B)'Old + 1)
-          and then
-            (if Size
-               <= Natural'Min (Unread (B)'Old - Header_Size, Payload'Length)
-             then
-               Read_Position (B) = Read_Position (B)'Old + Header_Size + Size
-             else Read_Position (B) = Read_Position (B)'Old + Header_Size),
+          and then (if Size
+                      <= Natural'Min
+                           (Unread (B)'Old - Header_Size, Payload'Length)
+                    then
+                      Read_Position (B)
+                      = Read_Position (B)'Old + Header_Size + Size
+                    else
+                      Read_Position (B) = Read_Position (B)'Old + Header_Size),
         Static  =>
           Same_Prefix (B'Old, B, Length (B))
-          and then
-            (if Size
-               <= Natural'Min (Unread (B)'Old - Header_Size, Payload'Length)
-             then
-               (for all K in 0 .. Size - 1 =>
-                  Payload (Payload'First + K)
-                  = Element
-                      (B, Read_Position (B)'Old + Header_Size + 1 + K))));
+          and then (if Size
+                      <= Natural'Min
+                           (Unread (B)'Old - Header_Size, Payload'Length)
+                    then
+                      (for all K in 0 .. Size - 1 =>
+                         Payload (Payload'First + K)
+                         = Element
+                             (B,
+                              Read_Position (B)'Old + Header_Size + 1 + K))));
 
    --  A run of Count copies of Value, produced by writing the first byte and
    --  letting a distance-one back-reference repeat it. This is the smallest
@@ -91,9 +93,8 @@ is
           and then Read_Position (B) = Read_Position (B)'Old,
         Static  =>
           Same_Prefix (B'Old, B, Length (B)'Old)
-          and then
-            (for all K in 1 .. Count =>
-               Element (B, Length (B)'Old + K) = Value));
+          and then (for all K in 1 .. Count =>
+                      Element (B, Length (B)'Old + K) = Value));
 
    --  Drain the unread bytes of Source into Target, compacting Target whenever
    --  it fills, until Source is exhausted or Target cannot take more. Besides
@@ -111,9 +112,9 @@ is
           and then Moved <= Length (Target),
         Static  =>
           Same_Prefix (Source'Old, Source, Length (Source))
-          and then
-            (for all K in 0 .. Moved - 1 =>
-               Element (Target, Length (Target) - Moved + 1 + K)
-               = Element (Source'Old, Read_Position (Source)'Old + 1 + K)));
+          and then (for all K in 0 .. Moved - 1 =>
+                      Element (Target, Length (Target) - Moved + 1 + K)
+                      = Element
+                          (Source'Old, Read_Position (Source)'Old + 1 + K)));
 
 end Frame_Proofs;

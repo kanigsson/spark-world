@@ -64,20 +64,20 @@ procedure Behavior_Tests is
    end Bytes;
 
    --  A document over literal text, line-indexed. Caller frees it.
-   function Doc (S : String) return Tui.Text.Doc_Ref is
-     (Tui.Text.New_Document (Bytes (S)));
+   function Doc (S : String) return Tui.Text.Doc_Ref
+   is (Tui.Text.New_Document (Bytes (S)));
 
-   function Ch (C : Character) return Tui.Input.Key_Event is
-     ((Kind => Tui.Input.Char, Code => Character'Pos (C), others => <>));
+   function Ch (C : Character) return Tui.Input.Key_Event
+   is ((Kind => Tui.Input.Char, Code => Character'Pos (C), others => <>));
 
-   function Ctrl_Key (C : Character) return Tui.Input.Key_Event is
-     ((Kind   => Tui.Input.Char,
-       Mods   => (Ctrl => True, others => False),
-       Code   => Character'Pos (C),
-       others => <>));
+   function Ctrl_Key (C : Character) return Tui.Input.Key_Event
+   is ((Kind   => Tui.Input.Char,
+        Mods   => (Ctrl => True, others => False),
+        Code   => Character'Pos (C),
+        others => <>));
 
-   function Key (K : Tui.Input.Key_Kind) return Tui.Input.Key_Event is
-     ((Kind => K, others => <>));
+   function Key (K : Tui.Input.Key_Kind) return Tui.Input.Key_Event
+   is ((Kind => K, others => <>));
 
    --------------------------
    -- Commit-id extraction --
@@ -91,9 +91,9 @@ procedure Behavior_Tests is
          S : Git_View_Sha.Sha;
       begin
          Git_View_Sha.Extract (D.Bytes, D.Idx, 1, S);
-         Check (Git_View_Sha.Valid (S)
-                and then Git_View_Sha.Image (S) = Expect,
-                "commit id of """ & Text & """ is """ & Expect & """");
+         Check
+           (Git_View_Sha.Valid (S) and then Git_View_Sha.Image (S) = Expect,
+            "commit id of """ & Text & """ is """ & Expect & """");
          Tui.Text.Free (D);
       end Parses;
 
@@ -132,11 +132,13 @@ procedure Behavior_Tests is
       From, To  : Tui.Text.Byte_Count;
    begin
       Git_View_Refs.Decoration_Span (Bytes (Decorated), 7, Found, From, To);
-      Check (Found and then From = 19 and then To = 32,
-             "the decoration span covers [HEAD -> main]");
-      Check (Decorated (Decorated'First + 19) = '['
-             and then Decorated (Decorated'First + 32) = ']',
-             "the span's ends are the brackets themselves");
+      Check
+        (Found and then From = 19 and then To = 32,
+         "the decoration span covers [HEAD -> main]");
+      Check
+        (Decorated (Decorated'First + 19) = '['
+         and then Decorated (Decorated'First + 32) = ']',
+         "the span's ends are the brackets themselves");
 
       Git_View_Refs.Decoration_Span
         (Bytes ("abc1234 2026-09-10 subject"), 7, Found, From, To);
@@ -161,23 +163,40 @@ procedure Behavior_Tests is
    --  A small but complete git-show shape, shared by the landmark and
    --  language tests. Line numbers are given in the checks below.
    Show_Text : constant String :=
-     "commit 1a2b3c4d"                    & ASCII.LF   --   1
-     & ""                                 & ASCII.LF   --   2
-     & "    subject line"                 & ASCII.LF   --   3
-     & ""                                 & ASCII.LF   --   4
-     & "diff --git a/src/x.adb b/src/x.adb" & ASCII.LF --   5
-     & "index 1111111..2222222 100644"    & ASCII.LF   --   6
-     & "--- a/src/x.adb"                  & ASCII.LF   --   7
-     & "+++ b/src/x.adb"                  & ASCII.LF   --   8
-     & "@@ -1,2 +1,3 @@ procedure X"      & ASCII.LF   --   9
-     & " context"                         & ASCII.LF   --  10
-     & "+   return;"                      & ASCII.LF   --  11
-     & "diff --git a/y.py b/y.py"         & ASCII.LF   --  12
-     & "--- a/y.py"                       & ASCII.LF   --  13
-     & "+++ b/y.py"                       & ASCII.LF   --  14
-     & "@@ -1 +1 @@"                      & ASCII.LF   --  15
-     & "-old"                             & ASCII.LF   --  16
-     & "+def f():"                        & ASCII.LF;  --  17
+     "commit 1a2b3c4d"
+     & ASCII.LF   --   1
+     & ""
+     & ASCII.LF   --   2
+     & "    subject line"
+     & ASCII.LF   --   3
+     & ""
+     & ASCII.LF   --   4
+     & "diff --git a/src/x.adb b/src/x.adb"
+     & ASCII.LF --   5
+     & "index 1111111..2222222 100644"
+     & ASCII.LF   --   6
+     & "--- a/src/x.adb"
+     & ASCII.LF   --   7
+     & "+++ b/src/x.adb"
+     & ASCII.LF   --   8
+     & "@@ -1,2 +1,3 @@ procedure X"
+     & ASCII.LF   --   9
+     & " context"
+     & ASCII.LF   --  10
+     & "+   return;"
+     & ASCII.LF   --  11
+     & "diff --git a/y.py b/y.py"
+     & ASCII.LF   --  12
+     & "--- a/y.py"
+     & ASCII.LF   --  13
+     & "+++ b/y.py"
+     & ASCII.LF   --  14
+     & "@@ -1 +1 @@"
+     & ASCII.LF   --  15
+     & "-old"
+     & ASCII.LF   --  16
+     & "+def f():"
+     & ASCII.LF;  --  17
 
    ------------------------
    -- Landmark navigation --
@@ -190,36 +209,45 @@ procedure Behavior_Tests is
    begin
       Check (Tui.Text.Line_Count (D.Idx) = 17, "the fixture has 17 lines");
 
-      Check (Nav.Is_Landmark (D.Bytes, D.Idx, 5, Nav.File_Header),
-             "a diff --git line is a file header");
-      Check (not Nav.Is_Landmark (D.Bytes, D.Idx, 6, Nav.File_Header),
-             "an index line is not a file header");
-      Check (not Nav.Is_Landmark (D.Bytes, D.Idx, 7, Nav.File_Header),
-             "a --- path line is not a file header");
-      Check (Nav.Is_Landmark (D.Bytes, D.Idx, 9, Nav.Hunk_Header),
-             "an @@ line is a hunk header");
-      Check (not Nav.Is_Landmark (D.Bytes, D.Idx, 10, Nav.Hunk_Header),
-             "a context line is not a hunk header");
-      Check (not Nav.Is_Landmark (D.Bytes, D.Idx, 5, Nav.Hunk_Header),
-             "a file header is not a hunk header");
+      Check
+        (Nav.Is_Landmark (D.Bytes, D.Idx, 5, Nav.File_Header),
+         "a diff --git line is a file header");
+      Check
+        (not Nav.Is_Landmark (D.Bytes, D.Idx, 6, Nav.File_Header),
+         "an index line is not a file header");
+      Check
+        (not Nav.Is_Landmark (D.Bytes, D.Idx, 7, Nav.File_Header),
+         "a --- path line is not a file header");
+      Check
+        (Nav.Is_Landmark (D.Bytes, D.Idx, 9, Nav.Hunk_Header),
+         "an @@ line is a hunk header");
+      Check
+        (not Nav.Is_Landmark (D.Bytes, D.Idx, 10, Nav.Hunk_Header),
+         "a context line is not a hunk header");
+      Check
+        (not Nav.Is_Landmark (D.Bytes, D.Idx, 5, Nav.Hunk_Header),
+         "a file header is not a hunk header");
 
       Nav.Find (D.Bytes, D.Idx, 1, True, Nav.File_Header, Found, Line);
       Check (Found and then Line = 5, "the first file header is line 5");
 
       Nav.Find (D.Bytes, D.Idx, 5, True, Nav.File_Header, Found, Line);
-      Check (Found and then Line = 12,
-             "forward from a landmark finds the NEXT one, not itself");
+      Check
+        (Found and then Line = 12,
+         "forward from a landmark finds the NEXT one, not itself");
 
       Nav.Find (D.Bytes, D.Idx, 12, True, Nav.File_Header, Found, Line);
-      Check (not Found and then Line = 12,
-             "a forward miss leaves the position where it was");
+      Check
+        (not Found and then Line = 12,
+         "a forward miss leaves the position where it was");
 
       Nav.Find (D.Bytes, D.Idx, 17, False, Nav.Hunk_Header, Found, Line);
       Check (Found and then Line = 15, "backward from the end finds line 15");
 
       Nav.Find (D.Bytes, D.Idx, 9, False, Nav.Hunk_Header, Found, Line);
-      Check (not Found and then Line = 9,
-             "a backward miss leaves the position where it was");
+      Check
+        (not Found and then Line = 9,
+         "a backward miss leaves the position where it was");
 
       Nav.Find (D.Bytes, D.Idx, 1, True, Nav.Hunk_Header, Found, Line);
       Check (Found and then Line = 9, "the first hunk header is line 9");
@@ -229,18 +257,23 @@ procedure Behavior_Tests is
       --  Prefixes of the markers must not count as landmarks.
       declare
          Near : Tui.Text.Doc_Ref :=
-           Doc ("@" & ASCII.LF & "diff --gi" & ASCII.LF
-                & "diff --gitx" & ASCII.LF);
+           Doc
+             ("@"
+              & ASCII.LF
+              & "diff --gi"
+              & ASCII.LF
+              & "diff --gitx"
+              & ASCII.LF);
       begin
-         Check (not Nav.Is_Landmark (Near.Bytes, Near.Idx, 1,
-                                     Nav.Hunk_Header),
-                "a single @ is not a hunk header");
-         Check (not Nav.Is_Landmark (Near.Bytes, Near.Idx, 2,
-                                     Nav.File_Header),
-                "a truncated diff --gi is not a file header");
-         Check (not Nav.Is_Landmark (Near.Bytes, Near.Idx, 3,
-                                     Nav.File_Header),
-                "diff --git needs its trailing space");
+         Check
+           (not Nav.Is_Landmark (Near.Bytes, Near.Idx, 1, Nav.Hunk_Header),
+            "a single @ is not a hunk header");
+         Check
+           (not Nav.Is_Landmark (Near.Bytes, Near.Idx, 2, Nav.File_Header),
+            "a truncated diff --gi is not a file header");
+         Check
+           (not Nav.Is_Landmark (Near.Bytes, Near.Idx, 3, Nav.File_Header),
+            "diff --git needs its trailing space");
          Tui.Text.Free (Near);
       end;
    end Test_Landmarks;
@@ -254,8 +287,9 @@ procedure Behavior_Tests is
 
       procedure Kind_Of (Text : String; Expect : Thm.Line_Kind) is
       begin
-         Check (Thm.Classify (Bytes (Text)) = Expect,
-                """" & Text & """ classifies as " & Expect'Image);
+         Check
+           (Thm.Classify (Bytes (Text)) = Expect,
+            """" & Text & """ classifies as " & Expect'Image);
       end Kind_Of;
    begin
       --  File metadata outranks the one-character polarity markers its own
@@ -296,8 +330,9 @@ procedure Behavior_Tests is
          Lang  : Syn.Language;
       begin
          Syn.Header_Language (Bytes (Text), Found, Lang);
-         Check (Found and then Lang = Expect,
-                """" & Text & """ selects " & Expect'Image);
+         Check
+           (Found and then Lang = Expect,
+            """" & Text & """ selects " & Expect'Image);
       end Header;
 
       procedure No_Header (Text : String; Why : String) is
@@ -311,30 +346,42 @@ procedure Behavior_Tests is
       procedure Keyword (Text : String; Lang : Syn.Language) is
          B : constant Tui.Text.Buffer := Bytes (Text);
       begin
-         Check (Syn.Is_Keyword (B, B'First, B'Last, Lang),
-                """" & Text & """ is a " & Lang'Image & " keyword");
+         Check
+           (Syn.Is_Keyword (B, B'First, B'Last, Lang),
+            """" & Text & """ is a " & Lang'Image & " keyword");
       end Keyword;
 
       procedure Not_Keyword (Text : String; Lang : Syn.Language) is
          B : constant Tui.Text.Buffer := Bytes (Text);
       begin
-         Check (not Syn.Is_Keyword (B, B'First, B'Last, Lang),
-                """" & Text & """ is not a " & Lang'Image & " keyword");
+         Check
+           (not Syn.Is_Keyword (B, B'First, B'Last, Lang),
+            """" & Text & """ is not a " & Lang'Image & " keyword");
       end Not_Keyword;
 
       procedure Comment (Text : String; Lang : Syn.Language; Yes : Boolean) is
          B : constant Tui.Text.Buffer := Bytes (Text);
       begin
-         Check (Syn.Starts_Comment (B, B'First, Lang) = Yes,
-                """" & Text & """ starts a " & Lang'Image & " comment: "
-                & Yes'Image);
+         Check
+           (Syn.Starts_Comment (B, B'First, Lang) = Yes,
+            """"
+            & Text
+            & """ starts a "
+            & Lang'Image
+            & " comment: "
+            & Yes'Image);
       end Comment;
 
       procedure Column (Text : String; Offset : Natural; Expect : Natural) is
       begin
-         Check (Syn.Display_Column (Bytes (Text), Offset) = Expect,
-                "display column after" & Offset'Image & " bytes of """
-                & Text & """ is" & Expect'Image);
+         Check
+           (Syn.Display_Column (Bytes (Text), Offset) = Expect,
+            "display column after"
+            & Offset'Image
+            & " bytes of """
+            & Text
+            & """ is"
+            & Expect'Image);
       end Column;
    begin
       --  Language detection from a unified-diff header.
@@ -359,12 +406,15 @@ procedure Behavior_Tests is
       declare
          D : Tui.Text.Doc_Ref := Doc (Show_Text);
       begin
-         Check (Syn.Language_At (D.Bytes, D.Idx, 1) = Syn.Plain,
-                "lines before any header are plain");
-         Check (Syn.Language_At (D.Bytes, D.Idx, 11) = Syn.Ada_Lang,
-                "a line under the first file takes its language");
-         Check (Syn.Language_At (D.Bytes, D.Idx, 17) = Syn.Python_Like,
-                "a line under the second file takes the new language");
+         Check
+           (Syn.Language_At (D.Bytes, D.Idx, 1) = Syn.Plain,
+            "lines before any header are plain");
+         Check
+           (Syn.Language_At (D.Bytes, D.Idx, 11) = Syn.Ada_Lang,
+            "a line under the first file takes its language");
+         Check
+           (Syn.Language_At (D.Bytes, D.Idx, 17) = Syn.Python_Like,
+            "a line under the second file takes the new language");
          Tui.Text.Free (D);
       end;
 
@@ -391,14 +441,18 @@ procedure Behavior_Tests is
       Comment ("# a remark", Syn.Shell_Like, True);
       Comment ("-- a remark", Syn.Plain, False);
 
-      Check (Syn.Is_Identifier_Start (Character'Pos ('_')),
-             "underscore starts an identifier");
-      Check (not Syn.Is_Identifier_Start (Character'Pos ('1')),
-             "a digit does not start an identifier");
-      Check (Syn.Is_Identifier (Character'Pos ('1')),
-             "a digit continues an identifier");
-      Check (not Syn.Is_Identifier (Character'Pos ('-')),
-             "a hyphen is not an identifier byte");
+      Check
+        (Syn.Is_Identifier_Start (Character'Pos ('_')),
+         "underscore starts an identifier");
+      Check
+        (not Syn.Is_Identifier_Start (Character'Pos ('1')),
+         "a digit does not start an identifier");
+      Check
+        (Syn.Is_Identifier (Character'Pos ('1')),
+         "a digit continues an identifier");
+      Check
+        (not Syn.Is_Identifier (Character'Pos ('-')),
+         "a hyphen is not an identifier byte");
 
       --  Token-to-cell arithmetic: what maps a byte offset onto a column.
       Column ("abc", 0, 0);
@@ -417,12 +471,13 @@ procedure Behavior_Tests is
       use type Tui.Panes.List.Sel_Move;
       use type Nav.Landmark;
 
-      procedure Both (E : Tui.Input.Key_Event; Expect : Pol.Action_Kind;
-                      What : String) is
+      procedure Both
+        (E : Tui.Input.Key_Event; Expect : Pol.Action_Kind; What : String) is
       begin
-         Check (Pol.Classify (Pol.List_Pane, E).Kind = Expect
-                and then Pol.Classify (Pol.Diff_Pane, E).Kind = Expect,
-                What & " in either pane");
+         Check
+           (Pol.Classify (Pol.List_Pane, E).Kind = Expect
+            and then Pol.Classify (Pol.Diff_Pane, E).Kind = Expect,
+            What & " in either pane");
       end Both;
 
       D : Pol.Decision;
@@ -436,83 +491,109 @@ procedure Behavior_Tests is
       Both (Ch ('s'), Pol.Toggle_Syntax, "s toggles syntax colour");
 
       D := Pol.Classify (Pol.List_Pane, Ch (','));
-      Check (D.Kind = Pol.Resize_Split and then not D.Grow_List,
-             ", shrinks the commit list");
+      Check
+        (D.Kind = Pol.Resize_Split and then not D.Grow_List,
+         ", shrinks the commit list");
       D := Pol.Classify (Pol.List_Pane, Ch ('.'));
-      Check (D.Kind = Pol.Resize_Split and then D.Grow_List,
-             ". grows the commit list");
+      Check
+        (D.Kind = Pol.Resize_Split and then D.Grow_List,
+         ". grows the commit list");
 
       D := Pol.Classify (Pol.Diff_Pane, Ch ('/'));
       Check (D.Kind = Pol.Search and then D.Forward, "/ searches forward");
       D := Pol.Classify (Pol.Diff_Pane, Ch ('?'));
-      Check (D.Kind = Pol.Search and then not D.Forward,
-             "? searches backward");
+      Check
+        (D.Kind = Pol.Search and then not D.Forward, "? searches backward");
       D := Pol.Classify (Pol.Diff_Pane, Ch ('n'));
-      Check (D.Kind = Pol.Repeat_Search and then not D.Reversed,
-             "n repeats the search");
+      Check
+        (D.Kind = Pol.Repeat_Search and then not D.Reversed,
+         "n repeats the search");
       D := Pol.Classify (Pol.Diff_Pane, Ch ('N'));
-      Check (D.Kind = Pol.Repeat_Search and then D.Reversed,
-             "N repeats the search reversed");
+      Check
+        (D.Kind = Pol.Repeat_Search and then D.Reversed,
+         "N repeats the search reversed");
 
       --  The list pane moves a selection; the diff pane scrolls a viewport.
       --  The same keystroke therefore means different things in each.
-      Check (Pol.Classify (Pol.List_Pane, Key (Tui.Input.Enter)).Kind
-             = Pol.Open_Diff, "Enter opens the selected commit");
+      Check
+        (Pol.Classify (Pol.List_Pane, Key (Tui.Input.Enter)).Kind
+         = Pol.Open_Diff,
+         "Enter opens the selected commit");
       D := Pol.Classify (Pol.Diff_Pane, Key (Tui.Input.Enter));
-      Check (D.Kind = Pol.Navigate
-             and then D.Command = Tui.Pager.Engine.Line_Down,
-             "Enter scrolls the diff pane");
+      Check
+        (D.Kind = Pol.Navigate and then D.Command = Tui.Pager.Engine.Line_Down,
+         "Enter scrolls the diff pane");
 
       D := Pol.Classify (Pol.List_Pane, Ch ('j'));
-      Check (D.Kind = Pol.Move_Selection and then D.Move = Tui.Panes.List.Sel_Down,
-             "j moves the selection down");
+      Check
+        (D.Kind = Pol.Move_Selection and then D.Move = Tui.Panes.List.Sel_Down,
+         "j moves the selection down");
       D := Pol.Classify (Pol.Diff_Pane, Ch ('j'));
-      Check (D.Kind = Pol.Navigate
-             and then D.Command = Tui.Pager.Engine.Line_Down,
-             "j scrolls the diff pane down");
+      Check
+        (D.Kind = Pol.Navigate and then D.Command = Tui.Pager.Engine.Line_Down,
+         "j scrolls the diff pane down");
 
       D := Pol.Classify (Pol.List_Pane, Key (Tui.Input.Page_Down));
-      Check (D.Kind = Pol.Move_Selection and then D.Move = Tui.Panes.List.Sel_Page_Down,
-             "Page Down moves a page of entries");
+      Check
+        (D.Kind = Pol.Move_Selection
+         and then D.Move = Tui.Panes.List.Sel_Page_Down,
+         "Page Down moves a page of entries");
       D := Pol.Classify (Pol.List_Pane, Ch ('G'));
-      Check (D.Kind = Pol.Move_Selection and then D.Move = Tui.Panes.List.Sel_Bottom,
-             "G selects the last entry");
+      Check
+        (D.Kind = Pol.Move_Selection
+         and then D.Move = Tui.Panes.List.Sel_Bottom,
+         "G selects the last entry");
       D := Pol.Classify (Pol.List_Pane, Ch ('g'));
-      Check (D.Kind = Pol.Move_Selection and then D.Move = Tui.Panes.List.Sel_Top,
-             "g selects the first entry");
+      Check
+        (D.Kind = Pol.Move_Selection and then D.Move = Tui.Panes.List.Sel_Top,
+         "g selects the first entry");
 
       --  Long subjects still scroll sideways in the list.
       D := Pol.Classify (Pol.List_Pane, Ch ('h'));
-      Check (D.Kind = Pol.Navigate
-             and then D.Command = Tui.Pager.Engine.Col_Left,
-             "h scrolls the list sideways");
+      Check
+        (D.Kind = Pol.Navigate and then D.Command = Tui.Pager.Engine.Col_Left,
+         "h scrolls the list sideways");
       D := Pol.Classify (Pol.List_Pane, Key (Tui.Input.Right));
-      Check (D.Kind = Pol.Navigate
-             and then D.Command = Tui.Pager.Engine.Col_Right,
-             "Right scrolls the list sideways");
+      Check
+        (D.Kind = Pol.Navigate and then D.Command = Tui.Pager.Engine.Col_Right,
+         "Right scrolls the list sideways");
 
       --  Landmark jumps belong to the diff pane only.
       D := Pol.Classify (Pol.Diff_Pane, Ch (']'));
-      Check (D.Kind = Pol.Jump_Diff and then D.Target = Nav.Hunk_Header
-             and then D.Jump_Forward, "] jumps to the next hunk");
+      Check
+        (D.Kind = Pol.Jump_Diff
+         and then D.Target = Nav.Hunk_Header
+         and then D.Jump_Forward,
+         "] jumps to the next hunk");
       D := Pol.Classify (Pol.Diff_Pane, Ch ('['));
-      Check (D.Kind = Pol.Jump_Diff and then D.Target = Nav.Hunk_Header
-             and then not D.Jump_Forward, "[ jumps to the previous hunk");
+      Check
+        (D.Kind = Pol.Jump_Diff
+         and then D.Target = Nav.Hunk_Header
+         and then not D.Jump_Forward,
+         "[ jumps to the previous hunk");
       D := Pol.Classify (Pol.Diff_Pane, Ch ('}'));
-      Check (D.Kind = Pol.Jump_Diff and then D.Target = Nav.File_Header
-             and then D.Jump_Forward, "} jumps to the next file");
+      Check
+        (D.Kind = Pol.Jump_Diff
+         and then D.Target = Nav.File_Header
+         and then D.Jump_Forward,
+         "} jumps to the next file");
       D := Pol.Classify (Pol.Diff_Pane, Ch ('{'));
-      Check (D.Kind = Pol.Jump_Diff and then D.Target = Nav.File_Header
-             and then not D.Jump_Forward, "{ jumps to the previous file");
-      Check (Pol.Classify (Pol.List_Pane, Ch (']')).Kind = Pol.Ignore,
-             "] is unbound in the commit list");
+      Check
+        (D.Kind = Pol.Jump_Diff
+         and then D.Target = Nav.File_Header
+         and then not D.Jump_Forward,
+         "{ jumps to the previous file");
+      Check
+        (Pol.Classify (Pol.List_Pane, Ch (']')).Kind = Pol.Ignore,
+         "] is unbound in the commit list");
 
       D := Pol.Classify (Pol.Diff_Pane, Ch ('d'));
-      Check (D.Kind = Pol.Navigate
-             and then D.Command = Tui.Pager.Engine.Half_Down,
-             "d scrolls the diff pane half a page");
-      Check (Pol.Classify (Pol.List_Pane, Ch ('d')).Kind = Pol.Ignore,
-             "d is unbound in the commit list");
+      Check
+        (D.Kind = Pol.Navigate and then D.Command = Tui.Pager.Engine.Half_Down,
+         "d scrolls the diff pane half a page");
+      Check
+        (Pol.Classify (Pol.List_Pane, Ch ('d')).Kind = Pol.Ignore,
+         "d is unbound in the commit list");
 
       --  Unbound keys are ignored rather than guessed at.
       Both (Ch ('x'), Pol.Ignore, "x is unbound");
@@ -537,16 +618,16 @@ procedure Behavior_Tests is
          Cols      : Natural;
          Split     : Lay.Split_Percentage := Pol.Default_Split;
          Focused   : Pol.Pane := Pol.List_Pane;
-         Maximized : Boolean := False)
-      is
+         Maximized : Boolean := False) is
       begin
-         Lay.Compute (Specs      => Pol.Specs (Split),
-                      Total_Cols => Tui.Surface.Col_Count (Cols),
-                      Focused    => Pol.Index (Focused),
-                      Maximized  => Maximized,
-                      Separators => True,
-                      Rule       => Lay.Drop_By_Priority,
-                      Result     => P);
+         Lay.Compute
+           (Specs      => Pol.Specs (Split),
+            Total_Cols => Tui.Surface.Col_Count (Cols),
+            Focused    => Pol.Index (Focused),
+            Maximized  => Maximized,
+            Separators => True,
+            Rule       => Lay.Drop_By_Priority,
+            Result     => P);
       end Row;
 
       P : Two;
@@ -555,73 +636,94 @@ procedure Behavior_Tests is
       --  Below two minimum panes and a separator the row collapses to one
       --  pane; at exactly that width both appear at their minimum.
       Row (P, Pol.Min_Pane_Width * 2);
-      Check (P (1).Cols = 56 and then P (2).Cols = 0,
-             "56 columns show the commit list alone");
-      Check (P (1).Start_Col = 1 and then P (2).Start_Col = 0,
-             "a dropped pane has no place on screen");
+      Check
+        (P (1).Cols = 56 and then P (2).Cols = 0,
+         "56 columns show the commit list alone");
+      Check
+        (P (1).Start_Col = 1 and then P (2).Start_Col = 0,
+         "a dropped pane has no place on screen");
       Row (P, Pol.Min_Pane_Width * 2 + 1);
-      Check (P (1).Cols = 28 and then P (2).Cols = 28,
-             "57 columns show both panes at their minimum");
-      Check (P (2).Start_Col = 30,
-             "the second pane starts one separator past the first");
+      Check
+        (P (1).Cols = 28 and then P (2).Cols = 28,
+         "57 columns show both panes at their minimum");
+      Check
+        (P (2).Start_Col = 30,
+         "the second pane starts one separator past the first");
 
       Row (P, 100);
-      Check (P (1).Cols = 45 and then P (2).Cols = 54,
-             "100 columns split 45/55 around the separator");
-      Check (P (1).Cols + P (2).Cols + 1 = 100,
-             "the panes and their separator cover the width exactly");
+      Check
+        (P (1).Cols = 45 and then P (2).Cols = 54,
+         "100 columns split 45/55 around the separator");
+      Check
+        (P (1).Cols + P (2).Cols + 1 = 100,
+         "the panes and their separator cover the width exactly");
 
       --  The split percentage never starves a pane below its minimum.
       Row (P, 100, Split => 75);
-      Check (P (1).Cols = 71 and then P (2).Cols = 28,
-             "the widest split still leaves the diff pane its minimum");
+      Check
+        (P (1).Cols = 71 and then P (2).Cols = 28,
+         "the widest split still leaves the diff pane its minimum");
       Row (P, 100, Split => 25);
-      Check (P (1).Cols = 28 and then P (2).Cols = 71,
-             "the narrowest split still leaves the list its minimum");
+      Check
+        (P (1).Cols = 28 and then P (2).Cols = 71,
+         "the narrowest split still leaves the list its minimum");
 
       --  Maximizing gives the whole width to the focused pane.
       Row (P, 100, Focused => Pol.List_Pane, Maximized => True);
-      Check (P (1).Cols = 100 and then P (2).Cols = 0,
-             "a maximized list takes the full width");
+      Check
+        (P (1).Cols = 100 and then P (2).Cols = 0,
+         "a maximized list takes the full width");
       Row (P, 100, Focused => Pol.Diff_Pane, Maximized => True);
-      Check (P (1).Cols = 0 and then P (2).Cols = 100,
-             "a maximized diff takes the full width");
+      Check
+        (P (1).Cols = 0 and then P (2).Cols = 100,
+         "a maximized diff takes the full width");
 
       Row (P, 0);
-      Check (P (1).Cols = 0 and then P (2).Cols = 0,
-             "a zero-width terminal paints nothing");
+      Check
+        (P (1).Cols = 0 and then P (2).Cols = 0,
+         "a zero-width terminal paints nothing");
 
       --  Drop_By_Priority keeps the pane the frontend declared least
       --  disposable whatever has the keyboard, and focus is rescued onto it.
       Row (P, 56, Focused => Pol.Diff_Pane);
-      Check (P (1).Cols = 56 and then P (2).Cols = 0,
-             "a narrow row keeps the list even when the diff has the keyboard");
-      Check (Lay.Rescue_Focus (P, Pol.Index (Pol.Diff_Pane))
-             = Pol.Index (Pol.List_Pane),
-             "focus is rescued onto a pane that survived");
+      Check
+        (P (1).Cols = 56 and then P (2).Cols = 0,
+         "a narrow row keeps the list even when the diff has the keyboard");
+      Check
+        (Lay.Rescue_Focus (P, Pol.Index (Pol.Diff_Pane))
+         = Pol.Index (Pol.List_Pane),
+         "focus is rescued onto a pane that survived");
       Row (P, 100);
-      Check (Lay.Rescue_Focus (P, Pol.Index (Pol.Diff_Pane))
-             = Pol.Index (Pol.Diff_Pane),
-             "a shown pane keeps the keyboard");
+      Check
+        (Lay.Rescue_Focus (P, Pol.Index (Pol.Diff_Pane))
+         = Pol.Index (Pol.Diff_Pane),
+         "a shown pane keeps the keyboard");
 
       --  Resizing steps by Split_Step and saturates at the bounds.
-      Check (Lay.Adjust (45, Grow => True) = 50,
-             "growing the first pane steps the split up");
-      Check (Lay.Adjust (45, Grow => False) = 40,
-             "shrinking the first pane steps the split down");
-      Check (Lay.Adjust (Lay.Split_Percentage'Last, True)
-             = Lay.Split_Percentage'Last, "growing saturates at the maximum");
-      Check (Lay.Adjust (Lay.Split_Percentage'First, False)
-             = Lay.Split_Percentage'First,
-             "shrinking saturates at the minimum");
+      Check
+        (Lay.Adjust (45, Grow => True) = 50,
+         "growing the first pane steps the split up");
+      Check
+        (Lay.Adjust (45, Grow => False) = 40,
+         "shrinking the first pane steps the split down");
+      Check
+        (Lay.Adjust (Lay.Split_Percentage'Last, True)
+         = Lay.Split_Percentage'Last,
+         "growing saturates at the maximum");
+      Check
+        (Lay.Adjust (Lay.Split_Percentage'First, False)
+         = Lay.Split_Percentage'First,
+         "shrinking saturates at the minimum");
 
       --  A dragged separator becomes a bounded percentage, whatever column
       --  the mouse report claims.
       Check (Lay.Split_At (50, 100) = 50, "a drag to mid-screen is 50%");
-      Check (Lay.Split_At (0, 100) = Lay.Split_Percentage'First,
-             "a drag to column 0 clamps to the minimum");
-      Check (Lay.Split_At (9_999, 100) = Lay.Split_Percentage'Last,
-             "a drag past the screen clamps to the maximum");
+      Check
+        (Lay.Split_At (0, 100) = Lay.Split_Percentage'First,
+         "a drag to column 0 clamps to the minimum");
+      Check
+        (Lay.Split_At (9_999, 100) = Lay.Split_Percentage'Last,
+         "a drag past the screen clamps to the maximum");
 
       ------------------------------------------------------------------
       --  Hit-testing the painted row: 28 | separator | 28, over 20 rows
@@ -630,50 +732,68 @@ procedure Behavior_Tests is
       Row (P, 57);
 
       H := Lay.Locate (P, 1, 20, Col => 1, Row => 1);
-      Check (H.Kind = Lay.Pane_Hit and then H.Pane = 1
-             and then H.Local_Col = 1 and then H.Local_Row = 1,
-             "the first column is the first pane's first column");
+      Check
+        (H.Kind = Lay.Pane_Hit
+         and then H.Pane = 1
+         and then H.Local_Col = 1
+         and then H.Local_Row = 1,
+         "the first column is the first pane's first column");
       H := Lay.Locate (P, 1, 20, Col => 28, Row => 5);
-      Check (H.Kind = Lay.Pane_Hit and then H.Pane = 1
-             and then H.Local_Col = 28 and then H.Local_Row = 5,
-             "the first pane's last column is still the first pane");
+      Check
+        (H.Kind = Lay.Pane_Hit
+         and then H.Pane = 1
+         and then H.Local_Col = 28
+         and then H.Local_Row = 5,
+         "the first pane's last column is still the first pane");
       H := Lay.Locate (P, 1, 20, Col => 29, Row => 1);
-      Check (H.Kind = Lay.Separator_Hit and then H.Pane = 1,
-             "the column after a pane is the separator it owns");
+      Check
+        (H.Kind = Lay.Separator_Hit and then H.Pane = 1,
+         "the column after a pane is the separator it owns");
 
       --  Local coordinates are the pane's own frame, which is the point of
       --  returning them: no caller subtracts a neighbour's width again.
       H := Lay.Locate (P, 1, 20, Col => 30, Row => 1);
-      Check (H.Kind = Lay.Pane_Hit and then H.Pane = 2
-             and then H.Local_Col = 1,
-             "the column after the separator is the second pane's column 1");
+      Check
+        (H.Kind = Lay.Pane_Hit and then H.Pane = 2 and then H.Local_Col = 1,
+         "the column after the separator is the second pane's column 1");
       H := Lay.Locate (P, 1, 20, Col => 57, Row => 20);
-      Check (H.Kind = Lay.Pane_Hit and then H.Pane = 2
-             and then H.Local_Col = 28 and then H.Local_Row = 20,
-             "the last painted cell is the second pane's last cell");
+      Check
+        (H.Kind = Lay.Pane_Hit
+         and then H.Pane = 2
+         and then H.Local_Col = 28
+         and then H.Local_Row = 20,
+         "the last painted cell is the second pane's last cell");
 
-      Check (Lay.Locate (P, 1, 20, 58, 1).Kind = Lay.Nowhere,
-             "past the painted width is nowhere");
-      Check (Lay.Locate (P, 1, 20, 10, 21).Kind = Lay.Nowhere,
-             "the status row is nowhere");
-      Check (Lay.Locate (P, 1, 20, 0, 1).Kind = Lay.Nowhere,
-             "a report with no column is nowhere");
-      Check (Lay.Locate (P, 1, 20, 10, 0).Kind = Lay.Nowhere,
-             "a report with no row is nowhere");
+      Check
+        (Lay.Locate (P, 1, 20, 58, 1).Kind = Lay.Nowhere,
+         "past the painted width is nowhere");
+      Check
+        (Lay.Locate (P, 1, 20, 10, 21).Kind = Lay.Nowhere,
+         "the status row is nowhere");
+      Check
+        (Lay.Locate (P, 1, 20, 0, 1).Kind = Lay.Nowhere,
+         "a report with no column is nowhere");
+      Check
+        (Lay.Locate (P, 1, 20, 10, 0).Kind = Lay.Nowhere,
+         "a report with no row is nowhere");
 
       --  Rows reserved for chrome above the panes shift the local frame.
-      Check (Lay.Locate (P, 2, 20, 1, 1).Kind = Lay.Nowhere,
-             "a title row above the panes is nowhere");
+      Check
+        (Lay.Locate (P, 2, 20, 1, 1).Kind = Lay.Nowhere,
+         "a title row above the panes is nowhere");
       H := Lay.Locate (P, 2, 20, Col => 1, Row => 2);
-      Check (H.Kind = Lay.Pane_Hit and then H.Local_Row = 1,
-             "the first content row is local row 1 whatever it is on screen");
+      Check
+        (H.Kind = Lay.Pane_Hit and then H.Local_Row = 1,
+         "the first content row is local row 1 whatever it is on screen");
 
       --  A collapsed row has no separator to hit.
       Row (P, 56);
-      Check (Lay.Locate (P, 1, 20, 30, 1).Kind = Lay.Pane_Hit,
-             "a collapsed row is all first pane");
-      Check (Lay.Locate (P, 1, 20, 57, 1).Kind = Lay.Nowhere,
-             "past a collapsed pane is nowhere");
+      Check
+        (Lay.Locate (P, 1, 20, 30, 1).Kind = Lay.Pane_Hit,
+         "a collapsed row is all first pane");
+      Check
+        (Lay.Locate (P, 1, 20, 57, 1).Kind = Lay.Nowhere,
+         "past a collapsed pane is nowhere");
 
       ------------------------------------------------------------------
       --  Three panes, the explorer's shape: the focused pane survives
@@ -687,27 +807,35 @@ procedure Behavior_Tests is
             3 => (Weight => 45, Min_Cols => 28, Priority => 0));
       begin
          Lay.Compute (Spec, 160, 1, False, True, Lay.Keep_Focused, Three);
-         Check (Three (1).Cols = 48 and then Three (2).Cols = 40
-                and then Three (3).Cols = 70,
-                "160 columns split 30/25/45 around two separators");
-         Check (Three (1).Cols + Three (2).Cols + Three (3).Cols + 2 = 160,
-                "three panes and two separators cover the width exactly");
-         Check (Three (2).Start_Col = 50 and then Three (3).Start_Col = 91,
-                "each pane starts one separator past its predecessor");
+         Check
+           (Three (1).Cols = 48
+            and then Three (2).Cols = 40
+            and then Three (3).Cols = 70,
+            "160 columns split 30/25/45 around two separators");
+         Check
+           (Three (1).Cols + Three (2).Cols + Three (3).Cols + 2 = 160,
+            "three panes and two separators cover the width exactly");
+         Check
+           (Three (2).Start_Col = 50 and then Three (3).Start_Col = 91,
+            "each pane starts one separator past its predecessor");
 
          --  Too narrow for three: the most disposable pane goes first and
          --  the focused pane is never the one that goes.
          Lay.Compute (Spec, 70, 3, False, True, Lay.Keep_Focused, Three);
-         Check (Three (2).Cols = 0 and then Three (1).Cols > 0
-                and then Three (3).Cols > 0,
-                "the tree pane gives up its place first");
+         Check
+           (Three (2).Cols = 0
+            and then Three (1).Cols > 0
+            and then Three (3).Cols > 0,
+            "the tree pane gives up its place first");
          Lay.Compute (Spec, 55, 3, False, True, Lay.Keep_Focused, Three);
-         Check (Three (3).Cols = 55 and then Three (1).Cols = 0
-                and then Three (2).Cols = 0,
-                "the last pane standing is the focused one");
+         Check
+           (Three (3).Cols = 55
+            and then Three (1).Cols = 0
+            and then Three (2).Cols = 0,
+            "the last pane standing is the focused one");
          Lay.Compute (Spec, 55, 1, False, True, Lay.Keep_Focused, Three);
-         Check (Three (1).Cols = 55,
-                "which pane survives follows the keyboard");
+         Check
+           (Three (1).Cols = 55, "which pane survives follows the keyboard");
       end;
    end Test_Layout;
 
@@ -721,58 +849,63 @@ procedure Behavior_Tests is
       procedure Note (N : Git_View_Status.Note; Expect : String) is
       begin
          Git_View_Status.Format_Note (S, N);
-         Check (Git_View_Status.Image (S) = Expect,
-                N'Image & " reads """ & Expect & """");
+         Check
+           (Git_View_Status.Image (S) = Expect,
+            N'Image & " reads """ & Expect & """");
       end Note;
 
       Keys_List : constant String :=
         "   (Enter diff  Tab pane  z zoom  / search  q quit)";
-      Keys_Diff : constant String :=
-        "   (Tab pane  z zoom  / search  q quit)";
+      Keys_Diff : constant String := "   (Tab pane  z zoom  / search  q quit)";
    begin
       Note (Git_View_Status.Pattern_Not_Found, "Pattern not found");
       Note (Git_View_Status.No_Pattern, "No pattern");
       Note (Git_View_Status.No_Commit_On_Line, "No commit on this line");
       Note (Git_View_Status.Git_Show_Failed, "git show failed");
       Note (Git_View_Status.Selection_Copied, "Selection copied");
-      Note (Git_View_Status.Selection_Copy_Truncated,
-            "Selection copied (first 65536 bytes)");
+      Note
+        (Git_View_Status.Selection_Copy_Truncated,
+         "Selection copied (first 65536 bytes)");
 
       Git_View_Status.Format_List_Position (S, 3, 40, "1a2b3c4");
-      Check (Git_View_Status.Image (S)
-             = "[commits] 3/40  1a2b3c4" & Keys_List,
-             "the list read-out shows position and id");
+      Check
+        (Git_View_Status.Image (S) = "[commits] 3/40  1a2b3c4" & Keys_List,
+         "the list read-out shows position and id");
 
       --  A line carrying no commit id drops the id and its separator rather
       --  than leaving a gap.
       Git_View_Status.Format_List_Position (S, 1, 1, "");
-      Check (Git_View_Status.Image (S) = "[commits] 1/1" & Keys_List,
-             "the list read-out omits an absent id");
+      Check
+        (Git_View_Status.Image (S) = "[commits] 1/1" & Keys_List,
+         "the list read-out omits an absent id");
 
       Git_View_Status.Format_List_Position (S, 0, 0, "");
-      Check (Git_View_Status.Image (S) = "[commits] 0/0" & Keys_List,
-             "an empty history reads 0/0");
+      Check
+        (Git_View_Status.Image (S) = "[commits] 0/0" & Keys_List,
+         "an empty history reads 0/0");
 
       --  The percentage is of the last visible line, so a full screen of a
       --  short document reads 100%.
       Git_View_Status.Format_Diff_Position (S, "1a2b3c4", 1, 20, 200);
-      Check (Git_View_Status.Image (S)
-             = "[diff] 1a2b3c4  1-20/200  10%" & Keys_Diff,
-             "the diff read-out shows id, range and percentage");
+      Check
+        (Git_View_Status.Image (S)
+         = "[diff] 1a2b3c4  1-20/200  10%" & Keys_Diff,
+         "the diff read-out shows id, range and percentage");
       Git_View_Status.Format_Diff_Position (S, "1a2b3c4", 181, 200, 200);
-      Check (Git_View_Status.Image (S)
-             = "[diff] 1a2b3c4  181-200/200  100%" & Keys_Diff,
-             "the end of the document reads 100%");
+      Check
+        (Git_View_Status.Image (S)
+         = "[diff] 1a2b3c4  181-200/200  100%" & Keys_Diff,
+         "the end of the document reads 100%");
       Git_View_Status.Format_Diff_Position (S, "", 0, 0, 0);
-      Check (Git_View_Status.Image (S) = "[diff] 0-0/0  100%" & Keys_Diff,
-             "an empty document reads 100% and omits the id");
+      Check
+        (Git_View_Status.Image (S) = "[diff] 0-0/0  100%" & Keys_Diff,
+         "an empty document reads 100% and omits the id");
 
       Git_View_Status.Format_Prompt (S, True, Bytes ("needle"));
-      Check (Git_View_Status.Image (S) = "/needle",
-             "a forward search prompt");
+      Check (Git_View_Status.Image (S) = "/needle", "a forward search prompt");
       Git_View_Status.Format_Prompt (S, False, Bytes ("needle"));
-      Check (Git_View_Status.Image (S) = "?needle",
-             "a backward search prompt");
+      Check
+        (Git_View_Status.Image (S) = "?needle", "a backward search prompt");
       Git_View_Status.Format_Prompt (S, True, Bytes (""));
       Check (Git_View_Status.Image (S) = "/", "an empty prompt is the sigil");
    end Test_Status;

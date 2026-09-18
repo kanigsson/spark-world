@@ -1,13 +1,14 @@
 --  Timing harness for the repository adapter: reports how long one frame
 --  build takes cold, then warm, then while only the scope moves, which is
 --  what a keystroke costs once the caches are populated.
-with Ada.Calendar; use Ada.Calendar;
-with Ada.Strings; use Ada.Strings;
+with Ada.Calendar;      use Ada.Calendar;
+with Ada.Strings;       use Ada.Strings;
 with Ada.Strings.Fixed; use Ada.Strings.Fixed;
-with Ada.Command_Line; use Ada.Command_Line;
-with Ada.Text_IO; use Ada.Text_IO;
-with Git_View_Model; use Git_View_Model;
+with Ada.Command_Line;  use Ada.Command_Line;
+with Ada.Text_IO;       use Ada.Text_IO;
+with Git_View_Model;    use Git_View_Model;
 with Git_View_Repository;
+
 procedure Load_Bench is
    V : View_State;
    F : Git_View_Repository.Frame;
@@ -34,7 +35,8 @@ begin
    end loop;
    V.Scope := To_Text ("");
    for I in 1 .. 5 loop
-      V.Snapshot := To_Text ("HEAD~" & Trim (Integer'Image (I), Ada.Strings.Both));
+      V.Snapshot :=
+        To_Text ("HEAD~" & Trim (Integer'Image (I), Ada.Strings.Both));
       Timed ("snapshot HEAD~" & Trim (Integer'Image (I), Ada.Strings.Both), 1);
    end loop;
    Git_View_Repository.Free (F);

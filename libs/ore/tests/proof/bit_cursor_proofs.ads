@@ -46,27 +46,24 @@ is
      Post   =>
        (Runtime =>
           Success = Fits (Output, Position'Old, Header_Width)
-          and then
-            (if Success
-             then
-               Position = Position'Old + Header_Width
-               and then
-                 Bits_At
-                   (Output,
-                    Position'Old,
-                    Final_Width,
-                    Numbering,
-                    Low_Bit_First)
-                 = (if Final then 1 else 0)
-               and then
-                 Bits_At
-                   (Output,
-                    Position'Old + Final_Width,
-                    Kind_Width,
-                    Numbering,
-                    Low_Bit_First)
-                 = Kind
-             else Position = Position'Old),
+          and then (if Success
+                    then
+                      Position = Position'Old + Header_Width
+                      and then Bits_At
+                                 (Output,
+                                  Position'Old,
+                                  Final_Width,
+                                  Numbering,
+                                  Low_Bit_First)
+                               = (if Final then 1 else 0)
+                      and then Bits_At
+                                 (Output,
+                                  Position'Old + Final_Width,
+                                  Kind_Width,
+                                  Numbering,
+                                  Low_Bit_First)
+                               = Kind
+                    else Position = Position'Old),
         Static  =>
           (if Success
            then
@@ -87,27 +84,24 @@ is
      Post   =>
        (Runtime =>
           Success = Fits (Input, Position'Old, Header_Width)
-          and then
-            (if Success
-             then
-               Position = Position'Old + Header_Width
-               and then
-                 (if Final then 1 else 0)
-                 = Bits_At
-                     (Input,
-                      Position'Old,
-                      Final_Width,
-                      Numbering,
-                      Low_Bit_First)
-               and then
-                 Kind
-                 = Bits_At
-                     (Input,
-                      Position'Old + Final_Width,
-                      Kind_Width,
-                      Numbering,
-                      Low_Bit_First)
-             else Position = Position'Old));
+          and then (if Success
+                    then
+                      Position = Position'Old + Header_Width
+                      and then (if Final then 1 else 0)
+                               = Bits_At
+                                   (Input,
+                                    Position'Old,
+                                    Final_Width,
+                                    Numbering,
+                                    Low_Bit_First)
+                      and then Kind
+                               = Bits_At
+                                   (Input,
+                                    Position'Old + Final_Width,
+                                    Kind_Width,
+                                    Numbering,
+                                    Low_Bit_First)
+                    else Position = Position'Old));
 
    ---------------------------------------------------------------------------
    --  A code, and the arithmetic view of it
@@ -131,7 +125,7 @@ is
      Global             => null,
      Pre                => Fits (Input, Start, Length),
      Post               =>
-       Prefix_Value'Result < 2 ** Length
+       Prefix_Value'Result < 2**Length
        and then Prefix_Value'Result <= Natural'Last / 2,
      Subprogram_Variant => (Decreases => Length);
 
@@ -156,7 +150,8 @@ is
    --  in the library, this needed the bits of the field, the bound of its mask
    --  and an integer decomposition, all written here.
    function Code_Sum (A : Byte_Array; Position : Natural) return Natural
-   is (4 * Bit_Value (A, Position, Numbering)
+   is (4
+       * Bit_Value (A, Position, Numbering)
        + 2 * Bit_Value (A, Position + 1, Numbering)
        + Bit_Value (A, Position + 2, Numbering))
    with

@@ -1,9 +1,9 @@
 --  Behavioural tests for the app kit. Complements gnatprove: proof shows the
 --  contracts hold for all inputs; these pin concrete encodings and texts.
 
-with Ada.Text_IO;             use Ada.Text_IO;
+with Ada.Text_IO; use Ada.Text_IO;
 with Ada.Command_Line;
-with Tui.Text;                use Tui.Text;
+with Tui.Text;    use Tui.Text;
 with Tui.App_Kit.Search_Input;
 with Tui.App_Kit.Status;
 
@@ -40,8 +40,9 @@ begin
    begin
       Edit.Append (E, Character'Pos ('a'));
       Edit.Append (E, Character'Pos ('b'));
-      Check (Edit.Length (E) = 2 and then Str_Of (Edit.Bytes (E)) = "ab",
-             "ASCII appends");
+      Check
+        (Edit.Length (E) = 2 and then Str_Of (Edit.Bytes (E)) = "ab",
+         "ASCII appends");
       Edit.Backspace (E);
       Check (Str_Of (Edit.Bytes (E)) = "a", "backspace removes one ASCII");
       Edit.Clear (E);
@@ -53,20 +54,26 @@ begin
       E : Edit.Editor;
    begin
       Edit.Append (E, 16#E9#);      --  é -> C3 A9
-      Check (Edit.Length (E) = 2
-             and then Edit.Bytes (E) (1) = 16#C3#
-             and then Edit.Bytes (E) (2) = 16#A9#, "U+00E9 -> C3 A9");
+      Check
+        (Edit.Length (E) = 2
+         and then Edit.Bytes (E) (1) = 16#C3#
+         and then Edit.Bytes (E) (2) = 16#A9#,
+         "U+00E9 -> C3 A9");
       Edit.Append (E, 16#20AC#);    --  € -> E2 82 AC
-      Check (Edit.Length (E) = 5
-             and then Edit.Bytes (E) (3) = 16#E2#
-             and then Edit.Bytes (E) (4) = 16#82#
-             and then Edit.Bytes (E) (5) = 16#AC#, "U+20AC -> E2 82 AC");
+      Check
+        (Edit.Length (E) = 5
+         and then Edit.Bytes (E) (3) = 16#E2#
+         and then Edit.Bytes (E) (4) = 16#82#
+         and then Edit.Bytes (E) (5) = 16#AC#,
+         "U+20AC -> E2 82 AC");
       Edit.Append (E, 16#1F600#);   --  😀 -> F0 9F 98 80
-      Check (Edit.Length (E) = 9
-             and then Edit.Bytes (E) (6) = 16#F0#
-             and then Edit.Bytes (E) (7) = 16#9F#
-             and then Edit.Bytes (E) (8) = 16#98#
-             and then Edit.Bytes (E) (9) = 16#80#, "U+1F600 -> F0 9F 98 80");
+      Check
+        (Edit.Length (E) = 9
+         and then Edit.Bytes (E) (6) = 16#F0#
+         and then Edit.Bytes (E) (7) = 16#9F#
+         and then Edit.Bytes (E) (8) = 16#98#
+         and then Edit.Bytes (E) (9) = 16#80#,
+         "U+1F600 -> F0 9F 98 80");
       Edit.Backspace (E);
       Check (Edit.Length (E) = 5, "backspace removes whole 4-byte point");
       Edit.Backspace (E);
@@ -86,12 +93,14 @@ begin
       end loop;
       Check (Edit.Length (E) = Edit.Max_Pattern - 1, "filled to cap - 1");
       Edit.Append (E, 16#E9#);      --  needs 2 bytes, only 1 free
-      Check (Edit.Length (E) = Edit.Max_Pattern - 1,
-             "overflowing point dropped whole");
+      Check
+        (Edit.Length (E) = Edit.Max_Pattern - 1,
+         "overflowing point dropped whole");
       Edit.Append (E, Character'Pos ('y'));
-      Check (Edit.Length (E) = Edit.Max_Pattern
-             and then Edit.Bytes (E) (Edit.Max_Pattern)
-                      = Character'Pos ('y'), "last byte still usable");
+      Check
+        (Edit.Length (E) = Edit.Max_Pattern
+         and then Edit.Bytes (E) (Edit.Max_Pattern) = Character'Pos ('y'),
+         "last byte still usable");
    end;
 
    --  Status: building blocks.
@@ -118,16 +127,17 @@ begin
          Stat.Put_Char (L, '.');
       end loop;
       Stat.Put (L, "abc");
-      Check (Stat.Length (L) = Stat.Max_Status
-             and then Stat.Image (L) (Stat.Max_Status) = 'a',
-             "append truncates at Max_Status");
+      Check
+        (Stat.Length (L) = Stat.Max_Status
+         and then Stat.Image (L) (Stat.Max_Status) = 'a',
+         "append truncates at Max_Status");
    end;
 
    --  Status: the search prompt, forward and backward, bytes as Latin-1.
    declare
       L : Stat.Line;
-      P : constant Buffer := (Character'Pos ('f'), Character'Pos ('o'),
-                              Character'Pos ('o'));
+      P : constant Buffer :=
+        (Character'Pos ('f'), Character'Pos ('o'), Character'Pos ('o'));
       E : constant Buffer (1 .. 0) := (others => 0);
    begin
       Stat.Format_Prompt (L, Forward => True, Pattern => P);

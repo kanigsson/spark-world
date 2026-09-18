@@ -3,7 +3,9 @@
 
 with Tui.Text;
 
-package Git_View_Navigation with SPARK_Mode => On is
+package Git_View_Navigation
+  with SPARK_Mode => On
+is
 
    type Landmark is (File_Header, Hunk_Header);
 
@@ -12,10 +14,12 @@ package Git_View_Navigation with SPARK_Mode => On is
       Index   : Tui.Text.Index;
       N       : Tui.Text.Line_Number;
       Kind    : Landmark) return Boolean
-   with Global => null,
-        Pre    => Content'First = 1
-                  and then Content'Last >= Tui.Text.Scanned_Bytes (Index)
-                  and then N <= Tui.Text.Line_Count (Index);
+   with
+     Global => null,
+     Pre    =>
+       Content'First = 1
+       and then Content'Last >= Tui.Text.Scanned_Bytes (Index)
+       and then N <= Tui.Text.Line_Count (Index);
 
    --  Find the first landmark strictly after/before From. On a miss Line is
    --  left at From, making the output valid even when no movement is possible.
@@ -27,11 +31,13 @@ package Git_View_Navigation with SPARK_Mode => On is
       Kind    : Landmark;
       Found   : out Boolean;
       Line    : out Tui.Text.Line_Number)
-   with Global => null,
-        Pre    => Content'First = 1
-                  and then Content'Last >= Tui.Text.Scanned_Bytes (Index)
-                  and then Tui.Text.Line_Count (Index) >= 1
-                  and then From <= Tui.Text.Line_Count (Index),
-        Post   => (if Found then Line <= Tui.Text.Line_Count (Index));
+   with
+     Global => null,
+     Pre    =>
+       Content'First = 1
+       and then Content'Last >= Tui.Text.Scanned_Bytes (Index)
+       and then Tui.Text.Line_Count (Index) >= 1
+       and then From <= Tui.Text.Line_Count (Index),
+     Post   => (if Found then Line <= Tui.Text.Line_Count (Index));
 
 end Git_View_Navigation;

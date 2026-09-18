@@ -1,4 +1,6 @@
-package body Git_View_Status with SPARK_Mode => On is
+package body Git_View_Status
+  with SPARK_Mode => On
+is
 
    use Tui.App_Kit.Status;
 
@@ -10,14 +12,26 @@ package body Git_View_Status with SPARK_Mode => On is
    begin
       Reset (L);
       case N is
-         when Pattern_Not_Found => Put (L, "Pattern not found");
-         when No_Pattern        => Put (L, "No pattern");
-         when No_Commit_On_Line => Put (L, "No commit on this line");
-         when Git_Show_Failed   => Put (L, "git show failed");
-         when Selection_Copied  => Put (L, "Selection copied");
+         when Pattern_Not_Found        =>
+            Put (L, "Pattern not found");
+
+         when No_Pattern               =>
+            Put (L, "No pattern");
+
+         when No_Commit_On_Line        =>
+            Put (L, "No commit on this line");
+
+         when Git_Show_Failed          =>
+            Put (L, "git show failed");
+
+         when Selection_Copied         =>
+            Put (L, "Selection copied");
+
          when Selection_Copy_Truncated =>
             Put (L, "Selection copied (first 65536 bytes)");
-         when No_Note           => null;   --  excluded by the precondition
+
+         when No_Note                  =>
+            null;   --  excluded by the precondition
       end case;
    end Format_Note;
 
@@ -26,11 +40,7 @@ package body Git_View_Status with SPARK_Mode => On is
    --------------------------
 
    procedure Format_List_Position
-     (L        : out Line;
-      Selected : Natural;
-      Total    : Natural;
-      Id       : String)
-   is
+     (L : out Line; Selected : Natural; Total : Natural; Id : String) is
    begin
       Reset (L);
       Put (L, "[commits] ");
@@ -59,7 +69,8 @@ package body Git_View_Status with SPARK_Mode => On is
       --  Last and Total are bounded by Max_Lines (precondition), so the
       --  Long_Integer product and the back-conversion stay well in range.
       Pct : constant Natural :=
-        (if Total = 0 then 100
+        (if Total = 0
+         then 100
          else Natural ((Long_Integer (Last) * 100) / Long_Integer (Total)));
    begin
       Reset (L);

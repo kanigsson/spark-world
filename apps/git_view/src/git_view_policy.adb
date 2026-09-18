@@ -1,4 +1,6 @@
-package body Git_View_Policy with SPARK_Mode => On is
+package body Git_View_Policy
+  with SPARK_Mode => On
+is
 
    use Tui.Input;
    use Tui.Panes.List;
@@ -7,39 +9,79 @@ package body Git_View_Policy with SPARK_Mode => On is
    --  This mirrors the standalone pager's table so the diff pane feels like
    --  the pager it embeds. Found = False if the key is not a movement.
    procedure Map_Command
-     (Event : Key_Event;
-      Found : out Boolean;
-      Cmd   : out Eng.Command)
-   is
+     (Event : Key_Event; Found : out Boolean; Cmd : out Eng.Command) is
    begin
       Found := True;
-      Cmd   := Eng.Line_Down;   --  default, overwritten below
+      Cmd := Eng.Line_Down;   --  default, overwritten below
       case Event.Kind is
-         when Down      => Cmd := Eng.Line_Down;
-         when Up        => Cmd := Eng.Line_Up;
-         when Page_Down => Cmd := Eng.Page_Down;
-         when Page_Up   => Cmd := Eng.Page_Up;
-         when Left      => Cmd := Eng.Col_Left;
-         when Right     => Cmd := Eng.Col_Right;
-         when Home      => Cmd := Eng.To_Top;
-         when End_Key   => Cmd := Eng.To_Bottom;
-         when Enter     => Cmd := Eng.Line_Down;
-         when Char =>
+         when Down      =>
+            Cmd := Eng.Line_Down;
+
+         when Up        =>
+            Cmd := Eng.Line_Up;
+
+         when Page_Down =>
+            Cmd := Eng.Page_Down;
+
+         when Page_Up   =>
+            Cmd := Eng.Page_Up;
+
+         when Left      =>
+            Cmd := Eng.Col_Left;
+
+         when Right     =>
+            Cmd := Eng.Col_Right;
+
+         when Home      =>
+            Cmd := Eng.To_Top;
+
+         when End_Key   =>
+            Cmd := Eng.To_Bottom;
+
+         when Enter     =>
+            Cmd := Eng.Line_Down;
+
+         when Char      =>
             case Event.Code is
-               when Character'Pos ('j') => Cmd := Eng.Line_Down;
-               when Character'Pos ('k') => Cmd := Eng.Line_Up;
-               when Character'Pos (' ') => Cmd := Eng.Page_Down;
-               when Character'Pos ('f') => Cmd := Eng.Page_Down;
-               when Character'Pos ('b') => Cmd := Eng.Page_Up;
-               when Character'Pos ('d') => Cmd := Eng.Half_Down;
-               when Character'Pos ('u') => Cmd := Eng.Half_Up;
-               when Character'Pos ('g') => Cmd := Eng.To_Top;
-               when Character'Pos ('G') => Cmd := Eng.To_Bottom;
-               when Character'Pos ('h') => Cmd := Eng.Col_Left;
-               when Character'Pos ('l') => Cmd := Eng.Col_Right;
-               when others              => Found := False;
+               when Character'Pos ('j') =>
+                  Cmd := Eng.Line_Down;
+
+               when Character'Pos ('k') =>
+                  Cmd := Eng.Line_Up;
+
+               when Character'Pos (' ') =>
+                  Cmd := Eng.Page_Down;
+
+               when Character'Pos ('f') =>
+                  Cmd := Eng.Page_Down;
+
+               when Character'Pos ('b') =>
+                  Cmd := Eng.Page_Up;
+
+               when Character'Pos ('d') =>
+                  Cmd := Eng.Half_Down;
+
+               when Character'Pos ('u') =>
+                  Cmd := Eng.Half_Up;
+
+               when Character'Pos ('g') =>
+                  Cmd := Eng.To_Top;
+
+               when Character'Pos ('G') =>
+                  Cmd := Eng.To_Bottom;
+
+               when Character'Pos ('h') =>
+                  Cmd := Eng.Col_Left;
+
+               when Character'Pos ('l') =>
+                  Cmd := Eng.Col_Right;
+
+               when others              =>
+                  Found := False;
             end case;
-         when others => Found := False;
+
+         when others    =>
+            Found := False;
       end case;
    end Map_Command;
 
@@ -47,30 +89,58 @@ package body Git_View_Policy with SPARK_Mode => On is
    procedure Map_Selection
      (Event : Key_Event;
       Found : out Boolean;
-      Move  : out Tui.Panes.List.Sel_Move)
-   is
+      Move  : out Tui.Panes.List.Sel_Move) is
    begin
       Found := True;
-      Move  := Sel_Down;   --  default, overwritten below
+      Move := Sel_Down;   --  default, overwritten below
       case Event.Kind is
-         when Down      => Move := Sel_Down;
-         when Up        => Move := Sel_Up;
-         when Page_Down => Move := Sel_Page_Down;
-         when Page_Up   => Move := Sel_Page_Up;
-         when Home      => Move := Sel_Top;
-         when End_Key   => Move := Sel_Bottom;
-         when Char =>
+         when Down      =>
+            Move := Sel_Down;
+
+         when Up        =>
+            Move := Sel_Up;
+
+         when Page_Down =>
+            Move := Sel_Page_Down;
+
+         when Page_Up   =>
+            Move := Sel_Page_Up;
+
+         when Home      =>
+            Move := Sel_Top;
+
+         when End_Key   =>
+            Move := Sel_Bottom;
+
+         when Char      =>
             case Event.Code is
-               when Character'Pos ('j') => Move := Sel_Down;
-               when Character'Pos ('k') => Move := Sel_Up;
-               when Character'Pos (' ') => Move := Sel_Page_Down;
-               when Character'Pos ('f') => Move := Sel_Page_Down;
-               when Character'Pos ('b') => Move := Sel_Page_Up;
-               when Character'Pos ('g') => Move := Sel_Top;
-               when Character'Pos ('G') => Move := Sel_Bottom;
-               when others              => Found := False;
+               when Character'Pos ('j') =>
+                  Move := Sel_Down;
+
+               when Character'Pos ('k') =>
+                  Move := Sel_Up;
+
+               when Character'Pos (' ') =>
+                  Move := Sel_Page_Down;
+
+               when Character'Pos ('f') =>
+                  Move := Sel_Page_Down;
+
+               when Character'Pos ('b') =>
+                  Move := Sel_Page_Up;
+
+               when Character'Pos ('g') =>
+                  Move := Sel_Top;
+
+               when Character'Pos ('G') =>
+                  Move := Sel_Bottom;
+
+               when others              =>
+                  Found := False;
             end case;
-         when others => Found := False;
+
+         when others    =>
+            Found := False;
       end case;
    end Map_Selection;
 
@@ -79,9 +149,7 @@ package body Git_View_Policy with SPARK_Mode => On is
    --------------
 
    function Classify
-     (Focused : Pane;
-      Event   : Tui.Input.Key_Event) return Decision
-   is
+     (Focused : Pane; Event : Tui.Input.Key_Event) return Decision is
    begin
       --  Quit: q / Q / Ctrl-C, whichever pane has the keyboard.
       if Event.Kind = Char
@@ -166,22 +234,30 @@ package body Git_View_Policy with SPARK_Mode => On is
             if Event.Kind = Char then
                case Event.Code is
                   when Character'Pos (']') =>
-                     return (Kind => Jump_Diff,
-                             Target => Git_View_Navigation.Hunk_Header,
-                             Jump_Forward => True);
+                     return
+                       (Kind         => Jump_Diff,
+                        Target       => Git_View_Navigation.Hunk_Header,
+                        Jump_Forward => True);
+
                   when Character'Pos ('[') =>
-                     return (Kind => Jump_Diff,
-                             Target => Git_View_Navigation.Hunk_Header,
-                             Jump_Forward => False);
+                     return
+                       (Kind         => Jump_Diff,
+                        Target       => Git_View_Navigation.Hunk_Header,
+                        Jump_Forward => False);
+
                   when Character'Pos ('}') =>
-                     return (Kind => Jump_Diff,
-                             Target => Git_View_Navigation.File_Header,
-                             Jump_Forward => True);
+                     return
+                       (Kind         => Jump_Diff,
+                        Target       => Git_View_Navigation.File_Header,
+                        Jump_Forward => True);
+
                   when Character'Pos ('{') =>
-                     return (Kind => Jump_Diff,
-                             Target => Git_View_Navigation.File_Header,
-                             Jump_Forward => False);
-                  when others =>
+                     return
+                       (Kind         => Jump_Diff,
+                        Target       => Git_View_Navigation.File_Header,
+                        Jump_Forward => False);
+
+                  when others              =>
                      null;
                end case;
             end if;

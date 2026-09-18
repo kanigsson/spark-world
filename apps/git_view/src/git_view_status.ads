@@ -16,13 +16,14 @@
 with Tui.Text;
 with Tui.App_Kit.Status;
 
-package Git_View_Status with SPARK_Mode => On is
+package Git_View_Status
+  with SPARK_Mode => On
+is
 
    subtype Line is Tui.App_Kit.Status.Line;
 
    --  The assembled text, 1-based, ready for the host's painter.
-   function Image (L : Line) return String
-     renames Tui.App_Kit.Status.Image;
+   function Image (L : Line) return String renames Tui.App_Kit.Status.Image;
 
    --  A transient note. The wording lives here; the app only records which
    --  note (if any) is due.
@@ -38,10 +39,8 @@ package Git_View_Status with SPARK_Mode => On is
    --  Search prompt: '/' (forward) or '?' (backward), then the pattern
    --  bytes.
    procedure Format_Prompt
-     (L       : out Line;
-      Forward : Boolean;
-      Pattern : Tui.Text.Buffer)
-     renames Tui.App_Kit.Status.Format_Prompt;
+     (L : out Line; Forward : Boolean; Pattern : Tui.Text.Buffer)
+   renames Tui.App_Kit.Status.Format_Prompt;
 
    --  One of the fixed note messages.
    procedure Format_Note (L : out Line; N : Note)
@@ -52,12 +51,10 @@ package Git_View_Status with SPARK_Mode => On is
    --  Id is the selected commit's abbreviated object name ("" when the line
    --  carries none).
    procedure Format_List_Position
-     (L        : out Line;
-      Selected : Natural;
-      Total    : Natural;
-      Id       : String)
-   with Pre => Selected <= Tui.Text.Max_Lines
-               and then Total <= Tui.Text.Max_Lines;
+     (L : out Line; Selected : Natural; Total : Natural; Id : String)
+   with
+     Pre =>
+       Selected <= Tui.Text.Max_Lines and then Total <= Tui.Text.Max_Lines;
 
    --  Position read-out while the diff pane has the keyboard:
    --    [diff] ID  TOP-LAST/TOTAL  PCT%
@@ -67,7 +64,6 @@ package Git_View_Status with SPARK_Mode => On is
       Top   : Natural;
       Last  : Natural;
       Total : Natural)
-   with Pre => Last <= Tui.Text.Max_Lines
-               and then Total <= Tui.Text.Max_Lines;
+   with Pre => Last <= Tui.Text.Max_Lines and then Total <= Tui.Text.Max_Lines;
 
 end Git_View_Status;

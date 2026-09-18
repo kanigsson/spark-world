@@ -289,8 +289,8 @@ is
 
       pragma Assert (Field <= Bits.Low_Mask_32 (Count));
       pragma Assert (Field <= Bits.Low_Mask_32 (30));
-      pragma Assert (Bits.Low_Mask_32 (30) = 2 ** 30 - 1);
-      pragma Assert (Bits.Low_Mask_32 (Count) = 2 ** Count - 1);
+      pragma Assert (Bits.Low_Mask_32 (30) = 2**30 - 1);
+      pragma Assert (Bits.Low_Mask_32 (Count) = 2**Count - 1);
 
       --  And the same bound in the arithmetic the result is in, which is a
       --  different statement from the one above: the power in the mask's own
@@ -329,7 +329,7 @@ is
 
       pragma Assert (Whole <= Bits.Low_Mask_32 (30));
       pragma Assert (Shorter <= Bits.Low_Mask_32 (30));
-      pragma Assert (Bits.Low_Mask_32 (30) = 2 ** 30 - 1);
+      pragma Assert (Bits.Low_Mask_32 (30) = 2**30 - 1);
       pragma Assert (Whole = 2 * Shorter + Word32 (Lowest));
       pragma Assert (Natural (Whole) = 2 * Natural (Shorter) + Lowest);
    end Lemma_Field_Value_Recursion;

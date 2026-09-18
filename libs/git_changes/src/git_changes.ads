@@ -9,13 +9,13 @@ package Git_Changes is
    type Repository is private;
    function Is_Open (Item : Repository) return Boolean;
    function Root_Path (Item : Repository) return String
-     with Pre => Is_Open (Item);
+   with Pre => Is_Open (Item);
    function Git_Directory (Item : Repository) return String
-     with Pre => Is_Open (Item);
+   with Pre => Is_Open (Item);
    function Object_Format (Item : Repository) return String
-     with Pre => Is_Open (Item);
+   with Pre => Is_Open (Item);
    function Is_Bare (Item : Repository) return Boolean
-     with Pre => Is_Open (Item);
+   with Pre => Is_Open (Item);
 
    type Endpoint_Kind is (Tree_Endpoint, Index_Endpoint, Worktree_Endpoint);
    type Endpoint_Info is private;
@@ -37,7 +37,9 @@ package Git_Changes is
 
    type Diff_Algorithm is (Myers, Minimal, Patience, Histogram);
    type Whitespace_Policy is
-     (Keep_Whitespace, Ignore_All_Whitespace, Ignore_Whitespace_Changes,
+     (Keep_Whitespace,
+      Ignore_All_Whitespace,
+      Ignore_Whitespace_Changes,
       Ignore_End_Of_Line_Whitespace);
    type Stale_Policy is (Mark_Stale, Fail_If_Stale);
 
@@ -55,7 +57,7 @@ package Git_Changes is
    Default_Options : constant Capture_Options := (others => <>);
    type Pathspec_Array is
      array (Positive range <>) of Strings.Unbounded_String;
-   No_Pathspecs : constant Pathspec_Array (1 .. 0) := [];
+   No_Pathspecs    : constant Pathspec_Array (1 .. 0) := [];
 
    type Error_Code is
      (No_Error,
@@ -76,8 +78,8 @@ package Git_Changes is
    function Operation (Item : Error_Info) return String;
    function Detail (Item : Error_Info) return String;
    function Exit_Status (Item : Error_Info) return Integer;
-   function Success (Item : Error_Info) return Boolean is
-     (Code (Item) = No_Error);
+   function Success (Item : Error_Info) return Boolean
+   is (Code (Item) = No_Error);
 
    type Change_Kind is
      (Added,
@@ -97,12 +99,12 @@ package Git_Changes is
       New_First : Natural := 1;
       New_Count : Natural := 1;
    end record
-     with Dynamic_Predicate =>
+   with
+     Dynamic_Predicate =>
        (Changed_Span.Old_Count > 0 or else Changed_Span.New_Count > 0)
-       and then
-       (if Changed_Span.Old_Count > 0 then Changed_Span.Old_First > 0)
-       and then
-       (if Changed_Span.New_Count > 0 then Changed_Span.New_First > 0);
+       and then (if Changed_Span.Old_Count > 0 then Changed_Span.Old_First > 0)
+       and then (if Changed_Span.New_Count > 0
+                 then Changed_Span.New_First > 0);
 
    type Change_Set is private;
 
@@ -128,66 +130,66 @@ package Git_Changes is
    function File_Count (Item : Change_Set) return Natural;
 
    function File_Kind (Item : Change_Set; File : Positive) return Change_Kind
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
    function File_Id (Item : Change_Set; File : Positive) return String
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
    function Has_Path
      (Item : Change_Set; File : Positive; Which : Side) return Boolean
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
    function Path
      (Item : Change_Set; File : Positive; Which : Side) return Byte_String
-     with Pre => File <= File_Count (Item)
-       and then Has_Path (Item, File, Which);
+   with Pre => File <= File_Count (Item) and then Has_Path (Item, File, Which);
    function Has_Mode
      (Item : Change_Set; File : Positive; Which : Side) return Boolean
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
    function Mode
      (Item : Change_Set; File : Positive; Which : Side) return String
-     with Pre => File <= File_Count (Item)
-       and then Has_Mode (Item, File, Which);
+   with Pre => File <= File_Count (Item) and then Has_Mode (Item, File, Which);
    function Has_Object_Id
      (Item : Change_Set; File : Positive; Which : Side) return Boolean
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
    function Object_Id
      (Item : Change_Set; File : Positive; Which : Side) return String
-     with Pre => File <= File_Count (Item)
-       and then Has_Object_Id (Item, File, Which);
+   with
+     Pre =>
+       File <= File_Count (Item) and then Has_Object_Id (Item, File, Which);
    function Has_Similarity (Item : Change_Set; File : Positive) return Boolean
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
    function Similarity (Item : Change_Set; File : Positive) return Natural
-     with Pre => File <= File_Count (Item)
-       and then Has_Similarity (Item, File);
+   with Pre => File <= File_Count (Item) and then Has_Similarity (Item, File);
    function Is_Binary (Item : Change_Set; File : Positive) return Boolean
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
    function Is_Submodule (Item : Change_Set; File : Positive) return Boolean
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
    function Content_Available
      (Item : Change_Set; File : Positive; Which : Side) return Boolean
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
    function File_Diagnostic (Item : Change_Set; File : Positive) return String
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
 
    function Span_Count (Item : Change_Set; File : Positive) return Natural
-     with Pre => File <= File_Count (Item);
+   with Pre => File <= File_Count (Item);
    function Span
      (Item : Change_Set; File : Positive; Number : Positive)
       return Changed_Span
-     with Pre => File <= File_Count (Item)
-       and then Number <= Span_Count (Item, File);
+   with
+     Pre =>
+       File <= File_Count (Item) and then Number <= Span_Count (Item, File);
    function Span_Id
      (Item : Change_Set; File : Positive; Number : Positive) return String
-     with Pre => File <= File_Count (Item)
-       and then Number <= Span_Count (Item, File);
+   with
+     Pre =>
+       File <= File_Count (Item) and then Number <= Span_Count (Item, File);
 
 private
    subtype UString is Ada.Strings.Unbounded.Unbounded_String;
 
    type Repository is record
-      Opened        : Boolean := False;
-      Root          : UString;
-      Git_Dir       : UString;
+      Opened             : Boolean := False;
+      Root               : UString;
+      Git_Dir            : UString;
       Object_Format_Name : UString;
-      Bare          : Boolean := False;
+      Bare               : Boolean := False;
    end record;
 
    type Endpoint_Info is record
@@ -198,8 +200,8 @@ private
 
    type Comparison is record
       Comparison_Type : Comparison_Kind := Tree_To_Worktree_Comparison;
-      Old_Revision     : UString;
-      New_Revision     : UString;
+      Old_Revision    : UString;
+      New_Revision    : UString;
    end record;
 
    type Error_Info is record
@@ -214,45 +216,49 @@ private
         (Old_First => 1, Old_Count => 1, New_First => 1, New_Count => 1);
       Identifier : UString;
    end record;
-   package Span_Vectors is new Ada.Containers.Vectors
-     (Index_Type => Positive, Element_Type => Stored_Span);
+   package Span_Vectors is new
+     Ada.Containers.Vectors
+       (Index_Type   => Positive,
+        Element_Type => Stored_Span);
 
    type Stored_File is record
-      Identifier       : UString;
-      Delta_Kind       : Change_Kind := Modified;
-      Old_Path         : UString;
-      New_Path         : UString;
-      Old_Path_Present : Boolean := False;
-      New_Path_Present : Boolean := False;
-      Old_Mode         : UString;
-      New_Mode         : UString;
-      Old_Mode_Present : Boolean := False;
-      New_Mode_Present : Boolean := False;
-      Old_Object       : UString;
-      New_Object       : UString;
-      Old_Object_Present : Boolean := False;
-      New_Object_Present : Boolean := False;
-      Score            : Natural range 0 .. 100 := 0;
-      Score_Present    : Boolean := False;
-      Binary           : Boolean := False;
-      Submodule        : Boolean := False;
-      Old_Content      : Boolean := False;
-      New_Content      : Boolean := False;
-      Diagnostic       : UString;
+      Identifier           : UString;
+      Delta_Kind           : Change_Kind := Modified;
+      Old_Path             : UString;
+      New_Path             : UString;
+      Old_Path_Present     : Boolean := False;
+      New_Path_Present     : Boolean := False;
+      Old_Mode             : UString;
+      New_Mode             : UString;
+      Old_Mode_Present     : Boolean := False;
+      New_Mode_Present     : Boolean := False;
+      Old_Object           : UString;
+      New_Object           : UString;
+      Old_Object_Present   : Boolean := False;
+      New_Object_Present   : Boolean := False;
+      Score                : Natural range 0 .. 100 := 0;
+      Score_Present        : Boolean := False;
+      Binary               : Boolean := False;
+      Submodule            : Boolean := False;
+      Old_Content          : Boolean := False;
+      New_Content          : Boolean := False;
+      Diagnostic           : UString;
       Worktree_Fingerprint : UString;
-      Spans            : Span_Vectors.Vector;
+      Spans                : Span_Vectors.Vector;
    end record;
-   package File_Vectors is new Ada.Containers.Vectors
-     (Index_Type => Positive, Element_Type => Stored_File);
+   package File_Vectors is new
+     Ada.Containers.Vectors
+       (Index_Type   => Positive,
+        Element_Type => Stored_File);
 
    type Change_Set is record
-      Repo       : Repository;
-      Compared   : Comparison;
-      Old_State  : Endpoint_Info;
-      New_State  : Endpoint_Info;
-      Stale      : Boolean := False;
-      Limits     : Capture_Options := Default_Options;
-      Files      : File_Vectors.Vector;
+      Repo      : Repository;
+      Compared  : Comparison;
+      Old_State : Endpoint_Info;
+      New_State : Endpoint_Info;
+      Stale     : Boolean := False;
+      Limits    : Capture_Options := Default_Options;
+      Files     : File_Vectors.Vector;
    end record;
 
    procedure Set_Error

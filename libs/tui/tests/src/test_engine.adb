@@ -44,7 +44,8 @@ procedure Test_Engine is
             P : constant Natural :=
               Wide_Wide_Character'Pos (Get (Surf, R, C).Glyph);
          begin
-            S (Natural (C)) := (if P in 32 .. 126 then Character'Val (P) else '?');
+            S (Natural (C)) :=
+              (if P in 32 .. 126 then Character'Val (P) else '?');
          end;
       end loop;
       return S;
@@ -52,8 +53,22 @@ procedure Test_Engine is
 
    --  Eight clearly-distinguishable lines; no trailing newline on the last.
    Content : constant Tui.Text.Buffer :=
-     Buf_Of ("alpha" & LF & "bravo" & LF & "charlie" & LF & "delta" & LF
-             & "echo" & LF & "foxtrot" & LF & "golf" & LF & "hotel");
+     Buf_Of
+       ("alpha"
+        & LF
+        & "bravo"
+        & LF
+        & "charlie"
+        & LF
+        & "delta"
+        & LF
+        & "echo"
+        & LF
+        & "foxtrot"
+        & LF
+        & "golf"
+        & LF
+        & "hotel");
 
    Idx  : Tui.Text.Index (100);
    E    : PE.Instance;
@@ -109,8 +124,9 @@ begin
    ----------------------------------------------------------------- search back
    PE.Set_Pattern (E, Buf_Of ("alpha"));
    PE.Handle (E, PE.Find_Prev, Content, Idx, Res);
-   Check (Res = PE.Search_Hit and then PE.Top_Line (E) = 1,
-          "find prev 'alpha' -> top 1");
+   Check
+     (Res = PE.Search_Hit and then PE.Top_Line (E) = 1,
+      "find prev 'alpha' -> top 1");
 
    ----------------------------------------------------------------- search miss
    PE.Set_Pattern (E, Buf_Of ("zzz"));

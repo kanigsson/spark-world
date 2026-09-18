@@ -1,62 +1,64 @@
-package body Inflate.CRC32 with SPARK_Mode => On is
+package body Inflate.CRC32
+  with SPARK_Mode => On
+is
 
    --  The loop invariant tying the implementation to the fold model
    --  recurses as deep as the data yet to be processed, on every
    --  iteration; the content lemma recurses as deep as the data. This
    --  policy keeps both out of assertion-enabled executables; GNATprove
    --  proves Ignore-policy assertions all the same.
-   pragma Assertion_Policy
-     (Pre            => Ignore,
-      Post           => Ignore,
-      Ghost          => Ignore,
-      Assert         => Ignore,
-      Loop_Invariant => Ignore,
-      Loop_Variant   => Ignore);
+   pragma
+     Assertion_Policy
+       (Pre => Ignore,
+        Post => Ignore,
+        Ghost => Ignore,
+        Assert => Ignore,
+        Loop_Invariant => Ignore,
+        Loop_Variant => Ignore);
 
    -------------------------
    -- Polynomial_Bit_Step --
    -------------------------
 
-   function Polynomial_Bit_Step (Remainder : Word32) return Word32 is
-     (if (Remainder and 1) /= 0
-      then Shift_Right (Remainder, 1) xor Reflected_Generator
-      else Shift_Right (Remainder, 1));
+   function Polynomial_Bit_Step (Remainder : Word32) return Word32
+   is (if (Remainder and 1) /= 0
+       then Shift_Right (Remainder, 1) xor Reflected_Generator
+       else Shift_Right (Remainder, 1));
 
    -----------------------
    -- Polynomial_Bits_2 --
    -----------------------
 
-   function Polynomial_Bits_2 (Remainder : Word32) return Word32 is
-     (Polynomial_Bit_Step (Polynomial_Bit_Step (Remainder)));
+   function Polynomial_Bits_2 (Remainder : Word32) return Word32
+   is (Polynomial_Bit_Step (Polynomial_Bit_Step (Remainder)));
 
    -----------------------
    -- Polynomial_Bits_4 --
    -----------------------
 
-   function Polynomial_Bits_4 (Remainder : Word32) return Word32 is
-     (Polynomial_Bits_2 (Polynomial_Bits_2 (Remainder)));
+   function Polynomial_Bits_4 (Remainder : Word32) return Word32
+   is (Polynomial_Bits_2 (Polynomial_Bits_2 (Remainder)));
 
    -----------------------
    -- Polynomial_Bits_8 --
    -----------------------
 
-   function Polynomial_Bits_8 (Remainder : Word32) return Word32 is
-     (Polynomial_Bits_4 (Polynomial_Bits_4 (Remainder)));
+   function Polynomial_Bits_8 (Remainder : Word32) return Word32
+   is (Polynomial_Bits_4 (Polynomial_Bits_4 (Remainder)));
 
    -------------------------------
    -- Polynomial_Byte_Remainder --
    -------------------------------
 
-   function Polynomial_Byte_Remainder (B : Byte) return Word32 is
-     (Polynomial_Bits_8 (Word32 (B)));
+   function Polynomial_Byte_Remainder (B : Byte) return Word32
+   is (Polynomial_Bits_8 (Word32 (B)));
 
    --------------------------
    -- Polynomial_Byte_Step --
    --------------------------
 
-   function Polynomial_Byte_Step (Remainder : Word32; B : Byte)
-      return Word32 is
-     (Polynomial_Bits_8 (Remainder xor Word32 (B)));
+   function Polynomial_Byte_Step (Remainder : Word32; B : Byte) return Word32
+   is (Polynomial_Bits_8 (Remainder xor Word32 (B)));
 
    type Table_Type is array (Byte) of Word32;
 
@@ -72,9 +74,10 @@ package body Inflate.CRC32 with SPARK_Mode => On is
    begin
       for I in Byte loop
          T (I) := Polynomial_Byte_Remainder (I);
-         pragma Loop_Invariant
-           (for all J in Byte'First .. I =>
-              T (J) = Polynomial_Byte_Remainder (J));
+         pragma
+           Loop_Invariant
+             (for all J in Byte'First .. I =>
+                T (J) = Polynomial_Byte_Remainder (J));
       end loop;
       return T;
    end Build_Table;
@@ -83,11 +86,9 @@ package body Inflate.CRC32 with SPARK_Mode => On is
 
    --  One optimized table step.  Its contract is the bridge from the cached
    --  implementation to the direct polynomial-division specification.
-   function Step (C : Word32; B : Byte) return Word32 is
-     (Table (Bits.Truncate_To_Byte (C) xor B) xor Shift_Right (C, 8))
-   with
-     Global => null,
-     Post   => Step'Result = Polynomial_Byte_Step (C, B);
+   function Step (C : Word32; B : Byte) return Word32
+   is (Table (Bits.Truncate_To_Byte (C) xor B) xor Shift_Right (C, 8))
+   with Global => null, Post => Step'Result = Polynomial_Byte_Step (C, B);
 
    ----------
    -- Fold --
@@ -96,11 +97,9 @@ package body Inflate.CRC32 with SPARK_Mode => On is
    function Fold
      (C : Word32; Data : Byte_Array; From : Positive; To : Natural)
       return Word32
-   is
-     (if From > To
-      then C
-      else Fold
-        (Polynomial_Byte_Step (C, Data (From)), Data, From + 1, To));
+   is (if From > To
+       then C
+       else Fold (Polynomial_Byte_Step (C, Data (From)), Data, From + 1, To));
 
    ------------
    -- Update --
@@ -112,9 +111,10 @@ package body Inflate.CRC32 with SPARK_Mode => On is
       for I in Data'Range loop
          --  The final fold is invariant: what has been absorbed into C
          --  plus the fold of the rest equals the fold of the whole.
-         pragma Loop_Invariant
-           (Fold (CRC xor 16#FFFF_FFFF#, Data, Data'First, Data'Last) =
-              Fold (C, Data, I, Data'Last));
+         pragma
+           Loop_Invariant
+             (Fold (CRC xor 16#FFFF_FFFF#, Data, Data'First, Data'Last)
+                = Fold (C, Data, I, Data'Last));
          C := Step (C, Data (I));
       end loop;
       return C xor 16#FFFF_FFFF#;
@@ -128,60 +128,71 @@ package body Inflate.CRC32 with SPARK_Mode => On is
    --  induction on the sequence.
    procedure Lemma_Fold_Content
      (C  : Word32;
-      D1 : Byte_Array; F1 : Positive; T1 : Natural;
-      D2 : Byte_Array; F2 : Positive; T2 : Natural)
+      D1 : Byte_Array;
+      F1 : Positive;
+      T1 : Natural;
+      D2 : Byte_Array;
+      F2 : Positive;
+      T2 : Natural)
    with
      Ghost,
-     Global => null,
-     Pre  =>
-       T1 <= Buffer_Index'Last and then T2 <= Buffer_Index'Last
-       and then F1 <= T1 + 1 and then F2 <= T2 + 1
+     Global             => null,
+     Pre                =>
+       T1 <= Buffer_Index'Last
+       and then T2 <= Buffer_Index'Last
+       and then F1 <= T1 + 1
+       and then F2 <= T2 + 1
        and then (if T1 >= F1 then F1 >= D1'First and then T1 <= D1'Last)
        and then (if T2 >= F2 then F2 >= D2'First and then T2 <= D2'Last)
        and then T1 - F1 = T2 - F2
        and then (for all K in 0 .. T1 - F1 => D2 (F2 + K) = D1 (F1 + K)),
-     Post => Fold (C, D2, F2, T2) = Fold (C, D1, F1, T1),
+     Post               => Fold (C, D2, F2, T2) = Fold (C, D1, F1, T1),
      Subprogram_Variant => (Decreases => T1 - F1);
 
    procedure Lemma_Fold_Content
      (C  : Word32;
-      D1 : Byte_Array; F1 : Positive; T1 : Natural;
-      D2 : Byte_Array; F2 : Positive; T2 : Natural)
-   is
+      D1 : Byte_Array;
+      F1 : Positive;
+      T1 : Natural;
+      D2 : Byte_Array;
+      F2 : Positive;
+      T2 : Natural) is
    begin
       if F1 <= T1 then
          pragma Assert (D2 (F2) = D1 (F1));
-         pragma Assert
-           (Polynomial_Byte_Step (C, D2 (F2)) =
-              Polynomial_Byte_Step (C, D1 (F1)));
-         pragma Assert
-           (for all K in 0 .. T1 - (F1 + 1) =>
-              D2 ((F2 + 1) + K) = D1 ((F1 + 1) + K));
+         pragma
+           Assert
+             (Polynomial_Byte_Step (C, D2 (F2))
+                = Polynomial_Byte_Step (C, D1 (F1)));
+         pragma
+           Assert
+             (for all K in 0 .. T1 - (F1 + 1) =>
+                D2 ((F2 + 1) + K) = D1 ((F1 + 1) + K));
          Lemma_Fold_Content
-           (Polynomial_Byte_Step (C, D1 (F1)),
-            D1, F1 + 1, T1, D2, F2 + 1, T2);
-         pragma Assert
-           (Fold (C, D1, F1, T1) =
-              Fold
-                (Polynomial_Byte_Step (C, D1 (F1)),
-                 D1, F1 + 1, T1));
-         pragma Assert
-           (Fold (C, D2, F2, T2) =
-              Fold
-                (Polynomial_Byte_Step (C, D2 (F2)),
-                 D2, F2 + 1, T2));
+           (Polynomial_Byte_Step (C, D1 (F1)), D1, F1 + 1, T1, D2, F2 + 1, T2);
+         pragma
+           Assert
+             (Fold (C, D1, F1, T1)
+                = Fold (Polynomial_Byte_Step (C, D1 (F1)), D1, F1 + 1, T1));
+         pragma
+           Assert
+             (Fold (C, D2, F2, T2)
+                = Fold (Polynomial_Byte_Step (C, D2 (F2)), D2, F2 + 1, T2));
       end if;
    end Lemma_Fold_Content;
 
    procedure Lemma_Update_Content
-     (CRC : Word32; D1 : Byte_Array; D2 : Byte_Array)
-   is
+     (CRC : Word32; D1 : Byte_Array; D2 : Byte_Array) is
    begin
       if D1'Length > 0 then
          Lemma_Fold_Content
            (CRC xor 16#FFFF_FFFF#,
-            D1, D1'First, D1'Last,
-            D2, D2'First, D2'Last);
+            D1,
+            D1'First,
+            D1'Last,
+            D2,
+            D2'First,
+            D2'Last);
       end if;
    end Lemma_Update_Content;
 

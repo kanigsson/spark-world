@@ -7,7 +7,9 @@
 --  instant over a slow link, and it is pure logic over two grids, so it is the
 --  natural first proof target of the ecosystem.
 
-package Tui.Surface.Diff with SPARK_Mode => On is
+package Tui.Surface.Diff
+  with SPARK_Mode => On
+is
 
    type Cell_Change is record
       Row    : Row_Index;
@@ -35,21 +37,25 @@ package Tui.Surface.Diff with SPARK_Mode => On is
       Changes           : out Change_Array;
       Count             : out Natural)
    with
-     Pre  => Same_Geometry (Previous, Current)
-             and then Changes'First = 1
-             and then Changes'Length >= Cell_Count (Current),
-     Post => Count <= Changes'Length
-             --  SOUNDNESS: every reported change is a genuine difference and
-             --  carries Current's value. This part proves today.
-             and then
-               (for all I in 1 .. Count =>
-                  In_Bounds (Current, Changes (I).Row, Changes (I).Column)
-                  and then
-                    Changes (I).Value
-                      = Get (Current, Changes (I).Row, Changes (I).Column)
-                  and then
-                    Get (Previous, Changes (I).Row, Changes (I).Column)
-                      /= Get (Current, Changes (I).Row, Changes (I).Column));
+     Pre  =>
+       Same_Geometry (Previous, Current)
+       and then Changes'First = 1
+       and then Changes'Length >= Cell_Count (Current),
+     Post =>
+       Count
+       <= Changes'Length
+          --  SOUNDNESS: every reported change is a genuine difference and
+          --  carries Current's value. This part proves today.
+       and then (for all I in 1 .. Count =>
+                   In_Bounds (Current, Changes (I).Row, Changes (I).Column)
+                   and then Changes (I).Value
+                            = Get
+                                (Current, Changes (I).Row, Changes (I).Column)
+                   and then Get (Previous, Changes (I).Row, Changes (I).Column)
+                            /= Get
+                                 (Current,
+                                  Changes (I).Row,
+                                  Changes (I).Column));
 
    --  COMPLETENESS and UNIQUENESS — every differing cell appears exactly once
    --  — are the two further properties that make this a *correct* minimal
@@ -63,11 +69,14 @@ package Tui.Surface.Diff with SPARK_Mode => On is
    is (for all R in Row_Index range 1 .. Current.Rows =>
          (for all C in Col_Index range 1 .. Current.Cols =>
             (if Get (Previous, R, C) /= Get (Current, R, C)
-             then (for some I in 1 .. Count =>
-                     Changes (I).Row = R and then Changes (I).Column = C))))
-   with Ghost,
-        Pre => Same_Geometry (Previous, Current)
-               and then Changes'First = 1
-               and then Count <= Changes'Length;
+             then
+               (for some I in 1 .. Count =>
+                  Changes (I).Row = R and then Changes (I).Column = C))))
+   with
+     Ghost,
+     Pre =>
+       Same_Geometry (Previous, Current)
+       and then Changes'First = 1
+       and then Count <= Changes'Length;
 
 end Tui.Surface.Diff;

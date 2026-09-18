@@ -15,8 +15,6 @@ package Box_Demo is
    --  Arrows move the box; q / Escape / Ctrl-C quit; anything else just updates
    --  the status line.
    procedure On_Key
-     (Event : Tui.Input.Key_Event;
-      Dirty : out Boolean;
-      Quit  : out Boolean);
+     (Event : Tui.Input.Key_Event; Dirty : out Boolean; Quit : out Boolean);
 
 end Box_Demo;

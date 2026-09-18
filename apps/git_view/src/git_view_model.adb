@@ -1,4 +1,6 @@
-package body Git_View_Model with SPARK_Mode => On is
+package body Git_View_Model
+  with SPARK_Mode => On
+is
    function To_Text (S : String) return Text is
       R : Text;
    begin
@@ -36,15 +38,18 @@ package body Git_View_Model with SPARK_Mode => On is
 
    procedure Cycle_Lens (V : in out View_State) is
    begin
-      V.Lens := (if V.Lens = Change_Lens'Last then Change_Lens'First
-                 else Change_Lens'Succ (V.Lens));
+      V.Lens :=
+        (if V.Lens = Change_Lens'Last
+         then Change_Lens'First
+         else Change_Lens'Succ (V.Lens));
    end Cycle_Lens;
 
    procedure Cycle_Tree (V : in out View_State) is
    begin
-      V.Visibility := (if V.Visibility = Tree_Visibility'Last
-                       then Tree_Visibility'First
-                       else Tree_Visibility'Succ (V.Visibility));
+      V.Visibility :=
+        (if V.Visibility = Tree_Visibility'Last
+         then Tree_Visibility'First
+         else Tree_Visibility'Succ (V.Visibility));
       V.Selected (Tree_Pane) := 1;
    end Cycle_Tree;
 
@@ -57,10 +62,9 @@ package body Git_View_Model with SPARK_Mode => On is
       end if;
    end Toggle_Pin;
 
-   procedure Append (Items : in out Locations; Count : in out Natural;
-                     V : View_State)
-     with Pre => Count <= Stack_Capacity,
-          Post => Count in 1 .. Stack_Capacity
+   procedure Append
+     (Items : in out Locations; Count : in out Natural; V : View_State)
+   with Pre => Count <= Stack_Capacity, Post => Count in 1 .. Stack_Capacity
    is
    begin
       if Count = Stack_Capacity then
@@ -94,17 +98,19 @@ package body Git_View_Model with SPARK_Mode => On is
          N.Future_Count := N.Future_Count - 1;
       end if;
    end Forward;
-   function Can_Back (N : Navigation) return Boolean is (N.Past_Count > 0);
-   function Can_Forward (N : Navigation) return Boolean is (N.Future_Count > 0);
+   function Can_Back (N : Navigation) return Boolean
+   is (N.Past_Count > 0);
+   function Can_Forward (N : Navigation) return Boolean
+   is (N.Future_Count > 0);
 
    function In_Context
-     (Line, First, Count : Natural; Context : Natural := 3) return Boolean
-   is
+     (Line, First, Count : Natural; Context : Natural := 3) return Boolean is
    begin
       if Line < First then
          return First - Line <= Context;
       else
-         return Line - First < Count
+         return
+           Line - First < Count
            or else Line - First - Natural'Min (Line - First, Count) <= Context;
       end if;
    end In_Context;

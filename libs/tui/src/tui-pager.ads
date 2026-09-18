@@ -18,12 +18,14 @@
 
 with Tui.Text;
 
-package Tui.Pager with SPARK_Mode => On is
+package Tui.Pager
+  with SPARK_Mode => On
+is
 
    --  Content line numbering is owned by Tui.Text; reuse it so the engine and
    --  the line index speak the same vocabulary.
    subtype Line_Number is Tui.Text.Line_Number;   --  1 .. N, a content line
-   subtype Line_Total  is Tui.Text.Line_Total;    --  0 .. N, a line count
+   subtype Line_Total is Tui.Text.Line_Total;    --  0 .. N, a line count
 
    --  Screen geometry (rows, columns, scroll offsets). Generous cap that keeps
    --  all layout arithmetic well inside 32-bit Integer.

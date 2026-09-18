@@ -19,7 +19,9 @@ with Inflate.Fixed;
 with Inflate.Dynamic;
 with Inflate.Bodies;
 
-package Inflate.GZip with SPARK_Mode => On is
+package Inflate.GZip
+  with SPARK_Mode => On
+is
 
    --  The trailer is two little-endian 32-bit fields. Load_32 is the checked
    --  read of such a field, and the contracts below say what it must yield;
@@ -32,19 +34,16 @@ package Inflate.GZip with SPARK_Mode => On is
    --  The common body must end exactly eight bytes before the member's end
    --  and its decoded size must fit Out_Len.  Trailer contents remain a
    --  separate checksum/length condition below.
-   function Member
-     (Input : Byte_Array; Out_Len : Natural) return Boolean
-   is
-     (Input'Length >= 20
-      and then Input (Input'First) = 16#1F#
-      and then Input (Input'First + 1) = 16#8B#
-      and then Input (Input'First + 2) = 8
-      and then Input (Input'First + 3) = 0
-      and then Bodies.Recognized
-                 (Input (Input'First + 10 .. Input'Last), Out_Len)
-      and then Bodies.Encoded_Size
-                 (Input (Input'First + 10 .. Input'Last)) =
-                   Input'Length - 18);
+   function Member (Input : Byte_Array; Out_Len : Natural) return Boolean
+   is (Input'Length >= 20
+       and then Input (Input'First) = 16#1F#
+       and then Input (Input'First + 1) = 16#8B#
+       and then Input (Input'First + 2) = 8
+       and then Input (Input'First + 3) = 0
+       and then Bodies.Recognized
+                  (Input (Input'First + 10 .. Input'Last), Out_Len)
+       and then Bodies.Encoded_Size (Input (Input'First + 10 .. Input'Last))
+                = Input'Length - 18);
 
    --  Decompress the gzip member starting at Input'First. Status = OK
    --  means well-formed *and* CRC-32 and length matched. On error,
@@ -59,35 +58,39 @@ package Inflate.GZip with SPARK_Mode => On is
    --  plus the output's length. A compressor that provably stored those
    --  values (Compress does) therefore gets Status = OK.
    procedure Decompress
-     (Input    : in     Byte_Array;
+     (Input    : in Byte_Array;
       Output   : in out Byte_Array;
-      Consumed :    out Natural;
-      Produced :    out Natural;
-      Status   :    out Status_Type)
+      Consumed : out Natural;
+      Produced : out Natural;
+      Status   : out Status_Type)
    with
      Global => null,
      Post   =>
        (Consumed <= Input'Length
         and then Produced <= Output'Length
         and then (if Status = OK then Consumed > 0))
-       and then
-       (if Member (Input, Output'Length)
-        then
-          Consumed = Input'Length
-          and then Produced = Bodies.Decoded_Size
-                     (Input (Input'First + 10 .. Input'Last))
-          and then Bodies.Body_Encodes
-                     (Input (Input'First + 10 .. Input'Last),
-                      Input'Length - 18,
-                      Output (Output'First .. Output'First - 1 + Produced))
-          and then (if Load_32 (Input, Input'Last - 7, Little_Endian) =
-                         CRC32.Compute
-                           (Output (Output'First ..
-                                    Output'First - 1 + Produced))
-                       and then Load_32
-                                  (Input, Input'Last - 3, Little_Endian) =
-                                    Word32 (Produced)
-                    then Status = OK));
+       and then (if Member (Input, Output'Length)
+                 then
+                   Consumed = Input'Length
+                   and then Produced
+                            = Bodies.Decoded_Size
+                                (Input (Input'First + 10 .. Input'Last))
+                   and then Bodies.Body_Encodes
+                              (Input (Input'First + 10 .. Input'Last),
+                               Input'Length - 18,
+                               Output
+                                 (Output'First .. Output'First - 1 + Produced))
+                   and then (if Load_32 (Input, Input'Last - 7, Little_Endian)
+                               = CRC32.Compute
+                                   (Output
+                                      (Output'First
+                                       .. Output'First - 1 + Produced))
+                               and then Load_32
+                                          (Input,
+                                           Input'Last - 3,
+                                           Little_Endian)
+                                        = Word32 (Produced)
+                             then Status = OK));
 
    --  Decompress consecutive gzip members until the input is exhausted,
    --  concatenating their output — the semantics of `gzip -d` on the whole
@@ -97,31 +100,35 @@ package Inflate.GZip with SPARK_Mode => On is
    --  A file that is one member in the compressor's image (the whole-file
    --  case of the round-trip theorem) carries the member contract through.
    procedure Decompress_All
-     (Input    : in     Byte_Array;
+     (Input    : in Byte_Array;
       Output   : in out Byte_Array;
-      Produced :    out Natural;
-      Status   :    out Status_Type)
+      Produced : out Natural;
+      Status   : out Status_Type)
    with
      Global => null,
      Post   =>
        Produced <= Output'Length
-       and then
-       (if Member (Input, Output'Length)
-        then
-          Produced = Bodies.Decoded_Size
+       and then (if Member (Input, Output'Length)
+                 then
+                   Produced
+                   = Bodies.Decoded_Size
                        (Input (Input'First + 10 .. Input'Last))
-          and then Bodies.Body_Encodes
-                     (Input (Input'First + 10 .. Input'Last),
-                      Input'Length - 18,
-                      Output (Output'First .. Output'First - 1 + Produced))
-          and then (if Load_32 (Input, Input'Last - 7, Little_Endian) =
-                         CRC32.Compute
-                           (Output (Output'First ..
-                                    Output'First - 1 + Produced))
-                       and then Load_32
-                                  (Input, Input'Last - 3, Little_Endian) =
-                                    Word32 (Produced)
-                    then Status = OK));
+                   and then Bodies.Body_Encodes
+                              (Input (Input'First + 10 .. Input'Last),
+                               Input'Length - 18,
+                               Output
+                                 (Output'First .. Output'First - 1 + Produced))
+                   and then (if Load_32 (Input, Input'Last - 7, Little_Endian)
+                               = CRC32.Compute
+                                   (Output
+                                      (Output'First
+                                       .. Output'First - 1 + Produced))
+                               and then Load_32
+                                          (Input,
+                                           Input'Last - 3,
+                                           Little_Endian)
+                                        = Word32 (Produced)
+                             then Status = OK));
 
    ---------------------------------------------------------------------
    --  Compression
@@ -131,12 +138,15 @@ package Inflate.GZip with SPARK_Mode => On is
    --  fixed, or stored body, and trailer. Above the first dynamic-selection
    --  threshold the bound reserves its deliberately large direct-length
    --  header even when the data ultimately stays on the fixed path.
-   function Compressed_Size (N : Natural) return Positive is
-     ((if N < Dynamic.Dynamic_Run_Min_Input
-       then Fixed.Max_Size (N)
-       elsif N <= Dynamic.Max_Input then Dynamic.Max_Size (N)
-       elsif N <= Fixed.Max_Input then Fixed.Max_Size (N)
-       else Raw.Stored_Size (N)) + 18)
+   function Compressed_Size (N : Natural) return Positive
+   is ((if N < Dynamic.Dynamic_Run_Min_Input
+        then Fixed.Max_Size (N)
+        elsif N <= Dynamic.Max_Input
+        then Dynamic.Max_Size (N)
+        elsif N <= Fixed.Max_Input
+        then Fixed.Max_Size (N)
+        else Raw.Stored_Size (N))
+       + 18)
    with Pre => N <= Raw.Max_Compress_Input;
 
    --  Produce a complete gzip member holding Input. Long constant-byte runs
@@ -154,13 +164,14 @@ package Inflate.GZip with SPARK_Mode => On is
    --  input length. This is the compress half of the gzip round-trip
    --  theorem; the decode half relates Decompress to the same model.
    procedure Compress
-     (Input    : in     Byte_Array;
+     (Input    : in Byte_Array;
       Output   : in out Byte_Array;
-      Produced :    out Natural)
+      Produced : out Natural)
    with
      Global => null,
-     Pre    => Input'Length <= Raw.Max_Compress_Input
-               and then Output'Length >= Compressed_Size (Input'Length),
+     Pre    =>
+       Input'Length <= Raw.Max_Compress_Input
+       and then Output'Length >= Compressed_Size (Input'Length),
      Post   =>
        (if Dynamic.Selects_Byte_Run (Input)
         then Produced <= Fixed.Encoded_Size (Input) + 18
@@ -173,28 +184,21 @@ package Inflate.GZip with SPARK_Mode => On is
        and then Output (Output'First + 2) = 8
        and then Output (Output'First + 3) = 0
        and then Bodies.Body_Encodes
-                  (Output
-                     (Output'First + 10 ..
-                      Output'First + (Produced - 1)),
-                   Produced - 18, Input)
+                  (Output (Output'First + 10 .. Output'First + (Produced - 1)),
+                   Produced - 18,
+                   Input)
        and then Bodies.Recognized
-                  (Output
-                     (Output'First + 10 ..
-                      Output'First + (Produced - 1)),
+                  (Output (Output'First + 10 .. Output'First + (Produced - 1)),
                    Input'Length)
        and then Bodies.Encoded_Size
-                  (Output
-                     (Output'First + 10 ..
-                      Output'First + (Produced - 1))) = Produced - 18
+                  (Output (Output'First + 10 .. Output'First + (Produced - 1)))
+                = Produced - 18
        and then Bodies.Decoded_Size
-                  (Output
-                     (Output'First + 10 ..
-                      Output'First + (Produced - 1))) = Input'Length
-       and then Load_32
-                  (Output, Output'First + (Produced - 8), Little_Endian) =
-                    CRC32.Compute (Input)
-       and then Load_32
-                  (Output, Output'First + (Produced - 4), Little_Endian) =
-                    Word32 (Input'Length);
+                  (Output (Output'First + 10 .. Output'First + (Produced - 1)))
+                = Input'Length
+       and then Load_32 (Output, Output'First + (Produced - 8), Little_Endian)
+                = CRC32.Compute (Input)
+       and then Load_32 (Output, Output'First + (Produced - 4), Little_Endian)
+                = Word32 (Input'Length);
 
 end Inflate.GZip;

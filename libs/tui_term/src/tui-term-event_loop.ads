@@ -31,10 +31,9 @@ package Tui.Term.Event_Loop is
 
    --  React to one key. Set Quit => True to leave the loop; set Dirty => True
    --  when the key changed what should be on screen (asks for a repaint).
-   type Key_Handler is access procedure
-     (Event : Tui.Input.Key_Event;
-      Dirty : out Boolean;
-      Quit  : out Boolean);
+   type Key_Handler is
+     access procedure
+       (Event : Tui.Input.Key_Event; Dirty : out Boolean; Quit : out Boolean);
 
    --  Run the loop to completion. A no-op (returns at once) when stdin/stdout is
    --  not a terminal. Restores the terminal unconditionally before returning.
@@ -42,8 +41,6 @@ package Tui.Term.Event_Loop is
    --  the mouse event kinds, including button motion (at the cost of native
    --  text selection; see Mode).
    procedure Run
-     (Paint  : Painter;
-      On_Key : Key_Handler;
-      Mouse  : Boolean := False);
+     (Paint : Painter; On_Key : Key_Handler; Mouse : Boolean := False);
 
 end Tui.Term.Event_Loop;

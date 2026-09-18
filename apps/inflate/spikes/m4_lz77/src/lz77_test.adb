@@ -1,5 +1,5 @@
-with Ada.Text_IO;  use Ada.Text_IO;
-with Inflate;      use Inflate;
+with Ada.Text_IO; use Ada.Text_IO;
+with Inflate;     use Inflate;
 with Inflate.LZ77;
 with Inflate.Model;
 

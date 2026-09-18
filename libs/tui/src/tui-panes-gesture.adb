@@ -1,4 +1,6 @@
-package body Tui.Panes.Gesture with SPARK_Mode => On is
+package body Tui.Panes.Gesture
+  with SPARK_Mode => On
+is
 
    use Tui.Input;
    use type Layout.Hit_Kind;
@@ -9,9 +11,7 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
    --------------------
 
    procedure Selected_Range
-     (R           : Recognizer;
-      First, Last : out Selection.Position)
-   is
+     (R : Recognizer; First, Last : out Selection.Position) is
    begin
       Selection.Ordered (R.Anchor, R.Live, First, Last);
    end Selected_Range;
@@ -23,7 +23,7 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
    procedure Reset (R : in out Recognizer) is
    begin
       R.Dragging := False;
-      R.Showing  := False;
+      R.Showing := False;
       R.Resizing := False;
    end Reset;
 
@@ -48,17 +48,17 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
       --  of that pane's document has no position; the cursor is over blank
       --  space below the text.
       procedure Document_Position
-        (H     : Layout.Hit;
-         Pos   : out Selection.Position;
-         Valid : out Boolean)
-      with Global => (Input => Frames),
-           Pre    => (if H.Kind = Layout.Pane_Hit
-                      then H.Local_Row >= 1 and then H.Local_Col >= 1),
-           Post   => (if Valid then Pos.Line <= Frames (H.Pane).Total)
+        (H : Layout.Hit; Pos : out Selection.Position; Valid : out Boolean)
+      with
+        Global => (Input => Frames),
+        Pre    =>
+          (if H.Kind = Layout.Pane_Hit
+           then H.Local_Row >= 1 and then H.Local_Col >= 1),
+        Post   => (if Valid then Pos.Line <= Frames (H.Pane).Total)
       is
          F : Frame;
       begin
-         Pos   := (Line => 1, Col => 0);
+         Pos := (Line => 1, Col => 0);
          Valid := False;
          if H.Kind /= Layout.Pane_Hit or else H.Pane not in Frames'Range then
             return;
@@ -66,9 +66,9 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
          F := Frames (H.Pane);
          if F.Top <= F.Total and then H.Local_Row - 1 <= F.Total - F.Top then
             Pos.Line := F.Top + (H.Local_Row - 1);
-            Pos.Col  :=
+            Pos.Col :=
               Natural'Min (Tui.Pager.Max_Dim, F.Left + H.Local_Col - 1);
-            Valid    := True;
+            Valid := True;
          end if;
       end Document_Position;
 
@@ -80,15 +80,19 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
       if R.Pane not in Placements'Range
         or else R.Separator not in Placements'Range
       then
-         R.Dragging  := False;
-         R.Showing   := False;
-         R.Resizing  := False;
-         R.Pane      := Placements'First;
+         R.Dragging := False;
+         R.Showing := False;
+         R.Resizing := False;
+         R.Pane := Placements'First;
          R.Separator := Placements'First;
       end if;
 
-      if Event.Kind not in
-        Mouse_Press | Mouse_Release | Mouse_Motion | Wheel_Up | Wheel_Down
+      if Event.Kind
+         not in Mouse_Press
+              | Mouse_Release
+              | Mouse_Motion
+              | Wheel_Up
+              | Wheel_Down
       then
          return;
       end if;
@@ -100,8 +104,8 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
       end if;
 
       Where :=
-        Layout.Locate (Placements, First_Row, Content_Rows,
-                       Event.Col, Event.Row);
+        Layout.Locate
+          (Placements, First_Row, Content_Rows, Event.Col, Event.Row);
 
       ------------------------------------------------------------------
       --  A separator drag in progress owns every event until the button
@@ -109,10 +113,11 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
       ------------------------------------------------------------------
       if R.Resizing then
          if Event.Kind = Mouse_Motion and then Event.Button = Left_Button then
-            Result := (Kind      => Separator_Dragged,
-                       Pane      => R.Separator,
-                       Split_Col => Event.Col,
-                       others    => <>);
+            Result :=
+              (Kind      => Separator_Dragged,
+               Pane      => R.Separator,
+               Split_Col => Event.Col,
+               others    => <>);
          elsif Event.Kind = Mouse_Release then
             R.Resizing := False;
          end if;
@@ -124,12 +129,13 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
            and then Event.Kind = Mouse_Press
            and then Event.Button = Left_Button
          then
-            R.Resizing  := True;
+            R.Resizing := True;
             R.Separator := Where.Pane;
-            R.Dragging  := False;
-            R.Showing   := False;
-            --  Arming only: the boundary has not moved yet, and reporting
-            --  the column it is already at would jitter the layout.
+            R.Dragging := False;
+            R.Showing := False;
+         --  Arming only: the boundary has not moved yet, and reporting
+         --  the column it is already at would jitter the layout.
+
          end if;
          return;
       end if;
@@ -141,13 +147,14 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
          --  Scrolling moves the text out from under a retained selection,
          --  so the selection goes rather than becoming wrong.
          R.Dragging := False;
-         R.Showing  := False;
+         R.Showing := False;
          if Rules.Wheel = Focused_Pane then
-            Result := (Kind    => Wheel,
-                       Pane    => Focused,
-                       Notches => Rules.Wheel_Notch_Lines,
-                       Upward  => Event.Kind = Wheel_Up,
-                       others  => <>);
+            Result :=
+              (Kind    => Wheel,
+               Pane    => Focused,
+               Notches => Rules.Wheel_Notch_Lines,
+               Upward  => Event.Kind = Wheel_Up,
+               others  => <>);
          elsif Where.Kind = Layout.Pane_Hit then
             Result :=
               (Kind        => Wheel,
@@ -166,15 +173,15 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
             R.Dragging := False;
             if R.Showing then
                R.Showing := False;
-               Result := (Kind => Range_Cancelled, Pane => R.Pane,
-                          others => <>);
+               Result :=
+                 (Kind => Range_Cancelled, Pane => R.Pane, others => <>);
             end if;
          end if;
          return;
       end if;
 
       case Event.Kind is
-         when Mouse_Press =>
+         when Mouse_Press   =>
             if Event.Button /= Left_Button then
                return;
             end if;
@@ -186,26 +193,27 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
                R.Showing := False;
                if Rules.Drag_Selects and then Valid then
                   R.Dragging := True;
-                  R.Pane     := Where.Pane;
-                  R.Anchor   := Pos;
-                  R.Live     := Pos;
+                  R.Pane := Where.Pane;
+                  R.Anchor := Pos;
+                  R.Live := Pos;
                else
                   R.Dragging := False;
                end if;
-               Result := (Kind        => Click,
-                          Pane        => Where.Pane,
-                          Local_Row   => Where.Local_Row,
-                          Local_Col   => Where.Local_Col,
-                          At_Line     => Pos.Line,
-                          On_Line     => Valid,
-                          Takes_Focus => Rules.Click_Focuses,
-                          others      => <>);
+               Result :=
+                 (Kind        => Click,
+                  Pane        => Where.Pane,
+                  Local_Row   => Where.Local_Row,
+                  Local_Col   => Where.Local_Col,
+                  At_Line     => Pos.Line,
+                  On_Line     => Valid,
+                  Takes_Focus => Rules.Click_Focuses,
+                  others      => <>);
             end;
 
-         when Mouse_Motion =>
-            if R.Dragging and then Event.Button = Left_Button
-              and then (Rules.Drag_Crosses_Panes
-                        or else Where.Pane = R.Pane)
+         when Mouse_Motion  =>
+            if R.Dragging
+              and then Event.Button = Left_Button
+              and then (Rules.Drag_Crosses_Panes or else Where.Pane = R.Pane)
             then
                declare
                   Pos   : Selection.Position;
@@ -213,11 +221,10 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
                begin
                   Document_Position (Where, Pos, Valid);
                   if Valid and then Pos /= R.Live then
-                     R.Live    := Pos;
+                     R.Live := Pos;
                      R.Showing := Pos /= R.Anchor;
-                     Result := (Kind   => Range_Extended,
-                                Pane   => R.Pane,
-                                others => <>);
+                     Result :=
+                       (Kind => Range_Extended, Pane => R.Pane, others => <>);
                      Selection.Ordered
                        (R.Anchor, R.Live, Result.First, Result.Last);
                   end if;
@@ -235,25 +242,23 @@ package body Tui.Panes.Gesture with SPARK_Mode => On is
                     and then (Rules.Drag_Crosses_Panes
                               or else Where.Pane = R.Pane)
                   then
-                     R.Live    := Pos;
+                     R.Live := Pos;
                      R.Showing := Pos /= R.Anchor;
                   end if;
                   R.Dragging := False;
                   if R.Showing then
-                     Result := (Kind   => Range_Committed,
-                                Pane   => R.Pane,
-                                others => <>);
+                     Result :=
+                       (Kind => Range_Committed, Pane => R.Pane, others => <>);
                      Selection.Ordered
                        (R.Anchor, R.Live, Result.First, Result.Last);
                   else
-                     Result := (Kind => Range_Cancelled, Pane => R.Pane,
-                                others => <>);
+                     Result :=
+                       (Kind => Range_Cancelled, Pane => R.Pane, others => <>);
                   end if;
                end;
             end if;
 
-
-         when others =>
+         when others        =>
             null;
       end case;
    end Feed;

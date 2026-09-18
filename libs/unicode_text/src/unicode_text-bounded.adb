@@ -4,8 +4,7 @@ package body Unicode_Text.Bounded
   with SPARK_Mode
 is
    function Has_Valid_Representation
-     (Data : Buffer; Used : Length_Range) return Boolean
-   is
+     (Data : Buffer; Used : Length_Range) return Boolean is
    begin
       if Used = 0 then
          pragma Assert (Static => Validate (Data (1 .. Used)).Valid);
@@ -16,23 +15,19 @@ is
    end Has_Valid_Representation;
 
    procedure Lemma_Copied_Bytes
-     (Left         : String;
-      Right        : String;
-      Right_Offset : Natural;
-      Count        : Natural)
+     (Left : String; Right : String; Right_Offset : Natural; Count : Natural)
    with
-     Ghost => Static,
-     Global => null,
-     Pre    =>
+     Ghost              => Static,
+     Global             => null,
+     Pre                =>
        Count <= Left'Length
        and then Right_Offset <= Right'Length
        and then Count <= Right'Length - Right_Offset
-       and then
-         (Count = 0
-          or else
-            (for all I in Natural range 0 .. Count - 1 =>
-               Octet_At (Left, I) = Octet_At (Right, Right_Offset + I))),
-     Post   => Same_Bytes (Left, 0, Right, Right_Offset, Count),
+       and then (Count = 0
+                 or else (for all I in Natural range 0 .. Count - 1 =>
+                            Octet_At (Left, I)
+                            = Octet_At (Right, Right_Offset + I))),
+     Post               => Same_Bytes (Left, 0, Right, Right_Offset, Count),
      Subprogram_Variant => (Decreases => Count)
    is
    begin
@@ -68,19 +63,16 @@ is
    function Code_Point_Length (S : Bounded_String) return Natural
    is (Unicode_Text.UTF_8.Code_Point_Length (S.Data (1 .. S.Used)));
 
-   function Element
-     (S : Bounded_String; Index : Positive) return Scalar_Value
+   function Element (S : Bounded_String; Index : Positive) return Scalar_Value
    is (Unicode_Text.UTF_8.Element (S.Data (1 .. S.Used), Index));
 
    function Is_Valid_Byte_Span
      (S : Bounded_String; Span : Byte_Span) return Boolean
-   is (Unicode_Text.UTF_8.Is_Valid_Byte_Span
-         (S.Data (1 .. S.Used), Span));
+   is (Unicode_Text.UTF_8.Is_Valid_Byte_Span (S.Data (1 .. S.Used), Span));
 
    function To_Byte_Span
      (S : Bounded_String; First : Positive; Count : Natural) return Byte_Span
-   is (Unicode_Text.UTF_8.To_Byte_Span
-         (S.Data (1 .. S.Used), First, Count));
+   is (Unicode_Text.UTF_8.To_Byte_Span (S.Data (1 .. S.Used), First, Count));
 
    function Slice (S : Bounded_String; Span : Byte_Span) return Bounded_String
    is
@@ -97,8 +89,7 @@ is
       return Bounded_String
    is
       Bytes : constant String :=
-        Unicode_Text.UTF_8.Slice
-          (S.Data (1 .. S.Used), First, Count);
+        Unicode_Text.UTF_8.Slice (S.Data (1 .. S.Used), First, Count);
    begin
       pragma Assert (Bytes'Length <= S.Used);
       pragma Assert (Bytes'Length <= Max_Byte_Length);
@@ -108,24 +99,21 @@ is
    function Find
      (S : Bounded_String; Value : Scalar_Value; From : Positive := 1)
       return Natural
-   is (Unicode_Text.UTF_8.Find
-         (S.Data (1 .. S.Used), Value, From));
+   is (Unicode_Text.UTF_8.Find (S.Data (1 .. S.Used), Value, From));
 
    function Reverse_Find
      (S : Bounded_String; Value : Scalar_Value) return Natural
    is (Unicode_Text.UTF_8.Reverse_Find (S.Data (1 .. S.Used), Value));
 
    function Find
-     (Haystack : Bounded_String;
-      Needle   : String;
-      From     : Positive := 1) return Natural
+     (Haystack : Bounded_String; Needle : String; From : Positive := 1)
+      return Natural
    is (Unicode_Text.UTF_8.Find
          (Haystack.Data (1 .. Haystack.Used), Needle, From));
 
    function Find
-     (Haystack : Bounded_String;
-      Needle   : Bounded_String;
-      From     : Positive := 1) return Natural
+     (Haystack : Bounded_String; Needle : Bounded_String; From : Positive := 1)
+      return Natural
    is (Unicode_Text.UTF_8.Find
          (Haystack.Data (1 .. Haystack.Used),
           Needle.Data (1 .. Needle.Used),
@@ -139,8 +127,7 @@ is
    function Contains
      (Haystack : Bounded_String; Needle : Bounded_String) return Boolean
    is (Unicode_Text.UTF_8.Contains
-         (Haystack.Data (1 .. Haystack.Used),
-          Needle.Data (1 .. Needle.Used)));
+         (Haystack.Data (1 .. Haystack.Used), Needle.Data (1 .. Needle.Used)));
 
    procedure Clear (S : out Bounded_String) is
    begin
@@ -154,8 +141,7 @@ is
       Before   : constant String := S.Data (1 .. S.Used)
       with Ghost => Static;
 
-      procedure Lemma_Final_Representation
-        (Data : Buffer; Used : Length_Range)
+      procedure Lemma_Final_Representation (Data : Buffer; Used : Length_Range)
       with
         Ghost  => Static,
         Global => null,
@@ -164,11 +150,9 @@ is
       is
       begin
          if Used = 0 then
-            pragma Assert
-              (Static => Has_Valid_Representation (Data, Used));
+            pragma Assert (Static => Has_Valid_Representation (Data, Used));
          else
-            pragma Assert
-              (Static => Has_Valid_Representation (Data, Used));
+            pragma Assert (Static => Has_Valid_Representation (Data, Used));
          end if;
       end Lemma_Final_Representation;
    begin
@@ -178,23 +162,21 @@ is
          After : constant String := New_Data (1 .. New_Used)
          with Ghost => Static;
       begin
-         pragma Assert
-           (Static =>
-              Other'Length = 0
-              or else
-                (for all I in Natural range 0 .. Other'Length - 1 =>
-                   Octet_At (Other, I)
-                   = Octet_At (After, Before'Length + I)));
-         Lemma_Copied_Bytes
-           (Other, After, Before'Length, Other'Length);
-         pragma Assert
-           (Static => Is_Byte_Concatenation (Before, Other, After));
+         pragma
+           Assert
+             (Static =>
+                Other'Length = 0
+                or else (for all I in Natural range 0 .. Other'Length - 1 =>
+                           Octet_At (Other, I)
+                           = Octet_At (After, Before'Length + I)));
+         Lemma_Copied_Bytes (Other, After, Before'Length, Other'Length);
+         pragma
+           Assert (Static => Is_Byte_Concatenation (Before, Other, After));
          Lemma_Concatenation (Before, Other, After);
-         pragma Assert
-           (Static => Is_Valid_UTF_8 (New_Data (1 .. New_Used)));
+         pragma Assert (Static => Is_Valid_UTF_8 (New_Data (1 .. New_Used)));
          Lemma_Final_Representation (New_Data, New_Used);
-         pragma Assert
-           (Static => Has_Valid_Representation (New_Data, New_Used));
+         pragma
+           Assert (Static => Has_Valid_Representation (New_Data, New_Used));
          S := (Data => New_Data, Used => New_Used);
       end;
    end Append;
@@ -206,16 +188,13 @@ is
       Append (S, Encoded);
    end Append;
 
-   procedure Append
-     (S : in out Bounded_String; Other : Bounded_String)
-   is
+   procedure Append (S : in out Bounded_String; Other : Bounded_String) is
    begin
       Append (S, Other.Data (1 .. Other.Used));
    end Append;
 
-   overriding function "="
-     (Left, Right : Bounded_String) return Boolean
-   is
+   overriding
+   function "=" (Left, Right : Bounded_String) return Boolean is
       Left_Active  : constant String := Left.Data (1 .. Left.Used)
       with Ghost => Static;
       Right_Active : constant String := Right.Data (1 .. Right.Used)
@@ -238,18 +217,14 @@ is
 
    function Is_Valid_Cursor
      (S : Bounded_String; Cursor : Cursor_Type) return Boolean
-   is
-     (Unicode_Text.UTF_8.Is_Valid_Cursor
-        (S.Data (1 .. S.Used), Cursor));
+   is (Unicode_Text.UTF_8.Is_Valid_Cursor (S.Data (1 .. S.Used), Cursor));
 
    function First (S : Bounded_String) return Cursor_Type
    is (Unicode_Text.UTF_8.First (S.Data (1 .. S.Used)));
 
    function Has_Element
      (S : Bounded_String; Cursor : Cursor_Type) return Boolean
-   is
-     (Unicode_Text.UTF_8.Has_Element
-        (S.Data (1 .. S.Used), Cursor));
+   is (Unicode_Text.UTF_8.Has_Element (S.Data (1 .. S.Used), Cursor));
 
    procedure Next
      (S      : Bounded_String;

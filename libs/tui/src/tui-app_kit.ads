@@ -12,5 +12,7 @@
 --  the surface, the loop and the terminal; these packages only hold and
 --  build bytes for it.
 
-package Tui.App_Kit with Pure, SPARK_Mode => On is
+package Tui.App_Kit
+  with Pure, SPARK_Mode => On
+is
 end Tui.App_Kit;

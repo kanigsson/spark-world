@@ -16,7 +16,9 @@ with Tui.Input;
 with Tui.Text;
 with Tui.Pager.Engine;
 
-package Tui.App_Kit.Search_Input with SPARK_Mode => On is
+package Tui.App_Kit.Search_Input
+  with SPARK_Mode => On
+is
 
    --  Mirror the engine's cap: there is no point holding bytes the engine
    --  would drop when the pattern is installed.
@@ -45,18 +47,19 @@ package Tui.App_Kit.Search_Input with SPARK_Mode => On is
    --  The pattern bytes (UTF-8), 1-based — ready for the engine's pattern
    --  installer and for the host's status-line painter.
    function Bytes (E : Editor) return Tui.Text.Buffer
-   with Post => Bytes'Result'First = 1
-               and then Bytes'Result'Length = Length (E);
+   with
+     Post => Bytes'Result'First = 1 and then Bytes'Result'Length = Length (E);
 
 private
 
    subtype Store is Tui.Text.Buffer (1 .. Max_Pattern);
 
    type Editor is record
-      Pat : Store          := (others => 0);
+      Pat : Store := (others => 0);
       Len : Pattern_Length := 0;
    end record;
 
-   function Length (E : Editor) return Pattern_Length is (E.Len);
+   function Length (E : Editor) return Pattern_Length
+   is (E.Len);
 
 end Tui.App_Kit.Search_Input;

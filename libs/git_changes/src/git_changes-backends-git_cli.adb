@@ -13,8 +13,10 @@ package body Git_Changes.Backends.Git_CLI is
    use type Raw.Raw_Status;
    use type Hunks.Hunk_Result;
 
-   package Argument_Vectors is new Ada.Containers.Vectors
-     (Index_Type => Positive, Element_Type => Unbounded_String);
+   package Argument_Vectors is new
+     Ada.Containers.Vectors
+       (Index_Type   => Positive,
+        Element_Type => Unbounded_String);
 
    procedure Append (Args : in out Argument_Vectors.Vector; Value : String) is
    begin
@@ -43,60 +45,70 @@ package body Git_Changes.Backends.Git_CLI is
       Run_Git (Root_Path (Repo), Values, Limit, Operation, Output, Error);
    end Execute;
 
-   function Algorithm_Name (Value : Diff_Algorithm) return String is
-     (case Value is
-         when Myers => "myers",
-         when Minimal => "minimal",
-         when Patience => "patience",
+   function Algorithm_Name (Value : Diff_Algorithm) return String
+   is (case Value is
+         when Myers     => "myers",
+         when Minimal   => "minimal",
+         when Patience  => "patience",
          when Histogram => "histogram");
 
    procedure Append_Comparison
-     (Args       : in out Argument_Vectors.Vector;
-      Compared   : Comparison) is
+     (Args : in out Argument_Vectors.Vector; Compared : Comparison) is
    begin
       case Compared.Comparison_Type is
-         when Tree_To_Tree_Comparison =>
+         when Tree_To_Tree_Comparison      =>
             Append (Args, To_String (Compared.Old_Revision));
             Append (Args, To_String (Compared.New_Revision));
-         when Tree_To_Index_Comparison =>
+
+         when Tree_To_Index_Comparison     =>
             Append (Args, "--cached");
             Append (Args, To_String (Compared.Old_Revision));
+
          when Index_To_Worktree_Comparison =>
             null;
-         when Tree_To_Worktree_Comparison =>
+
+         when Tree_To_Worktree_Comparison  =>
             Append (Args, To_String (Compared.Old_Revision));
       end case;
    end Append_Comparison;
 
    procedure Append_Diff_Policy
-     (Args    : in out Argument_Vectors.Vector;
-      Options : Capture_Options) is
+     (Args : in out Argument_Vectors.Vector; Options : Capture_Options) is
    begin
       Append (Args, "--diff-algorithm=" & Algorithm_Name (Options.Algorithm));
       case Options.Whitespace is
-         when Keep_Whitespace => null;
-         when Ignore_All_Whitespace => Append (Args, "--ignore-all-space");
-         when Ignore_Whitespace_Changes => Append (Args, "--ignore-space-change");
+         when Keep_Whitespace               =>
+            null;
+
+         when Ignore_All_Whitespace         =>
+            Append (Args, "--ignore-all-space");
+
+         when Ignore_Whitespace_Changes     =>
+            Append (Args, "--ignore-space-change");
+
          when Ignore_End_Of_Line_Whitespace =>
             Append (Args, "--ignore-space-at-eol");
       end case;
 
       if Options.Detect_Copies then
-         Append (Args, "--find-renames=" & Number_Image (Options.Similarity) & "%");
-         Append (Args, "--find-copies=" & Number_Image (Options.Similarity) & "%");
+         Append
+           (Args, "--find-renames=" & Number_Image (Options.Similarity) & "%");
+         Append
+           (Args, "--find-copies=" & Number_Image (Options.Similarity) & "%");
          Append (Args, "--find-copies-harder");
       elsif Options.Detect_Renames then
-         Append (Args, "--find-renames=" & Number_Image (Options.Similarity) & "%");
+         Append
+           (Args, "--find-renames=" & Number_Image (Options.Similarity) & "%");
       else
          Append (Args, "--no-renames");
       end if;
    end Append_Diff_Policy;
 
    procedure Resolve_Tree
-     (Repo      : Repository;
-      Revision  : String;
-      Identity  : out Unbounded_String;
-      Error     : out Error_Info)
+     (Repo     : Repository;
+      Revision : String;
+      Identity : out Unbounded_String;
+      Error    : out Error_Info)
    is
       Args   : Argument_Vectors.Vector;
       Output : Unbounded_String;
@@ -110,7 +122,10 @@ package body Git_Changes.Backends.Git_CLI is
          Identity := To_Unbounded_String (Trim_Line_End (To_String (Output)));
       else
          Set_Error
-           (Error, Unresolved_Revision, "resolve revision", Detail (Error),
+           (Error,
+            Unresolved_Revision,
+            "resolve revision",
+            Detail (Error),
             Exit_Status (Error));
       end if;
    end Resolve_Tree;
@@ -134,8 +149,10 @@ package body Git_Changes.Backends.Git_CLI is
          return;
       end if;
       Read_File
-        (Trim_Line_End (To_String (Output)), Options.Max_Content_Bytes,
-         Content, Error);
+        (Trim_Line_End (To_String (Output)),
+         Options.Max_Content_Bytes,
+         Content,
+         Error);
       if Code (Error) = Filesystem_Error then
          Value := To_Unbounded_String ("missing-index");
          Error := (others => <>);
@@ -161,7 +178,13 @@ package body Git_Changes.Backends.Git_CLI is
       Append (Args, "--no-filters");
       Append (Args, "--");
       Append (Args, Name);
-      Execute (Repo, Args, Options.Max_Output_Bytes, "fingerprint worktree", Output, Error);
+      Execute
+        (Repo,
+         Args,
+         Options.Max_Output_Bytes,
+         "fingerprint worktree",
+         Output,
+         Error);
       if Success (Error) then
          Value := To_Unbounded_String (Trim_Line_End (To_String (Output)));
          Present := Length (Value) > 0;
@@ -184,59 +207,82 @@ package body Git_Changes.Backends.Git_CLI is
       Index_Hash := Null_Unbounded_String;
       Error := (others => <>);
       case Compared.Comparison_Type is
-         when Tree_To_Tree_Comparison =>
-            Resolve_Tree (Repo, To_String (Compared.Old_Revision), Tree_Id, Error);
-            if not Success (Error) then return; end if;
-            Old_State :=
-              (Tree_Endpoint, Compared.Old_Revision, Tree_Id);
-            Resolve_Tree (Repo, To_String (Compared.New_Revision), Tree_Id, Error);
-            if not Success (Error) then return; end if;
-            New_State :=
-              (Tree_Endpoint, Compared.New_Revision, Tree_Id);
-         when Tree_To_Index_Comparison =>
-            Resolve_Tree (Repo, To_String (Compared.Old_Revision), Tree_Id, Error);
-            if not Success (Error) then return; end if;
+         when Tree_To_Tree_Comparison      =>
+            Resolve_Tree
+              (Repo, To_String (Compared.Old_Revision), Tree_Id, Error);
+            if not Success (Error) then
+               return;
+            end if;
+            Old_State := (Tree_Endpoint, Compared.Old_Revision, Tree_Id);
+            Resolve_Tree
+              (Repo, To_String (Compared.New_Revision), Tree_Id, Error);
+            if not Success (Error) then
+               return;
+            end if;
+            New_State := (Tree_Endpoint, Compared.New_Revision, Tree_Id);
+
+         when Tree_To_Index_Comparison     =>
+            Resolve_Tree
+              (Repo, To_String (Compared.Old_Revision), Tree_Id, Error);
+            if not Success (Error) then
+               return;
+            end if;
             Old_State := (Tree_Endpoint, Compared.Old_Revision, Tree_Id);
             Index_Fingerprint (Repo, Options, Index_Hash, Error);
-            if not Success (Error) then return; end if;
+            if not Success (Error) then
+               return;
+            end if;
             New_State :=
               (Index_Endpoint, To_Unbounded_String ("index"), Index_Hash);
+
          when Index_To_Worktree_Comparison =>
             Index_Fingerprint (Repo, Options, Index_Hash, Error);
-            if not Success (Error) then return; end if;
+            if not Success (Error) then
+               return;
+            end if;
             Old_State :=
               (Index_Endpoint, To_Unbounded_String ("index"), Index_Hash);
             New_State :=
-              (Worktree_Endpoint, To_Unbounded_String ("worktree"),
+              (Worktree_Endpoint,
+               To_Unbounded_String ("worktree"),
                Null_Unbounded_String);
-         when Tree_To_Worktree_Comparison =>
-            Resolve_Tree (Repo, To_String (Compared.Old_Revision), Tree_Id, Error);
-            if not Success (Error) then return; end if;
+
+         when Tree_To_Worktree_Comparison  =>
+            Resolve_Tree
+              (Repo, To_String (Compared.Old_Revision), Tree_Id, Error);
+            if not Success (Error) then
+               return;
+            end if;
             Old_State := (Tree_Endpoint, Compared.Old_Revision, Tree_Id);
             Index_Fingerprint (Repo, Options, Index_Hash, Error);
-            if not Success (Error) then return; end if;
+            if not Success (Error) then
+               return;
+            end if;
             New_State :=
-              (Worktree_Endpoint, To_Unbounded_String ("worktree"),
+              (Worktree_Endpoint,
+               To_Unbounded_String ("worktree"),
                Null_Unbounded_String);
       end case;
    end Start_Endpoints;
 
-   function To_Kind (Value : Raw.Raw_Status) return Change_Kind is
-     (case Value is
-         when Raw.Status_Added => Added,
-         when Raw.Status_Copied => Copied,
-         when Raw.Status_Deleted => Deleted,
-         when Raw.Status_Modified => Modified,
-         when Raw.Status_Renamed => Renamed,
+   function To_Kind (Value : Raw.Raw_Status) return Change_Kind
+   is (case Value is
+         when Raw.Status_Added        => Added,
+         when Raw.Status_Copied       => Copied,
+         when Raw.Status_Deleted      => Deleted,
+         when Raw.Status_Modified     => Modified,
+         when Raw.Status_Renamed      => Renamed,
          when Raw.Status_Type_Changed => Type_Changed,
-         when Raw.Status_Unmerged => Unmerged,
-         when Raw.Status_Broken_Pair => Broken_Pair,
-         when Raw.Status_Unknown => Unknown_Change);
+         when Raw.Status_Unmerged     => Unmerged,
+         when Raw.Status_Broken_Pair  => Broken_Pair,
+         when Raw.Status_Unknown      => Unknown_Change);
 
-   function Comparison_Key (Changes : Change_Set) return String is
-     (Comparison_Kind'Image (Changes.Compared.Comparison_Type) & Character'Val (0)
-      & To_String (Changes.Old_State.Resolved) & Character'Val (0)
-      & To_String (Changes.New_State.Resolved));
+   function Comparison_Key (Changes : Change_Set) return String
+   is (Comparison_Kind'Image (Changes.Compared.Comparison_Type)
+       & Character'Val (0)
+       & To_String (Changes.Old_State.Resolved)
+       & Character'Val (0)
+       & To_String (Changes.New_State.Resolved));
 
    procedure Populate_File
      (Input   : String;
@@ -244,15 +290,19 @@ package body Git_Changes.Backends.Git_CLI is
       Changes : Change_Set;
       File    : out Stored_File)
    is
-      Old_Mode : constant String := Raw.Value (Input, Parsed.Old_Mode);
-      New_Mode : constant String := Raw.Value (Input, Parsed.New_Mode);
-      Old_Obj  : constant String := Raw.Value (Input, Parsed.Old_Object);
-      New_Obj  : constant String := Raw.Value (Input, Parsed.New_Object);
-      First_Path : constant String := Raw.Value (Input, Parsed.First_Path);
+      Old_Mode    : constant String := Raw.Value (Input, Parsed.Old_Mode);
+      New_Mode    : constant String := Raw.Value (Input, Parsed.New_Mode);
+      Old_Obj     : constant String := Raw.Value (Input, Parsed.Old_Object);
+      New_Obj     : constant String := Raw.Value (Input, Parsed.New_Object);
+      First_Path  : constant String := Raw.Value (Input, Parsed.First_Path);
       Second_Path : constant String :=
-        (if Parsed.Has_Second_Path then Raw.Value (Input, Parsed.Second_Path) else "");
-      Zero_Old : constant Boolean := Git_Changes.Core.Validation.Is_All_Zero (Old_Obj);
-      Zero_New : constant Boolean := Git_Changes.Core.Validation.Is_All_Zero (New_Obj);
+        (if Parsed.Has_Second_Path
+         then Raw.Value (Input, Parsed.Second_Path)
+         else "");
+      Zero_Old    : constant Boolean :=
+        Git_Changes.Core.Validation.Is_All_Zero (Old_Obj);
+      Zero_New    : constant Boolean :=
+        Git_Changes.Core.Validation.Is_All_Zero (New_Obj);
    begin
       File := (others => <>);
       File.Delta_Kind := To_Kind (Parsed.Status);
@@ -269,29 +319,35 @@ package body Git_Changes.Backends.Git_CLI is
       File.Submodule := Old_Mode = "160000" or else New_Mode = "160000";
 
       case Parsed.Status is
-         when Raw.Status_Added =>
+         when Raw.Status_Added                       =>
             File.New_Path := To_Unbounded_String (First_Path);
             File.New_Path_Present := True;
-         when Raw.Status_Deleted =>
+
+         when Raw.Status_Deleted                     =>
             File.Old_Path := To_Unbounded_String (First_Path);
             File.Old_Path_Present := True;
+
          when Raw.Status_Copied | Raw.Status_Renamed =>
             File.Old_Path := To_Unbounded_String (First_Path);
             File.New_Path := To_Unbounded_String (Second_Path);
             File.Old_Path_Present := True;
             File.New_Path_Present := True;
-         when others =>
+
+         when others                                 =>
             File.Old_Path := To_Unbounded_String (First_Path);
             File.New_Path := To_Unbounded_String (First_Path);
             File.Old_Path_Present := True;
             File.New_Path_Present := True;
       end case;
 
-      File.Old_Content := File.Old_Mode_Present and then File.Old_Object_Present
+      File.Old_Content :=
+        File.Old_Mode_Present
+        and then File.Old_Object_Present
         and then not File.Submodule;
-      File.New_Content := File.New_Mode_Present and then
-        (File.New_Object_Present
-         or else Kind (Changes.New_State) = Worktree_Endpoint)
+      File.New_Content :=
+        File.New_Mode_Present
+        and then (File.New_Object_Present
+                  or else Kind (Changes.New_State) = Worktree_Endpoint)
         and then not File.Submodule;
    end Populate_File;
 
@@ -311,9 +367,9 @@ package body Git_Changes.Backends.Git_CLI is
    end Append_File_Paths;
 
    procedure Base_File_Diff
-     (Args       : in out Argument_Vectors.Vector;
-      Compared   : Comparison;
-      Options    : Capture_Options) is
+     (Args     : in out Argument_Vectors.Vector;
+      Compared : Comparison;
+      Options  : Capture_Options) is
    begin
       Append (Args, "diff");
       Append (Args, "--no-color");
@@ -359,7 +415,9 @@ package body Git_Changes.Backends.Git_CLI is
             Raw.Parse_Next (Whole, Raw_Cursor, Raw_Item, Raw_Result);
             if Raw_Result /= Raw.Parsed then
                Set_Error
-                 (Error, Malformed_Backend_Output, "correlate copy patch",
+                 (Error,
+                  Malformed_Backend_Output,
+                  "correlate copy patch",
                   "malformed raw prefix in patch output");
                return;
             end if;
@@ -370,7 +428,9 @@ package body Git_Changes.Backends.Git_CLI is
          end loop;
          if Target = 0 then
             Set_Error
-              (Error, Foreign_Backend_Violation, "correlate copy patch",
+              (Error,
+               Foreign_Backend_Violation,
+               "correlate copy patch",
                "copy delta disappeared from path-scoped patch");
             return;
          end if;
@@ -396,7 +456,9 @@ package body Git_Changes.Backends.Git_CLI is
          end loop;
          if First = 0 then
             Set_Error
-              (Error, Foreign_Backend_Violation, "correlate copy patch",
+              (Error,
+               Foreign_Backend_Violation,
+               "correlate copy patch",
                "copy patch chunk is missing");
             return;
          end if;
@@ -407,15 +469,17 @@ package body Git_Changes.Backends.Git_CLI is
       end Select_Copy_Chunk;
 
       procedure Validate_Content_Bounds
-        (Which : Side; Available : Boolean; Object : Unbounded_String;
-         Name : Unbounded_String)
+        (Which     : Side;
+         Available : Boolean;
+         Object    : Unbounded_String;
+         Name      : Unbounded_String)
       is
-         Content : Unbounded_String;
+         Content    : Unbounded_String;
          Load_Error : Error_Info;
-         Git_Args : Argument_Vectors.Vector;
-         Lines : Natural;
-         Last_Line : Natural;
-         In_Range : Boolean;
+         Git_Args   : Argument_Vectors.Vector;
+         Lines      : Natural;
+         Last_Line  : Natural;
+         In_Range   : Boolean;
       begin
          if not Available or else File.Spans.Is_Empty then
             return;
@@ -425,13 +489,17 @@ package body Git_Changes.Backends.Git_CLI is
             Append (Git_Args, "blob");
             Append (Git_Args, To_String (Object));
             Execute
-              (Repo, Git_Args, Options.Max_Content_Bytes,
-               "validate content bounds", Content, Load_Error);
-         elsif Which = New_Side
-           and then To_String (File.New_Mode) /= "120000"
+              (Repo,
+               Git_Args,
+               Options.Max_Content_Bytes,
+               "validate content bounds",
+               Content,
+               Load_Error);
+         elsif Which = New_Side and then To_String (File.New_Mode) /= "120000"
          then
             declare
-               Full_Name : Unbounded_String := To_Unbounded_String (Root_Path (Repo));
+               Full_Name : Unbounded_String :=
+                 To_Unbounded_String (Root_Path (Repo));
             begin
                if Length (Full_Name) > 0
                  and then Element (Full_Name, Length (Full_Name)) /= '/'
@@ -440,8 +508,10 @@ package body Git_Changes.Backends.Git_CLI is
                end if;
                Ada.Strings.Unbounded.Append (Full_Name, Name);
                Read_File
-                 (To_String (Full_Name), Options.Max_Content_Bytes,
-                  Content, Load_Error);
+                 (To_String (Full_Name),
+                  Options.Max_Content_Bytes,
+                  Content,
+                  Load_Error);
             end;
          else
             return;
@@ -452,14 +522,16 @@ package body Git_Changes.Backends.Git_CLI is
          end if;
          if Length (Content) = Natural'Last then
             Set_Error
-              (Error, Resource_Limit, "validate content bounds",
+              (Error,
+               Resource_Limit,
+               "validate content bounds",
                "content is too large for line accounting");
             return;
          end if;
          Lines := Git_Changes.Core.Validation.Line_Count (To_String (Content));
          for S of File.Spans loop
             declare
-               R : constant Changed_Span := S.Value;
+               R     : constant Changed_Span := S.Value;
                First : constant Natural :=
                  (if Which = Old_Side then R.Old_First else R.New_First);
                Count : constant Natural :=
@@ -470,7 +542,8 @@ package body Git_Changes.Backends.Git_CLI is
                     (First, Count, Last_Line, In_Range);
                   if not In_Range or else Last_Line > Lines then
                      Set_Error
-                        (Error, Foreign_Backend_Violation,
+                       (Error,
+                        Foreign_Backend_Violation,
                         "validate content bounds",
                         "Git hunk range exceeds captured content for "
                         & To_String (Name));
@@ -490,10 +563,21 @@ package body Git_Changes.Backends.Git_CLI is
       Append (Args, "--numstat");
       Append (Args, "-z");
       Append_File_Paths (Args, File);
-      Execute (Repo, Args, Options.Max_Output_Bytes, "classify content", Output, Error);
-      if not Success (Error) then return; end if;
-      File.Binary := Ada.Strings.Fixed.Index
-        (To_String (Output), "-" & Character'Val (9) & "-" & Character'Val (9)) > 0;
+      Execute
+        (Repo,
+         Args,
+         Options.Max_Output_Bytes,
+         "classify content",
+         Output,
+         Error);
+      if not Success (Error) then
+         return;
+      end if;
+      File.Binary :=
+        Ada.Strings.Fixed.Index
+          (To_String (Output),
+           "-" & Character'Val (9) & "-" & Character'Val (9))
+        > 0;
       if File.Binary then
          return;
       end if;
@@ -508,92 +592,124 @@ package body Git_Changes.Backends.Git_CLI is
          Append (Args, "--patch");
       end if;
       Append_File_Paths (Args, File);
-      Execute (Repo, Args, Options.Max_Output_Bytes, "load changed spans", Output, Error);
-      if not Success (Error) then return; end if;
+      Execute
+        (Repo,
+         Args,
+         Options.Max_Output_Bytes,
+         "load changed spans",
+         Output,
+         Error);
+      if not Success (Error) then
+         return;
+      end if;
 
       declare
          Patch_Output : Unbounded_String := Output;
       begin
          if File.Delta_Kind = Copied then
             Select_Copy_Chunk (To_String (Output), Patch_Output);
-            if not Success (Error) then return; end if;
+            if not Success (Error) then
+               return;
+            end if;
          end if;
          declare
-         Patch : constant String := To_String (Patch_Output);
-      begin
-      while Cursor <= Patch'Last loop
-         Hunks.Parse_Next (Patch, Cursor, Header, Result);
-         exit when Result = Hunks.No_More_Hunks;
-         if Result = Hunks.Malformed_Hunk then
-            Set_Error
-              (Error, Malformed_Backend_Output, "parse hunk",
-               "malformed zero-context hunk header");
-            return;
-         end if;
+            Patch : constant String := To_String (Patch_Output);
+         begin
+            while Cursor <= Patch'Last loop
+               Hunks.Parse_Next (Patch, Cursor, Header, Result);
+               exit when Result = Hunks.No_More_Hunks;
+               if Result = Hunks.Malformed_Hunk then
+                  Set_Error
+                    (Error,
+                     Malformed_Backend_Output,
+                     "parse hunk",
+                     "malformed zero-context hunk header");
+                  return;
+               end if;
 
-         if Header.Old_Lines.Count > 0 then
-            Git_Changes.Core.Validation.Checked_Last
-              (Header.Old_Lines.First, Header.Old_Lines.Count, Range_Last, Valid);
-            if not Valid or else (Old_Last > 0 and then Header.Old_Lines.First <= Old_Last)
-            then
-               Set_Error
-                 (Error, Foreign_Backend_Violation, "validate hunk",
-                  "overlapping or overflowing old range");
-               return;
-            end if;
-            Old_Last := Range_Last;
-         end if;
-         if Header.New_Lines.Count > 0 then
-            Git_Changes.Core.Validation.Checked_Last
-              (Header.New_Lines.First, Header.New_Lines.Count, Range_Last, Valid);
-            if not Valid or else (New_Last > 0 and then Header.New_Lines.First <= New_Last)
-            then
-               Set_Error
-                 (Error, Foreign_Backend_Violation, "validate hunk",
-                  "overlapping or overflowing new range");
-               return;
-            end if;
-            New_Last := Range_Last;
-         end if;
+               if Header.Old_Lines.Count > 0 then
+                  Git_Changes.Core.Validation.Checked_Last
+                    (Header.Old_Lines.First,
+                     Header.Old_Lines.Count,
+                     Range_Last,
+                     Valid);
+                  if not Valid
+                    or else (Old_Last > 0
+                             and then Header.Old_Lines.First <= Old_Last)
+                  then
+                     Set_Error
+                       (Error,
+                        Foreign_Backend_Violation,
+                        "validate hunk",
+                        "overlapping or overflowing old range");
+                     return;
+                  end if;
+                  Old_Last := Range_Last;
+               end if;
+               if Header.New_Lines.Count > 0 then
+                  Git_Changes.Core.Validation.Checked_Last
+                    (Header.New_Lines.First,
+                     Header.New_Lines.Count,
+                     Range_Last,
+                     Valid);
+                  if not Valid
+                    or else (New_Last > 0
+                             and then Header.New_Lines.First <= New_Last)
+                  then
+                     Set_Error
+                       (Error,
+                        Foreign_Backend_Violation,
+                        "validate hunk",
+                        "overlapping or overflowing new range");
+                     return;
+                  end if;
+                  New_Last := Range_Last;
+               end if;
 
-         Item.Value :=
-           (Old_First => Header.Old_Lines.First,
-            Old_Count => Header.Old_Lines.Count,
-            New_First => Header.New_Lines.First,
-            New_Count => Header.New_Lines.Count);
-         File.Spans.Append (Item);
-      end loop;
-      end;
+               Item.Value :=
+                 (Old_First => Header.Old_Lines.First,
+                  Old_Count => Header.Old_Lines.Count,
+                  New_First => Header.New_Lines.First,
+                  New_Count => Header.New_Lines.Count);
+               File.Spans.Append (Item);
+            end loop;
+         end;
       end;
       Validate_Content_Bounds
-        (Old_Side, File.Old_Content,
-         (if File.Old_Object_Present then File.Old_Object
+        (Old_Side,
+         File.Old_Content,
+         (if File.Old_Object_Present
+          then File.Old_Object
           else Null_Unbounded_String),
          File.Old_Path);
-      if not Success (Error) then return; end if;
+      if not Success (Error) then
+         return;
+      end if;
       Validate_Content_Bounds
-         (New_Side, File.New_Content,
+        (New_Side,
+         File.New_Content,
          (if File.New_Object_Present
-             and then Compared.Comparison_Type not in
-               Index_To_Worktree_Comparison | Tree_To_Worktree_Comparison
+            and then Compared.Comparison_Type
+                     not in Index_To_Worktree_Comparison
+                          | Tree_To_Worktree_Comparison
           then File.New_Object
           else Null_Unbounded_String),
          File.New_Path);
    end Analyze_File;
 
-   function Sort_Key (File : Stored_File) return String is
-     (if File.New_Path_Present then To_String (File.New_Path)
-      else To_String (File.Old_Path));
-   function Before (Left, Right : Stored_File) return Boolean is
-     (Sort_Key (Left) < Sort_Key (Right)
-      or else (Sort_Key (Left) = Sort_Key (Right)
-               and then To_String (Left.Old_Path) < To_String (Right.Old_Path)));
+   function Sort_Key (File : Stored_File) return String
+   is (if File.New_Path_Present
+       then To_String (File.New_Path)
+       else To_String (File.Old_Path));
+   function Before (Left, Right : Stored_File) return Boolean
+   is (Sort_Key (Left) < Sort_Key (Right)
+       or else (Sort_Key (Left) = Sort_Key (Right)
+                and then To_String (Left.Old_Path)
+                         < To_String (Right.Old_Path)));
    package Sorting is new File_Vectors.Generic_Sorting ("<" => Before);
 
-   procedure Finalize_Identities
-     (Changes : in out Change_Set)
-   is
-      Sep : constant Character := Character'Val (0);
+   procedure Finalize_Identities (Changes : in out Change_Set) is
+      Sep            : constant Character := Character'Val (0);
       Worktree_Input : Unbounded_String;
    begin
       if Changes.New_State.Endpoint_Type = Worktree_Endpoint then
@@ -608,21 +724,39 @@ package body Git_Changes.Backends.Git_CLI is
 
       for File of Changes.Files loop
          declare
-            Input : constant String := Comparison_Key (Changes) & Sep
-              & Change_Kind'Image (File.Delta_Kind) & Sep
-              & To_String (File.Old_Path) & Sep & To_String (File.New_Path) & Sep
-              & To_String (File.Old_Mode) & Sep & To_String (File.New_Mode) & Sep
-              & To_String (File.Old_Object) & Sep & To_String (File.New_Object) & Sep
+            Input : constant String :=
+              Comparison_Key (Changes)
+              & Sep
+              & Change_Kind'Image (File.Delta_Kind)
+              & Sep
+              & To_String (File.Old_Path)
+              & Sep
+              & To_String (File.New_Path)
+              & Sep
+              & To_String (File.Old_Mode)
+              & Sep
+              & To_String (File.New_Mode)
+              & Sep
+              & To_String (File.Old_Object)
+              & Sep
+              & To_String (File.New_Object)
+              & Sep
               & To_String (File.Worktree_Fingerprint);
          begin
             File.Identifier := To_Unbounded_String (Digest (Input));
             for Span of File.Spans loop
-               Span.Identifier := To_Unbounded_String
-                 (Digest
-                    (To_String (File.Identifier) & Sep
-                     & Span.Value.Old_First'Image & ":" & Span.Value.Old_Count'Image
-                     & Sep & Span.Value.New_First'Image & ":"
-                     & Span.Value.New_Count'Image));
+               Span.Identifier :=
+                 To_Unbounded_String
+                   (Digest
+                      (To_String (File.Identifier)
+                       & Sep
+                       & Span.Value.Old_First'Image
+                       & ":"
+                       & Span.Value.Old_Count'Image
+                       & Sep
+                       & Span.Value.New_First'Image
+                       & ":"
+                       & Span.Value.New_Count'Image));
             end loop;
          end;
       end loop;
@@ -636,12 +770,12 @@ package body Git_Changes.Backends.Git_CLI is
       Changes    : out Change_Set;
       Error      : out Error_Info)
    is
-      Args        : Argument_Vectors.Vector;
-      Output      : Unbounded_String;
-      Cursor      : Positive := 1;
-      Parsed      : Raw.Raw_Record;
-      Result      : Raw.Parse_Result;
-      File        : Stored_File;
+      Args         : Argument_Vectors.Vector;
+      Output       : Unbounded_String;
+      Cursor       : Positive := 1;
+      Parsed       : Raw.Raw_Record;
+      Result       : Raw.Parse_Result;
+      File         : Stored_File;
       Index_Before : Unbounded_String;
       Index_After  : Unbounded_String;
       Local_Error  : Error_Info;
@@ -649,28 +783,38 @@ package body Git_Changes.Backends.Git_CLI is
       Present      : Boolean;
    begin
       Changes :=
-        (Repo => Repository,
+        (Repo     => Repository,
          Compared => Comparison,
-         Limits => Options,
-         others => <>);
+         Limits   => Options,
+         others   => <>);
       Error := (others => <>);
       if not Is_Open (Repository) then
-         Set_Error (Error, Invalid_Repository, "capture", "repository is not open");
+         Set_Error
+           (Error, Invalid_Repository, "capture", "repository is not open");
          return;
       end if;
       if Repository.Bare
         and then Comparison.Comparison_Type /= Tree_To_Tree_Comparison
       then
          Set_Error
-           (Error, Unsupported_Comparison, "capture",
+           (Error,
+            Unsupported_Comparison,
+            "capture",
             "bare repositories support only tree-to-tree comparison");
          return;
       end if;
 
       Start_Endpoints
-        (Repository, Comparison, Options, Changes.Old_State, Changes.New_State,
-         Index_Before, Error);
-      if not Success (Error) then return; end if;
+        (Repository,
+         Comparison,
+         Options,
+         Changes.Old_State,
+         Changes.New_State,
+         Index_Before,
+         Error);
+      if not Success (Error) then
+         return;
+      end if;
 
       Append (Args, "diff");
       Append (Args, "--raw");
@@ -686,24 +830,32 @@ package body Git_Changes.Backends.Git_CLI is
          Args.Append (Pathspec);
       end loop;
       Execute
-        (Repository, Args, Options.Max_Output_Bytes, "capture file inventory",
-         Output, Error);
-      if not Success (Error) then return; end if;
+        (Repository,
+         Args,
+         Options.Max_Output_Bytes,
+         "capture file inventory",
+         Output,
+         Error);
+      if not Success (Error) then
+         return;
+      end if;
 
       declare
          Raw_Output : constant String := To_String (Output);
       begin
-      while Cursor <= Raw_Output'Last loop
-         Raw.Parse_Next (Raw_Output, Cursor, Parsed, Result);
-         if Result /= Raw.Parsed then
-            Set_Error
-              (Error, Malformed_Backend_Output, "parse raw inventory",
-               Raw.Parse_Result'Image (Result) & " at byte" & Cursor'Image);
-            return;
-         end if;
-         Populate_File (Raw_Output, Parsed, Changes, File);
-         Changes.Files.Append (File);
-      end loop;
+         while Cursor <= Raw_Output'Last loop
+            Raw.Parse_Next (Raw_Output, Cursor, Parsed, Result);
+            if Result /= Raw.Parsed then
+               Set_Error
+                 (Error,
+                  Malformed_Backend_Output,
+                  "parse raw inventory",
+                  Raw.Parse_Result'Image (Result) & " at byte" & Cursor'Image);
+               return;
+            end if;
+            Populate_File (Raw_Output, Parsed, Changes, File);
+            Changes.Files.Append (File);
+         end loop;
       end;
 
       Sorting.Sort (Changes.Files);
@@ -714,24 +866,30 @@ package body Git_Changes.Backends.Git_CLI is
          then
             Worktree_Fingerprint
               (Repository,
-               (if File.New_Path_Present then To_String (File.New_Path)
+               (if File.New_Path_Present
+                then To_String (File.New_Path)
                 else To_String (File.Old_Path)),
-               Options, Fingerprint, Present);
+               Options,
+               Fingerprint,
+               Present);
             if Present then
                File.Worktree_Fingerprint := Fingerprint;
-               File.New_Content := not File.Submodule
+               File.New_Content :=
+                 not File.Submodule
                  and then To_String (File.New_Mode) /= "120000";
                if To_String (File.New_Mode) = "120000" then
-                  File.Diagnostic := To_Unbounded_String
-                    ("worktree symlink content is outside the portable adapter");
+                  File.Diagnostic :=
+                    To_Unbounded_String
+                      ("worktree symlink content is outside the portable adapter");
                end if;
             elsif not File.New_Path_Present then
                File.Worktree_Fingerprint := To_Unbounded_String ("absent");
                File.New_Content := False;
             else
                File.New_Content := False;
-               File.Diagnostic := To_Unbounded_String
-                 ("worktree content unavailable during capture");
+               File.Diagnostic :=
+                 To_Unbounded_String
+                   ("worktree content unavailable during capture");
                if not File.Submodule then
                   Changes.Stale := True;
                end if;
@@ -745,11 +903,15 @@ package body Git_Changes.Backends.Git_CLI is
          Changes.Files.Replace_Element (J, File);
       end loop;
 
-      if Comparison.Comparison_Type in Tree_To_Index_Comparison
-        | Index_To_Worktree_Comparison | Tree_To_Worktree_Comparison
+      if Comparison.Comparison_Type
+         in Tree_To_Index_Comparison
+          | Index_To_Worktree_Comparison
+          | Tree_To_Worktree_Comparison
       then
          Index_Fingerprint (Repository, Options, Index_After, Error);
-         if not Success (Error) then return; end if;
+         if not Success (Error) then
+            return;
+         end if;
          Changes.Stale := Changes.Stale or else Index_After /= Index_Before;
       end if;
 
@@ -759,14 +921,19 @@ package body Git_Changes.Backends.Git_CLI is
             if Length (File.Worktree_Fingerprint) > 0 then
                Worktree_Fingerprint
                  (Repository,
-                  (if File.New_Path_Present then To_String (File.New_Path)
+                  (if File.New_Path_Present
+                   then To_String (File.New_Path)
                    else To_String (File.Old_Path)),
-                  Options, Fingerprint, Present);
+                  Options,
+                  Fingerprint,
+                  Present);
                if (File.Worktree_Fingerprint = To_Unbounded_String ("absent")
                    and then Present)
-                 or else (File.Worktree_Fingerprint /= To_Unbounded_String ("absent")
+                 or else (File.Worktree_Fingerprint
+                          /= To_Unbounded_String ("absent")
                           and then (not Present
-                                    or else Fingerprint /= File.Worktree_Fingerprint))
+                                    or else Fingerprint
+                                            /= File.Worktree_Fingerprint))
                then
                   Changes.Stale := True;
                end if;
@@ -776,7 +943,10 @@ package body Git_Changes.Backends.Git_CLI is
 
       if Changes.Stale and then Options.Staleness = Fail_If_Stale then
          Set_Error
-           (Error, Content_Changed, "capture", "index or worktree changed during capture");
+           (Error,
+            Content_Changed,
+            "capture",
+            "index or worktree changed during capture");
          return;
       end if;
       Finalize_Identities (Changes);

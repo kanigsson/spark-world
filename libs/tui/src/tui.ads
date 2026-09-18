@@ -23,7 +23,7 @@ package Tui
 is
 
    --  A single octet — the unit of any byte buffer, UTF-8 stream, or wire read.
-   type Byte is mod 2 ** 8;
+   type Byte is mod 2**8;
 
    --  A Unicode scalar value. The surrogate range 16#D800# .. 16#DFFF# is
    --  representable here but is not a valid scalar value; encoders and decoders

@@ -1,4 +1,6 @@
-package body Git_View_Sha with SPARK_Mode => On is
+package body Git_View_Sha
+  with SPARK_Mode => On
+is
 
    use type Tui.Text.Byte;
 
@@ -9,8 +11,8 @@ package body Git_View_Sha with SPARK_Mode => On is
    Hex_F   : constant Tui.Text.Byte := Character'Pos ('f');
 
    --  Git prints object names in lowercase hexadecimal.
-   function Is_Hex (B : Tui.Text.Byte) return Boolean is
-     (B in Digit_0 .. Digit_9 or else B in Hex_A .. Hex_F);
+   function Is_Hex (B : Tui.Text.Byte) return Boolean
+   is (B in Digit_0 .. Digit_9 or else B in Hex_A .. Hex_F);
 
    -------------
    -- Extract --
@@ -34,6 +36,7 @@ package body Git_View_Sha with SPARK_Mode => On is
             exit when B = Space;   --  end of the leading token
             if Count = Max_Sha or else not Is_Hex (B) then
                return;             --  too long or not hex: no commit id here
+
             end if;
             Count := Count + 1;
             Result.Text (Count) := Character'Val (Natural (B));

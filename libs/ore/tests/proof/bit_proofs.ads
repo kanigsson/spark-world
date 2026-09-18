@@ -49,9 +49,8 @@ is
      Post   =>
        Significant_Bits'Result <= 32
        and then Shift_Right (Value, Significant_Bits'Result) = 0
-       and then
-         (if Significant_Bits'Result > 0
-          then Bit (Value, Significant_Bits'Result - 1));
+       and then (if Significant_Bits'Result > 0
+                 then Bit (Value, Significant_Bits'Result - 1));
 
    --  A code read out of a word, bounded the way a client's own contracts bound
    --  it: a code of Length bits is below 2 ** Length, in the arithmetic a code
@@ -64,7 +63,7 @@ is
      Ghost  => Static,
      Global => null,
      Pre    => Length <= 30,
-     Post   => Natural (Extract (Value, 0, Length)) < 2 ** Length;
+     Post   => Natural (Extract (Value, 0, Length)) < 2**Length;
 
    --  The same crossing for a weight rather than a code: what a Kraft sum over
    --  code lengths adds, taken from the operation that produces it as a word.
@@ -73,6 +72,6 @@ is
      Ghost  => Static,
      Global => null,
      Pre    => Length <= 30,
-     Post   => Natural (Power_Of_Two_32 (Length)) = 2 ** Length;
+     Post   => Natural (Power_Of_Two_32 (Length)) = 2**Length;
 
 end Bit_Proofs;

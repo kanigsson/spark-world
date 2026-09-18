@@ -3,7 +3,9 @@ with Ore.Byte_Buffers;
 with Inflate.Raw;
 with Inflate.CRC32;
 
-package body Inflate.ZIP with SPARK_Mode => On is
+package body Inflate.ZIP
+  with SPARK_Mode => On
+is
 
    use Ore.Byte_Buffers;
 
@@ -12,30 +14,25 @@ package body Inflate.ZIP with SPARK_Mode => On is
    --  checked loads to that convention; the preconditions are what every
    --  call site has just bounds-checked.
 
-   function RD16 (A : Byte_Array; Off : Natural) return Natural is
-     (Natural (Load_16 (A, A'First + Off, Little_Endian)))
+   function RD16 (A : Byte_Array; Off : Natural) return Natural
+   is (Natural (Load_16 (A, A'First + Off, Little_Endian)))
    with
      Global => null,
      Pre    => A'Length >= 2 and then Off <= A'Length - 2,
      Post   => RD16'Result <= 16#FFFF#;
 
-   function RD32 (A : Byte_Array; Off : Natural) return Word32 is
-     (Load_32 (A, A'First + Off, Little_Endian))
-   with
-     Global => null,
-     Pre    => A'Length >= 4 and then Off <= A'Length - 4;
+   function RD32 (A : Byte_Array; Off : Natural) return Word32
+   is (Load_32 (A, A'First + Off, Little_Endian))
+   with Global => null, Pre => A'Length >= 4 and then Off <= A'Length - 4;
 
    --  Record signatures ("PK" plus a type pair)
    function Has_Signature
      (A : Byte_Array; Off : Natural; S3, S4 : Byte) return Boolean
-   is
-     (A (A'First + Off) = 16#50#
-      and then A (A'First + Off + 1) = 16#4B#
-      and then A (A'First + Off + 2) = S3
-      and then A (A'First + Off + 3) = S4)
-   with
-     Global => null,
-     Pre    => A'Length >= 4 and then Off <= A'Length - 4;
+   is (A (A'First + Off) = 16#50#
+       and then A (A'First + Off + 1) = 16#4B#
+       and then A (A'First + Off + 2) = S3
+       and then A (A'First + Off + 3) = S4)
+   with Global => null, Pre => A'Length >= 4 and then Off <= A'Length - 4;
 
    End_Record_Size    : constant := 22;  --  EOCD without the comment
    Central_Entry_Size : constant := 46;  --  fixed part of a central entry
@@ -46,18 +43,18 @@ package body Inflate.ZIP with SPARK_Mode => On is
    ----------
 
    procedure Open
-     (Archive : in     Byte_Array;
-      C       :    out Cursor;
-      Count   :    out Natural;
-      Status  :    out Status_Type)
+     (Archive : in Byte_Array;
+      C       : out Cursor;
+      Count   : out Natural;
+      Status  : out Status_Type)
    is
       Pos       : Natural;  --  candidate EOCD offset from Archive'First
       Found     : Boolean := False;
       CD_Offset : Word32;
       CD_Size   : Word32;
    begin
-      C      := (others => 0);
-      Count  := 0;
+      C := (others => 0);
+      Count := 0;
 
       if Archive'Length < End_Record_Size then
          Status := ZIP_No_End_Record;
@@ -73,13 +70,14 @@ package body Inflate.ZIP with SPARK_Mode => On is
          pragma Loop_Invariant (Pos <= Archive'Length - End_Record_Size);
          pragma Loop_Variant (Decreases => Pos);
          if Has_Signature (Archive, Pos, 16#05#, 16#06#)
-           and then RD16 (Archive, Pos + 20) = Archive'Length - End_Record_Size - Pos
+           and then RD16 (Archive, Pos + 20)
+                    = Archive'Length - End_Record_Size - Pos
          then
             Found := True;
             exit;
          end if;
-         exit when Pos = 0
-           or else Archive'Length - End_Record_Size - Pos >= 16#FFFF#;
+         exit when
+           Pos = 0 or else Archive'Length - End_Record_Size - Pos >= 16#FFFF#;
          Pos := Pos - 1;
       end loop;
       if not Found then
@@ -96,8 +94,8 @@ package body Inflate.ZIP with SPARK_Mode => On is
          Status := ZIP_Unsupported;
          return;
       end if;
-      Count     := RD16 (Archive, Pos + 10);
-      CD_Size   := RD32 (Archive, Pos + 12);
+      Count := RD16 (Archive, Pos + 10);
+      CD_Size := RD32 (Archive, Pos + 12);
       CD_Offset := RD32 (Archive, Pos + 16);
       if Count = 16#FFFF#
         or else CD_Size = 16#FFFF_FFFF#
@@ -119,11 +117,12 @@ package body Inflate.ZIP with SPARK_Mode => On is
          return;
       end if;
 
-      C      := (Offset            => Natural (CD_Offset),
-                 Limit             => Natural (CD_Offset + CD_Size),
-                 First             => Natural (CD_Offset),
-                 End_Record_Offset => Pos,
-                 Remaining         => Count);
+      C :=
+        (Offset            => Natural (CD_Offset),
+         Limit             => Natural (CD_Offset + CD_Size),
+         First             => Natural (CD_Offset),
+         End_Record_Offset => Pos,
+         Remaining         => Count);
       Status := OK;
    end Open;
 
@@ -132,25 +131,26 @@ package body Inflate.ZIP with SPARK_Mode => On is
    ----------
 
    procedure Next
-     (Archive : in     Byte_Array;
+     (Archive : in Byte_Array;
       C       : in out Cursor;
-      E       :    out Entry_Info;
-      Status  :    out Status_Type)
+      E       : out Entry_Info;
+      Status  : out Status_Type)
    is
       Name_Len, Extra_Len, Comment_Len : Natural;
    begin
-      E := (Name_First_Value  => 1,
-            Name_Last_Value   => 0,
-            Method_Value      => 0,
-            Flags_Value       => 0,
-            CRC_Value         => 0,
-            Comp_Size_Value   => 0,
-            Uncomp_Size_Value => 0,
-            Local_Offset      => 0,
-            Central_Offset    => 0,
-            Central_First     => 0,
-            Central_Limit     => 0,
-            End_Record_Offset => 0);
+      E :=
+        (Name_First_Value  => 1,
+         Name_Last_Value   => 0,
+         Method_Value      => 0,
+         Flags_Value       => 0,
+         CRC_Value         => 0,
+         Comp_Size_Value   => 0,
+         Uncomp_Size_Value => 0,
+         Local_Offset      => 0,
+         Central_Offset    => 0,
+         Central_First     => 0,
+         Central_Limit     => 0,
+         End_Record_Offset => 0);
 
       if C.Offset > C.Limit
         or else C.Limit > Archive'Length
@@ -162,17 +162,18 @@ package body Inflate.ZIP with SPARK_Mode => On is
          return;
       end if;
 
-      E.Flags_Value       := RD16 (Archive, C.Offset + 8);
-      E.Method_Value      := RD16 (Archive, C.Offset + 10);
-      E.CRC_Value         := RD32 (Archive, C.Offset + 16);
-      E.Comp_Size_Value   := RD32 (Archive, C.Offset + 20);
+      E.Flags_Value := RD16 (Archive, C.Offset + 8);
+      E.Method_Value := RD16 (Archive, C.Offset + 10);
+      E.CRC_Value := RD32 (Archive, C.Offset + 16);
+      E.Comp_Size_Value := RD32 (Archive, C.Offset + 20);
       E.Uncomp_Size_Value := RD32 (Archive, C.Offset + 24);
-      Name_Len       := RD16 (Archive, C.Offset + 28);
-      Extra_Len      := RD16 (Archive, C.Offset + 30);
-      Comment_Len    := RD16 (Archive, C.Offset + 32);
+      Name_Len := RD16 (Archive, C.Offset + 28);
+      Extra_Len := RD16 (Archive, C.Offset + 30);
+      Comment_Len := RD16 (Archive, C.Offset + 32);
       E.Local_Offset := RD32 (Archive, C.Offset + 42);
 
-      if RD16 (Archive, C.Offset + 34) /= 0 then  --  disk number start
+      if RD16 (Archive, C.Offset + 34) /= 0 then
+         --  disk number start
          Status := ZIP_Unsupported;
          C.Remaining := 0;
          return;
@@ -186,34 +187,34 @@ package body Inflate.ZIP with SPARK_Mode => On is
          return;
       end if;
 
-      if Name_Len + Extra_Len + Comment_Len >
-        C.Limit - C.Offset - Central_Entry_Size
+      if Name_Len + Extra_Len + Comment_Len
+        > C.Limit - C.Offset - Central_Entry_Size
       then
          Status := ZIP_Bad_Central_Entry;
          C.Remaining := 0;
          return;
       end if;
 
-      E.Name_First_Value  := Archive'First + C.Offset + Central_Entry_Size;
-      E.Name_Last_Value   := E.Name_First_Value - 1 + Name_Len;
-      E.Central_Offset    := C.Offset;
-      E.Central_First     := C.First;
-      E.Central_Limit     := C.Limit;
+      E.Name_First_Value := Archive'First + C.Offset + Central_Entry_Size;
+      E.Name_Last_Value := E.Name_First_Value - 1 + Name_Len;
+      E.Central_Offset := C.Offset;
+      E.Central_First := C.First;
+      E.Central_Limit := C.Limit;
       E.End_Record_Offset := C.End_Record_Offset;
 
-      C.Offset    := C.Offset + Central_Entry_Size
-                       + Name_Len + Extra_Len + Comment_Len;
+      C.Offset :=
+        C.Offset + Central_Entry_Size + Name_Len + Extra_Len + Comment_Len;
       C.Remaining := C.Remaining - 1;
       if (C.Remaining = 0 and then C.Offset /= C.Limit)
         or else (C.Remaining > 0
-                 and then C.Remaining >
-                   (C.Limit - C.Offset) / Central_Entry_Size)
+                 and then C.Remaining
+                          > (C.Limit - C.Offset) / Central_Entry_Size)
       then
          Status := ZIP_Bad_Central_Entry;
          C.Remaining := 0;
          return;
       end if;
-      Status      := OK;
+      Status := OK;
    end Next;
 
    -------------
@@ -221,11 +222,11 @@ package body Inflate.ZIP with SPARK_Mode => On is
    -------------
 
    procedure Extract
-     (Archive  : in     Byte_Array;
-      E        : in     Entry_Info;
+     (Archive  : in Byte_Array;
+      E        : in Entry_Info;
       Output   : in out Byte_Array;
-      Produced :    out Natural;
-      Status   :    out Status_Type)
+      Produced : out Natural;
+      Status   : out Status_Type)
    is
       LO         : Natural;
       Data_Start : Natural;
@@ -240,19 +241,19 @@ package body Inflate.ZIP with SPARK_Mode => On is
       if E.End_Record_Offset > Archive'Length
         or else Archive'Length - E.End_Record_Offset < End_Record_Size
         or else not Has_Signature
-          (Archive, E.End_Record_Offset, 16#05#, 16#06#)
-        or else RD16 (Archive, E.End_Record_Offset + 20) /=
-          Archive'Length - End_Record_Size - E.End_Record_Offset
+                      (Archive, E.End_Record_Offset, 16#05#, 16#06#)
+        or else RD16 (Archive, E.End_Record_Offset + 20)
+                /= Archive'Length - End_Record_Size - E.End_Record_Offset
         or else RD16 (Archive, E.End_Record_Offset + 4) /= 0
         or else RD16 (Archive, E.End_Record_Offset + 6) /= 0
-        or else RD16 (Archive, E.End_Record_Offset + 8) /=
-          RD16 (Archive, E.End_Record_Offset + 10)
+        or else RD16 (Archive, E.End_Record_Offset + 8)
+                /= RD16 (Archive, E.End_Record_Offset + 10)
         or else E.Central_First > E.Central_Limit
         or else E.Central_Limit > E.End_Record_Offset
-        or else RD32 (Archive, E.End_Record_Offset + 16) /=
-          Word32 (E.Central_First)
-        or else RD32 (Archive, E.End_Record_Offset + 12) /=
-          Word32 (E.Central_Limit - E.Central_First)
+        or else RD32 (Archive, E.End_Record_Offset + 16)
+                /= Word32 (E.Central_First)
+        or else RD32 (Archive, E.End_Record_Offset + 12)
+                /= Word32 (E.Central_Limit - E.Central_First)
       then
          Status := ZIP_Bad_Central_Entry;
          return;
@@ -261,22 +262,23 @@ package body Inflate.ZIP with SPARK_Mode => On is
       if E.Central_Offset < E.Central_First
         or else E.Central_Offset > E.Central_Limit
         or else E.Central_Limit - E.Central_Offset < Central_Entry_Size
-        or else not Has_Signature
-          (Archive, E.Central_Offset, 16#01#, 16#02#)
+        or else not Has_Signature (Archive, E.Central_Offset, 16#01#, 16#02#)
         or else RD16 (Archive, E.Central_Offset + 34) /= 0
         or else RD16 (Archive, E.Central_Offset + 28)
-                    + RD16 (Archive, E.Central_Offset + 30)
-                    + RD16 (Archive, E.Central_Offset + 32) >
-          E.Central_Limit - E.Central_Offset - Central_Entry_Size
+                + RD16 (Archive, E.Central_Offset + 30)
+                + RD16 (Archive, E.Central_Offset + 32)
+                > E.Central_Limit - E.Central_Offset - Central_Entry_Size
       then
          Status := ZIP_Bad_Central_Entry;
          return;
       end if;
 
-      if E.Name_First_Value /=
-           Archive'First + E.Central_Offset + Central_Entry_Size
-        or else E.Name_Last_Value /= E.Name_First_Value - 1
-          + RD16 (Archive, E.Central_Offset + 28)
+      if E.Name_First_Value
+        /= Archive'First + E.Central_Offset + Central_Entry_Size
+        or else E.Name_Last_Value
+                /= E.Name_First_Value
+                   - 1
+                   + RD16 (Archive, E.Central_Offset + 28)
         or else E.Flags_Value /= RD16 (Archive, E.Central_Offset + 8)
         or else E.Method_Value /= RD16 (Archive, E.Central_Offset + 10)
         or else E.CRC_Value /= RD32 (Archive, E.Central_Offset + 16)
@@ -288,7 +290,8 @@ package body Inflate.ZIP with SPARK_Mode => On is
          return;
       end if;
 
-      if E.Flags_Value mod 2 /= 0 then  --  bit 0: encrypted
+      if E.Flags_Value mod 2 /= 0 then
+         --  bit 0: encrypted
          Status := ZIP_Unsupported;
          return;
       end if;
@@ -314,8 +317,7 @@ package body Inflate.ZIP with SPARK_Mode => On is
          C_Name  : constant Natural :=
            E.Name_Last_Value - (E.Name_First_Value - 1);
       begin
-         if L_Name + L_Extra >
-           E.Central_First - LO - Local_Header_Size
+         if L_Name + L_Extra > E.Central_First - LO - Local_Header_Size
            or else L_Name /= C_Name
            or else RD16 (Archive, LO + 6) /= E.Flags_Value
            or else RD16 (Archive, LO + 8) /= E.Method_Value
@@ -327,9 +329,11 @@ package body Inflate.ZIP with SPARK_Mode => On is
 
          if L_Name > 0
            and then Archive
-             (Archive'First + LO + Local_Header_Size ..
-              Archive'First + LO + Local_Header_Size + L_Name - 1) /=
-             Archive (E.Name_First_Value .. E.Name_Last_Value)
+                      (Archive'First
+                       + LO
+                       + Local_Header_Size
+                       .. Archive'First + LO + Local_Header_Size + L_Name - 1)
+                    /= Archive (E.Name_First_Value .. E.Name_Last_Value)
          then
             Status := ZIP_Bad_Local_Header;
             return;
@@ -340,12 +344,11 @@ package body Inflate.ZIP with SPARK_Mode => On is
       --  A 0xFFFFFFFF local size is also accepted for the small-file
       --  force-ZIP64 form whose central record still has classic sizes.
       if (E.Flags_Value / 8) mod 2 = 0
-        and then
-          (RD32 (Archive, LO + 14) /= E.CRC_Value
-           or else (RD32 (Archive, LO + 18) /= E.Comp_Size_Value
-                    and then RD32 (Archive, LO + 18) /= 16#FFFF_FFFF#)
-           or else (RD32 (Archive, LO + 22) /= E.Uncomp_Size_Value
-                    and then RD32 (Archive, LO + 22) /= 16#FFFF_FFFF#))
+        and then (RD32 (Archive, LO + 14) /= E.CRC_Value
+                  or else (RD32 (Archive, LO + 18) /= E.Comp_Size_Value
+                           and then RD32 (Archive, LO + 18) /= 16#FFFF_FFFF#)
+                  or else (RD32 (Archive, LO + 22) /= E.Uncomp_Size_Value
+                           and then RD32 (Archive, LO + 22) /= 16#FFFF_FFFF#))
       then
          Status := ZIP_Bad_Local_Header;
          return;
@@ -358,7 +361,7 @@ package body Inflate.ZIP with SPARK_Mode => On is
       CSize := Natural (E.Comp_Size_Value);
 
       case E.Method_Value is
-         when 0 =>
+         when 0      =>
             --  Stored: the two sizes must agree and the bytes are literal
             if E.Comp_Size_Value /= E.Uncomp_Size_Value then
                Status := ZIP_Bad_Central_Entry;
@@ -370,16 +373,23 @@ package body Inflate.ZIP with SPARK_Mode => On is
             end if;
             if CSize > 0 then
                Output (Output'First .. Output'First - 1 + CSize) :=
-                 Archive (Archive'First + Data_Start ..
-                          Archive'First - 1 + Data_Start + CSize);
+                 Archive
+                   (Archive'First
+                    + Data_Start
+                    .. Archive'First - 1 + Data_Start + CSize);
             end if;
             Produced := CSize;
 
-         when 8 =>
+         when 8      =>
             Raw.Decompress
-              (Archive (Archive'First + Data_Start ..
-                        Archive'First - 1 + Data_Start + CSize),
-               Output, Consumed, Produced, Status);
+              (Archive
+                 (Archive'First
+                  + Data_Start
+                  .. Archive'First - 1 + Data_Start + CSize),
+               Output,
+               Consumed,
+               Produced,
+               Status);
             if Status /= OK then
                return;
             end if;

@@ -9,7 +9,9 @@
 
 with Interfaces;
 
-package JSON.Numbers with SPARK_Mode => On is
+package JSON.Numbers
+  with SPARK_Mode => On
+is
 
    use type Interfaces.Integer_64;
 
@@ -18,12 +20,8 @@ package JSON.Numbers with SPARK_Mode => On is
    --  token is not such an integer or does not fit Integer_64; the full
    --  Integer_64 range including 'First is accepted.
    procedure To_Integer
-     (Token : in     String;
-      Value :    out Interfaces.Integer_64;
-      OK    :    out Boolean)
-   with
-     Global => null,
-     Post   => (if not OK then Value = 0);
+     (Token : in String; Value : out Interfaces.Integer_64; OK : out Boolean)
+   with Global => null, Post => (if not OK then Value = 0);
 
    --  Conversion of any number token to Long_Float. OK is False when the
    --  token is malformed or its magnitude is beyond roughly 1.0E308 (the
@@ -33,11 +31,7 @@ package JSON.Numbers with SPARK_Mode => On is
    --  (one rounding per decimal-exponent step), and exact for integers up
    --  to 2**53 — line/column/count data converts exactly.
    procedure To_Float
-     (Token : in     String;
-      Value :    out Long_Float;
-      OK    :    out Boolean)
-   with
-     Global => null,
-     Post   => (if not OK then Value = 0.0);
+     (Token : in String; Value : out Long_Float; OK : out Boolean)
+   with Global => null, Post => (if not OK then Value = 0.0);
 
 end JSON.Numbers;

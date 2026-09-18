@@ -1,5 +1,5 @@
-with Ada.Text_IO;          use Ada.Text_IO;
-with Unicode_Text;         use Unicode_Text;
+with Ada.Text_IO;  use Ada.Text_IO;
+with Unicode_Text; use Unicode_Text;
 with Unicode_Text.Bounded;
 with Unicode_Text.UTF_8;
 
@@ -33,14 +33,29 @@ procedure Bounded_String_Tests is
 
    Mixed : constant String :=
      Bytes
-       ([16#00#, 16#7F#,
-         16#C2#, 16#80#,
-         16#DF#, 16#BF#,
-         16#E0#, 16#A0#, 16#80#,
-         16#ED#, 16#9F#, 16#BF#,
-         16#EE#, 16#80#, 16#80#,
-         16#F0#, 16#90#, 16#80#, 16#80#,
-         16#F4#, 16#8F#, 16#BF#, 16#BF#]);
+       ([16#00#,
+         16#7F#,
+         16#C2#,
+         16#80#,
+         16#DF#,
+         16#BF#,
+         16#E0#,
+         16#A0#,
+         16#80#,
+         16#ED#,
+         16#9F#,
+         16#BF#,
+         16#EE#,
+         16#80#,
+         16#80#,
+         16#F0#,
+         16#90#,
+         16#80#,
+         16#80#,
+         16#F4#,
+         16#8F#,
+         16#BF#,
+         16#BF#]);
 
 begin
    declare
@@ -103,12 +118,25 @@ begin
          Tail : constant Text.Bounded_String :=
            Text.To_Bounded_String
              (Bytes
-                ([16#DF#, 16#BF#,
-                  16#E0#, 16#A0#, 16#80#,
-                  16#ED#, 16#9F#, 16#BF#,
-                  16#EE#, 16#80#, 16#80#,
-                  16#F0#, 16#90#, 16#80#, 16#80#,
-                  16#F4#, 16#8F#, 16#BF#, 16#BF#]));
+                ([16#DF#,
+                  16#BF#,
+                  16#E0#,
+                  16#A0#,
+                  16#80#,
+                  16#ED#,
+                  16#9F#,
+                  16#BF#,
+                  16#EE#,
+                  16#80#,
+                  16#80#,
+                  16#F0#,
+                  16#90#,
+                  16#80#,
+                  16#80#,
+                  16#F4#,
+                  16#8F#,
+                  16#BF#,
+                  16#BF#]));
       begin
          Text.Append (Copy, Tail);
       end;
@@ -126,22 +154,29 @@ begin
          "iteration ends at byte length");
 
       declare
-         Span        : constant Text.Byte_Span :=
+         Span       : constant Text.Byte_Span :=
            Text.To_Byte_Span (Value, 3, 3);
-         Part        : constant Text.Bounded_String := Text.Slice (Value, Span);
-         Indexed     : constant Text.Bounded_String := Text.Slice (Value, 3, 3);
-         Empty_Part  : constant Text.Bounded_String := Text.Slice (Value, 10, 0);
-         Needle      : constant Text.Bounded_String :=
+         Part       : constant Text.Bounded_String := Text.Slice (Value, Span);
+         Indexed    : constant Text.Bounded_String := Text.Slice (Value, 3, 3);
+         Empty_Part : constant Text.Bounded_String :=
+           Text.Slice (Value, 10, 0);
+         Needle     : constant Text.Bounded_String :=
            Text.To_Bounded_String
              (Bytes
-                ([16#DF#, 16#BF#,
-                  16#E0#, 16#A0#, 16#80#,
-                  16#ED#, 16#9F#, 16#BF#]));
+                ([16#DF#,
+                  16#BF#,
+                  16#E0#,
+                  16#A0#,
+                  16#80#,
+                  16#ED#,
+                  16#9F#,
+                  16#BF#]));
       begin
-         Check (Span.First = 2 and then Span.Past_Last = 9,
-                "bounded code-point span");
-         Check (Text.Is_Valid_Byte_Span (Value, Span),
-                "bounded span validity");
+         Check
+           (Span.First = 2 and then Span.Past_Last = 9,
+            "bounded code-point span");
+         Check
+           (Text.Is_Valid_Byte_Span (Value, Span), "bounded span validity");
          Check (Part = Indexed, "bounded span and indexed slices agree");
          Check (Text.Code_Point_Length (Part) = 3, "bounded slice length");
          Check (Text.Is_Empty (Empty_Part), "bounded empty ending slice");
@@ -156,12 +191,12 @@ begin
            (Text.Find (Value, Text.To_String (Needle), From => 5) = 0,
             "bounded string needle from later position");
          Check (Text.Find (Value, "") = 1, "bounded empty needle");
-         Check (Text.Find (Value, "", From => 10) = 10,
-                "bounded empty needle at end");
+         Check
+           (Text.Find (Value, "", From => 10) = 10,
+            "bounded empty needle at end");
          Check (Text.Contains (Value, Needle), "bounded containment");
          Check
-           (not Text.Contains (Needle, Value),
-            "bounded missing containment");
+           (not Text.Contains (Needle, Value), "bounded missing containment");
       end;
    end;
 

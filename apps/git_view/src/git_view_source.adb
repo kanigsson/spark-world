@@ -5,12 +5,13 @@
 
 with Git_View_Source.OS;
 
-package body Git_View_Source with SPARK_Mode => On is
+package body Git_View_Source
+  with SPARK_Mode => On
+is
 
    --  A one-line document carrying Msg, for the failure fallback.
    function Text_Document (Msg : String) return Tui.Text.Doc_Ref
-   with Pre  => Msg'Length <= 60,
-        Post => Text_Document'Result /= null;
+   with Pre => Msg'Length <= 60, Post => Text_Document'Result /= null;
 
    function Text_Document (Msg : String) return Tui.Text.Doc_Ref is
       Buf : Tui.Text.Buffer (1 .. Msg'Length) := (others => 0);
@@ -25,17 +26,15 @@ package body Git_View_Source with SPARK_Mode => On is
    -- Available --
    ---------------
 
-   function Available return Boolean is (OS.Find_Git);
+   function Available return Boolean
+   is (OS.Find_Git);
 
    -------------------
    -- Make_Revision --
    -------------------
 
    procedure Make_Revision
-     (Text  : String;
-      Value : out Revision;
-      Ok    : out Boolean)
-   is
+     (Text : String; Value : out Revision; Ok : out Boolean) is
    begin
       Value := (Text => (others => ' '), Len => 0);
       Ok := Text'Length in 1 .. Max_Revision_Length;
@@ -50,10 +49,7 @@ package body Git_View_Source with SPARK_Mode => On is
    -----------------
 
    procedure Make_Filter
-     (Text  : String;
-      Value : out Filter_Value;
-      Ok    : out Boolean)
-   is
+     (Text : String; Value : out Filter_Value; Ok : out Boolean) is
    begin
       Value := (Text => (others => ' '), Len => 0);
       Ok := Text'Length in 1 .. Max_Filter_Length;
@@ -68,11 +64,10 @@ package body Git_View_Source with SPARK_Mode => On is
    --------------
 
    procedure Load_Log
-     (From    : Revision;
-      Filter  : Filters;
-      Doc     : out Tui.Text.Doc_Ref;
-      Ok      : out Boolean)
-   is
+     (From   : Revision;
+      Filter : Filters;
+      Doc    : out Tui.Text.Doc_Ref;
+      Ok     : out Boolean) is
    begin
       OS.Load_History (From, Filter, Doc, Ok);
    end Load_Log;
@@ -82,17 +77,15 @@ package body Git_View_Source with SPARK_Mode => On is
    ---------------
 
    procedure Load_Diff
-     (Id  : Git_View_Sha.Sha;
-      Doc : in out Tui.Text.Doc_Ref;
-      Ok  : out Boolean)
+     (Id : Git_View_Sha.Sha; Doc : in out Tui.Text.Doc_Ref; Ok : out Boolean)
    is
    begin
       Tui.Text.Free (Doc);   --  reclaim the replaced document (no-op on null)
       OS.Load_Commit (Git_View_Sha.Image (Id), Doc, Ok);
       if Doc = null then
          Ok := False;
-         Doc := Text_Document ("git show " & Git_View_Sha.Image (Id)
-                               & " failed");
+         Doc :=
+           Text_Document ("git show " & Git_View_Sha.Image (Id) & " failed");
       end if;
    end Load_Diff;
 

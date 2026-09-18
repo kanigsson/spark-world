@@ -16,34 +16,37 @@ is
    begin
       Exact_Text.Append (Result, 16#10_FFFF#);
       pragma Assert (Exact_Text.Byte_Length (Result) = 4);
-      pragma Assert
-        (Static => Exact_Text.Model (Result) = [16#10_FFFF#]);
+      pragma Assert (Static => Exact_Text.Model (Result) = [16#10_FFFF#]);
    end Fill_Exact_Capacity;
 
    procedure Repeated_Appends is
       Result : Repeated_Text.Bounded_String := Repeated_Text.Empty;
    begin
       Repeated_Text.Append (Result, 16#007F#);
-      pragma Assert
-        (Static => Repeated_Text.Model (Result) = [16#007F#]);
+      pragma Assert (Static => Repeated_Text.Model (Result) = [16#007F#]);
 
       Repeated_Text.Append (Result, 16#0800#);
-      pragma Assert
-        (Static => Repeated_Text.Model (Result) = [16#007F#, 16#0800#]);
+      pragma
+        Assert (Static => Repeated_Text.Model (Result) = [16#007F#, 16#0800#]);
 
       Repeated_Text.Append (Result, 16#10_FFFF#);
-      pragma Assert
-        (Static =>
-           Repeated_Text.Model (Result)
-           = [16#007F#, 16#0800#, 16#10_FFFF#]);
+      pragma
+        Assert
+          (Static =>
+             Repeated_Text.Model (Result) = [16#007F#, 16#0800#, 16#10_FFFF#]);
    end Repeated_Appends;
 
    procedure Slice_And_Search is
-      Raw_Source : constant String := "abcabc" with Ghost => Static;
-      Needle     : constant String := "bc" with Ghost => Static;
-      Missing_Needle : constant String := "z" with Ghost => Static;
-      Empty_Needle   : constant String := "" with Ghost => Static;
-      Present_Needle : constant String := "cab" with Ghost => Static;
+      Raw_Source     : constant String := "abcabc"
+      with Ghost => Static;
+      Needle         : constant String := "bc"
+      with Ghost => Static;
+      Missing_Needle : constant String := "z"
+      with Ghost => Static;
+      Empty_Needle   : constant String := ""
+      with Ghost => Static;
+      Present_Needle : constant String := "cab"
+      with Ghost => Static;
    begin
       Lemma_ASCII_Valid (Raw_Source);
       Lemma_ASCII_Valid (Needle);
@@ -51,15 +54,15 @@ is
       Lemma_ASCII_Valid (Empty_Needle);
       Lemma_ASCII_Valid (Present_Needle);
       declare
-         Source : constant Repeated_Text.Bounded_String :=
+         Source  : constant Repeated_Text.Bounded_String :=
            Repeated_Text.To_Bounded_String (Raw_Source)
          with Ghost => Static;
-         Part   : constant Repeated_Text.Bounded_String :=
+         Part    : constant Repeated_Text.Bounded_String :=
            Repeated_Text.Slice (Source, 2, 3)
          with Ghost => Static;
-         First  : constant Natural := Repeated_Text.Find (Source, Needle)
+         First   : constant Natural := Repeated_Text.Find (Source, Needle)
          with Ghost => Static;
-         Later  : constant Natural :=
+         Later   : constant Natural :=
            Repeated_Text.Find (Source, Needle, From => 3)
          with Ghost => Static;
          Missing : constant Natural :=
@@ -69,40 +72,45 @@ is
            Repeated_Text.Find (Source, Empty_Needle, From => 7)
          with Ghost => Static;
       begin
-         pragma Assert
-           (Static =>
-              Is_Slice
-                (Source => Repeated_Text.Model (Source),
-                 First  => 2,
-                 Count  => 3,
-                 Result => Repeated_Text.Model (Part)));
-         pragma Assert
-           (Static =>
-              Is_First_Occurrence
-                (Repeated_Text.Model (Source),
-                 Model (Needle),
-                 1,
-                 To_Big_Integer (First)));
-         pragma Assert
-           (Static =>
-              Is_First_Occurrence
-                (Repeated_Text.Model (Source),
-                 Model (Needle),
-                 3,
-                 To_Big_Integer (Later)));
-         pragma Assert
-           (Static =>
-              Is_First_Occurrence
-                (Repeated_Text.Model (Source),
-                 Model (Missing_Needle),
-                 1,
-                 To_Big_Integer (Missing)));
+         pragma
+           Assert
+             (Static =>
+                Is_Slice
+                  (Source => Repeated_Text.Model (Source),
+                   First  => 2,
+                   Count  => 3,
+                   Result => Repeated_Text.Model (Part)));
+         pragma
+           Assert
+             (Static =>
+                Is_First_Occurrence
+                  (Repeated_Text.Model (Source),
+                   Model (Needle),
+                   1,
+                   To_Big_Integer (First)));
+         pragma
+           Assert
+             (Static =>
+                Is_First_Occurrence
+                  (Repeated_Text.Model (Source),
+                   Model (Needle),
+                   3,
+                   To_Big_Integer (Later)));
+         pragma
+           Assert
+             (Static =>
+                Is_First_Occurrence
+                  (Repeated_Text.Model (Source),
+                   Model (Missing_Needle),
+                   1,
+                   To_Big_Integer (Missing)));
          pragma Assert (Static => Empty = 7);
-         pragma Assert
-           (Static =>
-              Repeated_Text.Contains (Source, Present_Needle)
-              = Unicode_Text.Models.Contains
-                  (Repeated_Text.Model (Source), Model (Present_Needle)));
+         pragma
+           Assert
+             (Static =>
+                Repeated_Text.Contains (Source, Present_Needle)
+                = Unicode_Text.Models.Contains
+                    (Repeated_Text.Model (Source), Model (Present_Needle)));
       end;
    end Slice_And_Search;
 

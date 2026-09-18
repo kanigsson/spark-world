@@ -6,7 +6,9 @@
 --  mistype. All arithmetic is modular — proof of absence of run-time
 --  errors is direct.
 
-package Inflate.CRC32 with SPARK_Mode => On is
+package Inflate.CRC32
+  with SPARK_Mode => On
+is
 
    --  The specification functions below are used while the lookup table is
    --  elaborated.  Keep their contracts proof-only so assertion-enabled
@@ -29,8 +31,8 @@ package Inflate.CRC32 with SPARK_Mode => On is
    with
      Global => null,
      Post   =>
-       Polynomial_Bit_Step'Result =
-         (if (Remainder and 1) /= 0
+       Polynomial_Bit_Step'Result
+       = (if (Remainder and 1) /= 0
           then Shift_Right (Remainder, 1) xor Reflected_Generator
           else Shift_Right (Remainder, 1));
 
@@ -38,22 +40,22 @@ package Inflate.CRC32 with SPARK_Mode => On is
    with
      Global => null,
      Post   =>
-       Polynomial_Bits_2'Result =
-         Polynomial_Bit_Step (Polynomial_Bit_Step (Remainder));
+       Polynomial_Bits_2'Result
+       = Polynomial_Bit_Step (Polynomial_Bit_Step (Remainder));
 
    function Polynomial_Bits_4 (Remainder : Word32) return Word32
    with
      Global => null,
      Post   =>
-       Polynomial_Bits_4'Result =
-         Polynomial_Bits_2 (Polynomial_Bits_2 (Remainder));
+       Polynomial_Bits_4'Result
+       = Polynomial_Bits_2 (Polynomial_Bits_2 (Remainder));
 
    function Polynomial_Bits_8 (Remainder : Word32) return Word32
    with
      Global => null,
      Post   =>
-       Polynomial_Bits_8'Result =
-         Polynomial_Bits_4 (Polynomial_Bits_4 (Remainder));
+       Polynomial_Bits_8'Result
+       = Polynomial_Bits_4 (Polynomial_Bits_4 (Remainder));
 
    function Polynomial_Byte_Remainder (B : Byte) return Word32
    with
@@ -61,13 +63,12 @@ package Inflate.CRC32 with SPARK_Mode => On is
      Post   =>
        Polynomial_Byte_Remainder'Result = Polynomial_Bits_8 (Word32 (B));
 
-   function Polynomial_Byte_Step (Remainder : Word32; B : Byte)
-      return Word32
+   function Polynomial_Byte_Step (Remainder : Word32; B : Byte) return Word32
    with
      Global => null,
      Post   =>
-       Polynomial_Byte_Step'Result =
-         Polynomial_Bits_8 (Remainder xor Word32 (B));
+       Polynomial_Byte_Step'Result
+       = Polynomial_Bits_8 (Remainder xor Word32 (B));
 
    --  The functional model of the computation: the CRC state folded over
    --  the data bytes one at a time, front to back, with explicit cursors.
@@ -85,11 +86,12 @@ package Inflate.CRC32 with SPARK_Mode => On is
       return Word32
    with
      Ghost,
-     Global => null,
-     Pre    => To <= Buffer_Index'Last
-               and then From <= To + 1
-               and then (if To >= From
-                         then From >= Data'First and then To <= Data'Last),
+     Global             => null,
+     Pre                =>
+       To <= Buffer_Index'Last
+       and then From <= To + 1
+       and then (if To >= From
+                 then From >= Data'First and then To <= Data'Last),
      Subprogram_Variant => (Decreases => To - From);
 
    --  Continue a CRC over more data. Start from 0 (Compute does), feed
@@ -98,14 +100,17 @@ package Inflate.CRC32 with SPARK_Mode => On is
    with
      Global => null,
      Post   =>
-       Update'Result =
-         (Fold (CRC xor 16#FFFF_FFFF#, Data,
-                (if Data'Length > 0 then Data'First else 1),
-                (if Data'Length > 0 then Data'Last else 0))
+       Update'Result
+       = (Fold
+            (CRC xor 16#FFFF_FFFF#,
+             Data,
+             (if Data'Length > 0 then Data'First else 1),
+             (if Data'Length > 0 then Data'Last else 0))
           xor 16#FFFF_FFFF#);
 
    --  CRC-32 of Data, as gzip and ZIP store it.
-   function Compute (Data : Byte_Array) return Word32 is (Update (0, Data))
+   function Compute (Data : Byte_Array) return Word32
+   is (Update (0, Data))
    with Global => null;
 
    --  The CRC depends only on the byte sequence, not on where it sits in
@@ -118,9 +123,10 @@ package Inflate.CRC32 with SPARK_Mode => On is
    with
      Ghost,
      Global => null,
-     Pre  => D1'Length = D2'Length
-             and then (for all K in 0 .. D1'Length - 1 =>
-                         D2 (D2'First + K) = D1 (D1'First + K)),
-     Post => Update (CRC, D2) = Update (CRC, D1);
+     Pre    =>
+       D1'Length = D2'Length
+       and then (for all K in 0 .. D1'Length - 1 =>
+                   D2 (D2'First + K) = D1 (D1'First + K)),
+     Post   => Update (CRC, D2) = Update (CRC, D1);
 
 end Inflate.CRC32;

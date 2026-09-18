@@ -10,10 +10,13 @@
 --  Queries cross the boundary as the parent's own bounded records, so the
 --  proved side never touches an access-to-string.
 
-private package Git_View_Source.OS with SPARK_Mode => On is
+private package Git_View_Source.OS
+  with SPARK_Mode => On
+is
 
    --  True when the repository backend can be reached at all.
-   function Find_Git return Boolean with Global => null;
+   function Find_Git return Boolean
+   with Global => null;
 
    --  Walk history and render one line per commit, the abbreviated id
    --  first: the proved commit-id parser depends on that placement. Doc is
@@ -29,9 +32,7 @@ private package Git_View_Source.OS with SPARK_Mode => On is
    --  backend reported, so the diff pane shows a real message rather than a
    --  blank screen; it is null only when nothing could be obtained at all.
    procedure Load_Commit
-     (Id  : String;
-      Doc : out Tui.Text.Doc_Ref;
-      Ok  : out Boolean)
+     (Id : String; Doc : out Tui.Text.Doc_Ref; Ok : out Boolean)
    with Global => null;
 
 end Git_View_Source.OS;

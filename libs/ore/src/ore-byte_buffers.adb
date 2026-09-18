@@ -28,12 +28,12 @@ is
    begin
       case Order is
          when Little_Endian =>
-            A (From) := Byte (Value mod 2 ** 8);
-            A (From + 1) := Byte (Value / 2 ** 8);
+            A (From) := Byte (Value mod 2**8);
+            A (From + 1) := Byte (Value / 2**8);
 
          when Big_Endian    =>
-            A (From) := Byte (Value / 2 ** 8);
-            A (From + 1) := Byte (Value mod 2 ** 8);
+            A (From) := Byte (Value / 2**8);
+            A (From + 1) := Byte (Value mod 2**8);
       end case;
    end Store_16;
 
@@ -43,16 +43,16 @@ is
    begin
       case Order is
          when Little_Endian =>
-            A (From) := Byte (Value mod 2 ** 8);
-            A (From + 1) := Byte (Value / 2 ** 8 mod 2 ** 8);
-            A (From + 2) := Byte (Value / 2 ** 16 mod 2 ** 8);
-            A (From + 3) := Byte (Value / 2 ** 24);
+            A (From) := Byte (Value mod 2**8);
+            A (From + 1) := Byte (Value / 2**8 mod 2**8);
+            A (From + 2) := Byte (Value / 2**16 mod 2**8);
+            A (From + 3) := Byte (Value / 2**24);
 
          when Big_Endian    =>
-            A (From) := Byte (Value / 2 ** 24);
-            A (From + 1) := Byte (Value / 2 ** 16 mod 2 ** 8);
-            A (From + 2) := Byte (Value / 2 ** 8 mod 2 ** 8);
-            A (From + 3) := Byte (Value mod 2 ** 8);
+            A (From) := Byte (Value / 2**24);
+            A (From + 1) := Byte (Value / 2**16 mod 2**8);
+            A (From + 2) := Byte (Value / 2**8 mod 2**8);
+            A (From + 3) := Byte (Value mod 2**8);
       end case;
    end Store_32;
 
@@ -62,24 +62,24 @@ is
    begin
       case Order is
          when Little_Endian =>
-            A (From) := Byte (Value mod 2 ** 8);
-            A (From + 1) := Byte (Value / 2 ** 8 mod 2 ** 8);
-            A (From + 2) := Byte (Value / 2 ** 16 mod 2 ** 8);
-            A (From + 3) := Byte (Value / 2 ** 24 mod 2 ** 8);
-            A (From + 4) := Byte (Value / 2 ** 32 mod 2 ** 8);
-            A (From + 5) := Byte (Value / 2 ** 40 mod 2 ** 8);
-            A (From + 6) := Byte (Value / 2 ** 48 mod 2 ** 8);
-            A (From + 7) := Byte (Value / 2 ** 56);
+            A (From) := Byte (Value mod 2**8);
+            A (From + 1) := Byte (Value / 2**8 mod 2**8);
+            A (From + 2) := Byte (Value / 2**16 mod 2**8);
+            A (From + 3) := Byte (Value / 2**24 mod 2**8);
+            A (From + 4) := Byte (Value / 2**32 mod 2**8);
+            A (From + 5) := Byte (Value / 2**40 mod 2**8);
+            A (From + 6) := Byte (Value / 2**48 mod 2**8);
+            A (From + 7) := Byte (Value / 2**56);
 
          when Big_Endian    =>
-            A (From) := Byte (Value / 2 ** 56);
-            A (From + 1) := Byte (Value / 2 ** 48 mod 2 ** 8);
-            A (From + 2) := Byte (Value / 2 ** 40 mod 2 ** 8);
-            A (From + 3) := Byte (Value / 2 ** 32 mod 2 ** 8);
-            A (From + 4) := Byte (Value / 2 ** 24 mod 2 ** 8);
-            A (From + 5) := Byte (Value / 2 ** 16 mod 2 ** 8);
-            A (From + 6) := Byte (Value / 2 ** 8 mod 2 ** 8);
-            A (From + 7) := Byte (Value mod 2 ** 8);
+            A (From) := Byte (Value / 2**56);
+            A (From + 1) := Byte (Value / 2**48 mod 2**8);
+            A (From + 2) := Byte (Value / 2**40 mod 2**8);
+            A (From + 3) := Byte (Value / 2**32 mod 2**8);
+            A (From + 4) := Byte (Value / 2**24 mod 2**8);
+            A (From + 5) := Byte (Value / 2**16 mod 2**8);
+            A (From + 6) := Byte (Value / 2**8 mod 2**8);
+            A (From + 7) := Byte (Value mod 2**8);
       end case;
    end Store_64;
 

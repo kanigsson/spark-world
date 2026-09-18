@@ -1,17 +1,18 @@
 with JSON.Strings;
 
-package body JSON_Unicode_Proofs with SPARK_Mode => On is
+package body JSON_Unicode_Proofs
+  with SPARK_Mode => On
+is
 
    use type JSON.Status_Type;
    use type JSON.Walk.Step_Status;
 
    procedure Decode_Client
-     (Input      : in     String;
+     (Input      : in String;
       Output     : in out String;
-      Length     :    out Natural;
-      Codepoints :    out Natural;
-      Status     :    out JSON.Status_Type)
-   is
+      Length     : out Natural;
+      Codepoints : out Natural;
+      Status     : out JSON.Status_Type) is
    begin
       JSON.Strings.Decode (Input, Output, Length, Status);
       if Status = JSON.OK then
@@ -25,8 +26,8 @@ package body JSON_Unicode_Proofs with SPARK_Mode => On is
 
    procedure Empty_Decode_Client
      (Output     : in out String;
-      Codepoints :    out Natural;
-      Status     :    out JSON.Status_Type)
+      Codepoints : out Natural;
+      Status     : out JSON.Status_Type)
    is
       Length : Natural;
    begin
@@ -41,10 +42,10 @@ package body JSON_Unicode_Proofs with SPARK_Mode => On is
    end Empty_Decode_Client;
 
    procedure Pull_Payload_Client
-     (Input      : in     String;
+     (Input      : in String;
       P          : in out JSON.Pull.Parser;
-      Codepoints :    out Natural;
-      Status     :    out JSON.Status_Type)
+      Codepoints : out Natural;
+      Status     : out JSON.Status_Type)
    is
       Ev : JSON.Pull.Event;
    begin
@@ -62,13 +63,14 @@ package body JSON_Unicode_Proofs with SPARK_Mode => On is
    end Pull_Payload_Client;
 
    procedure Walk_Find_Client
-     (Input  : in     String;
+     (Input  : in String;
       P      : in out JSON.Pull.Parser;
-      Name   : in     String;
-      Found  :    out Boolean;
-      Status :    out JSON.Walk.Step_Status)
+      Name   : in String;
+      Found  : out Boolean;
+      Status : out JSON.Walk.Step_Status)
    is
-      Start : constant Natural := P.Pos with Ghost;
+      Start : constant Natural := P.Pos
+      with Ghost;
       Key   : JSON.Walk.Span;
       Done  : Boolean;
    begin

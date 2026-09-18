@@ -1,4 +1,6 @@
-package body Tui.UTF8 with SPARK_Mode => On is
+package body Tui.UTF8
+  with SPARK_Mode => On
+is
 
    ------------
    -- Decode --
@@ -16,15 +18,22 @@ package body Tui.UTF8 with SPARK_Mode => On is
       L : constant Natural := Sequence_Length (B0, B1, B2, B3, Avail);
    begin
       if L = 0 then
-         CP  := Replacement;
+         CP := Replacement;
          Len := 1;
       else
          Len := L;
          case L is
-            when 1      => CP := Natural (B0);
-            when 2      => CP := Scalar_2 (B0, B1);
-            when 3      => CP := Scalar_3 (B0, B1, B2);
-            when others => CP := Scalar_4 (B0, B1, B2, B3);  --  L = 4
+            when 1      =>
+               CP := Natural (B0);
+
+            when 2      =>
+               CP := Scalar_2 (B0, B1);
+
+            when 3      =>
+               CP := Scalar_3 (B0, B1, B2);
+
+            when others =>
+               CP := Scalar_4 (B0, B1, B2, B3);  --  L = 4
          end case;
       end if;
    end Decode;

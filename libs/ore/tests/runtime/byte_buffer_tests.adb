@@ -246,17 +246,15 @@ procedure Byte_Buffer_Tests is
             Check
               (Read_Position (B) = 0
                and then Length (B) = Kept
-               and then
-                 (for all K in 1 .. Kept =>
-                    Element (B, K) = Byte (Consumed + K)),
+               and then (for all K in 1 .. Kept =>
+                           Element (B, K) = Byte (Consumed + K)),
                "small-state compact");
 
             Append_Fill (B, 16#EE#, Consumed);
             Check
               (Length (B) = Capacity
-               and then
-                 (for all K in Kept + 1 .. Capacity =>
-                    Element (B, K) = 16#EE#),
+               and then (for all K in Kept + 1 .. Capacity =>
+                           Element (B, K) = 16#EE#),
                "small-state refill");
          end;
       end loop;
@@ -285,9 +283,8 @@ procedure Byte_Buffer_Tests is
                   Append_Copy (B, Distance, Count);
                   Check
                     (Length (B) = Base + Count
-                     and then
-                       (for all I in 1 .. Base + Count =>
-                          Element (B, I) = Expected (I)),
+                     and then (for all I in 1 .. Base + Count =>
+                                 Element (B, I) = Expected (I)),
                      "small-state back-reference");
                end;
             end loop;
@@ -307,9 +304,8 @@ procedure Byte_Buffer_Tests is
          Store_16 (A, A'First, 16#1234#, Order);
          Check
            (Load_16 (A, A'First, Order) = 16#1234#
-            and then
-              (for all I in A'Range =>
-                 (if I > A'First + 1 then A (I) = Before (I))),
+            and then (for all I in A'Range =>
+                        (if I > A'First + 1 then A (I) = Before (I))),
             "16-bit store at first position");
 
          A := (others => 16#A5#);
@@ -317,9 +313,8 @@ procedure Byte_Buffer_Tests is
          Store_16 (A, A'Last - 1, 16#ABCD#, Order);
          Check
            (Load_16 (A, A'Last - 1, Order) = 16#ABCD#
-            and then
-              (for all I in A'Range =>
-                 (if I < A'Last - 1 then A (I) = Before (I))),
+            and then (for all I in A'Range =>
+                        (if I < A'Last - 1 then A (I) = Before (I))),
             "16-bit store at last position");
 
          A := (others => 16#A5#);
@@ -327,9 +322,8 @@ procedure Byte_Buffer_Tests is
          Store_32 (A, A'First, 16#DEAD_BEEF#, Order);
          Check
            (Load_32 (A, A'First, Order) = 16#DEAD_BEEF#
-            and then
-              (for all I in A'Range =>
-                 (if I > A'First + 3 then A (I) = Before (I))),
+            and then (for all I in A'Range =>
+                        (if I > A'First + 3 then A (I) = Before (I))),
             "32-bit store at first position");
 
          A := (others => 16#A5#);
@@ -337,9 +331,8 @@ procedure Byte_Buffer_Tests is
          Store_32 (A, A'Last - 3, 16#7654_3210#, Order);
          Check
            (Load_32 (A, A'Last - 3, Order) = 16#7654_3210#
-            and then
-              (for all I in A'Range =>
-                 (if I < A'Last - 3 then A (I) = Before (I))),
+            and then (for all I in A'Range =>
+                        (if I < A'Last - 3 then A (I) = Before (I))),
             "32-bit store at last position");
 
          A := (others => 16#A5#);
@@ -347,9 +340,8 @@ procedure Byte_Buffer_Tests is
          Store_64 (A, A'First, 16#0123_4567_89AB_CDEF#, Order);
          Check
            (Load_64 (A, A'First, Order) = 16#0123_4567_89AB_CDEF#
-            and then
-              (for all I in A'Range =>
-                 (if I > A'First + 7 then A (I) = Before (I))),
+            and then (for all I in A'Range =>
+                        (if I > A'First + 7 then A (I) = Before (I))),
             "64-bit store at first position");
 
          A := (others => 16#A5#);
@@ -357,9 +349,8 @@ procedure Byte_Buffer_Tests is
          Store_64 (A, A'Last - 7, 16#FEDC_BA98_7654_3210#, Order);
          Check
            (Load_64 (A, A'Last - 7, Order) = 16#FEDC_BA98_7654_3210#
-            and then
-              (for all I in A'Range =>
-                 (if I < A'Last - 7 then A (I) = Before (I))),
+            and then (for all I in A'Range =>
+                        (if I < A'Last - 7 then A (I) = Before (I))),
             "64-bit store at last position");
       end loop;
    end Test_Endian_Edges;

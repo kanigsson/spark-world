@@ -25,7 +25,9 @@ with Tui.Pager;
 with Tui.Panes.Layout;
 with Tui.Panes.Selection;
 
-package Tui.Panes.Gesture with SPARK_Mode => On is
+package Tui.Panes.Gesture
+  with SPARK_Mode => On
+is
 
    ---------------------------------------------------------------------------
    --  Declared policy
@@ -37,20 +39,20 @@ package Tui.Panes.Gesture with SPARK_Mode => On is
       Under_Cursor_And_Focus);  --  scrolling a pane also gives it the keyboard
 
    type Policy is record
-      Wheel              : Wheel_Target := Pane_Under_Cursor;
-      Wheel_Notch_Lines  : Positive     := 3;
-      Click_Focuses      : Boolean      := True;
-      Drag_Selects       : Boolean      := True;
-      Separator_Drag     : Boolean      := True;
+      Wheel             : Wheel_Target := Pane_Under_Cursor;
+      Wheel_Notch_Lines : Positive := 3;
+      Click_Focuses     : Boolean := True;
+      Drag_Selects      : Boolean := True;
+      Separator_Drag    : Boolean := True;
 
       --  A drag records the pane it started in and ignores motion elsewhere.
-      Drag_Crosses_Panes : Boolean      := False;
+      Drag_Crosses_Panes : Boolean := False;
 
       --  With mouse tracking on, the terminal's own selection is unreachable,
       --  so a user cannot select across panes or into a status bar. Most
       --  terminals reserve Shift-drag for exactly that; ignoring shifted
       --  reports hands those back.
-      Shift_Bypasses     : Boolean      := True;
+      Shift_Bypasses : Boolean := True;
    end record;
 
    ---------------------------------------------------------------------------
@@ -59,8 +61,8 @@ package Tui.Panes.Gesture with SPARK_Mode => On is
 
    type Frame is record
       Top   : Tui.Text.Line_Number := 1;   --  Tui.Pager.Engine.Top_Line
-      Left  : Tui.Pager.Dimension  := 0;   --  Tui.Pager.Engine.Left_Col
-      Total : Tui.Text.Line_Total  := 0;   --  Tui.Text.Line_Count
+      Left  : Tui.Pager.Dimension := 0;   --  Tui.Pager.Engine.Left_Col
+      Total : Tui.Text.Line_Total := 0;   --  Tui.Text.Line_Count
    end record;
 
    type Frame_Array is array (Pane_Index range <>) of Frame;
@@ -79,33 +81,33 @@ package Tui.Panes.Gesture with SPARK_Mode => On is
       Wheel);
 
    type Gesture is record
-      Kind        : Gesture_Kind := None;
+      Kind : Gesture_Kind := None;
 
       --  Click, Range_*, Wheel: the pane concerned. Separator_Dragged: the
       --  pane to the left of the boundary being moved.
-      Pane        : Pane_Index   := 1;
+      Pane : Pane_Index := 1;
 
       --  Click: where in the pane's own frame, and the document line under
       --  it when the pane has one there.
-      Local_Row   : Natural      := 0;
-      Local_Col   : Natural      := 0;
-      At_Line     : Tui.Text.Line_Number := 1;
-      On_Line     : Boolean      := False;
+      Local_Row : Natural := 0;
+      Local_Col : Natural := 0;
+      At_Line   : Tui.Text.Line_Number := 1;
+      On_Line   : Boolean := False;
 
       --  Range_Extended and Range_Committed: the selection in document
       --  order, ready for Clip.Extract or Highlight.Overlay.
       First, Last : Selection.Position;
 
       --  Separator_Dragged: the screen column the boundary was dragged to.
-      Split_Col   : Natural      := 0;
+      Split_Col : Natural := 0;
 
       --  Wheel.
-      Notches     : Positive     := 1;
-      Upward      : Boolean      := False;
+      Notches : Positive := 1;
+      Upward  : Boolean := False;
 
       --  Whether this gesture also asks for the keyboard, under the policy
       --  the host declared.
-      Takes_Focus : Boolean      := False;
+      Takes_Focus : Boolean := False;
    end record;
 
    ---------------------------------------------------------------------------
@@ -118,22 +120,20 @@ package Tui.Panes.Gesture with SPARK_Mode => On is
    --  A selection the host should paint, held between events. Kept in
    --  document coordinates, so repainting and horizontal scrolling do not
    --  corrupt it.
-   function Has_Selection (R : Recognizer) return Boolean with Global => null;
+   function Has_Selection (R : Recognizer) return Boolean
+   with Global => null;
 
    function Selected_Pane (R : Recognizer) return Pane_Index
    with Global => null;
 
    procedure Selected_Range
-     (R           : Recognizer;
-      First, Last : out Selection.Position)
-   with Global => null,
-        Post   => Selection.Before_Or_Equal (First, Last);
+     (R : Recognizer; First, Last : out Selection.Position)
+   with Global => null, Post => Selection.Before_Or_Equal (First, Last);
 
    --  Forget any selection and abandon any drag. Hosts call this when the
    --  documents underneath change out from under a retained selection.
    procedure Reset (R : in out Recognizer)
-   with Global => null,
-        Post   => not Has_Selection (R);
+   with Global => null, Post => not Has_Selection (R);
 
    --  Interpret one mouse event against the layout the painter recorded.
    --  Non-mouse events, and events the policy hands back to the terminal,
@@ -148,38 +148,41 @@ package Tui.Panes.Gesture with SPARK_Mode => On is
       Focused      : Pane_Index;
       Rules        : Policy;
       Result       : out Gesture)
-   with Global => null,
-        Pre    => Placements'Length > 0
-                  and then Placements'First = Pane_Index'First
-                  and then Frames'First = Placements'First
-                  and then Frames'Last = Placements'Last
-                  and then Focused in Placements'Range,
-        Post   => Result.Pane in Placements'Range
-                  and then Selected_Pane (R) in Placements'Range
-                  and then (if Result.Kind in Range_Extended | Range_Committed
-                            then Selection.Before_Or_Equal
-                                   (Result.First, Result.Last))
-                  and then (if Result.On_Line
-                            then Result.At_Line
-                                   <= Frames (Result.Pane).Total);
+   with
+     Global => null,
+     Pre    =>
+       Placements'Length > 0
+       and then Placements'First = Pane_Index'First
+       and then Frames'First = Placements'First
+       and then Frames'Last = Placements'Last
+       and then Focused in Placements'Range,
+     Post   =>
+       Result.Pane in Placements'Range
+       and then Selected_Pane (R) in Placements'Range
+       and then (if Result.Kind in Range_Extended | Range_Committed
+                 then Selection.Before_Or_Equal (Result.First, Result.Last))
+       and then (if Result.On_Line
+                 then Result.At_Line <= Frames (Result.Pane).Total);
 
 private
 
    type Recognizer is record
       --  A drag is under way; the button has not come up yet.
-      Dragging  : Boolean    := False;
+      Dragging  : Boolean := False;
       --  A range large enough to be worth showing; a click without motion
       --  is not displayed as a one-cell selection.
-      Showing   : Boolean    := False;
+      Showing   : Boolean := False;
       Pane      : Pane_Index := 1;
       Anchor    : Selection.Position;
       Live      : Selection.Position;
       --  A separator drag is under way, and which boundary it moves.
-      Resizing  : Boolean    := False;
+      Resizing  : Boolean := False;
       Separator : Pane_Index := 1;
    end record;
 
-   function Has_Selection (R : Recognizer) return Boolean is (R.Showing);
-   function Selected_Pane (R : Recognizer) return Pane_Index is (R.Pane);
+   function Has_Selection (R : Recognizer) return Boolean
+   is (R.Showing);
+   function Selected_Pane (R : Recognizer) return Pane_Index
+   is (R.Pane);
 
 end Tui.Panes.Gesture;
