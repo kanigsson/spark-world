@@ -16,6 +16,8 @@ tui = "*"
 tui_term = "*"
 [[depends-on]]
 git_changes = "*"
+[[depends-on]]
+ore = "^0.5.0"
 
 # No Alire index in this workspace; pin the sibling crates by path.
 [[pins]]
@@ -24,3 +26,5 @@ tui = { path = "../../libs/tui" }
 tui_term = { path = "../../libs/tui_term" }
 [[pins]]
 git_changes = { path = "../../libs/git_changes" }
+[[pins]]
+ore = { path = "../../libs/ore" }

@@ -5,6 +5,27 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `Ore.Images`, the character images of numbers. It is here because six
+  programs in this repository had each written the same two things by hand:
+  `Natural'Image` followed by a slice that drops the leading blank, in six
+  places and three spellings, and a `"0123456789abcdef"` table in four more.
+  None of them said what it produced, so every caller re-derived that the blank
+  is exactly one character wide.
+  - `Decimal` is that image with a contract: a bounded length, every character
+    a digit, and no leading zero unless the value is zero.
+  - `Hex_Digit` is the table, `Hex_Pair` the fixed-width two-digit form an
+    escape sequence needs, and `Hex` the minimal-width image. All take the
+    letter case as a parameter, because the clients wanted both.
+
+  The bounds come from the target's own attributes rather than from written
+  constants, so they stay right on a target with a wider `Integer`.
+
+  This package has no lemmas and so ships no proof client: nothing in it is
+  meant to be reasoned about from outside, and its clients are ordinary Ada
+  programs. Its contracts earn their keep inside the library.
+
 ## [0.5.0] - 2026-07-30
 
 Client feedback on 0.4.0: the value view was adopted and did what it claimed,

@@ -6,6 +6,7 @@ with Ada.Streams;
 with Ada.Streams.Stream_IO;
 with Ada.Text_IO;
 with Ada.Text_IO.Text_Streams;
+with Ore.Images;
 with System.Multiprocessors;
 with Dir_Walk;
 with Gitignore;
@@ -106,12 +107,6 @@ procedure Spark_Rg is
          Have_Positive_Glob := True;
       end if;
    end Add_Glob;
-
-   function Image (N : Natural) return String is
-      S : constant String := N'Image;
-   begin
-      return S (S'First + 1 .. S'Last);
-   end Image;
 
    procedure Write (Value : String) is
    begin
@@ -334,7 +329,7 @@ procedure Spark_Rg is
                      Append (Result.Text, Name & ":");
                   end if;
                   if Numbered then
-                     Append (Result.Text, Image (Line) & ":");
+                     Append (Result.Text, Ore.Images.Decimal (Line) & ":");
                   end if;
                   Append (Result.Text, Record_Text & Delimiter);
                end if;
@@ -361,7 +356,7 @@ procedure Spark_Rg is
             if Prefix then
                Append (Result.Text, Name & ":");
             end if;
-            Append (Result.Text, Image (Selected) & ASCII.LF);
+            Append (Result.Text, Ore.Images.Decimal (Selected) & ASCII.LF);
          end if;
          Result.Halt := Quiet and then Result.Selected;
       exception

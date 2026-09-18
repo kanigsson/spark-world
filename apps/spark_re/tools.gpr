@@ -1,5 +1,6 @@
 with "spark_re.gpr";
 with "common/spark_cli/spark_cli.gpr";
+with "../../libs/ore/ore_lib.gpr";
 project Tools is
    for Source_Dirs use ("cli", "tests");
    for Object_Dir use "obj/" & Spark_Re.Build & "/tools";

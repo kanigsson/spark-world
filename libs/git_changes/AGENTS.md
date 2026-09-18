@@ -26,6 +26,18 @@ The JSON output is a **versioned** protocol: see `docs/machine-protocol.md`
 before changing a field, since it was added for consumers outside this
 repository.
 
+## The one dependency
+
+`git_changes.gpr` withs `../../libs/ore/ore_lib.gpr`, for `Ore.Images` alone:
+the decimal image the JSON writer and the temp-file namer both need, and the
+hexadecimal pair the `\u00XX` escape needs. Nothing else here uses Ore, and the
+proved units do not touch it.
+
+That escape is worth keeping in view when changing it. This library emits
+byte-transparent JSON — input byte `16#XX#` becomes U+00XX — because a git
+path is not required to be UTF-8, which is why the escape wants a fixed-width
+two-digit image and not a minimal-width one.
+
 ## Proof covers three units, not the library
 
 `scripts/prove.sh` names `Git_Changes.Core.Validation`, `.Core.Raw` and

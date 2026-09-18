@@ -2,32 +2,16 @@
 --  a handful of representative code points, so the lookup is observable.
 
 with Ada.Text_IO; use Ada.Text_IO;
+with Ore.Images;
 with Tui.Width;   use Tui.Width;
 
 procedure Demo_Width is
-
-   function To_Hex (N : Natural) return String is
-      Digits_Of : constant String := "0123456789ABCDEF";
-      V         : Natural := N;
-      S         : String (1 .. 8) := (others => '0');
-      I         : Integer := S'Last;
-   begin
-      if N = 0 then
-         return "0";
-      end if;
-      while V > 0 and then I >= 1 loop
-         S (I) := Digits_Of (Digits_Of'First + (V mod 16));
-         V := V / 16;
-         I := I - 1;
-      end loop;
-      return S (I + 1 .. S'Last);
-   end To_Hex;
 
    procedure Show (CP : Code_Point; Note : String) is
    begin
       Put_Line
         ("U+"
-         & To_Hex (CP)
+         & Ore.Images.Hex (CP, Ore.Images.Upper_Case)
          & " width="
          & Char_Width (CP)'Image
          & "   "

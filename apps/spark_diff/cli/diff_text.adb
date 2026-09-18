@@ -2,7 +2,7 @@ with Ada.Streams;
 with Ada.Streams.Stream_IO;
 with Ada.Text_IO;
 with Ada.Text_IO.Text_Streams;
-with Ada.Strings.Fixed;
+with Ore.Images;
 
 package body Diff_Text is
    use Ada.Strings.Unbounded;
@@ -98,7 +98,7 @@ package body Diff_Text is
    is
       use Ada.Text_IO;
       function Number (N : Natural) return String
-      is (Ada.Strings.Fixed.Trim (N'Image, Ada.Strings.Both));
+      is (Ore.Images.Decimal (N));
       function Span (Before, Size : Natural) return String
       is (Number (Before + (if Size = 0 then 0 else 1)) & "," & Number (Size));
       function Header_Name (Label : String) return String is

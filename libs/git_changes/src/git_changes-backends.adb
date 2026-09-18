@@ -1,12 +1,12 @@
 with Ada.Directories;
 with Ada.Environment_Variables;
-with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
 with Ada.Streams;
 with Ada.Streams.Stream_IO;
 with GNAT.OS_Lib;
 with GNAT.SHA1;
 with GNAT.SHA256;
+with Ore.Images;
 
 package body Git_Changes.Backends is
    use Ada.Strings.Unbounded;
@@ -111,10 +111,9 @@ package body Git_Changes.Backends is
             Candidate : constant String :=
               Dir
               & "/git_changes-"
-              & Ada.Strings.Fixed.Trim (Integer'Image (Pid), Ada.Strings.Both)
+              & Ore.Images.Decimal (Integer'Max (0, Pid))
               & "-"
-              & Ada.Strings.Fixed.Trim
-                  (Natural'Image (Capture_Serial), Ada.Strings.Both)
+              & Ore.Images.Decimal (Capture_Serial)
               & ".tmp";
          begin
             --  Exclusive creation: a name already taken is simply skipped.

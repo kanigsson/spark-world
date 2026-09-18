@@ -1,4 +1,5 @@
 with "fuzzy.gpr";
+with "../../libs/ore/ore_lib.gpr";
 project Tools is
    for Source_Dirs use ("cli", "tests", "benchmarks");
    for Object_Dir use "obj/" & Fuzzy.Build & "/tools";

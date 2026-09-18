@@ -14,6 +14,9 @@
 --    Ore.Bit_Cursors  — bit-addressed access to a plain byte array: the bit
 --                       at a position, the field of N bits in either order,
 --                       and a cursor that takes and puts them.
+--    Ore.Images       — the character images of numbers: the decimal image
+--                       without the blank 'Image leaves, and hexadecimal as a
+--                       digit, a byte-wide pair and a minimal-width image.
 --
 --  DESIGN: no heap allocation, access-based design, tasking or direct OS
 --  services. Every operation is bounded and total on its precondition; nothing

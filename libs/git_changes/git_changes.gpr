@@ -1,3 +1,5 @@
+with "../../libs/ore/ore_lib.gpr";
+
 library project Git_Changes is
    type Build_Mode is ("debug", "release");
    Mode : Build_Mode := external ("GIT_CHANGES_BUILD", "debug");

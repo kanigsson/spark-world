@@ -2,6 +2,7 @@ with Ore;
 with Ore.Bit_Cursors;
 with Ore.Bits;
 with Ore.Byte_Buffers;
+with Ore.Images;
 
 procedure Restriction_Smoke is
    use type Ore.Byte;
@@ -54,4 +55,14 @@ begin
                       Ore.Bit_Cursors.Low_Bit_First)
                    = 5
           and then Ore.Bits.Power_Of_Two_32 (4) = 16);
+
+   --  The images return unconstrained strings, so this is also where the
+   --  secondary stack they use is checked against the partition-wide promise.
+   pragma
+     Assert
+       (Ore.Images.Decimal (0) = "0"
+          and then Ore.Images.Decimal (1_048_576) = "1048576"
+          and then Ore.Images.Hex_Digit (10) = 'a'
+          and then Ore.Images.Hex_Pair (Ore.Byte'(7)) = "07"
+          and then Ore.Images.Hex (16#BEEF#, Ore.Images.Upper_Case) = "BEEF");
 end Restriction_Smoke;

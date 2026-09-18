@@ -1,13 +1,11 @@
 with Ada.Characters.Handling;
 with Ada.Strings.Unbounded;
+with Ore.Images;
 with Git_Changes.Contents;
 
 package body Git_Changes.JSON is
    use Ada.Strings.Unbounded;
    use Ada.Text_IO;
-
-   Hex : constant array (Natural range 0 .. 15) of Character :=
-     "0123456789abcdef";
 
    procedure Put_Quoted (Output : File_Type; Value : String) is
       Code : Natural;
@@ -41,9 +39,10 @@ package body Git_Changes.JSON is
                Put (Output, C);
 
             when others                               =>
+               --  Byte-transparent: input byte 16#XX# becomes U+00XX, so the
+               --  escape needs both digits even for a byte below sixteen.
                Put (Output, "\u00");
-               Put (Output, Hex (Code / 16));
-               Put (Output, Hex (Code mod 16));
+               Put (Output, Ore.Images.Hex_Pair (Ore.Byte (Code)));
          end case;
       end loop;
       Put (Output, '"');
@@ -61,9 +60,8 @@ package body Git_Changes.JSON is
    end Put_Boolean;
 
    procedure Put_Natural (Output : File_Type; Value : Natural) is
-      Image : constant String := Natural'Image (Value);
    begin
-      Put (Output, Image (Image'First + 1 .. Image'Last));
+      Put (Output, Ore.Images.Decimal (Value));
    end Put_Natural;
 
    function Lower (Value : String) return String is

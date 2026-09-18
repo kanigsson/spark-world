@@ -29,7 +29,11 @@ produce/consume cursors; `Ore.Bits`, the bit-level operations on the word
 types; and `Ore.Bit_Cursors`, bit-addressed access to a plain byte array —
 the bit at a position, the field of N bits as bits and as a number, and a
 cursor that takes and puts them. All three are here because the DEFLATE codec
-in `apps/inflate` needed them.
+in `apps/inflate` needed them. `Ore.Images` is the output side of the same
+physical vocabulary — the decimal image of a number without the blank `'Image`
+leaves in front of it, one hexadecimal digit, a byte as a fixed-width pair, and
+a minimal-width hexadecimal image — and is here because six programs in the
+repository had each written it.
 
 Each package, in addition to the spec and implementation of a primitive and its
 operations, also contains predicates and lemmas intended to help client code

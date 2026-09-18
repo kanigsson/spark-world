@@ -1,5 +1,6 @@
 with Ada.Strings.Unbounded;
 with Ada.Unchecked_Deallocation;
+with Ore.Images;
 with Fuzzy;
 with Fuzzy_Term;
 
@@ -15,12 +16,6 @@ package body Fuzzy_Select is
    type Result_Buffer is access Fuzzy.Search_Result_Array;
    procedure Free is new
      Ada.Unchecked_Deallocation (Fuzzy.Search_Result_Array, Result_Buffer);
-
-   function Image (Value : Natural) return String is
-      Text : constant String := Natural'Image (Value);
-   begin
-      return Text (Text'First + 1 .. Text'Last);
-   end Image;
 
    procedure Run
      (Corpus        : Fuzzy_Input.Corpus;
@@ -143,14 +138,14 @@ package body Fuzzy_Select is
            (Frame,
             CSI
             & "90m  "
-            & Image (Found)
+            & Ore.Images.Decimal (Found)
             & (if Found = Capacity and then Found < Corpus.Count
                then "+"
                else "")
             & "/"
-            & Image (Corpus.Count)
+            & Ore.Images.Decimal (Corpus.Count)
             & (if Marked_Count > 0
-               then " (" & Image (Marked_Count) & ")"
+               then " (" & Ore.Images.Decimal (Marked_Count) & ")"
                else "")
             & CSI
             & "39m"
@@ -173,7 +168,9 @@ package body Fuzzy_Select is
             Append (Frame, New_Row);
          end loop;
          --  Leave the cursor where the caret belongs, on the query line.
-         Append (Frame, CSI & "1;" & Image (3 + Point) & "H" & CSI & "?25h");
+         Append
+           (Frame,
+            CSI & "1;" & Ore.Images.Decimal (3 + Point) & "H" & CSI & "?25h");
          Fuzzy_Term.Write (To_String (Frame));
       end Draw;
 

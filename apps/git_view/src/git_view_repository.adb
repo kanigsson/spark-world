@@ -4,6 +4,7 @@ with Ada.Containers.Indefinite_Ordered_Maps;
 with Ada.Containers.Vectors;
 with Ada.Exceptions;
 with Ada.Strings.Fixed;
+with Ore.Images;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Unchecked_Deallocation;
 with Git_Changes;
@@ -60,9 +61,6 @@ is
       end if;
       return M.To_Text (S);
    end Bounded;
-
-   function Trim (S : String) return String
-   is (Ada.Strings.Fixed.Trim (S, Ada.Strings.Both));
 
    function Split (S : String; Separator : Character) return Strings.Vector is
       R     : Strings.Vector;
@@ -423,7 +421,7 @@ is
 
          function Gutter (Sign : Character; Line : Natural) return String is
             Text : constant String :=
-              (if Line = 0 then "" else Trim (Line'Image));
+              (if Line = 0 then "" else Ore.Images.Decimal (Line));
          begin
             return
               Sign
@@ -434,7 +432,7 @@ is
          end Gutter;
 
          function Width_For (Count : Natural) return Positive
-         is (Trim (Natural'Image (Natural'Max (1, Count)))'Length);
+         is (Ore.Images.Decimal (Natural'Max (1, Count))'Length);
 
          function Near_Change (Line : Natural) return Boolean is
          begin
@@ -530,13 +528,13 @@ is
                      if V.Lens = M.Before_After then
                         Emit
                           ("@@ -"
-                           & Trim (P.Old_First'Image)
+                           & Ore.Images.Decimal (P.Old_First)
                            & ","
-                           & Trim (P.Old_Count'Image)
+                           & Ore.Images.Decimal (P.Old_Count)
                            & " +"
-                           & Trim (P.New_First'Image)
+                           & Ore.Images.Decimal (P.New_First)
                            & ","
-                           & Trim (P.New_Count'Image)
+                           & Ore.Images.Decimal (P.New_Count)
                            & " @@",
                            Hunk_Header);
                      end if;
@@ -571,7 +569,9 @@ is
                   if Visible then
                      if not Previous_Visible and then V.Lens = M.Hunks then
                         Emit
-                          ("@@ snapshot line " & Trim (L'Image) & " @@",
+                          ("@@ snapshot line "
+                           & Ore.Images.Decimal (L)
+                           & " @@",
                            Hunk_Header);
                      end if;
                      if V.Lens = M.Plain then
@@ -956,7 +956,7 @@ is
                           (Path,
                            Label (Path)
                            & ":"
-                           & Trim (Line'Image)
+                           & Ore.Images.Decimal (Line)
                            & ": "
                            & Label (G.Snapshots.Text (Matches, I)),
                            Change (Path) > 0,

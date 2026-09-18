@@ -4,6 +4,7 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Streams.Stream_IO;
 with Ada.Text_IO;
 with Ada.Text_IO.Text_Streams;
+with Ore.Images;
 with Regex;
 with Spark_Cli;
 
@@ -62,12 +63,6 @@ procedure Spark_Grep is
       end if;
    end Set_Pattern;
 
-   function Image (N : Natural) return String is
-      S : constant String := N'Image;
-   begin
-      return S (S'First + 1 .. S'Last);
-   end Image;
-
    procedure Write (Value : String) is
    begin
       String'Write (IO.Text_Streams.Stream (IO.Standard_Output), Value);
@@ -103,7 +98,7 @@ procedure Spark_Grep is
                      Write (Name & ":");
                   end if;
                   if Numbered then
-                     Write (Image (Line) & ":");
+                     Write (Ore.Images.Decimal (Line) & ":");
                   end if;
                   Write (Record_Text & Delimiter);
                end if;
@@ -125,7 +120,7 @@ procedure Spark_Grep is
             if Prefix then
                Write (Name & ":");
             end if;
-            Write (Image (Selected) & ASCII.LF);
+            Write (Ore.Images.Decimal (Selected) & ASCII.LF);
          end if;
       exception
          when E : others =>

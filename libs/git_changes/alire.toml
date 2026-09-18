@@ -12,6 +12,12 @@ tags = ["git", "diff", "spark", "review"]
 [[depends-on]]
 gnat_native = "^16"
 gprbuild = "^26"
+[[depends-on]]
+ore = "^0.5.0"
+
+# No Alire index in this workspace; pin the sibling crate by path.
+[[pins]]
+ore = { path = "../../libs/ore" }
 
 [build-switches]
 "*".ada_version = "Ada2022"

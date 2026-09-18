@@ -1,6 +1,7 @@
 with Ada.Command_Line;
 with Ada.Strings.Unbounded;
 with Ada.Text_IO;
+with Ore.Images;
 with Git_Changes;
 with Git_Changes.JSON;
 with Git_Changes.Repositories;
@@ -13,8 +14,6 @@ procedure Git_Changes_Main is
 
    function Escaped (Value : String) return String is
       Result : Unbounded_String;
-      Hex    : constant array (Natural range 0 .. 15) of Character :=
-        "0123456789ABCDEF";
       Code   : Natural;
    begin
       for C of Value loop
@@ -36,9 +35,13 @@ procedure Git_Changes_Main is
                   Append (Result, C);
 
                when others             =>
+                  --  Fixed width: \x is two digits, so a byte below sixteen
+                  --  keeps its leading zero.
                   Append (Result, "\x");
-                  Append (Result, Hex (Code / 16));
-                  Append (Result, Hex (Code mod 16));
+                  Append
+                    (Result,
+                     Ore.Images.Hex_Pair
+                       (Ore.Byte (Code), Ore.Images.Upper_Case));
             end case;
          end if;
       end loop;

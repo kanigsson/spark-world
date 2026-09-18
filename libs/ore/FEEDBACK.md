@@ -11,6 +11,68 @@ better than leaving it to be rediscovered.
 
 ---
 
+## The repository's own programs against 0.5.0 — 2026-09-18
+
+Not one client but six, and the first entry that asks for something outside the
+bit and buffer layers. A duplicate-code scan of the repository turned up the
+same two fragments written by hand in ten places, spread over programs that
+share no code at all: `git_changes`, `spark_re` (twice), `spark_diff`, `fuzzy`,
+`git_view` and `libs/tui`'s demo.
+
+The first is `Natural'Image` followed by a slice that removes the leading
+blank. Three spellings of one idea:
+
+```ada
+function Image (N : Natural) return String is
+   S : constant String := N'Image;
+begin
+   return S (S'First + 1 .. S'Last);      --  spark_grep, spark_rg, fuzzy
+end Image;
+
+Ada.Strings.Fixed.Trim (N'Image, Ada.Strings.Both)   --  spark_diff, git_view,
+                                                     --  git_changes
+```
+
+The second is the table, `"0123456789abcdef"` or its uppercase twin, declared
+in four places, and in three of them used the same way — `Hex (V / 16)` and
+`Hex (V mod 16)` to write a byte as an escape.
+
+### What the gap was, stated as a contract
+
+Ore could already have said all of this; what it lacked was the package to say
+it in. The point is not that the idiom is long — it is four lines — but that
+none of the ten copies states anything. A caller that writes
+`"line " & Image (N)` has no fact about what came back: not its length, not
+that its characters are digits, not that `'Image`'s blank is one character wide
+rather than a field of them. Every copy re-derives that last assumption from
+the reference manual and none of them records it.
+
+So the request is for the ordinary thing with a contract on it, which is what
+this library is for. `Decimal` bounds its length by `Natural'Width - 1`,
+promises every character is a digit, and rules out a leading zero.
+`Hex_Digit` promises its result is `'0'` exactly when its argument is zero,
+which is the fact a minimal-width image needs and the only reason `Hex` proves.
+
+### What this client is not
+
+Worth saying plainly, because it is the opposite shape to every other entry
+here. None of these six programs proves anything. They are CLI front ends,
+formatters and a demo, all ordinary Ada, and they will call `Ore.Images` and
+inherit its contracts as run-time checks in a debug build and as nothing at all
+in a release build. That is a real client under the promotion rule — a second
+program wanted it, and then four more — but it is not a client whose own proof
+gets easier. If a later reader wonders why a proved library grew a package
+whose clients never run a prover: this is why, and the contracts are there for
+the library's own sake.
+
+### Not adopted
+
+`apps/inflate`'s spike `m6_dynamic_tree` carries a tenth copy of the hex table
+and keeps it. The spikes are segregated experiments that nothing builds or
+ships, and giving one a library dependency would defeat what they are for.
+
+---
+
 ## `RecordFlux/rflx_types.operations` against 0.5.0 — 2026-07-30
 
 Not a migration but an assessment, and the first entry from a client that has
