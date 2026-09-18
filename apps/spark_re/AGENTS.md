@@ -36,8 +36,8 @@ nothing. Executable adapters, shared I/O and the recursive walker stay outside
 the proof boundary, in `cli/`. Storage is automatic and sized by the compiled
 state count, which matters on small-stack targets.
 
-**Licensing:** this project is Apache-2.0. Do not copy implementation code from
-GPL-only projects such as gsh.
+**Licensing:** this project is `Apache-2.0 WITH LLVM-exception`. Do not copy
+implementation code from GPL-only projects such as gsh.
 
 ## `common/spark_cli` is vendored here, deliberately
 

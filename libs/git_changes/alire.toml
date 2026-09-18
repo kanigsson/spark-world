@@ -1,10 +1,10 @@
 name = "git_changes"
 description = "Typed, source-neutral Git change sets for Ada clients"
 version = "0.1.0-dev"
-licenses = "MIT"
-authors = ["Johannes Kanig <kanig@adacore.com>"]
-maintainers = ["Johannes Kanig <kanig@adacore.com>"]
-maintainers-logins = ["kanig"]
+licenses = "Apache-2.0 WITH LLVM-exception"
+authors = ["Johannes Kanig <johannes.kanig@gmail.com>"]
+maintainers = ["Johannes Kanig <johannes.kanig@gmail.com>"]
+maintainers-logins = ["kanigsson"]
 project-files = ["git_changes.gpr", "git_changes_cli.gpr"]
 executables = ["git-changes"]
 tags = ["git", "diff", "spark", "review"]

@@ -5,7 +5,7 @@ version = "0.1.0"
 authors = ["Johannes Kanig"]
 maintainers = ["Johannes Kanig <johannes.kanig@gmail.com>"]
 maintainers-logins = ["kanigsson"]
-licenses = "Apache-2.0"
+licenses = "Apache-2.0 WITH LLVM-exception"
 website = "https://github.com/kanigsson/fuzzy"
 
 tags = ["fuzzy", "matching", "search", "spark", "ranking"]

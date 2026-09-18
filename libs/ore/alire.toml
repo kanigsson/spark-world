@@ -2,10 +2,10 @@ name = "ore"
 description = "Proved SPARK building blocks for bounded, heap-free systems code"
 version = "0.5.0"
 
-authors = ["kanig"]
-maintainers = ["kanig <kanig@adacore.com>"]
-maintainers-logins = ["kanig"]
-licenses = "Apache-2.0"
+authors = ["Johannes Kanig"]
+maintainers = ["Johannes Kanig <johannes.kanig@gmail.com>"]
+maintainers-logins = ["kanigsson"]
+licenses = "Apache-2.0 WITH LLVM-exception"
 
 project-files = ["ore_lib.gpr"]
 

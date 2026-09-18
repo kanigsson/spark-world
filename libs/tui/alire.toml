@@ -2,10 +2,10 @@ name = "tui"
 description = "Proved terminal-UI foundations for panes and pagers (no I/O)"
 version = "0.1.0-dev"
 
-authors = ["kanig"]
-maintainers = ["kanig <kanig@adacore.com>"]
-maintainers-logins = ["kanig"]
-licenses = "Apache-2.0"
+authors = ["Johannes Kanig"]
+maintainers = ["Johannes Kanig <johannes.kanig@gmail.com>"]
+maintainers-logins = ["kanigsson"]
+licenses = "Apache-2.0 WITH LLVM-exception"
 
 project-files = ["tui.gpr"]
 

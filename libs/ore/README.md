@@ -193,4 +193,5 @@ install time.
 
 ## Licence
 
-Apache License 2.0; see [`LICENSE`](LICENSE).
+Apache License 2.0 with LLVM Exceptions (`Apache-2.0 WITH LLVM-exception`);
+see [`LICENSE`](LICENSE).

@@ -254,4 +254,5 @@ policies are deferred.
 
 Copyright 2026 Johannes Kanig.
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
+Licensed under the Apache License 2.0 with LLVM Exceptions
+(`Apache-2.0 WITH LLVM-exception`). See [LICENSE](LICENSE).

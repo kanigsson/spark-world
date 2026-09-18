@@ -2,10 +2,10 @@ name = "git_view"
 description = "Read-only Git project, source, comparison and history explorer"
 version = "0.1.0-dev"
 
-authors = ["kanig"]
-maintainers = ["kanig <kanig@adacore.com>"]
-maintainers-logins = ["kanig"]
-licenses = "Apache-2.0"
+authors = ["Johannes Kanig"]
+maintainers = ["Johannes Kanig <johannes.kanig@gmail.com>"]
+maintainers-logins = ["kanigsson"]
+licenses = "Apache-2.0 WITH LLVM-exception"
 
 executables = ["git_view"]
 project-files = ["git_view.gpr"]
