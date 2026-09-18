@@ -119,61 +119,12 @@ project's `Makefile`. A version lives there and nowhere else; a path to a
 binary lives nowhere at all. **Never commit a tool location** — a developer's
 own choice belongs in an untracked `local.mk`.
 
-### The formatter is pinned, and why
+### GNATformat
 
-No two releases of GNATformat agree about how to lay out Ada, so an unpinned
-run rewrites every source it is pointed at. That turns formatting one project
-into a repo-wide diff whenever a developer's `PATH` offers a different build —
-a development wavefront, say. So `tools/gnatformat` resolves a formatter at run
-time and verifies its `--version`, refusing to run on a mismatch rather than
-reformatting the world. It searches `PATH` first, then the places Alire
-installs into.
+GNATformat is pinned to the version provided by GNAT FSF 16, which returns
+version number 26.0 in its `--version` output.
 
-The pin is `GNATFORMAT_VERSION`, currently the formatter that ships alongside
-FSF GNAT 16. **Mind the numbering: that formatter calls itself 26.0.** The
-number tracks the release year, not the compiler, so a pin of `16.` matches
-nothing.
+### GNATprove
 
-The formatting switches live in `tools/gnatformat` too, stated explicitly even
-where they match today's defaults — a default that moves in a later release
-would otherwise reflow the repository silently, whereas stated there it becomes
-a visible edit. `--charset utf-8` is not one of the negotiable ones: sources
-hold UTF-8 punctuation and the formatter decodes as ISO-8859-1 unless told
-otherwise, turning it into mojibake.
-
-Raise the pin deliberately, in its own commit, separate from the reformat it
-causes.
-
-### The prover is pinned where the proof is clean
-
-`tools/gnatprove` is a resolver of the same shape as `tools/gnatformat`: it
-finds a GNATprove matching `GNATPROVE_VERSION` at run time, checks its
-`--version`, and refuses rather than proving with whatever `PATH` offers. It
-passes no switches of its own — level, provers and timeouts stay a per-project
-decision.
-
-Unlike the formatter, the pin is **opt-in per project**, because a prover pin
-is a claim. A project that names the pinned prover is saying it proves clean
-against it, so only the projects that do have been pinned:
-
-| Project | Pinned | Why not |
-| --- | --- | --- |
-| `libs/tui` | yes | |
-| `libs/unicode_text` | yes | |
-| `libs/git_changes` | yes | |
-| `apps/fuzzy` | yes | |
-| `apps/spark_diff` | yes | |
-| `apps/spark_re` | yes | |
-| `libs/ore` | no | bit-level `2**N` lemmas time out |
-| `apps/inflate` | no | outstanding checks of its own, plus Ore's |
-| `apps/git_view` | no | proves `git_changes` with weaker switches than `git_changes` uses on itself |
-| `libs/json` | no | a few checks unproved inside SPARKlib's own float lemmas, not in `json` |
-| `libs/tui_term` | n/a | `SPARK_Mode => Off` by design |
-
-Pinning one of the rest is a one-line edit — `GNATPROVE ?= $(SPARK_WORLD_PROVE)`
-in its `Makefile` — made when its last check closes, not before. Pinning a
-project with outstanding checks would promise a clean run it does not deliver,
-which is the same failure as silencing a check.
-
-A project without a `Makefile` states the resolver in the `gnatprove` line its
-`README` and `AGENTS.md` document, until it is converted.
+GNATprove is pinned to GNATprove FSF 16 for the subprojects for which it fully
+proves. For the remaining ones, we use whatever is on PATH.
