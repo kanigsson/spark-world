@@ -6,11 +6,15 @@ import shutil
 import subprocess
 import tempfile
 
-BIN = os.path.abspath(os.environ.get('SPARK_RG', 'bin/spark-rg'))
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
+import clitest
+
+BIN = clitest.binary('SPARK_RG', 'bin/spark-rg')
 ENV = dict(os.environ, LC_ALL='C')
 RG = shutil.which('rg')
 GIT = shutil.which('git')
-checks = 0
+checks = clitest.Checks()
 
 NEEDLE = 'needle\n'
 
@@ -33,7 +37,6 @@ def make_tree(root, files, ignores):
 
 def compare(files, ignores, flags=(), label=''):
     """spark-rg must select exactly the files ripgrep selects."""
-    global checks
     with tempfile.TemporaryDirectory() as root:
         make_tree(root, files, ignores)
         subprocess.run([GIT, 'init', '-q', '.'], cwd=root, check=True)
@@ -45,16 +48,15 @@ def compare(files, ignores, flags=(), label=''):
         want = [x[2:] if x.startswith('./') else x for x in lines(theirs.stdout)]
         assert got == sorted(want), (label, flags, got, sorted(want), ignores)
         assert mine.returncode == (0 if got else 1), (label, mine)
-        checks += 1
+        checks.counted()
 
 def check(args, files, ignores, expected, status, data=b''):
-    global checks
     with tempfile.TemporaryDirectory() as root:
         make_tree(root, files, ignores)
         p = run(args, root, data)
         assert (p.returncode, lines(p.stdout)) == (status, sorted(expected)), \
             (args, p, expected, status)
-        checks += 1
+        checks.counted()
 
 TREE = ['src/a.adb', 'src/deep/b.ads', 'build/gen.adb', 'vendor/skip.txt',
         'vendor/keep/important.txt', 'node_modules/x.js', 'top.o', 'keep.md',
@@ -145,7 +147,7 @@ with tempfile.TemporaryDirectory() as root:
     assert lines(run(['-l', 'needle', '.'], root).stdout) == ['t.txt']
     assert lines(run(['-l', '--binary', 'needle', '.'], root).stdout) == \
         ['b.bin', 't.txt']
-    checks += 2
+    checks.counted(2)
 
 # Symbolic links are not followed without --follow, so cycles terminate.
 with tempfile.TemporaryDirectory() as root:
@@ -155,14 +157,14 @@ with tempfile.TemporaryDirectory() as root:
     assert lines(run(['-l', 'needle', '.'], root).stdout) == ['d/f.txt']
     p = run(['-l', '--follow', '--max-depth', '4', 'needle', '.'], root)
     assert p.returncode == 0 and 'd/f.txt' in lines(p.stdout)
-    checks += 2
+    checks.counted(2)
 
 # Unknown options and missing patterns are errors, as in spark-grep.
 for args in [['-Z', 'a', '.'], [], ['-e'], ['--max-depth'], ['--max-depth', 'x', 'a', '.']]:
     with tempfile.TemporaryDirectory() as root:
         p = run(args, root)
         assert p.returncode == 2 and p.stderr, (args, p)
-        checks += 1
+        checks.counted()
 
 # Unreadable directories are reported but do not end the search.
 with tempfile.TemporaryDirectory() as root:
@@ -174,7 +176,7 @@ with tempfile.TemporaryDirectory() as root:
     try:
         p = run(['-l', 'needle', '.'], root)
         assert lines(p.stdout) == ['ok.txt'] and p.stderr, p
-        checks += 1
+        checks.counted()
     finally:
         closed.chmod(0o755)
 
@@ -211,4 +213,4 @@ for glob in SCREEN_GLOBS:
         continue
     compare(SCREEN_NAMES, {}, flags=('-g', glob), label='glob ' + glob)
 
-print(f'PASS: {checks} walker checks against ripgrep and git')
+checks.passed('walker checks against ripgrep and git')

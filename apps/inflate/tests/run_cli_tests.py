@@ -4,11 +4,16 @@
 import gzip
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
+import clitest
 
 ROOT = Path(__file__).resolve().parents[1]
-CLI = ROOT / "bin" / "inflate"
+#  The environment variable is what points this driver at a different build,
+#  the way every other CLI driver in the repository is redirected.
+CLI = clitest.binary("INFLATE_BIN", ROOT / "bin" / "inflate")
 
 
 def run(*args: Path | str, ok: bool = True) -> subprocess.CompletedProcess[bytes]:

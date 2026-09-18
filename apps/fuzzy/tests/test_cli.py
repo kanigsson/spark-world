@@ -2,8 +2,12 @@
 from pathlib import Path
 import subprocess
 import os
+import sys
 
-CLI = Path(os.environ.get("FUZZY_BIN", Path(__file__).resolve().parents[1] / "bin" / "fuzzy")).resolve()
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
+import clitest
+
+CLI = clitest.binary("FUZZY_BIN", Path(__file__).resolve().parents[1] / "bin" / "fuzzy")
 
 def run(*args, data=""):
     """Records may contain any byte other than the delimiter, so the adapter is

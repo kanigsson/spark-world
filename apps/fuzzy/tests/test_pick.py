@@ -9,10 +9,14 @@ import os
 import pty
 import select
 import signal
+import sys
 import termios
 import time
 
-CLI = Path(os.environ.get("FUZZY_BIN", Path(__file__).resolve().parents[1] / "bin" / "fuzzy")).resolve()
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
+import clitest
+
+CLI = clitest.binary("FUZZY_BIN", Path(__file__).resolve().parents[1] / "bin" / "fuzzy")
 
 ESC = b"\x1b"
 UP, DOWN = ESC + b"[A", ESC + b"[B"

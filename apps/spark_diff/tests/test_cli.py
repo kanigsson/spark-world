@@ -7,13 +7,13 @@ import shutil
 import subprocess
 import tempfile
 
-BIN = str(Path(os.environ.get('DIFF_BIN', 'bin/spark-diff')).resolve())
-checks = 0
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
+import clitest
 
-def check(value, message):
-    global checks
-    checks += 1
-    assert value, message
+BIN = clitest.binary('DIFF_BIN', 'bin/spark-diff')
+checks = clitest.Checks()
+check = checks.ok
 
 def run(args, **kw):
     return subprocess.run([BIN, *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kw)
@@ -106,4 +106,4 @@ with tempfile.TemporaryDirectory(prefix='spark-diff-test-') as tmp:
     old.write_bytes(b'a\0b')
     p = run([str(old), str(new)])
     check(p.returncode == 2 and b'NUL' in p.stderr and not p.stdout, p)
-print(f'PASS: {checks} CLI checks (GNU patch and git apply roundtrips)')
+checks.passed('CLI checks (GNU patch and git apply roundtrips)')

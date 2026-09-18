@@ -1,0 +1,5 @@
+#  Build artifacts of tools/testing, and the bytecode cache Python leaves
+#  beside clitest.py when a test driver imports it.
+/testing/obj/
+/testing/lib/
+__pycache__/

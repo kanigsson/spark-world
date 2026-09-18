@@ -1,10 +1,15 @@
 """Compare mixed-mode workspace reuse with one-shot matching and GNU grep."""
 import os
+from pathlib import Path
 import random
 import subprocess
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
+import clitest
 
 rng = random.Random(20260916)
-binary = os.environ.get('SPARK_MATCHER_TEST', 'bin/test_matcher')
+BIN = clitest.binary('SPARK_MATCHER_TEST', 'bin/test_matcher')
 env = dict(os.environ, LC_ALL='C')
 patterns = ['', '^$', '$', '^', '.', '(a?)*', '((a|)*)*b',
             '(^|a)*b$', '((a?|^)|($|b?))*', 'a{0,250}zzqqxx',
@@ -20,7 +25,7 @@ def expression(depth):
 
 
 patterns += [expression(3) for _ in range(150)]
-checks = 0
+checks = clitest.Checks()
 for nul in (False, True):
     # Keep LF out of these records; direct library tests cover every byte.
     alphabet = b'abczqxyz\r\xff' + (b'\x01' if nul else b'\x00')
@@ -32,7 +37,7 @@ for nul in (False, True):
     for pattern in patterns:
         for whole in (False, True):
             actual = subprocess.run(
-                [binary, 'whole' if whole else 'search', 'nul' if nul else 'lf', pattern],
+                [BIN, 'whole' if whole else 'search', 'nul' if nul else 'lf', pattern],
                 input=data, capture_output=True, env=env, timeout=60)
             reference = subprocess.run(
                 ['grep', '-aE', *(['-z'] if nul else []), *(['-x'] if whole else []),
@@ -40,5 +45,5 @@ for nul in (False, True):
             assert (actual.returncode, actual.stdout, actual.stderr) == (
                 reference.returncode, reference.stdout, reference.stderr), (
                     pattern, nul, whole, actual, reference)
-            checks += 1
-print(f'{checks} workspace/one-shot/GNU grep differential checks passed')
+            checks.counted()
+checks.passed('workspace/one-shot/GNU grep differential checks')

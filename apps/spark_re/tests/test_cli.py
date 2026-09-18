@@ -7,19 +7,22 @@ import re
 import subprocess
 import tempfile
 
-BIN = os.environ.get('SPARK_GREP', 'bin/spark-grep')
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
+import clitest
+
+BIN = clitest.binary('SPARK_GREP', 'bin/spark-grep')
 ENV = dict(os.environ, LC_ALL='C')
-checks = 0
+checks = clitest.Checks()
 
 def run(args, data=b'', binary=BIN):
     return subprocess.run([binary, *args], input=data, capture_output=True,
                           env=ENV, timeout=15)
 
 def check(args, data, output, status):
-    global checks
     p = run(args, data)
     assert (p.returncode, p.stdout) == (status, output), (args, p, output, status)
-    checks += 1
+    checks.counted()
 
 texts = [''.join(x) for n in range(6) for x in itertools.product('ab', repeat=n)]
 texts += ['c', 'abc', 'xyz', '123', ']-', 'a.b', 'A', '\r']
@@ -47,17 +50,17 @@ for pattern in patterns:
         check([*flags, '-e', pattern], data, expected, 0 if expected else 1)
         reference = run(['-aE', *flags, '-e', pattern], data, 'grep')
         assert (reference.returncode, reference.stdout) == (0 if expected else 1, expected), pattern
-        checks += 1
+        checks.counted()
 
 for pattern in ['(', ')', '[', '[z-a]', 'a{', 'a{256}', 'a{2,1}', '*',
                 'a**', 'a+?', '\\1', '(?=a)', '[[:alpha:]]', '\\d', '\\', 'a}']:
     p = run(['-e', pattern], data)
     assert p.returncode == 2 and p.stderr and not p.stdout, (pattern, p)
-    checks += 1
+    checks.counted()
 for args in [['-P', 'a'], ['--unknown', 'a'], ['-i', 'a'], [], ['-e'], ['-e', 'a', '-e', 'b']]:
     p = run(args)
     assert p.returncode == 2 and p.stderr, (args, p)
-    checks += 1
+    checks.counted()
 check(['-nv', 'a'], b'a\nb\n\nlast', b'2:b\n3:\n', 0)
 check(['-c', 'a'], b'a\nb\na', b'2\n', 0)
 check(['-q', 'a'], b'a\nb', b'', 0)
@@ -79,5 +82,5 @@ with tempfile.TemporaryDirectory() as directory:
     check(['-l', 'a', str(a), str(b)], b'', f'{a}\n{b}\n'.encode(), 0)
     p = run(['a', str(a) + '.missing', str(b)])
     assert p.returncode == 2 and p.stderr and p.stdout == f'{b}:ab\n'.encode()
-    checks += 1
-print(f'PASS: {checks} differential and CLI checks ({len(patterns)} patterns)')
+    checks.counted()
+checks.passed(f'differential and CLI checks ({len(patterns)} patterns)')
