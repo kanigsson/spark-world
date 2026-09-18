@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Integrate the sibling `../../unicode_text` library into this JSON parser so
+Integrate the sibling `../../../libs/unicode_text` library into this JSON parser so
 that successful parsing and decoding expose client-usable SPARK guarantees
 about UTF-8 validity.
 
@@ -22,18 +22,18 @@ The implementation should preserve the defining properties of this crate:
 - a single fixed nesting-depth limit;
 - proof of absence of run-time errors and termination.
 
-## Repositories and starting points
+## Projects and starting points
 
-- JSON parser: `/home/kanig/tools/pager/json`
-- Unicode library: `/home/kanig/tools/unicode_text`
+- JSON parser: `libs/json`
+- Unicode library: `libs/unicode_text`
 
-At the time this handoff was written:
+This handoff was written when the two were separate repositories, before the
+mono-repo; the paths below have been rewritten for the current layout, but the
+facts recorded at the time have not been re-measured:
 
-- `pager/json` is on branch `main` at `45db9c1`;
-- `unicode_text` is on branch `main` at `8c8fa6a`;
-- both worktrees are clean;
-- `pager/json` records 639 checks proved at level 2;
-- `unicode_text` is version 0.5.0 and provides both plain-`String` UTF-8
+- the parser was at `45db9c1`, the Unicode library at `8c8fa6a`;
+- the parser recorded 639 checks proved at level 2;
+- `unicode_text` was version 0.5.0 and provided both plain-`String` UTF-8
   operations and `Unicode_Text.Bounded`.
 
 Recheck these facts before editing. Do not assume the recorded proof counts
@@ -53,11 +53,11 @@ Primary files:
 
 Relevant Unicode_Text interfaces:
 
-- `../../unicode_text/src/unicode_text.ads`
-- `../../unicode_text/src/unicode_text-utf_8.ads`
-- `../../unicode_text/src/unicode_text-bounded.ads`
-- `../../unicode_text/unicode_text.gpr`
-- `../../unicode_text/design.md`
+- `../../../libs/unicode_text/src/unicode_text.ads`
+- `../../../libs/unicode_text/src/unicode_text-utf_8.ads`
+- `../../../libs/unicode_text/src/unicode_text-bounded.ads`
+- `../../../libs/unicode_text/unicode_text_lib.gpr`
+- `../../../libs/unicode_text/docs/design.md`
 
 ## Current behavior
 
@@ -142,7 +142,7 @@ caller decodes it explicitly.
 
 ### 3. Use Unicode_Text as the normative UTF-8 implementation
 
-After this work, `pager/json` should not maintain independent copies of the
+After this work, `libs/json` should not maintain independent copies of the
 UTF-8 lead-byte table or UTF-8 encoder arithmetic.
 
 Use, as appropriate:
@@ -238,7 +238,7 @@ schema data, not hostile JSON input.
 
 ### Required
 
-1. Establish a build/proof dependency from `pager/json` to `unicode_text`.
+1. Establish a build/proof dependency from `libs/json` to `unicode_text`.
 2. Replace the local pull-parser UTF-8 byte scanner with calls to
    `Unicode_Text.UTF_8`.
 3. Rework `JSON.Strings.Decode` to use Unicode_Text decoding and encoding
@@ -285,7 +285,7 @@ allocation-free design.
 
 ## Dependency setup
 
-`pager/json` is already an Alire library crate. `unicode_text` currently has a
+`libs/json` is already an Alire library crate. `unicode_text` currently has a
 project file but no Alire manifest, and its `unicode_text.gpr` includes
 `tests/proof` in `Source_Dirs`.
 
@@ -297,17 +297,17 @@ Preferred durable solution:
 1. Add a library-only GPR project and Alire crate metadata to
    `unicode_text`.
 2. Make `unicode_text`'s proof project extend or import that library project.
-3. Add a normal Alire dependency from `pager/json`.
+3. Add a normal Alire dependency from `libs/json`.
 
 Acceptable first local step:
 
-- import `../../unicode_text/unicode_text.gpr` explicitly from `json.gpr`.
+- import `../../libs/unicode_text/unicode_text_lib.gpr` explicitly from `json.gpr`.
 
 If the local step is used, record the packaging limitation in the commit and
 do not describe the crate as independently consumable until the durable
 dependency exists.
 
-Do not make `pager/json` depend directly on `sparklib` merely because the
+Do not make `libs/json` depend directly on `sparklib` merely because the
 current Unicode_Text proof project does. The production dependency should
 expose only the Unicode_Text library units needed at runtime and proof time.
 
@@ -462,7 +462,7 @@ equality.
 Run tools sequentially. Do not launch concurrent GNATprove processes against
 the same object/proof directories. Use GNATprove's internal job parallelism.
 
-From `/home/kanig/tools/pager/json`:
+From `libs/json`:
 
 ```sh
 gprbuild -P json.gpr -XMODE=debug
@@ -538,7 +538,7 @@ project cleanly if necessary.
 The work is complete when:
 
 - the parser and decoder use Unicode_Text as the UTF-8 implementation;
-- there is no duplicate UTF-8 range table or scalar encoder in `pager/json`;
+- there is no duplicate UTF-8 range table or scalar encoder in `libs/json`;
 - arbitrary invalid input is still rejected through status values;
 - successful `Decode` has a proved valid-UTF-8 active-prefix postcondition;
 - successful event contracts expose the promised payload validity;

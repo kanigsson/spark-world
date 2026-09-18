@@ -25,7 +25,7 @@ against RecordFlux at `d13da982a`.
 
 The answer is yes for the reasoning and no for the widths, and the widths are
 the whole of the blockage. What follows is worth keeping because this client is
-the opposite shape to `pager/inflate`: it does not read bits one at a time
+the opposite shape to `apps/inflate`: it does not read bits one at a time
 anywhere, it reads a whole scalar field a byte at a time, and it is a code
 generator, so what it needs from a bit layer is a *statement* it can put in a
 generated contract rather than a loop it can delete.
@@ -67,7 +67,7 @@ theorem the client currently does without.
 * **The byte-at-a-time `Shift_Add` loop proves to compute the field.** The
   client's reader — leading fragment, whole bytes, trailing fragment — carries
   `Result = Field_Value (…)` as its loop invariant. This is the acceptance test
-  for the value view against a client that is not `pager/inflate`.
+  for the value view against a client that is not `apps/inflate`.
 
 ### Gap 1 — the array layer stops at a `Word32`, and this client is a `U64` one
 
@@ -165,7 +165,7 @@ A generated parser cannot pass any of that to an operation whose position is a
 the generator knows.
 
 So this is a second data point on the question 0.4.0 left open, and it points
-the same way `pager/inflate`'s decode model did: the division-and-subtraction
+the same way `apps/inflate`'s decode model did: the division-and-subtraction
 style generalises, the profile does not. Two clients out of two now count bit
 positions in a type wider than `Natural`.
 
@@ -228,7 +228,7 @@ real cost that this entry does not put a number on.
 
 ---
 
-## `pager/inflate` against 0.5.0 — 2026-07-30
+## `apps/inflate` against 0.5.0 — 2026-07-30
 
 Short entry: 0.5.0 answered the entry below and the answers were taken up the
 same day. Nothing new is being asked for.
@@ -265,7 +265,7 @@ Two observations, neither an ask:
 
 ---
 
-## `pager/inflate` against 0.4.0 — 2026-07-30
+## `apps/inflate` against 0.4.0 — 2026-07-30
 
 The same client as the entry below, taking up what 0.4.0 added in answer to it.
 Result first: the value view worked, the write side moved onto `Put_Bits`, and
@@ -387,7 +387,7 @@ a client's model is proved through.
 
 ---
 
-## `pager/inflate` against 0.3.0 — 2026-07-28
+## `apps/inflate` against 0.3.0 — 2026-07-28
 
 A one-shot DEFLATE/zlib/gzip/ZIP codec in SPARK, proved at `--level=4`, with a
 round-trip theorem over its compressor. It is the closest thing to a stress test
@@ -561,7 +561,7 @@ one client's model is not enough to know whether it should be a generic formal, 
 
 ---
 
-## `pager/inflate` against 0.1.0 and 0.2.0 — 2026-07-28
+## `apps/inflate` against 0.1.0 and 0.2.0 — 2026-07-28
 
 The same client, before the entry above: about 14,500 lines, proved at
 `--level=4` with no unproved checks and no justifications. It migrated from its
