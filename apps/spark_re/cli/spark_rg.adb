@@ -6,10 +6,12 @@ with Ada.Streams;
 with Ada.Streams.Stream_IO;
 with Ada.Text_IO;
 with Ada.Text_IO.Text_Streams;
-with Ore.Images;
 with System.Multiprocessors;
 with Dir_Walk;
 with Gitignore;
+with Grep_Diag;
+with Grep_Front;
+with Ore.Images;
 with Regex;
 with Spark_Cli;
 
@@ -22,44 +24,38 @@ procedure Spark_Rg is
    use type Regex.Compile_Status;
    use type Gitignore.Decision;
    use type Ada.Directories.File_Kind;
+   use type Grep_Front.Letter_Result;
+   use type Grep_Front.Pattern_Result;
    package IO renames Ada.Text_IO;
    package Files renames Ada.Streams.Stream_IO;
+   package Front renames Grep_Front;
 
-   Pattern                               : Unbounded_String;
-   Have_Pattern, End_Options             : Boolean := False;
-   Numbered                              : Boolean := True;
-   Invert, Count_Only, Quiet, List_Files : Boolean := False;
-   Hide_Name, Whole, Fixed               : Boolean := False;
-   Scan_Binary                           : Boolean := False;
-   Delimiter                             : Character := ASCII.LF;
-   Walk_Options                          : Dir_Walk.Options;
-   Globs                                 : Gitignore.Rule_Set;
-   Have_Positive_Glob                    : Boolean := False;
-   Path_Args                             :
-     array (1 .. Argument_Count) of Natural := [others => 0];
-   Path_Count                            : Natural := 0;
-   Code                                  : Regex.Program;
-   Status                                : Regex.Compile_Status;
-   Any_Selected, Had_Error, Finished     : Boolean := False;
-   Index                                 : Positive := 1;
+   --  The option letters, the selection rule and the record prefix are the
+   --  shared front end's; what differs here is the defaults. Records are
+   --  numbered and named by default, because a recursive search reports
+   --  matches from many files rather than from one the user named.
+   Opt                : Front.Settings :=
+     (Numbered => True, Names => Front.Always, others => <>);
+   Pattern            : Front.Pattern_State;
+   End_Options        : Boolean := False;
+   Scan_Binary        : Boolean := False;
+   Walk_Options       : Dir_Walk.Options;
+   Globs              : Gitignore.Rule_Set;
+   Have_Positive_Glob : Boolean := False;
+   Path_Args          : array (1 .. Argument_Count) of Natural :=
+     [others => 0];
+   Path_Count         : Natural := 0;
+   Code               : Regex.Program;
+   Status             : Regex.Compile_Status;
+   Any_Selected       : Boolean := False;
+   Finished           : Boolean := False;
+   Index              : Positive := 1;
 
    Default_Jobs : constant Positive :=
      Positive'Min (16, Positive (System.Multiprocessors.Number_Of_CPUs));
    --  Scanning scales with the core count until the file system rather than
    --  the processor sets the pace; past that a larger crew only contends.
    Jobs         : Positive := Default_Jobs;
-
-   procedure Error (Message : String) is
-   begin
-      IO.Put_Line (IO.Standard_Error, "spark-rg: " & Message);
-      Had_Error := True;
-      Set_Exit_Status (2);
-   end Error;
-
-   procedure Warn (Message : String) is
-   begin
-      IO.Put_Line (IO.Standard_Error, "spark-rg: " & Message);
-   end Warn;
 
    procedure Help is
    begin
@@ -87,31 +83,25 @@ procedure Spark_Rg is
         ("Exit: 0 selected records, 1 none, 2 error. Output records end in delimiter.");
    end Help;
 
-   procedure Set_Pattern (Value : String) is
+   procedure Take_Pattern (Value : String) is
+      Result : Front.Pattern_Result;
    begin
-      if Have_Pattern then
-         Error ("multiple patterns are not supported");
-      else
-         Pattern := To_Unbounded_String (Value);
-         Have_Pattern := True;
+      Front.Set_Pattern (Pattern, Value, Result);
+      if Result = Front.Already_Set then
+         Grep_Diag.Error ("multiple patterns are not supported");
       end if;
-   end Set_Pattern;
+   end Take_Pattern;
 
    procedure Add_Glob (Value : String) is
       Glob_Status : Gitignore.Glob_Re.Compile_Status;
    begin
       Gitignore.Add (Globs, Value, Glob_Status);
       if Glob_Status /= Gitignore.Glob_Re.Success then
-         Error ("glob: " & Value & " (" & Glob_Status'Image & ")");
+         Grep_Diag.Error ("glob: " & Value & " (" & Glob_Status'Image & ")");
       elsif Value'Length = 0 or else Value (Value'First) /= '!' then
          Have_Positive_Glob := True;
       end if;
    end Add_Glob;
-
-   procedure Write (Value : String) is
-   begin
-      String'Write (IO.Text_Streams.Stream (IO.Standard_Output), Value);
-   end Write;
 
    function Selected_By_Globs (Path : String) return Boolean is
       --  Explicit globs are matched against the path as it is reported. A
@@ -304,36 +294,39 @@ procedure Spark_Rg is
       is
          File           : Files.File_Type;
          Line, Selected : Natural := 0;
-         Prefix         : constant Boolean := not Hide_Name;
+         Prefix         : constant Boolean :=
+           Front.Show_Prefix (Opt, Path_Count);
 
          procedure Record_Line (Record_Text : String; Halt : out Boolean) is
             Matches : Boolean;
+            Action  : Front.Match_Action;
          begin
-            if Whole then
+            if Opt.Whole then
                Regex.Full_Match_With (Code, Record_Text, Work, Matches);
             else
                Regex.Search_With (Code, Record_Text, Work, Matches);
             end if;
-            Halt := False;
+            Action := Front.Decide (Opt, Matches);
+            Halt := Front.Halts (Action);
             Line := Line + 1;
-            if Matches /= Invert then
+            if Front.Selects (Action) then
                Result.Selected := True;
                Selected := Selected + 1;
-               if Quiet then
-                  Halt := True;
-               elsif List_Files then
-                  Append (Result.Text, Name & ASCII.LF);
-                  Halt := True;
-               elsif not Count_Only then
-                  if Prefix then
-                     Append (Result.Text, Name & ":");
-                  end if;
-                  if Numbered then
-                     Append (Result.Text, Ore.Images.Decimal (Line) & ":");
-                  end if;
-                  Append (Result.Text, Record_Text & Delimiter);
-               end if;
             end if;
+            case Action is
+               when Front.Emit_Input_Name =>
+                  Append (Result.Text, Name & ASCII.LF);
+
+               when Front.Emit_Record     =>
+                  Append
+                    (Result.Text,
+                     Front.Match_Prefix
+                       (Opt, Prefix, Name, Ore.Images.Decimal (Line)));
+                  Append (Result.Text, Record_Text & Opt.Delimiter);
+
+               when others                =>
+                  null;
+            end case;
          end Record_Line;
 
       begin
@@ -341,7 +334,7 @@ procedure Spark_Rg is
          if Standard then
             Spark_Cli.Read_Records
               (IO.Text_Streams.Stream (IO.Standard_Input),
-               Delimiter,
+               Opt.Delimiter,
                Record_Line'Access);
          else
             if not Scan_Binary and then Looks_Binary (Name) then
@@ -349,16 +342,15 @@ procedure Spark_Rg is
             end if;
             Files.Open (File, Files.In_File, Name);
             Spark_Cli.Read_Records
-              (Files.Stream (File), Delimiter, Record_Line'Access);
+              (Files.Stream (File), Opt.Delimiter, Record_Line'Access);
             Files.Close (File);
          end if;
-         if Count_Only and then not Quiet and then not List_Files then
-            if Prefix then
-               Append (Result.Text, Name & ":");
-            end if;
-            Append (Result.Text, Ore.Images.Decimal (Selected) & ASCII.LF);
+         if Front.Reports_Count (Opt) then
+            Append
+              (Result.Text,
+               Front.Count_Line (Prefix, Name, Ore.Images.Decimal (Selected)));
          end if;
-         Result.Halt := Quiet and then Result.Selected;
+         Result.Halt := Opt.Quiet and then Result.Selected;
       exception
          when E : others =>
             if Files.Is_Open (File) then
@@ -367,7 +359,8 @@ procedure Spark_Rg is
             Result.Failed := True;
             Append
               (Result.Errors,
-               "spark-rg: "
+               Grep_Diag.Program
+               & ": "
                & Name
                & ": "
                & Ada.Exceptions.Exception_Message (E)
@@ -381,14 +374,13 @@ procedure Spark_Rg is
       procedure Emit (Result : Outcome) is
       begin
          if Length (Result.Errors) > 0 then
-            IO.Put (IO.Standard_Error, To_String (Result.Errors));
+            Grep_Diag.Put_Error (To_String (Result.Errors));
          end if;
          if Result.Failed then
-            Had_Error := True;
-            Set_Exit_Status (2);
+            Grep_Diag.Note_Error;
          end if;
          if Length (Result.Text) > 0 then
-            Write (To_String (Result.Text));
+            Grep_Diag.Write (To_String (Result.Text));
          end if;
          if Result.Selected then
             Any_Selected := True;
@@ -421,8 +413,8 @@ procedure Spark_Rg is
                      then Name
                      else Name & "/"),
                   Visit   => Visit,
-                  Warn    => Warn'Access);
-               Finished := Quiet and then Any_Selected;
+                  Warn    => Grep_Diag.Warn'Access);
+               Finished := Opt.Quiet and then Any_Selected;
             else
                Visit (Name, Stop);
                Finished := Stop;
@@ -471,7 +463,7 @@ procedure Spark_Rg is
 
       begin
          Regex.Initialize (Work);
-         Walk_Arguments (Visit'Access, Error'Access);
+         Walk_Arguments (Visit'Access, Grep_Diag.Error'Access);
       end Run_Sequential;
 
       ------------------
@@ -482,7 +474,11 @@ procedure Spark_Rg is
          --  The traversal fills the ring, the crew empties it and this task
          --  writes what comes back. Nothing here crosses into the library:
          --  a compiled Program is read-only, every entry point is free of
-         --  global state, and each worker owns its own match workspace.
+         --  global state, and each worker owns its own match workspace. A
+         --  worker's only shared read is the program name it prefixes a
+         --  diagnostic with, which is set before any task exists and never
+         --  written again; the output channel itself is touched only by the
+         --  task that writes the results.
          task type Worker;
          task Producer;
 
@@ -511,7 +507,8 @@ procedure Spark_Rg is
                      Result.Failed := True;
                      Append
                        (Result.Errors,
-                        "spark-rg: "
+                        Grep_Diag.Program
+                        & ": "
                         & To_String (Path)
                         & ": "
                         & Ada.Exceptions.Exception_Message (E)
@@ -539,7 +536,8 @@ procedure Spark_Rg is
 
             procedure Fail (Message : String) is
             begin
-               Pipeline.Note_Failure ("spark-rg: " & Message & ASCII.LF);
+               Pipeline.Note_Failure
+                 (Grep_Diag.Program & ": " & Message & ASCII.LF);
             end Fail;
 
          begin
@@ -568,9 +566,8 @@ procedure Spark_Rg is
             Deferred : constant String := To_String (Pipeline.Failures);
          begin
             if Deferred /= "" then
-               IO.Put (IO.Standard_Error, Deferred);
-               Had_Error := True;
-               Set_Exit_Status (2);
+               Grep_Diag.Put_Error (Deferred);
+               Grep_Diag.Note_Error;
             end if;
          end;
       end Run_Parallel;
@@ -589,196 +586,173 @@ procedure Spark_Rg is
          Index := Index + 1;
          return Argument (Index);
       else
-         Error (Option & " needs a value");
+         Grep_Diag.Error (Option & " needs a value");
          return "";
       end if;
    end Next_Value;
 
+   --  The letters this program alone accepts. The shared front end rejects
+   --  them, as it must: the other program's tests require that it does.
+   procedure Apply_Own_Letter
+     (Letter : Character; Outcome : out Front.Letter_Result) is
+   begin
+      Outcome := Front.Accepted;
+      case Letter is
+         when 'N'       =>
+            Opt.Numbered := False;
+
+         when 'L'       =>
+            Walk_Options.Follow_Links := True;
+
+         when 'g' | 'j' =>
+            Outcome := Front.Needs_Value;
+
+         when others    =>
+            Outcome := Front.Unknown;
+      end case;
+   end Apply_Own_Letter;
+
+   procedure Take_Own_Value (Letter : Character; Value : String) is
+   begin
+      case Letter is
+         when 'g'    =>
+            Add_Glob (Value);
+
+         when 'j'    =>
+            begin
+               Jobs := Positive'Value (Value);
+            exception
+               when others =>
+                  Grep_Diag.Error ("-j needs a positive number, not " & Value);
+            end;
+
+         when others =>
+            Take_Pattern (Value);
+      end case;
+   end Take_Own_Value;
+
 begin
+   Grep_Diag.Set_Program ("spark-rg");
    while Index <= Argument_Count loop
       declare
          Arg : constant String := Argument (Index);
       begin
-         if not End_Options and then Arg = "--" then
-            End_Options := True;
-         elsif not End_Options and then Arg = "--help" then
-            Help;
-            return;
-         elsif not End_Options and then Arg = "--version" then
-            IO.Put_Line ("spark-rg 0.1.0");
-            return;
-         elsif not End_Options and then Arg = "--no-ignore" then
-            Walk_Options.Respect_Ignore := False;
-         elsif not End_Options and then Arg = "--hidden" then
-            Walk_Options.Hidden := True;
-         elsif not End_Options and then Arg = "--follow" then
-            Walk_Options.Follow_Links := True;
-         elsif not End_Options and then Arg = "--binary" then
-            Scan_Binary := True;
-         elsif not End_Options and then Arg = "--threads" then
-            declare
-               Value : constant String := Next_Value ("--threads");
-            begin
-               if not Had_Error then
-                  Jobs := Positive'Value (Value);
+         case Front.Classify (Arg, End_Options) is
+            when Front.End_Marker  =>
+               End_Options := True;
+
+            when Front.Long_Option =>
+               if Arg = "--help" then
+                  Help;
+                  return;
+               elsif Arg = "--version" then
+                  IO.Put_Line ("spark-rg 0.1.0");
+                  return;
+               elsif Arg = "--no-ignore" then
+                  Walk_Options.Respect_Ignore := False;
+               elsif Arg = "--hidden" then
+                  Walk_Options.Hidden := True;
+               elsif Arg = "--follow" then
+                  Walk_Options.Follow_Links := True;
+               elsif Arg = "--binary" then
+                  Scan_Binary := True;
+               elsif Arg = "--threads" then
+                  declare
+                     Value : constant String := Next_Value ("--threads");
+                  begin
+                     if not Grep_Diag.Had_Error then
+                        Jobs := Positive'Value (Value);
+                     end if;
+                  exception
+                     when others =>
+                        Grep_Diag.Error
+                          ("--threads needs a positive number, not " & Value);
+                  end;
+               elsif Arg = "--max-depth" then
+                  declare
+                     Value : constant String := Next_Value ("--max-depth");
+                  begin
+                     if not Grep_Diag.Had_Error then
+                        Walk_Options.Max_Depth := Natural'Value (Value);
+                     end if;
+                  exception
+                     when others =>
+                        Grep_Diag.Error
+                          ("--max-depth needs a number, not " & Value);
+                  end;
+               else
+                  Grep_Diag.Error ("unknown option: " & Arg & " (see --help)");
                end if;
-            exception
-               when others =>
-                  Error ("--threads needs a positive number, not " & Value);
-            end;
-         elsif not End_Options and then Arg = "--max-depth" then
-            declare
-               Value : constant String := Next_Value ("--max-depth");
-            begin
-               if not Had_Error then
-                  Walk_Options.Max_Depth := Natural'Value (Value);
+
+            when Front.Cluster     =>
+               for K in Arg'First + 1 .. Arg'Last loop
+                  declare
+                     Letter  : constant Character := Arg (K);
+                     Outcome : Front.Letter_Result;
+                  begin
+                     Front.Apply_Letter (Opt, Letter, Outcome);
+                     if Outcome = Front.Unknown then
+                        Apply_Own_Letter (Letter, Outcome);
+                     end if;
+                     case Outcome is
+                        when Front.Accepted    =>
+                           null;
+
+                        when Front.Needs_Value =>
+                           declare
+                              Value : constant String :=
+                                (if Front.Has_Inline_Value (Arg, K)
+                                 then Front.Inline_Value (Arg, K)
+                                 else Next_Value (['-', Letter]));
+                           begin
+                              if not Grep_Diag.Had_Error then
+                                 Take_Own_Value (Letter, Value);
+                              end if;
+                           end;
+                           exit;
+
+                        when Front.Unknown     =>
+                           Grep_Diag.Error
+                             ("unknown option: " & Arg & " (see --help)");
+                           exit;
+                     end case;
+                  end;
+               end loop;
+
+            when Front.Operand     =>
+               if Pattern.Present then
+                  Path_Count := Path_Count + 1;
+                  Path_Args (Path_Count) := Index;
+               else
+                  Take_Pattern (Arg);
                end if;
-            exception
-               when others =>
-                  Error ("--max-depth needs a number, not " & Value);
-            end;
-         elsif not End_Options and then Arg'Length > 1 and then Arg (1) = '-'
-         then
-            for K in 2 .. Arg'Last loop
-               case Arg (K) is
-                  when 'E'             =>
-                     Fixed := False;
-
-                  when 'F'             =>
-                     Fixed := True;
-
-                  when 'n'             =>
-                     Numbered := True;
-
-                  when 'N'             =>
-                     Numbered := False;
-
-                  when 'v'             =>
-                     Invert := True;
-
-                  when 'c'             =>
-                     Count_Only := True;
-
-                  when 'q'             =>
-                     Quiet := True;
-
-                  when 'l'             =>
-                     List_Files := True;
-
-                  when 'h'             =>
-                     --  Names are shown by default, since a recursive search
-                     --  reports matches from many files.
-                     Hide_Name := True;
-
-                  when 'H'             =>
-                     Hide_Name := False;
-
-                  when 'x'             =>
-                     Whole := True;
-
-                  when 'z'             =>
-                     Delimiter := ASCII.NUL;
-
-                  when 'L'             =>
-                     Walk_Options.Follow_Links := True;
-
-                  when 'e' | 'g' | 'j' =>
-                     declare
-                        Letter : constant Character := Arg (K);
-                        Value  : constant String :=
-                          (if K < Arg'Last
-                           then Arg (K + 1 .. Arg'Last)
-                           else Next_Value (['-', Arg (K)]));
-                     begin
-                        if not Had_Error then
-                           case Letter is
-                              when 'g'    =>
-                                 Add_Glob (Value);
-
-                              when 'j'    =>
-                                 begin
-                                    Jobs := Positive'Value (Value);
-                                 exception
-                                    when others =>
-                                       Error
-                                         ("-j needs a positive number, not "
-                                          & Value);
-                                 end;
-
-                              when others =>
-                                 Set_Pattern (Value);
-                           end case;
-                        end if;
-                     end;
-                     exit;
-
-                  when others          =>
-                     Error ("unknown option: " & Arg & " (see --help)");
-                     exit;
-               end case;
-            end loop;
-         elsif not Have_Pattern then
-            Set_Pattern (Arg);
-         else
-            Path_Count := Path_Count + 1;
-            Path_Args (Path_Count) := Index;
-         end if;
+         end case;
       end;
-      if Had_Error then
+      if Grep_Diag.Had_Error then
          return;
       end if;
       Index := Index + 1;
    end loop;
 
-   if not Have_Pattern then
-      Error ("missing pattern (see --help)");
+   if not Pattern.Present then
+      Grep_Diag.Error ("missing pattern (see --help)");
       return;
    end if;
 
-   if Fixed then
-      declare
-         Escaped : Unbounded_String;
-      begin
-         for C of To_String (Pattern) loop
-            if C
-               in '\'
-                | '.'
-                | '^'
-                | '$'
-                | '|'
-                | '?'
-                | '*'
-                | '+'
-                | '('
-                | ')'
-                | '['
-                | ']'
-                | '{'
-                | '}'
-            then
-               Append (Escaped, '\');
-            end if;
-            Append (Escaped, C);
-         end loop;
-         Pattern := Escaped;
-      end;
+   if Opt.Fixed then
+      Pattern.Text :=
+        To_Unbounded_String (Front.Escape_Literal (To_String (Pattern.Text)));
    end if;
 
-   Regex.Compile (To_String (Pattern), Code, Status);
+   Regex.Compile (To_String (Pattern.Text), Code, Status);
    if Status /= Regex.Success then
-      Error ("pattern: " & Status'Image);
+      Grep_Diag.Error ("pattern: " & Status'Image);
       return;
    end if;
 
    Process_Input;
-   if Had_Error then
-      Set_Exit_Status (2);
-   elsif Any_Selected then
-      Set_Exit_Status (Success);
-   else
-      Set_Exit_Status (1);
-   end if;
+   Set_Exit_Status (Front.Exit_Code (Grep_Diag.Had_Error, Any_Selected));
 exception
    when E : others =>
-      Error (Ada.Exceptions.Exception_Message (E));
+      Grep_Diag.Error (Ada.Exceptions.Exception_Message (E));
 end Spark_Rg;

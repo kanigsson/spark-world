@@ -202,6 +202,18 @@ with early stop and dynamically growing record storage. It is separately
 consumable; the regex kernel does not depend on it. The CLI is deliberately a
 named subset, not a drop-in GNU grep or ripgrep replacement.
 
+`common/grep_front` holds what the two CLIs decide rather than what they do:
+the option letters, the record-selection rule, the record prefix, the literal
+escape and the exit status, all in SPARK and all proved. Its postconditions
+are the shared part of the command line surface — which letters exist and what
+each one changes — so the two programs cannot drift apart on them.
+`Grep_Diag` beside it is the opposite shape: a SPARK specification over an
+ordinary Ada body, because naming the standard error file takes a unit out of
+SPARK, and hiding that behind a spec is what lets the deciding code be SPARK
+at all. `make prove-front` proves the crate — 81 checks in a few seconds, with
+an unproved check treated as an error, which the crate can afford because it
+depends on nothing.
+
 ## Verification
 
 Proof covers absence of runtime errors, initialization, global

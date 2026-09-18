@@ -65,6 +65,41 @@ gets easier. If a later reader wonders why a proved library grew a package
 whose clients never run a prover: this is why, and the contracts are there for
 the library's own sake.
 
+### Gap — `Decimal` says how long its result is, not where it sits
+
+Found by the first client that put a contract of its own on top of `Decimal`
+rather than only calling it: the shared front end of `spark-grep` and
+`spark-rg`, which formats a record's `name:line:` prefix and states what it
+returns.
+
+The natural spelling does not prove:
+
+```ada
+   function Match_Prefix (... Name : String; Line : Positive) return String
+   is ((if Prefix then Name & ":" else "")
+       & (if Numbered then Ore.Images.Decimal (Line) & ":" else ""));
+```
+
+```
+low: range check might fail, cannot prove upper bound for Decimal (Line) & ":"
+```
+
+A function result carries its own bounds, and the postcondition bounded the
+*length* only, so `'Last` was unconstrained as far as a caller's prover was
+concerned and the concatenation had no provable upper bound. The length is the
+fact a caller wants when it sizes a buffer; `'Last` is the fact it needs the
+moment it concatenates, which is what every one of the ten original copies did.
+
+**Closed before `Ore.Images` was released**, as one further conjunct —
+`Decimal'Result'Last <= Max_Decimal_Length` — which is true of the body as it
+already stood and proves at the same 39 checks. The client's prefix formatter then proves clean.
+
+Worth recording what was tried and rejected, because it looks like the nicer
+answer: promising `'First = 1` instead. It needs the body to return a one-based
+copy rather than the tail of its own buffer, and under this library's own
+switches the "no leading zero" clause then hits the prover's memory limit. The
+weaker fact was free; the stronger one was not, and the client does not need it.
+
 ### Not adopted
 
 `apps/inflate`'s spike `m6_dynamic_tree` carries a tenth copy of the hex table

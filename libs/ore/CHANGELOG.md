@@ -13,8 +13,11 @@ follow [Semantic Versioning](https://semver.org/).
   places and three spellings, and a `"0123456789abcdef"` table in four more.
   None of them said what it produced, so every caller re-derived that the blank
   is exactly one character wide.
-  - `Decimal` is that image with a contract: a bounded length, every character
-    a digit, and no leading zero unless the value is zero.
+  - `Decimal` is that image with a contract: a bounded length, a bounded
+    `'Last`, every character a digit, and no leading zero unless the value is
+    zero. The bound on `'Last` is there for the caller that concatenates the
+    image rather than measuring it: a function result carries its own bounds,
+    so a length alone leaves a concatenation without a provable bound.
   - `Hex_Digit` is the table, `Hex_Pair` the fixed-width two-digit form an
     escape sequence needs, and `Hex` the minimal-width image. All take the
     letter case as a parameter, because the clients wanted both.

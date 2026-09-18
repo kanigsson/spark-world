@@ -39,11 +39,12 @@ state count, which matters on small-stack targets.
 **Licensing:** this project is `Apache-2.0 WITH LLVM-exception`. Do not copy
 implementation code from GPL-only projects such as gsh.
 
-## `common/spark_cli` is vendored here, deliberately
+## The two vendored crates under `common/`, deliberately
 
-It is a separate crate — argument and usage handling — and its only clients are
-`spark-grep` and `spark-rg`. It stays inside this project until a second
-project adopts it; at that point it becomes `libs/spark_cli`. `fuzzy`,
+`common/spark_cli` is a separate crate — record framing and the I/O around it
+— and its only clients are `spark-grep` and `spark-rg`. It stays inside this
+project until a second project adopts it; at that point it becomes
+`libs/spark_cli`. `fuzzy`,
 `spark_diff` and `inflate` each hand-roll the same job today, so this is the
 repository's most likely first promotion.
 
@@ -51,19 +52,53 @@ Its assertions follow the library's build mode, so the two must be switched
 together — hence `CHECKS_VARS` naming both `SPARK_RE_BUILD` and
 `SPARK_CLI_BUILD` in the `Makefile`.
 
+`common/grep_front` is the other half of the same story and travels with it.
+It holds what `spark-grep` and `spark-rg` both *decide* — the option letters,
+the record-selection rule, the record prefix, the literal escape, the exit
+status — as against what they do. Unlike `spark_cli` it is SPARK and proved,
+by `make prove-front`, away from the library's run: keeping the two runs apart
+is what stops a clean result here being buried inside the run that the
+library's one open check makes fail. It reads the same `SPARK_CLI_BUILD`
+external on purpose, so the two crates cannot be switched apart.
+
+**It depends on nothing, and that is load-bearing.** A withed library's units
+join a project's own proof run whatever switch is passed — neither
+`--no-subprojects` nor naming this crate's files keeps them out — so a
+dependency here would put thousands of someone else's goals, and their open
+checks, in front of this crate's eighty-one. That is why a record's line
+number and a count arrive as images rather than as values: the image library
+is the caller's business. Adding a `with` to `grep_front.gpr` costs the run's
+`--checks-as-errors=on` and its eight seconds.
+
+`Grep_Diag`, in the same crate, is a SPARK specification over an ordinary Ada
+body. Naming the standard error file takes a unit out of SPARK — that, and not
+the option parsing, is why these front ends were ordinary Ada throughout — so
+the channel is declared with the state each operation touches and implemented
+outside the boundary. Add to the spec, not to the callers.
+
+What the shared part must **not** grow is a letter only one program accepts.
+Each program handles its own letters and reports the rest as an error, and the
+CLI tests require that: `spark-grep -i` and `spark-grep -P` must fail. A
+shared parser that accepted the union would take that diagnostic away.
+
 ## Build, test, prove
 
 ```sh
 make build            # library, both CLIs, tests
-make test             # library suite, then the three Python oracles
+make test             # library and front-end suites, then the three oracles
 make test-contracts   # the same with executable library contracts
 make flow
-make prove            # --level=4
+make prove            # --level=4, the library
+make prove-front      # --level=2, the shared CLI front end
 ```
 
 Proof runs at `--level=4` here, higher than elsewhere in the repository, and
 takes minutes rather than seconds. `local.mk` is included if present and stays
 untracked.
+
+`tests/test_front.adb` is a unit suite over the shared front end, including
+the letters it must reject; the contracts state the same rules but a proved
+contract is checked by nobody in a release build.
 
 `tests/test_cli.py` is differential against Python `re` and GNU `grep -aE` in
 locale C over 290 patterns in both search and whole-record modes; `test_rg.py`

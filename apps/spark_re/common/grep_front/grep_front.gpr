@@ -1,0 +1,35 @@
+library project Grep_Front is
+   --  The shared front end of spark-grep and spark-rg: everything the two
+   --  programs decide, as opposed to everything they do. Proved on its own,
+   --  see the prove-front target in the project Makefile.
+   --
+   --  Assertions belong to the checks build, as in the crate beside it, and
+   --  the external is deliberately the same one so that the two vendored
+   --  crates cannot be switched apart.
+   type Build_Mode is ("release", "checks");
+   Build : Build_Mode := external ("SPARK_CLI_BUILD", "release");
+   for Source_Dirs use ("src");
+   for Object_Dir use "obj/" & Build;
+   for Library_Dir use "lib/" & Build;
+   for Library_Name use "grep_front";
+   for Library_Kind use "static";
+   package Compiler is
+      case Build is
+         when "release" =>
+            for Default_Switches ("Ada") use ("-gnat2022", "-gnatwa", "-O2");
+         when "checks" =>
+            for Default_Switches ("Ada") use ("-gnat2022", "-gnatwa", "-gnata", "-O2");
+      end case;
+   end Compiler;
+   package Prove is
+      for Proof_Dir use "proof";
+      --  This crate withs nothing, which is what keeps the run its own: a
+      --  withed library's units join the analysis whatever switch is passed,
+      --  so a dependency here would mean minutes of someone else's goals and
+      --  an exit status reporting their state rather than this crate's.
+      --  Depending on nothing, the run is seconds and a check can be an
+      --  error.
+      for Proof_Switches ("Ada") use
+        ("--report=all", "--warnings=error", "--checks-as-errors=on");
+   end Prove;
+end Grep_Front;

@@ -1,0 +1,12 @@
+name = "grep_front"
+description = "The shared, proved front end of spark-grep and spark-rg"
+version = "0.1.0"
+authors = ["Johannes Kanig"]
+maintainers = ["Johannes Kanig <johannes.kanig@gmail.com>"]
+maintainers-logins = ["kanigsson"]
+licenses = "Apache-2.0 WITH LLVM-exception"
+project-files = ["grep_front.gpr"]
+[[depends-on]]
+gnat = ">=12 & <2000"
+[configuration]
+disabled = true

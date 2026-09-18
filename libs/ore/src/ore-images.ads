@@ -35,10 +35,16 @@ is
    --  The decimal image with no leading blank: what every caller of 'Image in
    --  this repository was slicing by hand. Zero is "0"; nothing else carries a
    --  leading zero.
+   --
+   --  The bound on 'Last is what a caller needs to concatenate the image and
+   --  still bound the result: a function result carries its own bounds, and a
+   --  length alone leaves 'Last unknown, so "text " & Decimal (N) has no
+   --  provable upper bound without it.
    function Decimal (Value : Natural) return String
    with
      Post =>
        Decimal'Result'Length in Decimal_Length
+       and then Decimal'Result'Last <= Max_Decimal_Length
        and then (for all C of Decimal'Result => C in '0' .. '9')
        and then (Decimal'Result'Length = 1
                  or else Decimal'Result (Decimal'Result'First) /= '0');
