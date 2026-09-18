@@ -144,11 +144,36 @@ otherwise, turning it into mojibake.
 Raise the pin deliberately, in its own commit, separate from the reformat it
 causes.
 
-### Still open
+### The prover is pinned where the proof is clean
 
-`libs/git_changes/scripts/prove.sh` requires GNATprove 16 specifically and
-finds it under `~/.alire/`, while every other project proves with whatever is
-on `PATH`, so the repository still proves with two different provers depending
-on which project you are in. `GNATPROVE_VERSION` is declared in
-`tools/toolchain.mk` against the day a resolver of the same shape as
-`tools/gnatformat` closes this.
+`tools/gnatprove` is a resolver of the same shape as `tools/gnatformat`: it
+finds a GNATprove matching `GNATPROVE_VERSION` at run time, checks its
+`--version`, and refuses rather than proving with whatever `PATH` offers. It
+passes no switches of its own — level, provers and timeouts stay a per-project
+decision.
+
+Unlike the formatter, the pin is **opt-in per project**, because a prover pin
+is a claim. A project that names the pinned prover is saying it proves clean
+against it, so only the projects that do have been pinned:
+
+| Project | Pinned | Why not |
+| --- | --- | --- |
+| `libs/tui` | yes | |
+| `libs/unicode_text` | yes | |
+| `libs/git_changes` | yes | |
+| `apps/fuzzy` | yes | |
+| `apps/spark_diff` | yes | |
+| `apps/spark_re` | yes | |
+| `libs/ore` | no | bit-level `2**N` lemmas time out |
+| `apps/inflate` | no | outstanding checks of its own, plus Ore's |
+| `apps/git_view` | no | proves `git_changes` with weaker switches than `git_changes` uses on itself |
+| `libs/json` | no | a few checks unproved inside SPARKlib's own float lemmas, not in `json` |
+| `libs/tui_term` | n/a | `SPARK_Mode => Off` by design |
+
+Pinning one of the rest is a one-line edit — `GNATPROVE ?= $(SPARK_WORLD_PROVE)`
+in its `Makefile` — made when its last check closes, not before. Pinning a
+project with outstanding checks would promise a clean run it does not deliver,
+which is the same failure as silencing a check.
+
+A project without a `Makefile` states the resolver in the `gnatprove` line its
+`README` and `AGENTS.md` document, until it is converted.

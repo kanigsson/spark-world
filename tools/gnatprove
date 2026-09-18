@@ -1,0 +1,115 @@
+#!/bin/sh
+#  Runs the pinned GNATprove over the arguments given.
+#
+#  The point of the indirection is that a proof result is only meaningful
+#  against a stated prover. Provers disagree: a check that discharges under
+#  one release times out under another, and a development build on a
+#  developer's PATH turns "this project proves clean" into a claim about that
+#  machine rather than about the repository. Rather than record where the
+#  right prover lives -- that differs per machine -- this finds a candidate
+#  and verifies what it says it is, refusing to run on a mismatch.
+#
+#  Unlike the formatter, this passes no switches of its own. Proof level,
+#  provers and timeouts are a per-project decision here and vary on purpose,
+#  so they stay in each project's Makefile or project file. The only thing
+#  pinned is which prover runs.
+set -eu
+
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+self=$here/$(basename -- "$0")
+
+#  Single source of truth for the version, shared with the project Makefiles.
+want=$(awk -F= '/^GNATPROVE_VERSION/ { gsub(/[ \t?]/, "", $2); print $2; exit }' \
+       "$here/toolchain.mk")
+if [ -z "$want" ]; then
+    echo "gnatprove: no GNATPROVE_VERSION in $here/toolchain.mk" >&2
+    exit 1
+fi
+
+version_of() {
+    "$1" --version 2>/dev/null | sed -n 1p
+}
+
+#  Reporting the right version is not the same as being able to run. GNATprove
+#  carries its own GNAT, and `alr install` unpacks every crate into one shared
+#  ~/.alire prefix, so installing a second release leaves a prover of one
+#  version beside a runtime of another. Such an install answers --version
+#  correctly and then dies on the first unit with "cannot locate file
+#  system.ads". So: when a candidate has a bundled runtime tree, require that
+#  it holds the version the prover claims. A layout with no such tree is left
+#  alone rather than guessed at -- reject on evidence of breakage, not on its
+#  absence.
+runtime_ok() {
+    prefix_of=$(CDPATH= cd -- "$(dirname -- "$1")/.." && pwd)
+    gcclib=$prefix_of/libexec/spark/lib/gcc
+    [ -d "$gcclib" ] || return 0
+    full=${2#FSF }
+    for rts in "$gcclib"/*/"$full"/adainclude/system.ads; do
+        [ -f "$rts" ] && return 0
+    done
+    return 1
+}
+
+matches() {
+    [ -n "$1" ] && [ -x "$1" ] || return 1
+    #  This script is itself named gnatprove, so a PATH that offers tools/
+    #  would otherwise find it and recurse until the machine gives up.
+    [ "$(CDPATH= cd -- "$(dirname -- "$1")" && pwd)/$(basename -- "$1")" \
+      != "$self" ] || return 1
+    reported=$(version_of "$1")
+    case "$reported" in
+        "FSF $want"*) ;;
+        *) return 1 ;;
+    esac
+    runtime_ok "$1" "$reported"
+}
+
+#  An explicitly named candidate is honoured but still checked, so a stale
+#  entry in a local.mk is reported rather than obeyed.
+if [ -n "${GNATPROVE_BIN:-}" ]; then
+    if ! matches "$GNATPROVE_BIN"; then
+        echo "gnatprove: GNATPROVE_BIN=$GNATPROVE_BIN is not usable as $want" >&2
+        echo "gnatprove: it reports: $(version_of "$GNATPROVE_BIN")" >&2
+        echo "gnatprove: (a matching version still fails here if its bundled" >&2
+        echo "gnatprove:  runtime is a different release)" >&2
+        exit 1
+    fi
+    found=$GNATPROVE_BIN
+else
+    #  PATH first, then the places Alire puts an installed crate. The
+    #  version-stamped crate directory is tried before the shared ~/.alire
+    #  prefix, because that prefix is what a second `alr install` overwrites.
+    found=
+    for candidate in \
+        "$(command -v gnatprove 2>/dev/null || true)" \
+        "$HOME"/.alire/gnatprove*/bin/gnatprove \
+        "$HOME"/.local/share/alire/releases/*gnatprove*/bin/gnatprove \
+        "$HOME/.alire/bin/gnatprove"
+    do
+        if matches "$candidate"; then
+            found=$candidate
+            break
+        fi
+    done
+fi
+
+if [ -z "$found" ]; then
+    echo "gnatprove: no GNATprove $want on this machine" >&2
+    echo "gnatprove: install it with: alr install gnatprove" >&2
+    echo "gnatprove: or name one in local.mk: GNATPROVE_BIN = /path/to/gnatprove" >&2
+    exit 1
+fi
+
+#  SPARKlib ships with the prover, so it has to be taken from the prover we
+#  settled on and not from whichever install seeded GPR_PROJECT_PATH. Getting
+#  this wrong is not a missing-file error: a run picks up another release's
+#  SPARKlib and either aborts on an "inconsistent spark version" ali file or,
+#  worse, proves against contracts that are not the ones shipped here.
+#  Prepending rather than replacing leaves a project's own entries intact.
+prefix=$(CDPATH= cd -- "$(dirname -- "$found")/.." && pwd)
+if [ -d "$prefix/lib/gnat" ]; then
+    GPR_PROJECT_PATH="$prefix/lib/gnat${GPR_PROJECT_PATH:+:$GPR_PROJECT_PATH}"
+    export GPR_PROJECT_PATH
+fi
+
+exec "$found" "$@"

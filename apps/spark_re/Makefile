@@ -8,7 +8,9 @@
 include ../../tools/toolchain.mk
 
 GPRBUILD ?= gprbuild
-GNATPROVE ?= gnatprove
+#  Pinned: this project proves clean under the pinned prover, so it states
+#  which prover that is rather than trusting PATH. See tools/toolchain.mk.
+GNATPROVE ?= $(SPARK_WORLD_PROVE)
 JOBS ?= 4
 .PHONY: build test test-contracts flow prove format format-check
 build:

@@ -8,6 +8,9 @@
 include ../../tools/toolchain.mk
 
 GPRBUILD ?= gprbuild
+#  Not pinned: this project still has unproved checks under the pinned
+#  prover, so naming it here would promise a clean run it does not deliver.
+#  Pin it (GNATPROVE ?= $(SPARK_WORLD_PROVE)) when the last one closes.
 GNATPROVE ?= gnatprove
 JOBS ?= 4
 

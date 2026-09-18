@@ -59,8 +59,8 @@ gprbuild -P tests/tests.gpr                  # the behavioural suites
 (cd tests && for t in test_width test_text test_surface test_input \
                      test_engine test_pager test_app_kit test_panes; do ./$t; done)
 gprbuild -P demo/demo.gpr                    # the throwaway demos
-gnatprove -P tui.gpr --level=2 -j8           # the proofs
-gnatprove -P tui.gpr -u tui-width.adb        # ... or one unit at a time
+../../tools/gnatprove -P tui.gpr --level=2 -j8  # the proofs
+../../tools/gnatprove -P tui.gpr -u tui-width.adb  # ... or one unit at a time
 ```
 
 `-XMODE=debug` builds without optimisation and keeps `-gnata`, so the contracts

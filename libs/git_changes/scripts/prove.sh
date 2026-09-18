@@ -1,29 +1,16 @@
 #!/bin/sh
+#  Proves the three core parsers with the repository's pinned prover.
+#
+#  This script used to resolve GNATprove 16 itself, because it was the only
+#  place in the repository that pinned a prover at all. That search now lives
+#  in tools/gnatprove and is shared, so a version moves in one place; what
+#  stays here is the proof scope and switches, which are this project's own.
 set -eu
 cd "$(dirname "$0")/.."
 
-prover=${GNATPROVE:-}
-if [ -z "$prover" ] && command -v gnatprove >/dev/null 2>&1; then
-    candidate=$(command -v gnatprove)
-    case "$("$candidate" --version | sed -n '1p')" in
-        *16.*) prover=$candidate ;;
-    esac
-fi
-if [ -z "$prover" ]; then
-    for candidate in "$HOME"/.alire/gnatprove_16*/bin/gnatprove; do
-        if [ -x "$candidate" ]; then
-            prover=$candidate
-        fi
-    done
-fi
-if [ -z "$prover" ]; then
-    echo "GNATprove 16 is not available" >&2
-    exit 1
-fi
-case "$("$prover" --version | sed -n '1p')" in
-    *16.*) ;;
-    *) echo "GNATprove 16 is required (selected: $prover)" >&2; exit 1 ;;
-esac
+#  Absolute, because alr exec runs the command with a working directory of
+#  its own choosing and a relative one would not survive the hop.
+prover=${GNATPROVE:-$(CDPATH= cd -- ../../tools && pwd)/gnatprove}
 
 exec alr exec -- "$prover" -P git_changes_proof.gpr \
     --mode=all --level=2 --prover=all -j0 \

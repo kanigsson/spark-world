@@ -25,11 +25,17 @@ with the active compiler, and proof then uses its contracts without reanalysing
 it. A build that has never been run makes the first proof run much slower, not
 wrong.
 
+Because SPARKlib ships with the prover, this is the one project where changing
+prover changes a dependency. Prove through `../../tools/gnatprove`, which takes
+SPARKlib from the prover it pins; a run that mixes them aborts on an
+`inconsistent spark version` ali file, and the stale objects under
+`obj/sparklib/` have to be cleared with `--clean` before it will run again.
+
 ## Build, test, prove
 
 ```sh
 gprbuild  -P unicode_text_lib.gpr
-gnatprove -P unicode_text.gpr -XSPARKLIB_EXTERNALLY_BUILT=true
+../../tools/gnatprove -P unicode_text.gpr -XSPARKLIB_EXTERNALLY_BUILT=true
 gprbuild  -P tests/runtime/runtime_tests.gpr
 ./obj/runtime_tests/utf_8_tests
 ./obj/runtime_tests/plain_string_tests

@@ -26,7 +26,7 @@ Build the library-only project and prove the library plus proof clients with:
 
 ```sh
 gprbuild -P unicode_text_lib.gpr
-gnatprove -P unicode_text.gpr -XSPARKLIB_EXTERNALLY_BUILT=true
+../../tools/gnatprove -P unicode_text.gpr -XSPARKLIB_EXTERNALLY_BUILT=true
 ```
 
 Run the exhaustive scalar round-trip, malformed-input, and plain-string tests

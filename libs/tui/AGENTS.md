@@ -37,8 +37,8 @@ gprbuild  -P tui.gpr -XMODE=debug          # -O0, -gnata: contracts run
 gprbuild  -P tests/tests.gpr && (cd tests && for t in test_width test_text \
    test_surface test_input test_engine test_pager test_app_kit test_panes; \
    do ./$t; done)
-gnatprove -P tui.gpr --level=2 -j8         # 1047 checks, all proved
-gnatprove -P tui.gpr -u tui-width.adb      # one unit, seconds
+../../tools/gnatprove -P tui.gpr --level=2 -j8   # 1048 checks, all proved
+../../tools/gnatprove -P tui.gpr -u tui-width.adb  # one unit, seconds
 ```
 
 `demo/` is throwaway, one program per layer, and is **not** SPARK. It exists to
