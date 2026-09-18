@@ -108,7 +108,7 @@ are an artifact of proving the dependency, not a gap in the parser.
 
 **`fuzzy_matcher` — 1 check.** A loop invariant not preserved by an arbitrary
 iteration, at `fuzzy.adb:625`. The project's `make prove` treats unproved
-checks as errors, so the run exits 1.
+checks as errors, so the run exits 1. *Repaired after the baseline — see below.*
 
 **`spark_re` — 1 check.** A loop invariant not preserved by an arbitrary
 iteration, at `spark_re_trees-matching.adb:6257`: `not Accepting (Self,
@@ -124,6 +124,19 @@ against `Info.Decoded_Length`. This run exits 0: unlike `fuzzy_matcher` and
 
 The first of the two is a resource limit, not a verdict, so a longer timeout or
 a higher level may well close it. That is for later — nothing was retried here.
+
+### Repairs after the baseline
+
+**`fuzzy_matcher` is now fully proved.** The outstanding loop invariant was a
+prover time limit, not a false check: it discharges unchanged under a much
+longer per-attempt budget. Rather than raise the project's documented budget,
+a ghost lemma now establishes the ordering between the inserted item and the
+results above the insertion point by transitivity, so the invariant follows
+from a fact already in context. At the project's own settings the library
+proves 610 of 610 checks in 29s, and `make flow`, `make test` and
+`make test-contracts` still pass. The same sources also prove 610 of 610 under
+FSF GNATprove 16.1.0 in 49s, so the result does not depend on the development
+toolchain. The baseline table above is left as recorded.
 
 ### Proof scope worth knowing
 

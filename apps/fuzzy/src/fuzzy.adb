@@ -411,6 +411,57 @@ is
       null;
    end Better_Transitive;
 
+   --  Lift the ordering established at the insertion point to every
+   --  result above it. The insertion scan stops at the first result the
+   --  new item does not beat, so the ordering holds there directly and
+   --  everywhere earlier by transitivity.
+   procedure Order_Above_Slot
+     (Results    : Search_Result_Array;
+      Count      : Natural;
+      Item       : Search_Result;
+      Slot       : Positive;
+      Candidates : Candidate_Array)
+   with
+     Ghost,
+     Global => null,
+     Always_Terminates,
+     Pre    =>
+       Count <= Results'Length
+       and then Slot <= Count
+       and then Item.Candidate in Candidates'Range
+       and then (for all R in Results'Range =>
+                   (if R - Results'First < Count
+                    then Results (R).Candidate in Candidates'Range))
+       and then (for all R in Results'Range =>
+                   (for all S in Results'Range =>
+                      (if R - Results'First < Count
+                         and then S - Results'First < Count
+                         and then R < S
+                       then Better (Results (R), Results (S), Candidates))))
+       and then Better
+                  (Results (Results'First + (Slot - 1)), Item, Candidates),
+     Post   =>
+       (for all R in Results'Range =>
+          (if R - Results'First < Slot
+           then Better (Results (R), Item, Candidates)))
+   is
+   begin
+      for R in Results'Range loop
+         if R - Results'First < Slot - 1 then
+            Better_Transitive
+              (Results (R),
+               Results (Results'First + (Slot - 1)),
+               Item,
+               Candidates);
+         end if;
+         pragma
+           Loop_Invariant
+             (for all Q in Results'First .. R =>
+                (if Q - Results'First < Slot
+                 then Better (Results (Q), Item, Candidates)));
+      end loop;
+   end Order_Above_Slot;
+
    --  An omitted match was either the evicted last result or was already
    --  below the old cutoff. In the latter case use transitivity explicitly.
    procedure Preserve_Cutoff
@@ -568,6 +619,8 @@ is
                             (Results (Results'First + (Slot - 1)),
                              Item,
                              Candidates));
+                     Order_Above_Slot
+                       (Results, Result_Count, Item, Slot, Candidates);
                   end if;
                   pragma
                     Assert
