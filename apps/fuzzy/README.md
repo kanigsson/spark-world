@@ -15,20 +15,26 @@ make test-contracts      # also execute contracts and ghost assertions
 make flow                # initialization and dependency analysis
 make prove               # runtime safety and functional contracts
 make bench               # 100,000 synthetic paths, K=30, 20 searches
-make format              # reformat the Ada sources with GNATformat
+make format              # reformat with the repository's pinned GNATformat
+make format-check        # report unformatted sources, rewriting nothing
 printf '%s\n' src/foo.adb src/bar.ads | bin/fuzzy fa 30
 ```
 
-`GPRBUILD`, `GNATPROVE`, `GNATFORMAT`, and `JOBS` can be overridden for a
-selected toolchain. The repository deliberately records no tool paths: on a
-machine that offers several toolchains, put the choice in a `local.mk`,
-which the `Makefile` includes if present and which stays untracked. For
-example, to use the FSF tools installed through Alire with `alr install`:
+`GPRBUILD`, `GNATPROVE`, and `JOBS` can be overridden for a selected
+toolchain. The repository deliberately records no tool paths: on a machine
+that offers several toolchains, put the choice in a `local.mk`, which the
+`Makefile` includes if present and which stays untracked. For example, to use
+the FSF tools installed through Alire with `alr install`:
 
 ```make
-GNATPROVE  ?= $(HOME)/.alire/bin/gnatprove
-GNATFORMAT ?= $(HOME)/.alire/bin/gnatformat
+GNATPROVE ?= $(HOME)/.alire/bin/gnatprove
 ```
+
+The formatter is not one of these. It is pinned for the whole repository and
+resolved by version rather than by path, so `make format` either finds the
+pinned release or refuses to run — see the repository's `AGENTS.md`. Name a
+candidate with `GNATFORMAT_BIN` if the search does not find yours; it is still
+version-checked.
 
 The compiler and GPRbuild are selected separately, because Alire manages
 them as a toolchain rather than as installed binaries: run

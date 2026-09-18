@@ -17,7 +17,7 @@ That uniform depth is load-bearing: it makes every cross-project reference the
 same shape, so moving a project between tiers is a one-token edit.
 
 > **Migration in progress.** Every project has reached its tier;
-> `experiments/` and `tools/` do not exist yet, and `docs/` still has
+> `experiments/` does not exist yet, and `docs/` still has
 > repo-wide material to absorb. `docs/STATUS.md` records what builds and
 > proves, in the flat layout it was measured in. Delete this note when those
 > are settled.
@@ -85,6 +85,19 @@ survives; a README line does not stop someone passing `-j0`.
 Proof level and switches are a per-project decision — they vary on purpose,
 from `--level=2` to `--level=4`.
 
+`format` and `format-check` are the exception to per-project variation: both
+call `tools/format-repo`, so every project formats through one traversal and
+one set of switches. `format-check` reports and exits non-zero instead of
+rewriting, which is what a pre-commit hook or CI wants. Run
+`tools/format-repo` with no argument to format the whole repository.
+
+That traversal names each project in turn with `--no-subprojects`, because a
+project's sources belong to it alone: reaching them through a client would
+format them under the client's settings, and once per client. Two projects are
+left out on purpose — the Alire-generated ones under `config/`, and
+`libs/unicode_text/sparklib.gpr`, whose sources are SPARKlib's own and live
+outside this repository.
+
 **Do not suppress an unproved check to obtain a passing run.** If a check does
 not prove, either prove it or record it — in `docs/STATUS.md` for a baseline,
 in the project's `AGENTS.md` for a standing exception, with the reason. A green
@@ -101,7 +114,41 @@ a short paragraph if the commit is particularly complex.
 One matching GNAT/GPRbuild/GNATprove installation for a project and all its
 dependencies. Ada 2022 throughout.
 
-Note one inconsistency: `libs/git_changes/scripts/prove.sh` requires GNATprove 16
-specifically and finds it under `~/.alire/`, while every other project proves
-with whatever is on `PATH`. Until that is reconciled, the repository proves
-with two different provers depending on which project you are in.
+`tools/toolchain.mk` holds the repository's tool pins and is included by every
+project's `Makefile`. A version lives there and nowhere else; a path to a
+binary lives nowhere at all. **Never commit a tool location** — a developer's
+own choice belongs in an untracked `local.mk`.
+
+### The formatter is pinned, and why
+
+No two releases of GNATformat agree about how to lay out Ada, so an unpinned
+run rewrites every source it is pointed at. That turns formatting one project
+into a repo-wide diff whenever a developer's `PATH` offers a different build —
+a development wavefront, say. So `tools/gnatformat` resolves a formatter at run
+time and verifies its `--version`, refusing to run on a mismatch rather than
+reformatting the world. It searches `PATH` first, then the places Alire
+installs into.
+
+The pin is `GNATFORMAT_VERSION`, currently the formatter that ships alongside
+FSF GNAT 16. **Mind the numbering: that formatter calls itself 26.0.** The
+number tracks the release year, not the compiler, so a pin of `16.` matches
+nothing.
+
+The formatting switches live in `tools/gnatformat` too, stated explicitly even
+where they match today's defaults — a default that moves in a later release
+would otherwise reflow the repository silently, whereas stated there it becomes
+a visible edit. `--charset utf-8` is not one of the negotiable ones: sources
+hold UTF-8 punctuation and the formatter decodes as ISO-8859-1 unless told
+otherwise, turning it into mojibake.
+
+Raise the pin deliberately, in its own commit, separate from the reformat it
+causes.
+
+### Still open
+
+`libs/git_changes/scripts/prove.sh` requires GNATprove 16 specifically and
+finds it under `~/.alire/`, while every other project proves with whatever is
+on `PATH`, so the repository still proves with two different provers depending
+on which project you are in. `GNATPROVE_VERSION` is declared in
+`tools/toolchain.mk` against the day a resolver of the same shape as
+`tools/gnatformat` closes this.

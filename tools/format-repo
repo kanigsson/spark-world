@@ -1,0 +1,66 @@
+#!/bin/sh
+#  Formats Ada sources project by project: the whole repository by default,
+#  or the directories named as arguments. Arguments starting with a dash are
+#  passed on to the formatter, so --check reports instead of rewriting.
+#
+#  Each project is formatted through its own root project with
+#  --no-subprojects, because a project's sources belong to it alone: visiting
+#  them through a client would format them under the client's settings, and
+#  once per client. Naming every project in turn is what gives each source
+#  exactly one run. It is also why a project's own `make format` calls this
+#  script rather than spelling out a formatter line of its own -- one
+#  traversal rule, no per-project drift.
+set -eu
+
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+root=$(CDPATH= cd -- "$here/.." && pwd)
+
+scopes=
+switches=
+for arg do
+    case "$arg" in
+        -*) switches="$switches $arg" ;;
+        *) scopes="$scopes $arg" ;;
+    esac
+done
+if [ -z "$scopes" ]; then
+    cd "$root"
+    scopes="apps libs experiments"
+fi
+
+#  Projects deliberately left out:
+#
+#  config/*.gpr  - Alire-generated, and so are the sources they carry.
+#  sparklib.gpr  - extends sparklib_internal, so its sources are SPARKlib's,
+#                  living outside this repository. Formatting through it would
+#                  rewrite a dependency's copy.
+skip() {
+    case "$1" in
+        */config/*.gpr) return 0 ;;
+        */sparklib.gpr|sparklib.gpr) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+status=0
+failed=
+
+for project in $(find $scopes -name '*.gpr' 2>/dev/null | sort); do
+    skip "$project" && continue
+    printf '%s\n' "$project"
+    #  -U reaches sources no main depends on; tests and benchmarks are the
+    #  reason. -k keeps going past a source the formatter cannot parse, so one
+    #  bad file does not hide the rest of the project's diff.
+    # shellcheck disable=SC2086
+    if ! "$here/gnatformat" -P "$project" -U --no-subprojects -k $switches; then
+        status=1
+        failed="$failed $project"
+    fi
+done
+
+if [ -n "$failed" ]; then
+    echo "format-repo: these projects did not format cleanly:" >&2
+    for project in $failed; do echo "  $project" >&2; done
+fi
+
+exit $status

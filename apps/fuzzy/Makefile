@@ -3,12 +3,15 @@
 #  environment offers several toolchains pins the choice here.
 -include local.mk
 
+#  Tool versions are pinned for the whole repository; the formatter in
+#  particular, because an unpinned one reformats every source it sees.
+include ../../tools/toolchain.mk
+
 GPRBUILD ?= gprbuild
 GNATPROVE ?= gnatprove
-GNATFORMAT ?= gnatformat
 JOBS ?= 4
 
-.PHONY: build test test-contracts prove flow bench format
+.PHONY: build test test-contracts prove flow bench format format-check
 build:
 	$(GPRBUILD) -P tools.gpr -j$(JOBS)
 
@@ -32,7 +35,7 @@ prove:
 bench: build
 	bin/bench_fuzzy
 
-#  Some sources hold UTF-8 literals, so the charset must be stated: the
-#  formatter otherwise assumes iso-8859-1 and re-encodes them on every run.
 format:
-	$(GNATFORMAT) -P tools.gpr -U --charset utf-8
+	$(SPARK_WORLD_FORMAT) .
+format-check:
+	$(SPARK_WORLD_FORMAT) . --check

@@ -1,8 +1,17 @@
+#  Optional, untracked, per-developer tool locations. The project states
+#  which tools it needs and never where they live; a developer whose
+#  environment offers several toolchains pins the choice here.
+-include local.mk
+
+#  Tool versions are pinned for the whole repository; the formatter in
+#  particular, because an unpinned one reformats every source it sees.
+include ../../tools/toolchain.mk
+
 GPRBUILD ?= gprbuild
 GNATPROVE ?= gnatprove
 JOBS ?= 4
 
-.PHONY: build test test-contracts prove flow
+.PHONY: build test test-contracts prove flow format format-check
 build:
 	$(GPRBUILD) -P tools.gpr -j$(JOBS)
 
@@ -20,3 +29,8 @@ flow:
 
 prove:
 	$(GNATPROVE) -P spark_diff.gpr --level=2 --timeout=20 --prover=cvc5,z3 --counterexamples=off -j$(JOBS)
+
+format:
+	$(SPARK_WORLD_FORMAT) .
+format-check:
+	$(SPARK_WORLD_FORMAT) . --check

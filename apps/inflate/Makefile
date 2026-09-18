@@ -3,6 +3,10 @@
 #  environment offers several toolchains pins the choice here.
 -include local.mk
 
+#  Tool versions are pinned for the whole repository; the formatter in
+#  particular, because an unpinned one reformats every source it sees.
+include ../../tools/toolchain.mk
+
 GPRBUILD ?= gprbuild
 GNATPROVE ?= gnatprove
 JOBS ?= 4
@@ -13,7 +17,7 @@ JOBS ?= 4
 #  passing -j0; starving those checks is what makes them look unprovable.
 PROVE_JOBS ?= 16
 
-.PHONY: build test test-cli prove bench
+.PHONY: build test test-cli prove bench format format-check
 build:
 	$(GPRBUILD) -P inflate.gpr -j$(JOBS)
 	$(GPRBUILD) -P inflate_cli.gpr -j$(JOBS)
@@ -35,3 +39,8 @@ prove:
 bench:
 	$(GPRBUILD) -P bench/bench.gpr -j$(JOBS)
 	cd bench && python3 run_bench.py
+
+format:
+	$(SPARK_WORLD_FORMAT) .
+format-check:
+	$(SPARK_WORLD_FORMAT) . --check

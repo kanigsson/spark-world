@@ -3,11 +3,15 @@
 #  environment offers several toolchains pins the choice here.
 -include local.mk
 
+#  Tool versions are pinned for the whole repository; the formatter in
+#  particular, because an unpinned one reformats every source it sees.
+include ../../tools/toolchain.mk
+
 GPRBUILD ?= gprbuild
 GNATPROVE ?= gnatprove
 JOBS ?= 4
 
-.PHONY: build test prove flow
+.PHONY: build test prove flow format format-check
 #  Builds the three libraries along with the app; -XMODE=debug drops the
 #  optimisation and keeps contracts.
 build:
@@ -27,3 +31,8 @@ flow:
 #  Level and switches come from the Prove package in git_view.gpr.
 prove:
 	$(GNATPROVE) -P git_view.gpr -j$(JOBS)
+
+format:
+	$(SPARK_WORLD_FORMAT) .
+format-check:
+	$(SPARK_WORLD_FORMAT) . --check

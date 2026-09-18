@@ -1,0 +1,79 @@
+#!/bin/sh
+#  Runs the pinned GNATformat, with the formatting switches this repository
+#  has settled on, over the arguments given.
+#
+#  The point of the indirection is that no version of the formatter agrees
+#  with another about how to lay out Ada. An unpinned run rewrites every
+#  source file it is pointed at, so a developer whose PATH offers a
+#  development build would produce a repo-wide diff as a side effect of
+#  formatting one project. Rather than record where the right formatter lives
+#  -- that differs per machine -- this finds a candidate and verifies what it
+#  says it is, refusing to run on a mismatch.
+set -eu
+
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+#  Single source of truth for the version, shared with the project Makefiles.
+want=$(awk -F= '/^GNATFORMAT_VERSION/ { gsub(/[ \t?]/, "", $2); print $2; exit }' \
+       "$here/toolchain.mk")
+if [ -z "$want" ]; then
+    echo "gnatformat: no GNATFORMAT_VERSION in $here/toolchain.mk" >&2
+    exit 1
+fi
+
+#  The switches are stated even where they match the current defaults. A
+#  default that moves in a later release would otherwise reflow the whole
+#  repository silently; stated here, such a move becomes an edit to this line.
+#
+#  --charset is not optional: sources hold UTF-8 punctuation and the formatter
+#  decodes as ISO-8859-1 unless told otherwise, turning it into mojibake.
+SWITCHES="--charset utf-8 --width 79 --indentation 3 --end-of-line lf"
+
+version_of() {
+    "$1" --version 2>/dev/null | sed -n 1p
+}
+
+matches() {
+    [ -n "$1" ] && [ -x "$1" ] || return 1
+    case "$(version_of "$1")" in
+        "GNATformat $want"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+#  An explicitly named candidate is honoured but still checked, so a stale
+#  entry in a local.mk is reported rather than obeyed.
+if [ -n "${GNATFORMAT_BIN:-}" ]; then
+    if matches "$GNATFORMAT_BIN"; then
+        # shellcheck disable=SC2086
+        exec "$GNATFORMAT_BIN" $SWITCHES "$@"
+    fi
+    echo "gnatformat: GNATFORMAT_BIN=$GNATFORMAT_BIN is not version $want" >&2
+    echo "gnatformat: it reports: $(version_of "$GNATFORMAT_BIN")" >&2
+    exit 1
+fi
+
+#  PATH first, then the places Alire puts an installed crate or a toolchain.
+found=
+for candidate in \
+    "$(command -v gnatformat 2>/dev/null || true)" \
+    "$HOME/.alire/bin/gnatformat" \
+    "$HOME"/.alire/gnatformat*/bin/gnatformat \
+    "$HOME"/.local/share/alire/releases/*gnatformat*/bin/gnatformat \
+    "$HOME"/.local/share/alire/toolchains/*gnatformat*/bin/gnatformat
+do
+    if matches "$candidate"; then
+        found=$candidate
+        break
+    fi
+done
+
+if [ -z "$found" ]; then
+    echo "gnatformat: no GNATformat $want on this machine" >&2
+    echo "gnatformat: install it with: alr install gnatformat" >&2
+    echo "gnatformat: or name one in local.mk: GNATFORMAT_BIN = /path/to/gnatformat" >&2
+    exit 1
+fi
+
+# shellcheck disable=SC2086
+exec "$found" $SWITCHES "$@"

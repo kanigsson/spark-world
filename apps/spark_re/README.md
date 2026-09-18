@@ -14,7 +14,8 @@ make test                 # library tests, Python re and grep -E oracles
 make test-contracts       # same tests with executable library contracts
 make flow                 # initialization and dependency analysis
 make prove                # safety, termination, NFA simulator correctness
-make format
+make format               # reformat with the repository's pinned GNATformat
+make format-check         # report unformatted sources, rewriting nothing
 printf '%s\n' src/foo.adb src/bar.ads | bin/spark-grep '\.adb$'
 bin/spark-grep -n 'procedure|function' src/*.ad?
 bin/spark-rg 'procedure|function'
@@ -24,9 +25,11 @@ bin/spark-rg 'procedure|function'
 and tests. `alire.toml` publishes the library alone.
 Release builds retain runtime checks; `-XSPARK_RE_BUILD=checks` also executes
 assertions and uses separate object/library/executable directories. Tool paths
-belong in optional, ignored `local.mk`; `GPRBUILD`, `GNATPROVE`, `GNATFORMAT`,
-and `JOBS` can also be overridden on the make command line. Nothing is installed
-or added to PATH by the build.
+belong in optional, ignored `local.mk`; `GPRBUILD`, `GNATPROVE`, and `JOBS` can
+also be overridden on the make command line. The formatter is pinned for the
+whole repository and resolved by version instead, so `make format` either finds
+the pinned release or refuses to run. Nothing is installed or added to PATH by
+the build.
 
 ```ada
 with Regex;
