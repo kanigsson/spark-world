@@ -32,7 +32,7 @@ The last recorded proof and test baseline is:
 - 6,449 debug/runtime cases and 22 compressor interoperability cases passing;
 - C zlib independently accepting every focused compressor output.
 
-On commit `83fa4aa`, aggregating the 12 checked-in `tests/corpus` files gave:
+On commit `83fa4aa`, aggregating the 12 `tests/corpus` files gave:
 
 | Compressor | Compressed/input size |
 |---|---:|

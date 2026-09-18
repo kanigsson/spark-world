@@ -19,6 +19,10 @@ ITERS = int(os.environ.get("ITERS", "30"))
 
 
 def corpus_cat():
+    #  The corpus is not in the repository; the test suite downloads it on its
+    #  first run. Say so rather than failing on a missing directory.
+    if not os.path.isdir(CORPUS) or not os.listdir(CORPUS):
+        sys.exit("no test corpus: run ../tests/run_tests.py once to fetch it")
     blobs = []
     for name in sorted(os.listdir(CORPUS)):
         p = os.path.join(CORPUS, name)

@@ -10,7 +10,7 @@ bench/bench_zlib
 tests/obj/
 tests/work/
 tests/test_inflate
-tests/corpus/.ok
+tests/corpus/
 
 *.ali
 *.o

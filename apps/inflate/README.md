@@ -282,7 +282,9 @@ so the suite is a differential test, not a self-test:
 - Canterbury corpus plus synthetic extremes (incompressible, constant,
   empty), compressed at levels 0/1/6/9, window sizes 9/12/15, and all five
   encoder strategies, as raw/zlib/gzip — output compared byte-for-byte,
-  `Consumed` compared exactly.
+  `Consumed` compared exactly. The corpus is not in the repository: the first
+  run downloads it into `tests/corpus/`, so that run needs network access.
+  The benchmark reuses the same directory.
 - All 32 gzip flag combinations (hand-built headers), multi-member files,
   corrupted CRCs/lengths, truncations at every byte.
 - Hand-crafted DEFLATE streams via a bit writer: reserved block type 3,
