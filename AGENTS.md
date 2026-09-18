@@ -91,6 +91,11 @@ in the project's `AGENTS.md` for a standing exception, with the reason. A green
 run that was made green by silencing is worse than a red one, because it stops
 anyone from looking again.
 
+## Commit messages
+
+Keep commit messages short: most of the time, just a title will be enough. Add
+a short paragraph if the commit is particularly complex.
+
 ## Toolchain
 
 One matching GNAT/GPRbuild/GNATprove installation for a project and all its
