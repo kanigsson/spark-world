@@ -3,7 +3,7 @@
 ## Recursive search: traversal, ignore rules and parallelism
 
 These measurements are about `spark-rg`'s front end rather than the simulator.
-The corpus is a `~/sparkdev/spark2014` checkout, 1.8 GB on disk excluding
+The corpus is a checkout of the SPARK 2014 sources, 1.8 GB on disk excluding
 `.git`, of which both tools search 27,865 files and 147,197,715 bytes after
 `.gitignore` filtering. It holds 10,904 directories and 24 ignore files, 41 of
 whose rules sit in the root file and therefore apply to every path. Measured on
@@ -78,7 +78,7 @@ Corpora:
 - **Tiny:** 800,000 bytes, 400,000 one-byte `x` records.
 - **Long `x`:** 13,721,708 bytes, 13,708 records of 1,000 `x` bytes.
 - **Sources:** 13,716,226 bytes, 389,858 records from concatenated Ada and OCaml
-  sources under `~/sparkdev/spark2014/src`.
+  sources under the SPARK 2014 `src/` tree.
 - **Refolded sources:** the same non-LF payload regrouped into 1,000-byte records;
   13,339,695 bytes and 13,327 records including the new delimiters.
 
@@ -122,7 +122,7 @@ as `before-spark-grep` and `before-spark-rg` in a separate directory, then run:
 
 ```sh
 python3 tests/bench_workspace.py --before /path/to/before --after bin \
-  --sources ~/sparkdev/spark2014/src --repeats 5 > workspace-results.json
+  --sources /path/to/spark2014/src --repeats 5 > workspace-results.json
 ```
 
 The JSON includes every sample, corpus sizes and hashes, and executable hashes.

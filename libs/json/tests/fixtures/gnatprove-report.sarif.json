@@ -382,7 +382,7 @@
    ],
    "originalUriBaseIds": {
     "%SRCROOT%": {
-     "uri": "file:///home/kanig/tools/spark-world/libs/json/"
+     "uri": "file:///repo/libs/json/"
     }
    },
    "logicalLocations": [],
@@ -398,7 +398,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-tests-array_lemmas.ads"
+         "uri": "file:///opt/spark/include/spark/spark-tests-array_lemmas.ads"
         },
         "region": {
          "startLine": 45,
@@ -425,7 +425,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-tests-array_lemmas.ads"
+         "uri": "file:///opt/spark/include/spark/spark-tests-array_lemmas.ads"
         },
         "region": {
          "startLine": 45,
@@ -452,7 +452,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-tests-array_lemmas.ads"
+         "uri": "file:///opt/spark/include/spark/spark-tests-array_lemmas.ads"
         },
         "region": {
          "startLine": 45,
@@ -479,7 +479,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-tests-array_lemmas.ads"
+         "uri": "file:///opt/spark/include/spark/spark-tests-array_lemmas.ads"
         },
         "region": {
          "startLine": 55,
@@ -506,7 +506,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-tests-array_lemmas.ads"
+         "uri": "file:///opt/spark/include/spark/spark-tests-array_lemmas.ads"
         },
         "region": {
          "startLine": 55,
@@ -533,7 +533,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-tests-array_lemmas.ads"
+         "uri": "file:///opt/spark/include/spark/spark-tests-array_lemmas.ads"
         },
         "region": {
          "startLine": 55,
@@ -560,7 +560,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-tests-array_lemmas.ads"
+         "uri": "file:///opt/spark/include/spark/spark-tests-array_lemmas.ads"
         },
         "region": {
          "startLine": 23,
@@ -581,7 +581,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 224,
@@ -608,7 +608,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 204,
@@ -635,7 +635,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 233,
@@ -662,7 +662,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 195,
@@ -689,7 +689,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 214,
@@ -716,7 +716,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 200,
@@ -743,7 +743,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 209,
@@ -770,7 +770,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 219,
@@ -797,7 +797,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 229,
@@ -824,7 +824,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 241,
@@ -851,7 +851,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 265,
@@ -878,7 +878,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 267,
@@ -905,7 +905,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 209,
@@ -932,7 +932,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 276,
@@ -959,7 +959,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 278,
@@ -986,7 +986,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 200,
@@ -1013,7 +1013,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 287,
@@ -1040,7 +1040,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 289,
@@ -1067,7 +1067,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 241,
@@ -1094,7 +1094,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 217,
@@ -1121,7 +1121,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 219,
@@ -1153,7 +1153,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 227,
@@ -1180,7 +1180,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 229,
@@ -1212,7 +1212,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 277,
@@ -1239,7 +1239,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 279,
@@ -1266,7 +1266,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 280,
@@ -1293,7 +1293,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 266,
@@ -1320,7 +1320,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 268,
@@ -1347,7 +1347,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 269,
@@ -1374,7 +1374,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 288,
@@ -1401,7 +1401,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 290,
@@ -1428,7 +1428,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/spark2014/install/include/spark/spark-lemmas-floating_point_arithmetic.ads"
+         "uri": "file:///opt/spark/include/spark/spark-lemmas-floating_point_arithmetic.ads"
         },
         "region": {
          "startLine": 291,
@@ -1455,7 +1455,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
         },
         "region": {
          "startLine": 36,
@@ -1476,7 +1476,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbre.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbre.ads"
         },
         "region": {
          "startLine": 35,
@@ -1497,7 +1497,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
         },
         "region": {
          "startLine": 36,
@@ -1518,7 +1518,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
         },
         "region": {
          "startLine": 36,
@@ -1539,7 +1539,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
         },
         "region": {
          "startLine": 36,
@@ -1560,7 +1560,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
         },
         "region": {
          "startLine": 36,
@@ -1581,7 +1581,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
         },
         "region": {
          "startLine": 36,
@@ -1602,7 +1602,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
         },
         "region": {
          "startLine": 36,
@@ -1623,7 +1623,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
         },
         "region": {
          "startLine": 36,
@@ -1644,7 +1644,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
         },
         "region": {
          "startLine": 36,
@@ -1665,7 +1665,7 @@
       {
        "physicalLocation": {
         "artifactLocation": {
-         "uri": "file:///home/kanig/sparkdev/wave/x86_64-linux/gnat/install/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
+         "uri": "file:///opt/gnat/lib/gcc/x86_64-pc-linux-gnu/15.3.1/adainclude/a-nbnbin.ads"
         },
         "region": {
          "startLine": 36,

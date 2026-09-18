@@ -34,8 +34,9 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 WORK = os.path.join(HERE, "work")
 HARNESS = os.path.join(HERE, "test_json")
-GPRBUILD = shutil.which("gprbuild") or \
-    "/home/kanig/sparkdev/wave/x86_64-linux/gnat/install/bin/gprbuild"
+GPRBUILD = shutil.which("gprbuild")
+if GPRBUILD is None:
+    sys.exit("gprbuild not on PATH")
 
 QUICK = "--quick" in sys.argv
 sys.setrecursionlimit(100000)
