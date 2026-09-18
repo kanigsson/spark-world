@@ -4,6 +4,44 @@ package body Tui.Text
   with SPARK_Mode => On
 is
 
+   ---------------
+   -- To_Buffer --
+   ---------------
+
+   function To_Buffer (Item : String) return Buffer is
+      Result : Buffer (1 .. Item'Length) := (others => 0);
+   begin
+      for I in Item'Range loop
+         Result (1 + (I - Item'First)) := Byte (Character'Pos (Item (I)));
+
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. 1 + (I - Item'First) =>
+                Result (J)
+                = Byte (Character'Pos (Item (Item'First + (J - 1)))));
+      end loop;
+      return Result;
+   end To_Buffer;
+
+   ---------------
+   -- To_String --
+   ---------------
+
+   function To_String (Item : Buffer) return String is
+      Result : String (1 .. Item'Length) := (others => ' ');
+   begin
+      for I in Item'Range loop
+         Result (1 + (I - Item'First)) := Character'Val (Integer (Item (I)));
+
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. 1 + (I - Item'First) =>
+                Result (J)
+                = Character'Val (Integer (Item (Item'First + (J - 1)))));
+      end loop;
+      return Result;
+   end To_String;
+
    ----------
    -- Line --
    ----------

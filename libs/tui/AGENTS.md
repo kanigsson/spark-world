@@ -37,12 +37,30 @@ gprbuild  -P tui.gpr -XMODE=debug          # -O0, -gnata: contracts run
 gprbuild  -P tests/tests.gpr && (cd tests && for t in test_width test_text \
    test_surface test_input test_engine test_pager test_app_kit test_panes; \
    do ./$t; done)
-../../tools/gnatprove -P tui.gpr --level=2 -j8   # 1048 checks, all proved
+../../tools/gnatprove -P tui.gpr --level=2 -j8   # 1086 checks, all proved
 ../../tools/gnatprove -P tui.gpr -u tui-width.adb  # one unit, seconds
 ```
 
 `demo/` is throwaway, one program per layer, and is **not** SPARK. It exists to
 look at a layer by hand; it is not a test and nothing depends on it.
+
+## `Byte` and `Code_Point` are the root's
+
+`Tui.Width`, `Tui.Text` and `Tui.Input` each used to declare their own `Byte` /
+`Code_Point`. Those were distinct *types*, so a byte read by `Tui.Input` and a
+byte held by `Tui.Text` needed a conversion between them. There is now one
+declaration in `Tui`, and the layers carry subtypes of it under the same names
+so that `Tui.Text.Byte` still resolves for clients that spell it that way.
+
+Two consequences worth knowing before changing it back. A name inherited from
+a parent is not a declaration in the child, so the subtypes cannot simply be
+deleted — every qualified client reference would stop compiling. And the
+operators now belong to `Tui`, so `use Tui.Text;` alone no longer makes `=` on
+`Byte` directly visible; a unit that needs it says `use type Tui.Byte;`.
+
+`Tui.Text` also owns the `String` <-> `Buffer` conversion now (`To_Buffer`,
+`To_String`), which six tests and demos had each written. A library whose whole
+input is a `Buffer` should say how to build one.
 
 ## What the proofs do not cover
 

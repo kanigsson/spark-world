@@ -4,6 +4,9 @@
 with Ada.Text_IO; use Ada.Text_IO;
 with Ada.Command_Line;
 with Tui.Text;    use Tui.Text;
+--  Byte is one type in the root now, so its operators come from there rather
+--  than from the layer the name is spelled through.
+use type Tui.Byte;
 with Tui.App_Kit.Search_Input;
 with Tui.App_Kit.Status;
 

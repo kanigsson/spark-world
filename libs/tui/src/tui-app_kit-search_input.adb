@@ -2,8 +2,6 @@ package body Tui.App_Kit.Search_Input
   with SPARK_Mode => On
 is
 
-   use type Tui.Text.Byte;
-
    -----------
    -- Clear --
    -----------

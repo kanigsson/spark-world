@@ -2,8 +2,6 @@ package body Tui.Pager.Search
   with SPARK_Mode => On
 is
 
-   use type Tui.Text.Byte;
-
    ------------------
    -- Line_Matches --
    ------------------

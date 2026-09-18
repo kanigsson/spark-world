@@ -11,12 +11,20 @@
 --  `tui.ads` files. Shared geometry/types may move here later, when a second
 --  consumer needs them without their current home — not before.
 --
---  That moment has arrived for the two scalar types below. `Tui.Width` and
---  `Tui.Input` each declared their own identical `Byte` / `Code_Point`; a third
---  consumer (`Tui.Strings`) makes the duplication a liability, so the canonical
---  declarations live here now. The layers can drop their local
---  copies in favour of these (a non-breaking change: a local subtype of the
---  same name simply shadows this one until removed).
+--  That moment arrived for the two scalar types below. `Tui.Width`, `Tui.Text`
+--  and `Tui.Input` each declared their own identical `Byte` / `Code_Point`, so
+--  the canonical declarations moved here and the layers now inherit them.
+--
+--  Note what that unification did rather than only tidied: the local `Byte`s
+--  were distinct *types*, so a byte read by `Tui.Input` and a byte held by
+--  `Tui.Text` were incompatible and a client crossing between them wrote a
+--  conversion. They are now one type, and those conversions are redundant
+--  rather than wrong.
+--
+--  The layers keep the names as subtypes of these rather than dropping them:
+--  clients spell them qualified (`Tui.Text.Byte`), and a name inherited from
+--  a parent is not a declaration in the child, so removing them outright
+--  would break every such client for nothing.
 
 package Tui
   with Pure, SPARK_Mode => On

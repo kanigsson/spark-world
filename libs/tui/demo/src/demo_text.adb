@@ -8,27 +8,9 @@ with Tui.Text;               use Tui.Text;
 
 procedure Demo_Text is
 
-   function Buf_Of (S : String) return Buffer is
-      B : Buffer (1 .. S'Length);
-   begin
-      for I in S'Range loop
-         B (1 + (I - S'First)) := Byte (Character'Pos (S (I)));
-      end loop;
-      return B;
-   end Buf_Of;
-
-   function Str_Of (B : Buffer) return String is
-      S : String (1 .. B'Length);
-   begin
-      for I in B'Range loop
-         S (1 + (I - B'First)) := Character'Val (Integer (B (I)));
-      end loop;
-      return S;
-   end Str_Of;
-
    --  Note the CRLF line, the empty line, and the unterminated final line.
    Content : constant Buffer :=
-     Buf_Of
+     To_Buffer
        ("first line"
         & LF
         & "second (CRLF)"
@@ -60,7 +42,7 @@ begin
             & " +"
             & S.Length'Image
             & " ] '"
-            & Str_Of (Line (Idx, Content, N))
+            & To_String (Line (Idx, Content, N))
             & "'");
       end;
    end loop;

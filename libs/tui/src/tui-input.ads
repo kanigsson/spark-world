@@ -26,11 +26,11 @@ package Tui.Input
   with SPARK_Mode => On
 is
 
-   --  A single octet as read from the terminal.
-   type Byte is mod 2**8;
-
-   --  A Unicode scalar value (used only for Char events).
-   subtype Code_Point is Natural range 0 .. 16#10_FFFF#;
+   --  Names kept for the clients that spell them `Tui.Input.Byte`; the type
+   --  itself is the root's, so a byte read here and a byte held by Tui.Text
+   --  are now one type rather than two that need a conversion between them.
+   subtype Byte is Tui.Byte;
+   subtype Code_Point is Tui.Code_Point;
 
    type Key_Kind is
      (Char,                                   --  a printable character (Code)

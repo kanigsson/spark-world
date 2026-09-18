@@ -24,7 +24,7 @@ package Tui.Width
   with SPARK_Mode => On
 is
 
-   subtype Code_Point is Natural range 0 .. 16#10_FFFF#;
+   subtype Code_Point is Tui.Code_Point;
    subtype Column_Count is Natural range 0 .. 2;
 
    --  Columns the code point occupies when rendered:

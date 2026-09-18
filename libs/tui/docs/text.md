@@ -37,11 +37,16 @@ Bytes := Line (Idx, Buf, 1);   --  a slice of Buf, no copy
    `Tui.Width` layer and the pager's layout — deliberately not here.
 4. **Bounded, no allocation.** `Capacity` (a discriminant) caps the line count;
    reaching it sets `Truncated` rather than overflowing or allocating.
+5. **It says how to build a `Buffer`.** `To_Buffer (String)` and
+   `To_String (Buffer)` map byte for byte, applying and assuming no encoding.
+   They are here rather than in each caller because a library whose whole input
+   is a `Buffer` should answer the first question a caller has; six tests and
+   demos had written the same two loops before they existed.
 
 ## Proof status
 
 ```
-gnatprove -P tui.gpr -u tui-text.adb   ->   Success: all checks proved (54 checks)
+gnatprove -P tui.gpr -u tui-text.adb   ->   Success: all checks proved (114 checks)
 ```
 
 What is proved:

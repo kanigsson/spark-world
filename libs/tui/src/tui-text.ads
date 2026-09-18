@@ -30,7 +30,7 @@ package Tui.Text
   with SPARK_Mode => On
 is
 
-   type Byte is mod 2**8;
+   subtype Byte is Tui.Byte;
 
    --  Generous caps that keep all offset/area arithmetic inside 32-bit Integer.
    Max_Bytes : constant := 2**30 - 1;   --  ~1 GiB of buffered content
@@ -45,6 +45,33 @@ is
      Natural range 1 .. Max_Lines;      --  a 1-based line id
 
    type Buffer is array (Byte_Index range <>) of Byte;
+
+   ---------------------------------------------------------------------------
+   --  Conversions
+   ---------------------------------------------------------------------------
+
+   --  Every input this library takes is a Buffer, so it says how to build one.
+   --  The mapping is byte for byte: no encoding is applied or assumed, which
+   --  is what a caller holding bytes in a String wants and what the UTF-8
+   --  layer above expects to receive.
+
+   function To_Buffer (Item : String) return Buffer
+   with
+     Pre  => Item'Length <= Max_Bytes,
+     Post =>
+       To_Buffer'Result'Length = Item'Length
+       and then (for all I in 1 .. Item'Length =>
+                   To_Buffer'Result (I)
+                   = Byte (Character'Pos (Item (Item'First + (I - 1)))));
+
+   function To_String (Item : Buffer) return String
+   with
+     Post =>
+       To_String'Result'Length = Item'Length
+       and then To_String'Result'First = 1
+       and then (for all I in 1 .. Item'Length =>
+                   To_String'Result (I)
+                   = Character'Val (Integer (Item (Item'First + (I - 1)))));
 
    --  Where one line's content lives in the buffer, excluding its terminator.
    --  An empty line has Length = 0 (Start still points at a valid position).

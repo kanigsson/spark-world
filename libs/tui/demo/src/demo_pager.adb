@@ -17,15 +17,6 @@ procedure Demo_Pager is
    package PR renames Tui.Pager.Render;
    package Enc renames Ada.Strings.UTF_Encoding.Wide_Wide_Strings;
 
-   function Buf_Of (S : String) return Tui.Text.Buffer is
-      B : Tui.Text.Buffer (1 .. S'Length);
-   begin
-      for I in S'Range loop
-         B (1 + (I - S'First)) := Tui.Text.Byte (Character'Pos (S (I)));
-      end loop;
-      return B;
-   end Buf_Of;
-
    procedure Frame (Surf : Surface; Title : String) is
    begin
       Put_Line (Title);
@@ -49,7 +40,7 @@ procedure Demo_Pager is
    end Frame;
 
    Document : constant Tui.Text.Buffer :=
-     Buf_Of
+     Tui.Text.To_Buffer
        ("The quick brown fox"
         & LF
         & "jumps over the lazy dog"
