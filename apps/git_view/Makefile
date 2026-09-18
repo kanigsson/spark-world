@@ -1,20 +1,13 @@
-#  Optional, untracked, per-developer tool locations. The project states
-#  which tools it needs and never where they live; a developer whose
-#  environment offers several toolchains pins the choice here.
--include local.mk
+#  The repository-wide preamble: the developer's own overrides, the tool pins,
+#  the shared defaults and the format targets. Must come first.
+include ../../tools/project.mk
 
-#  Tool versions are pinned for the whole repository; the formatter in
-#  particular, because an unpinned one reformats every source it sees.
-include ../../tools/toolchain.mk
-
-GPRBUILD ?= gprbuild
 #  Not pinned: this project still has unproved checks under the pinned
 #  prover, so naming it here would promise a clean run it does not deliver.
 #  Pin it (GNATPROVE ?= $(SPARK_WORLD_PROVE)) when the last one closes.
 GNATPROVE ?= gnatprove
-JOBS ?= 4
 
-.PHONY: build test prove flow format format-check
+.PHONY: build test prove flow
 #  Builds the three libraries along with the app; -XMODE=debug drops the
 #  optimisation and keeps contracts.
 build:
@@ -34,8 +27,3 @@ flow:
 #  Level and switches come from the Prove package in git_view.gpr.
 prove:
 	$(GNATPROVE) -P git_view.gpr -j$(JOBS)
-
-format:
-	$(SPARK_WORLD_FORMAT) .
-format-check:
-	$(SPARK_WORLD_FORMAT) . --check

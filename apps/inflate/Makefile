@@ -1,18 +1,11 @@
-#  Optional, untracked, per-developer tool locations. The project states
-#  which tools it needs and never where they live; a developer whose
-#  environment offers several toolchains pins the choice here.
--include local.mk
+#  The repository-wide preamble: the developer's own overrides, the tool pins,
+#  the shared defaults and the format targets. Must come first.
+include ../../tools/project.mk
 
-#  Tool versions are pinned for the whole repository; the formatter in
-#  particular, because an unpinned one reformats every source it sees.
-include ../../tools/toolchain.mk
-
-GPRBUILD ?= gprbuild
 #  Not pinned: this project still has unproved checks under the pinned
 #  prover, so naming it here would promise a clean run it does not deliver.
 #  Pin it (GNATPROVE ?= $(SPARK_WORLD_PROVE)) when the last one closes.
 GNATPROVE ?= gnatprove
-JOBS ?= 4
 
 #  The prover memory limit applies per process, so the default 2 GB times one
 #  job per core exceeds what a many-core machine has, and the hardest checks
@@ -20,7 +13,7 @@ JOBS ?= 4
 #  passing -j0; starving those checks is what makes them look unprovable.
 PROVE_JOBS ?= 16
 
-.PHONY: build test test-cli prove bench format format-check
+.PHONY: build test test-cli prove bench
 build:
 	$(GPRBUILD) -P inflate.gpr -j$(JOBS)
 	$(GPRBUILD) -P inflate_cli.gpr -j$(JOBS)
@@ -42,8 +35,3 @@ prove:
 bench:
 	$(GPRBUILD) -P bench/bench.gpr -j$(JOBS)
 	cd bench && python3 run_bench.py
-
-format:
-	$(SPARK_WORLD_FORMAT) .
-format-check:
-	$(SPARK_WORLD_FORMAT) . --check

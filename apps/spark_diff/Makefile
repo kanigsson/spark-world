@@ -1,19 +1,12 @@
-#  Optional, untracked, per-developer tool locations. The project states
-#  which tools it needs and never where they live; a developer whose
-#  environment offers several toolchains pins the choice here.
--include local.mk
+#  The repository-wide preamble: the developer's own overrides, the tool pins,
+#  the shared defaults and the format targets. Must come first.
+include ../../tools/project.mk
 
-#  Tool versions are pinned for the whole repository; the formatter in
-#  particular, because an unpinned one reformats every source it sees.
-include ../../tools/toolchain.mk
-
-GPRBUILD ?= gprbuild
 #  Pinned: this project proves clean under the pinned prover, so it states
 #  which prover that is rather than trusting PATH. See tools/toolchain.mk.
 GNATPROVE ?= $(SPARK_WORLD_PROVE)
-JOBS ?= 4
 
-.PHONY: build test test-contracts prove flow format format-check
+.PHONY: build test test-contracts prove flow
 build:
 	$(GPRBUILD) -P tools.gpr -j$(JOBS)
 
@@ -31,8 +24,3 @@ flow:
 
 prove:
 	$(GNATPROVE) -P spark_diff.gpr --level=2 --timeout=20 --prover=cvc5,z3 --counterexamples=off -j$(JOBS)
-
-format:
-	$(SPARK_WORLD_FORMAT) .
-format-check:
-	$(SPARK_WORLD_FORMAT) . --check
