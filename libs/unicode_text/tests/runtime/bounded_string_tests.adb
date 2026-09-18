@@ -1,4 +1,5 @@
 with Ada.Text_IO;  use Ada.Text_IO;
+with Test_Checks;  use Test_Checks;
 with Unicode_Text; use Unicode_Text;
 with Unicode_Text.Bounded;
 with Unicode_Text.UTF_8;
@@ -12,13 +13,6 @@ procedure Bounded_String_Tests is
 
    use type Empty_Only.Bounded_String;
    use type Text.Bounded_String;
-
-   procedure Check (Condition : Boolean; Message : String) is
-   begin
-      if not Condition then
-         raise Program_Error with Message;
-      end if;
-   end Check;
 
    type Natural_Array is array (Integer range <>) of Natural;
 
@@ -58,6 +52,7 @@ procedure Bounded_String_Tests is
          16#BF#]);
 
 begin
+   Start ("bounded_string_tests", Stop_On_Fail => True);
    declare
       Left  : Empty_Only.Bounded_String := Empty_Only.Empty;
       Right : Empty_Only.Bounded_String;
@@ -211,5 +206,5 @@ begin
          "exact scalar bytes");
    end;
 
-   Put_Line ("bounded string tests passed");
+   Report;
 end Bounded_String_Tests;

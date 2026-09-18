@@ -6,23 +6,13 @@
 --  asked for, the value under its mask, nothing moved when the bits ran out —
 --  are checked by -gnata as the test calls each operation.
 
-with Ada.Command_Line;
 with Ada.Text_IO;     use Ada.Text_IO;
+with Test_Checks;     use Test_Checks;
 with Ore;             use Ore;
 with Ore.Bits;        use Ore.Bits;
 with Ore.Bit_Cursors; use Ore.Bit_Cursors;
 
 procedure Bit_Cursor_Tests is
-
-   Failures : Natural := 0;
-
-   procedure Check (Condition : Boolean; Name : String) is
-   begin
-      if not Condition then
-         Failures := Failures + 1;
-         Put_Line ("FAIL: " & Name);
-      end if;
-   end Check;
 
    ---------------------------------------------------------------------------
 
@@ -275,6 +265,7 @@ procedure Bit_Cursor_Tests is
    end Test_Put;
 
 begin
+   Start ("bit_cursor_tests");
    Test_Positions;
    Test_Bits;
    Test_Fields;
@@ -282,10 +273,5 @@ begin
    Test_Take;
    Test_Put;
 
-   if Failures = 0 then
-      Put_Line ("bit_cursor_tests: all checks passed");
-   else
-      Put_Line ("bit_cursor_tests:" & Failures'Image & " failure(s)");
-      Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
-   end if;
+   Report;
 end Bit_Cursor_Tests;

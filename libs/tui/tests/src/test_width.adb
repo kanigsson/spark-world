@@ -2,24 +2,13 @@
 --  lookup cannot crash; these pin concrete widths against known code points.
 
 with Ada.Text_IO; use Ada.Text_IO;
-with Ada.Command_Line;
+with Test_Checks; use Test_Checks;
 with Tui.Width;   use Tui.Width;
 
 procedure Test_Width is
 
-   Failures : Natural := 0;
-
-   procedure Check (Cond : Boolean; Label : String) is
-   begin
-      if Cond then
-         Put_Line ("  ok   : " & Label);
-      else
-         Put_Line ("  FAIL : " & Label);
-         Failures := Failures + 1;
-      end if;
-   end Check;
-
 begin
+   Start ("test_width", Echo_Passes => True);
    --  The tables must be sorted/non-overlapping for the search to be meaningful.
    Check
      (Tables_Well_Formed, "interval tables are sorted and non-overlapping");
@@ -56,11 +45,5 @@ begin
    Check (Char_Width (16#232A#) = 2, "U+232A (interval end) -> 2");
    Check (Char_Width (16#232B#) = 1, "U+232B (just above) -> 1");
 
-   New_Line;
-   if Failures = 0 then
-      Put_Line ("ALL TESTS PASSED");
-   else
-      Put_Line (Failures'Image & " TEST(S) FAILED");
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report;
 end Test_Width;

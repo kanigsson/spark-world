@@ -1,4 +1,5 @@
 with "../../ore_lib.gpr";
+with "../../../../tools/testing/testing.gpr";
 
 project Runtime_Tests is
 

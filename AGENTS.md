@@ -9,7 +9,7 @@ apps/           programs: a CLI or a TUI, each carrying its own library
 libs/           libraries: no executable, a stated API, external clients
 experiments/    unfinished, or unclear direction/application
 docs/           cross-cutting documentation
-tools/          repo-wide build and proof drivers
+tools/          repo-wide build and proof drivers, and shared test scaffolding
 ```
 
 **Every project sits at exactly `<tier>/<name>/`, two levels below the root.**
@@ -69,6 +69,23 @@ Worth stating explicitly wherever it applies: a proof known to be incomplete, a
 deliberate `SPARK_Mode => Off` and the reason for it, a generated file not to
 hand-edit.
 
+## Shared scaffolding under `tools/`
+
+Three things live there that projects share but no program ships. None is a
+library in the `libs/` sense: nothing here has an external client, and the
+promotion rule is about shipped code.
+
+- **`tools/testing/`** — an Ada library project. `Test_Checks` is the
+  assertion counter that every test main had its own copy of, and
+  `Bench_Timing` the stopwatch the benchmarks did. A test project withs it by
+  a path from the root like anything else. Ordinary Ada, deliberately: nothing
+  proves the harness, and a contract there would describe the scaffolding
+  rather than the library under test.
+- **`tools/clitest.py`** — the same for the Python CLI drivers: how the
+  program under test is located, and the count they close with. Each driver's
+  own `run` stays in the driver, because they genuinely differ.
+- **`tools/project.mk`** — the `Makefile` preamble, above.
+
 ## Build, test and prove
 
 Each project exposes a `Makefile` with `build`, `test`, `prove` and `flow`
@@ -114,10 +131,15 @@ a short paragraph if the commit is particularly complex.
 One matching GNAT/GPRbuild/GNATprove installation for a project and all its
 dependencies. Ada 2022 throughout.
 
-`tools/toolchain.mk` holds the repository's tool pins and is included by every
-project's `Makefile`. A version lives there and nowhere else; a path to a
-binary lives nowhere at all. **Never commit a tool location** — a developer's
-own choice belongs in an untracked `local.mk`.
+`tools/toolchain.mk` holds the repository's tool pins. A version lives there
+and nowhere else; a path to a binary lives nowhere at all. **Never commit a
+tool location** — a developer's own choice belongs in an untracked `local.mk`.
+
+Every project's `Makefile` starts with `include ../../tools/project.mk`, which
+pulls in `local.mk`, then `toolchain.mk`, then the defaults and the `format`
+targets that do not vary. It deliberately does not set `GNATPROVE`: whether a
+project names the pinned prover is a claim about that project's proof, so it
+stays in the `Makefile` that makes it, beside the comment saying which claim.
 
 ### GNATformat
 

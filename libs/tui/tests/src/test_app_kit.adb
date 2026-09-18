@@ -2,7 +2,7 @@
 --  contracts hold for all inputs; these pin concrete encodings and texts.
 
 with Ada.Text_IO; use Ada.Text_IO;
-with Ada.Command_Line;
+with Test_Checks; use Test_Checks;
 with Tui.Text;    use Tui.Text;
 --  Byte is one type in the root now, so its operators come from there rather
 --  than from the layer the name is spelled through.
@@ -15,28 +15,8 @@ procedure Test_App_Kit is
    package Edit renames Tui.App_Kit.Search_Input;
    package Stat renames Tui.App_Kit.Status;
 
-   Failures : Natural := 0;
-
-   procedure Check (Cond : Boolean; Label : String) is
-   begin
-      if Cond then
-         Put_Line ("  ok   : " & Label);
-      else
-         Put_Line ("  FAIL : " & Label);
-         Failures := Failures + 1;
-      end if;
-   end Check;
-
-   function Str_Of (B : Buffer) return String is
-      S : String (1 .. B'Length);
-   begin
-      for I in B'Range loop
-         S (1 + (I - B'First)) := Character'Val (Integer (B (I)));
-      end loop;
-      return S;
-   end Str_Of;
-
 begin
+   Start ("test_app_kit", Echo_Passes => True);
    --  Editor: ASCII appends one byte per code point.
    declare
       E : Edit.Editor;
@@ -44,10 +24,10 @@ begin
       Edit.Append (E, Character'Pos ('a'));
       Edit.Append (E, Character'Pos ('b'));
       Check
-        (Edit.Length (E) = 2 and then Str_Of (Edit.Bytes (E)) = "ab",
+        (Edit.Length (E) = 2 and then To_String (Edit.Bytes (E)) = "ab",
          "ASCII appends");
       Edit.Backspace (E);
-      Check (Str_Of (Edit.Bytes (E)) = "a", "backspace removes one ASCII");
+      Check (To_String (Edit.Bytes (E)) = "a", "backspace removes one ASCII");
       Edit.Clear (E);
       Check (Edit.Length (E) = 0, "clear empties");
    end;
@@ -151,11 +131,5 @@ begin
       Check (Stat.Image (L) = "/", "empty pattern prompt");
    end;
 
-   New_Line;
-   if Failures = 0 then
-      Put_Line ("ALL TESTS PASSED");
-   else
-      Put_Line (Failures'Image & " TEST(S) FAILED");
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report;
 end Test_App_Kit;

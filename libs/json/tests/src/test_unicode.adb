@@ -1,5 +1,5 @@
-with Ada.Command_Line;
 with Ada.Text_IO; use Ada.Text_IO;
+with Test_Checks; use Test_Checks;
 
 with JSON; use JSON;
 with JSON.Pull;
@@ -21,18 +21,6 @@ procedure Test_Unicode is
       2 => Character'Val (16#9D#),
       3 => Character'Val (16#84#),
       4 => Character'Val (16#9E#));
-
-   Failures : Natural := 0;
-
-   procedure Check (Condition : Boolean; Label : String) is
-   begin
-      if Condition then
-         Put_Line ("  ok   : " & Label);
-      else
-         Put_Line ("  FAIL : " & Label);
-         Failures := Failures + 1;
-      end if;
-   end Check;
 
    procedure Check_Decode
      (Raw, Expected : String; Expected_Status : Status_Type; Label : String)
@@ -61,6 +49,7 @@ procedure Test_Unicode is
    end Check_Invalid_UTF8;
 
 begin
+   Start ("test_unicode", Echo_Passes => True);
    Check_Decode ("", "", OK, "empty output");
    Check_Decode ("ASCII", "ASCII", OK, "ASCII");
    Check_Decode (E_Acute, E_Acute, OK, "raw two-byte scalar");
@@ -136,11 +125,5 @@ begin
    Check_Invalid_UTF8
      (BS & "n" & Character'Val (16#80#), "invalid UTF-8 after escape");
 
-   New_Line;
-   if Failures = 0 then
-      Put_Line ("ALL UNICODE TESTS PASSED");
-   else
-      Put_Line (Failures'Image & " TEST(S) FAILED");
-      Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
-   end if;
+   Report;
 end Test_Unicode;

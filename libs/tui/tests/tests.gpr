@@ -1,4 +1,5 @@
 with "../tui.gpr";
+with "../../../tools/testing/testing.gpr";
 
 --  One test project for the whole library: the per-layer suites kept their
 --  names, so a failure still says which layer it came from.

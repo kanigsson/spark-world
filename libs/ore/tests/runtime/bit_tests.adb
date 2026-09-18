@@ -5,22 +5,12 @@
 --  counts and the fits-under-its-mask fact — are checked by -gnata as the test
 --  calls each operation.
 
-with Ada.Command_Line;
 with Ada.Text_IO; use Ada.Text_IO;
+with Test_Checks; use Test_Checks;
 with Ore;         use Ore;
 with Ore.Bits;    use Ore.Bits;
 
 procedure Bit_Tests is
-
-   Failures : Natural := 0;
-
-   procedure Check (Condition : Boolean; Name : String) is
-   begin
-      if not Condition then
-         Failures := Failures + 1;
-         Put_Line ("FAIL: " & Name);
-      end if;
-   end Check;
 
    ---------------------------------------------------------------------------
 
@@ -214,6 +204,7 @@ procedure Bit_Tests is
    end Test_Widths;
 
 begin
+   Start ("bit_tests");
    Test_Bit;
    Test_Shifts;
    Test_Rotates;
@@ -224,10 +215,5 @@ begin
    Test_Bytes;
    Test_Widths;
 
-   if Failures = 0 then
-      Put_Line ("bit_tests: all checks passed");
-   else
-      Put_Line ("bit_tests:" & Failures'Image & " failure(s)");
-      Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
-   end if;
+   Report;
 end Bit_Tests;

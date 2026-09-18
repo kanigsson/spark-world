@@ -1,17 +1,11 @@
-with Spark_Diffs;
 with Ada.Text_IO;
 with Ada.Numerics.Discrete_Random;
+with Test_Checks; use Test_Checks;
+with Spark_Diffs;
 
 procedure Test_Diff is
    use Spark_Diffs;
    Checks, Cases : Natural := 0;
-   procedure Check (Condition : Boolean) is
-   begin
-      Checks := Checks + 1;
-      if not Condition then
-         raise Program_Error with "check" & Checks'Image & " failed";
-      end if;
-   end Check;
 
    --  Independent dynamic-programming oracle, not Myers' recurrence.
    function Optimal (A, B : Sequence) return Natural is
@@ -129,6 +123,7 @@ procedure Test_Diff is
    package Randoms is new Ada.Numerics.Discrete_Random (Draw);
    Gen : Randoms.Generator;
 begin
+   Start ("test_diff", Stop_On_Fail => True);
    for N in 0 .. 4 loop
       for M in 0 .. 4 loop
          for AC in 0 .. 3**N - 1 loop
@@ -195,6 +190,6 @@ begin
    Check (not Valid ([7], Script'(2 => (Keep, 0, 0, 7))));
    Check (not Valid (Sequence'(2 => 7), Script'[]));
    Check (not Valid (Sequence'[], [(Insert, 0, Max_Length, 7)]));
-   Ada.Text_IO.Put_Line
-     ("PASS:" & Cases'Image & " cases," & Checks'Image & " checks");
+   Ada.Text_IO.Put_Line ("test_diff:" & Cases'Image & " cases");
+   Report;
 end Test_Diff;

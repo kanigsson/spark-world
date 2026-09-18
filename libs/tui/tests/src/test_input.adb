@@ -2,22 +2,10 @@
 --  the contracts hold for all byte sequences; these pin concrete mappings.
 
 with Ada.Text_IO; use Ada.Text_IO;
-with Ada.Command_Line;
+with Test_Checks; use Test_Checks;
 with Tui.Input;   use Tui.Input;
 
 procedure Test_Input is
-
-   Failures : Natural := 0;
-
-   procedure Check (Cond : Boolean; Label : String) is
-   begin
-      if Cond then
-         Put_Line ("  ok   : " & Label);
-      else
-         Put_Line ("  FAIL : " & Label);
-         Failures := Failures + 1;
-      end if;
-   end Check;
 
    type Bytes is array (Positive range <>) of Byte;
 
@@ -63,6 +51,7 @@ procedure Test_Input is
    N : Natural;
 
 begin
+   Start ("test_input", Echo_Passes => True);
    Decode ((1 => C ('a')), False, E, N);
    Check
      (N = 1
@@ -340,11 +329,5 @@ begin
          "ESC[B completes -> Down, not pending");
    end;
 
-   New_Line;
-   if Failures = 0 then
-      Put_Line ("ALL TESTS PASSED");
-   else
-      Put_Line (Failures'Image & " TEST(S) FAILED");
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report;
 end Test_Input;

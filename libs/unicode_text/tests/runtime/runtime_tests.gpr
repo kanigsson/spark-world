@@ -1,4 +1,5 @@
 with "../../unicode_text.gpr";
+with "../../../../tools/testing/testing.gpr";
 
 project Runtime_Tests is
 

@@ -9,7 +9,7 @@
 --  writing them twice. They have one home now, so they are tested here.
 
 with Ada.Text_IO; use Ada.Text_IO;
-with Ada.Command_Line;
+with Test_Checks; use Test_Checks;
 with Tui.Input;
 with Tui.Pager.Engine;
 with Tui.Surface; use Tui.Surface;
@@ -37,18 +37,6 @@ procedure Test_Panes is
    use type Tui.Panes.Pane_Index;
    use type Eng.Effect;
    use type Sel.Position;
-
-   Failures : Natural := 0;
-
-   procedure Check (Cond : Boolean; Label : String) is
-   begin
-      if Cond then
-         Put_Line ("  ok   : " & Label);
-      else
-         Put_Line ("  FAIL : " & Label);
-         Failures := Failures + 1;
-      end if;
-   end Check;
 
    --  A byte buffer over literal text, 1-based as the buffer contracts want.
    function Bytes (S : String) return Tui.Text.Buffer is
@@ -84,6 +72,7 @@ procedure Test_Panes is
         Row    => Row));
 
 begin
+   Start ("test_panes", Echo_Passes => True);
    ---------------------------------------------------------------------------
    --  Selection ordering
    ---------------------------------------------------------------------------
@@ -605,10 +594,5 @@ begin
       end;
    end;
 
-   if Failures = 0 then
-      Put_Line ("ALL TESTS PASSED");
-   else
-      Put_Line (Failures'Image & " CHECKS FAILED");
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report;
 end Test_Panes;

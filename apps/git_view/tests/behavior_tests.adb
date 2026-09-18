@@ -11,8 +11,8 @@
 --
 --  No repository, no terminal, no timing: every input is a literal here.
 
-with Ada.Command_Line;
 with Ada.Text_IO;
+with Test_Checks; use Test_Checks;
 
 with Tui.Input;
 with Tui.Pager.Engine;
@@ -39,18 +39,6 @@ procedure Behavior_Tests is
    package Pol renames Git_View_Policy;
    package Syn renames Git_View_Syntax;
    package Thm renames Git_View_Theme;
-
-   Checks   : Natural := 0;
-   Failures : Natural := 0;
-
-   procedure Check (Condition : Boolean; What : String) is
-   begin
-      Checks := Checks + 1;
-      if not Condition then
-         Failures := Failures + 1;
-         Ada.Text_IO.Put_Line ("FAIL: " & What);
-      end if;
-   end Check;
 
    --  The literal text of a test line, as the byte buffer every unit here
    --  takes. 1-based, which is what the buffer contracts require.
@@ -911,6 +899,7 @@ procedure Behavior_Tests is
    end Test_Status;
 
 begin
+   Start ("behavior_tests");
    Test_Commit_Ids;
    Test_Decorations;
    Test_Landmarks;
@@ -920,12 +909,5 @@ begin
    Test_Layout;
    Test_Status;
 
-   if Failures = 0 then
-      Ada.Text_IO.Put_Line
-        ("behavior tests passed (" & Checks'Image & " checks)");
-   else
-      Ada.Text_IO.Put_Line
-        (Failures'Image & " of" & Checks'Image & " behavior checks failed");
-      Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
-   end if;
+   Report;
 end Behavior_Tests;

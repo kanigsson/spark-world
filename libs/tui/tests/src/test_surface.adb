@@ -4,25 +4,14 @@
 --  contracts themselves execute here too.
 
 with Ada.Text_IO; use Ada.Text_IO;
-with Ada.Command_Line;
+with Test_Checks; use Test_Checks;
 with Tui.Surface; use Tui.Surface;
 with Tui.Surface.Diff;
 
 procedure Test_Surface is
 
-   Failures : Natural := 0;
-
-   procedure Check (Cond : Boolean; Label : String) is
-   begin
-      if Cond then
-         Put_Line ("  ok   : " & Label);
-      else
-         Put_Line ("  FAIL : " & Label);
-         Failures := Failures + 1;
-      end if;
-   end Check;
-
 begin
+   Start ("test_surface", Echo_Passes => True);
    --  Blank surface is all blank cells.
    declare
       S : constant Surface := Blank (4, 8);
@@ -114,11 +103,5 @@ begin
       Check (Get (Screen, 1, 1) = Blank_Cell, "empty source copies nothing");
    end;
 
-   New_Line;
-   if Failures = 0 then
-      Put_Line ("ALL TESTS PASSED");
-   else
-      Put_Line (Failures'Image & " TEST(S) FAILED");
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report;
 end Test_Surface;

@@ -3,8 +3,8 @@
 --  actual scrolling and layout behaviour.
 
 with Ada.Text_IO;            use Ada.Text_IO;
-with Ada.Command_Line;
 with Ada.Characters.Latin_1; use Ada.Characters.Latin_1;
+with Test_Checks;            use Test_Checks;
 with Tui.Surface;            use Tui.Surface;
 with Tui.Text;
 with Tui.Pager.View;
@@ -14,27 +14,6 @@ procedure Test_Pager is
 
    package PV renames Tui.Pager.View;
    package PR renames Tui.Pager.Render;
-
-   Failures : Natural := 0;
-
-   procedure Check (Cond : Boolean; Label : String) is
-   begin
-      if Cond then
-         Put_Line ("  ok   : " & Label);
-      else
-         Put_Line ("  FAIL : " & Label);
-         Failures := Failures + 1;
-      end if;
-   end Check;
-
-   function Buf_Of (S : String) return Tui.Text.Buffer is
-      B : Tui.Text.Buffer (1 .. S'Length);
-   begin
-      for I in S'Range loop
-         B (1 + (I - S'First)) := Tui.Text.Byte (Character'Pos (S (I)));
-      end loop;
-      return B;
-   end Buf_Of;
 
    --  Glyphs of row R as a String (non-ASCII shown as '?'), for easy asserts.
    function Row_Text (Surf : Surface; R : Row_Index) return String is
@@ -53,6 +32,7 @@ procedure Test_Pager is
    end Row_Text;
 
 begin
+   Start ("test_pager", Echo_Passes => True);
    -------------------------------------------------------------------
    --  Viewport
    -------------------------------------------------------------------
@@ -89,7 +69,7 @@ begin
    -------------------------------------------------------------------
    declare
       Content : constant Tui.Text.Buffer :=
-        Buf_Of ("abc" & LF & "hello world" & LF & "third");
+        Tui.Text.To_Buffer ("abc" & LF & "hello world" & LF & "third");
       Idx     : Tui.Text.Index (100);
       Surf    : Surface := Blank (3, 10);
       V       : PV.Viewport;
@@ -113,7 +93,8 @@ begin
 
    --  Rows past end-of-content are blanked.
    declare
-      Content : constant Tui.Text.Buffer := Buf_Of ("one" & LF & "two" & LF);
+      Content : constant Tui.Text.Buffer :=
+        Tui.Text.To_Buffer ("one" & LF & "two" & LF);
       Idx     : Tui.Text.Index (100);
       Surf    : Surface := Blank (4, 6);
       V       : PV.Viewport;
@@ -127,7 +108,8 @@ begin
 
    --  Tab expansion to the next 8-column stop.
    declare
-      Content : constant Tui.Text.Buffer := Buf_Of ("a" & HT & "b");
+      Content : constant Tui.Text.Buffer :=
+        Tui.Text.To_Buffer ("a" & HT & "b");
       Idx     : Tui.Text.Index (100);
       Surf    : Surface := Blank (1, 10);
       V       : PV.Viewport;
@@ -141,7 +123,7 @@ begin
    --  Wide (CJK) glyph occupies two columns; a continuation blank follows.
    declare
       Content : constant Tui.Text.Buffer :=
-        Buf_Of
+        Tui.Text.To_Buffer
           ("X"
            & Character'Val (16#E4#)
            & Character'Val (16#B8#)
@@ -163,11 +145,5 @@ begin
         (Get (Surf, 1, 4).Glyph = 'Y', "'Y' follows wide glyph at column 4");
    end;
 
-   New_Line;
-   if Failures = 0 then
-      Put_Line ("ALL TESTS PASSED");
-   else
-      Put_Line (Failures'Image & " TEST(S) FAILED");
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report;
 end Test_Pager;

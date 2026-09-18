@@ -2,15 +2,17 @@
 
 Proved SPARK building blocks for bounded, heap-free systems code: the root
 package `Ore` with the physical types (`Byte`, `Word16/32/64`, `Byte_Array`,
-`Byte_Order`, the capacity ceiling), and three self-contained children —
-`Ore.Byte_Buffers`, `Ore.Bits`, `Ore.Bit_Cursors`.
+`Byte_Order`, the capacity ceiling), and four self-contained children —
+`Ore.Byte_Buffers`, `Ore.Bits`, `Ore.Bit_Cursors`, `Ore.Images`.
 
 ## Scope is set by clients
 
 This was once meant to become a general SPARK standard library; it is not that
 any more, and its roadmap was deleted rather than left to be re-adopted. What
-is here is what a real client needed: all three child packages exist because
-the DEFLATE codec in `inflate` needed them.
+is here is what a real client needed: the first three child packages exist
+because the DEFLATE codec in `inflate` needed them, and `Ore.Images` because
+six other programs in the repository had each written the same decimal image
+and hexadecimal table by hand.
 
 So: **do not add a package here because it would round out the library.** Code
 that one program needs is grown inside that program and promoted when a second
@@ -49,6 +51,10 @@ gprbuild  -P tests/runtime/runtime_tests.gpr && obj/runtime_tests/bit_tests
 python3   tools/proof_status.py                   # regenerates PROOF_STATUS.md
 ```
 
+The runtime tests count and report through `Test_Checks` in
+`../../tools/testing`, which every test main in the repository now shares; the
+project withs it like any other.
+
 Two proof projects, and the difference matters. `ore_lib.gpr` proves `src/`
 only, which is what `PROOF_STATUS.md` reports and what a client inherits.
 `ore.gpr` adds the proof clients under `tests/proof`, whose whole purpose is to
@@ -80,5 +86,12 @@ unproved check here is a check every client inherits.
 
 ## Clients
 
-`inflate` withs `../../libs/ore/ore_lib.gpr`. It is the only client today, and
-the reason to keep `FEEDBACK.md` honest.
+`inflate` withs `../../libs/ore/ore_lib.gpr` for the bit and buffer layers, and
+is the reason to keep `FEEDBACK.md` honest.
+
+`Ore.Images` has a wider client list and a shallower one: `git_changes`,
+`spark_re`, `spark_diff`, `fuzzy`, `git_view` and `libs/tui`'s demo all with the
+library for that package alone. Weigh a change to it accordingly — it is the
+one part of this library whose clients are ordinary Ada programs that never
+prove anything, so its contracts earn their keep inside the library rather than
+in a client's proof.

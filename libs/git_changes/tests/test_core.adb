@@ -1,4 +1,5 @@
 with Ada.Text_IO;
+with Test_Checks; use Test_Checks;
 with Git_Changes.Core.Hunks;
 with Git_Changes.Core.Raw;
 with Git_Changes.Core.Validation;
@@ -19,16 +20,6 @@ procedure Test_Core is
    B40 : constant String (1 .. 40) := (others => 'b');
    A64 : constant String (1 .. 64) := (others => 'a');
    B64 : constant String (1 .. 64) := (others => 'b');
-
-   Checks : Natural := 0;
-
-   procedure Check (Condition : Boolean; Message : String) is
-   begin
-      Checks := Checks + 1;
-      if not Condition then
-         raise Program_Error with Message;
-      end if;
-   end Check;
 
    function Raw_Image
      (Old_Mode, New_Mode, Old_Id, New_Id, Status, Paths : String) return String
@@ -305,8 +296,9 @@ procedure Test_Core is
    end Test_Hunks;
 
 begin
+   Start ("test_core", Stop_On_Fail => True);
    Test_Validation;
    Test_Raw;
    Test_Hunks;
-   Put_Line ("core tests: " & Checks'Image & " checks passed");
+   Report;
 end Test_Core;

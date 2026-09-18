@@ -4,7 +4,7 @@
 --  fails the run.
 
 with Ada.Text_IO; use Ada.Text_IO;
-with Ada.Command_Line;
+with Test_Checks; use Test_Checks;
 with Interfaces;
 use type Interfaces.Integer_64;
 with JSON.Pull;
@@ -14,22 +14,11 @@ procedure Test_Walk is
 
    use type JSON.Pull.State_Type;
 
-   Failures : Natural := 0;
-
-   procedure Check (Cond : Boolean; Label : String) is
-   begin
-      if Cond then
-         Put_Line ("  ok   : " & Label);
-      else
-         Put_Line ("  FAIL : " & Label);
-         Failures := Failures + 1;
-      end if;
-   end Check;
-
    function Text (Input : String; S : Span) return String
    is (Input (S.First .. S.Last));
 
 begin
+   Start ("test_walk", Echo_Passes => True);
    --  Walk a small known shape: object, members in order, typed reads.
    declare
       Doc  : constant String :=
@@ -278,11 +267,5 @@ begin
       Check (St = Bad_JSON, "garbage: Bad_JSON");
    end;
 
-   New_Line;
-   if Failures = 0 then
-      Put_Line ("ALL TESTS PASSED");
-   else
-      Put_Line (Failures'Image & " TEST(S) FAILED");
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report;
 end Test_Walk;

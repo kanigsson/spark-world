@@ -1,17 +1,10 @@
 with Ada.Text_IO;
+with Test_Checks; use Test_Checks;
 with Fuzzy;
 with Fuzzy.Corpus;
 
 procedure Test_Fuzzy is
    use Fuzzy;
-   Checks : Natural := 0;
-   procedure Check (Condition : Boolean) is
-   begin
-      Checks := Checks + 1;
-      if not Condition then
-         raise Program_Error with "check" & Checks'Image;
-      end if;
-   end Check;
 
    --  Independent existential oracle: explore both using and skipping a
    --  character. This deliberately does not use the library's greedy scan.
@@ -266,6 +259,7 @@ procedure Test_Fuzzy is
    end Check_Build;
 
 begin
+   Start ("test_fuzzy", Stop_On_Fail => True);
    Pair ("", "");
    Pair ("aa", "a");
    Pair ("fa", "src/fuzzy_algorithm.adb");
@@ -408,5 +402,5 @@ begin
       Corpus.Append (Empty, Used, "a", Slice, Ok);
       Check (not Ok and Used = 0);
    end;
-   Ada.Text_IO.Put_Line ("PASS:" & Checks'Image & " checks");
+   Report;
 end Test_Fuzzy;

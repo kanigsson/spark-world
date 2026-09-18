@@ -3,22 +3,12 @@
 --  what the assertions below add is the actual byte values, which a
 --  postcondition about cursors and framing does not pin down for a reader.
 
-with Ada.Command_Line;
 with Ada.Text_IO;      use Ada.Text_IO;
+with Test_Checks;      use Test_Checks;
 with Ore;              use Ore;
 with Ore.Byte_Buffers; use Ore.Byte_Buffers;
 
 procedure Byte_Buffer_Tests is
-
-   Failures : Natural := 0;
-
-   procedure Check (Condition : Boolean; Name : String) is
-   begin
-      if not Condition then
-         Failures := Failures + 1;
-         Put_Line ("FAIL: " & Name);
-      end if;
-   end Check;
 
    ---------------------------------------------------------------------------
 
@@ -378,6 +368,7 @@ procedure Byte_Buffer_Tests is
    end Test_Degenerate;
 
 begin
+   Start ("byte_buffer_tests");
    Test_Append_And_Read;
    Test_Endian;
    Test_Transfers;
@@ -388,10 +379,5 @@ begin
    Test_Endian_Edges;
    Test_Degenerate;
 
-   if Failures = 0 then
-      Put_Line ("byte_buffer_tests: all checks passed");
-   else
-      Put_Line ("byte_buffer_tests:" & Failures'Image & " failure(s)");
-      Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
-   end if;
+   Report;
 end Byte_Buffer_Tests;

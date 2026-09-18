@@ -1,21 +1,12 @@
 with Ada.Text_IO;        use Ada.Text_IO;
+with Test_Checks;        use Test_Checks;
 with Unicode_Text;       use Unicode_Text;
 with Unicode_Text.UTF_8; use Unicode_Text.UTF_8;
 
 procedure UTF_8_Tests is
 
-   Checks : Natural := 0;
-
    function C (Value : Octet) return Character
    is (Character'Val (Value));
-
-   procedure Check (Condition : Boolean; Message : String) is
-   begin
-      Checks := Checks + 1;
-      if not Condition then
-         raise Program_Error with Message;
-      end if;
-   end Check;
 
    procedure Check_Encoding
      (Value : Scalar_Value; Expected : String; Label : String)
@@ -48,6 +39,7 @@ procedure UTF_8_Tests is
    end Check_Valid;
 
 begin
+   Start ("utf_8_tests", Stop_On_Fail => True);
    --  Independent examples at every encoding boundary.
    Check_Encoding (16#0000#, [1 => C (16#00#)], "U+0000");
    Check_Encoding (16#007F#, [1 => C (16#7F#)], "U+007F");
@@ -175,5 +167,5 @@ begin
       Check (Decode_One (Shifted, 1).Value = 16#80#, "shifted decoding");
    end;
 
-   Put_Line ("UTF-8 runtime tests passed:" & Checks'Image & " checks");
+   Report;
 end UTF_8_Tests;

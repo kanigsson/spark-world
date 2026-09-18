@@ -1,23 +1,14 @@
 with Ada.Assertions;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;           use Ada.Text_IO;
+with Test_Checks;           use Test_Checks;
 with Unicode_Text;          use Unicode_Text;
 with Unicode_Text.UTF_8;    use Unicode_Text.UTF_8;
 
 procedure Plain_String_Tests is
 
-   Checks : Natural := 0;
-
    function C (Value : Octet) return Character
    is (Character'Val (Value));
-
-   procedure Check (Condition : Boolean; Message : String) is
-   begin
-      Checks := Checks + 1;
-      if not Condition then
-         raise Program_Error with Message;
-      end if;
-   end Check;
 
    procedure Check_Executable_Precondition is
       Raised : Boolean := False;
@@ -124,6 +115,7 @@ procedure Plain_String_Tests is
    Mixed   : constant String := A & U_0080 & U_0800 & U_10000;
 
 begin
+   Start ("plain_string_tests", Stop_On_Fail => True);
    Check (Byte_Length ("") = 0, "empty byte length");
    Check (Code_Point_Length ("") = 0, "empty code-point length");
    Check (Byte_Length (Mixed) = 10, "mixed byte length");
@@ -250,5 +242,5 @@ begin
       Check_Substring_Split (Shifted, U_0800, 2);
    end;
 
-   Put_Line ("Plain-string runtime tests passed:" & Checks'Image & " checks");
+   Report;
 end Plain_String_Tests;

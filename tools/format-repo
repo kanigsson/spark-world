@@ -25,7 +25,10 @@ for arg do
 done
 if [ -z "$scopes" ]; then
     cd "$root"
-    scopes="apps libs experiments"
+    #  tools/ is in the list because it carries Ada of its own now:
+    #  the shared test scaffolding. The build and proof drivers beside
+    #  it are shell and Python, which this script does not touch.
+    scopes="apps libs experiments tools"
 fi
 
 #  Projects deliberately left out:

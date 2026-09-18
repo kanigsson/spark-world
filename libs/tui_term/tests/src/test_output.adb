@@ -5,7 +5,7 @@
 
 with Ada.Text_IO;       use Ada.Text_IO;
 with Ada.Strings.Fixed; use Ada.Strings.Fixed;
-with Ada.Command_Line;
+with Test_Checks;       use Test_Checks;
 with System;
 with Interfaces.C;      use Interfaces.C;
 with Tui.Surface;       use Tui.Surface;
@@ -15,18 +15,6 @@ with Tui.Term.Output;   use Tui.Term.Output;
 procedure Test_Output is
 
    ESC : constant Character := Character'Val (16#1B#);
-
-   Failures : Natural := 0;
-
-   procedure Check (Cond : Boolean; Label : String) is
-   begin
-      if Cond then
-         Put_Line ("  ok   : " & Label);
-      else
-         Put_Line ("  FAIL : " & Label);
-         Failures := Failures + 1;
-      end if;
-   end Check;
 
    function Contains (Haystack, Needle : String) return Boolean
    is (Index (Haystack, Needle) /= 0);
@@ -101,6 +89,7 @@ procedure Test_Output is
    Red_RGB : constant Color := (Kind => RGB, R => 255, G => 0, B => 0);
 
 begin
+   Start ("test_output", Echo_Passes => True);
    ------------------------------------------------------------------ cursor
    Begin_Capture;
    Move_To (2, 3);
@@ -193,11 +182,5 @@ begin
       end;
    end;
 
-   New_Line;
-   if Failures = 0 then
-      Put_Line ("ALL OUTPUT TESTS PASSED");
-   else
-      Put_Line (Failures'Image & " FAILURE(S)");
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report;
 end Test_Output;
