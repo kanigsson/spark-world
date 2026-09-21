@@ -34,8 +34,9 @@ selection made anywhere else -- at startup, from a prompt, by a pin, or by back
 and forward -- is shown on the row that names it, so the panes and the values
 they stand for never disagree.
 
-History lists the working tree and the index above the commits, so uncommitted
-and staged work is a snapshot reached by moving the selection like any other.
+History lists the working tree and the index above the commits when their
+respective categories contain changes, so uncommitted and staged work is a
+snapshot reached by moving the selection like any other.
 The tree lists the commit message as its first row, `COMMIT_MSG`, above the
 files: what the commit says about itself is read the same way as what it
 changed. A working tree and an index have no message to show.

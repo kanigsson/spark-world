@@ -63,9 +63,9 @@ with tempfile.TemporaryDirectory(prefix="gitview-explorer-") as tmp:
     check("+ 1 | new first" in f["source"] and "-   | old first" in f["source"], "replacement overlay and base ghost")
     check("keep middle" in f["source"], "full file context remains available")
     check("[parents:" in f["history"], "history exposes graph parent information")
-    check("[worktree] uncommitted changes" in f["history"]
-          and "[index]    staged changes" in f["history"],
-          "history lists the uncommitted snapshots above the commits")
+    check("[worktree] uncommitted changes" not in f["history"]
+          and "[index]    staged changes" not in f["history"],
+          "clean history omits the uncommitted snapshots")
     check(f["tree"].splitlines()[1].endswith("COMMIT_MSG"),
           "the commit message heads the tree")
     f = probe(path="COMMIT_MSG")
@@ -96,8 +96,16 @@ with tempfile.TemporaryDirectory(prefix="gitview-explorer-") as tmp:
 
     write("src/main.txt", "staged first\nkeep middle\nnew last\n")
     git("add", "src/main.txt")
+    f = probe()
+    check("[index]    staged changes" in f["history"]
+          and "[worktree] uncommitted changes" not in f["history"],
+          "staged-only history lists only the index")
     write("src/main.txt", "working first\nkeep middle\nnew last\n")
     write("untracked.txt", "untracked content\n")
+    f = probe()
+    check("[worktree] uncommitted changes" in f["history"]
+          and "[index]    staged changes" in f["history"],
+          "mixed history lists both uncommitted snapshots")
     check("working first" in probe(kind="worktree")["source"], "HEAD to worktree includes unstaged content")
     check("staged first" in probe(kind="staging")["source"], "index snapshot is independent of worktree")
     check("new first" in probe()["source"], "commit content is independent of worktree")
@@ -106,6 +114,12 @@ with tempfile.TemporaryDirectory(prefix="gitview-explorer-") as tmp:
     check("old first" in probe(base=first)["source"], "arbitrary base comparison")
 
     git("reset", "--hard", "-q", "HEAD")
+    (repo / "untracked.txt").unlink()
+    write("untracked.txt", "untracked only\n")
+    f = probe()
+    check("[worktree] uncommitted changes" in f["history"]
+          and "[index]    staged changes" not in f["history"],
+          "untracked-only history lists only the worktree")
     (repo / "untracked.txt").unlink()
     write("src/main.txt", "new first\nkeep middle\n")
     third = commit("delete at EOF")

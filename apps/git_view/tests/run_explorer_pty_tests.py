@@ -181,6 +181,8 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
     git("add", ".")
     git("commit", "-qm", "second")
     second = git("rev-parse", "HEAD")
+    write("main.txt", "STAGED_CONTENT\n")
+    git("add", "main.txt")
     write("main.txt", "WORKING_CONTENT\n")
     s = Session(repo)
     try:

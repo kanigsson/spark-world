@@ -207,6 +207,8 @@ is
    --  comparison rebuilds neither — only the source.
    Cached_History_Text, Cached_History_Names              : Unbounded_String;
    Cached_History_Rows                                    : Targets.Vector;
+   Cached_Uncommitted_Rows_Known                          : Boolean := False;
+   Cached_Worktree_Row, Cached_Index_Row                  : Boolean := False;
    Cached_Rows_Key                                        : Unbounded_String;
    Cached_Tree_Text, Cached_Tree_Names, Cached_Tree_Scope : Unbounded_String;
    Cached_Tree_Rows                                       : Targets.Vector;
@@ -226,6 +228,7 @@ is
       Cached_Rows_Key := Null_Unbounded_String;
       Cached_Content_Key := Null_Unbounded_String;
       Cached_Message_Key := Null_Unbounded_String;
+      Cached_Uncommitted_Rows_Known := False;
    end Forget_Repository;
 
    --  Append one row identity to a pane's name buffer, which the frame
@@ -283,6 +286,56 @@ is
             then Changes_By_Path (Path)
             else 0);
       end Change;
+
+      --  The synthetic history rows describe two different categories:
+      --  HEAD to index is staged work, while index to worktree is unstaged
+      --  work. Git's diff inventory does not contain untracked paths, so a
+      --  worktree with only untracked files also needs its snapshot listing.
+      --  Like the other mutable snapshot data, these answers are retained
+      --  until an explicit refresh.
+      procedure Ensure_Uncommitted_Rows is
+         Status_Changes : G.Change_Set;
+         Inventory      : G.Snapshots.Inventory;
+      begin
+         if Cached_Uncommitted_Rows_Known then
+            return;
+         end if;
+
+         G.Capture
+           (Repo,
+            G.Tree_To_Index ("HEAD"),
+            Query_Options,
+            Changes => Status_Changes,
+            Error   => Error);
+         Check (Error);
+         Cached_Index_Row := G.File_Count (Status_Changes) > 0;
+
+         G.Capture
+           (Repo,
+            G.Index_To_Worktree,
+            Query_Options,
+            Changes => Status_Changes,
+            Error   => Error);
+         Check (Error);
+         Cached_Worktree_Row := G.File_Count (Status_Changes) > 0;
+         if not Cached_Worktree_Row then
+            G.Snapshots.List
+              (Repo,
+               G.Snapshots.Worktree,
+               Include_Untracked => True,
+               Options           => Query_Options,
+               Result            => Inventory,
+               Error             => Error);
+            Check (Error);
+            for I in 1 .. G.Snapshots.Count (Inventory) loop
+               if G.Snapshots.Is_Untracked (Inventory, I) then
+                  Cached_Worktree_Row := True;
+                  exit;
+               end if;
+            end loop;
+         end if;
+         Cached_Uncommitted_Rows_Known := True;
+      end Ensure_Uncommitted_Rows;
 
       --  Listing a whole snapshot costs a query proportional to the
       --  repository rather than to the comparison, so it is asked for only
@@ -609,6 +662,7 @@ is
          Repository_Open := True;
       end if;
       Repo := Cached_Repo;
+      Ensure_Uncommitted_Rows;
       --  Every query runs relative to the repository root, even when the
       --  program was launched in a subdirectory: the handle carries the
       --  root, so the process working directory is never changed.
@@ -759,15 +813,22 @@ is
             Cached_History_Text := Null_Unbounded_String;
             Cached_History_Names := Null_Unbounded_String;
             Cached_History_Rows.Clear;
-            --  The working tree and the index are snapshots like any
-            --  commit, and they are where uncommitted work is: they head
-            --  the list, above the commit they are compared against.
-            Add_Name
-              (Cached_History_Names, Cached_History_Rows, M.Worktree_Row);
-            Append
-              (Cached_History_Text, "  [worktree] uncommitted changes" & LF);
-            Add_Name (Cached_History_Names, Cached_History_Rows, M.Index_Row);
-            Append (Cached_History_Text, "  [index]    staged changes" & LF);
+            --  Uncommitted snapshots head the list only when their own
+            --  category has content. This avoids a duplicate worktree row
+            --  for staged-only changes and dead rows in a clean checkout.
+            if Cached_Worktree_Row then
+               Add_Name
+                 (Cached_History_Names, Cached_History_Rows, M.Worktree_Row);
+               Append
+                 (Cached_History_Text,
+                  "  [worktree] uncommitted changes" & LF);
+            end if;
+            if Cached_Index_Row then
+               Add_Name
+                 (Cached_History_Names, Cached_History_Rows, M.Index_Row);
+               Append
+                 (Cached_History_Text, "  [index]    staged changes" & LF);
+            end if;
             for I in 1 .. G.History.Count (Cached_Log) loop
                declare
                   Refs : constant String :=
