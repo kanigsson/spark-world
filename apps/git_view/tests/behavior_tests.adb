@@ -27,6 +27,7 @@ with Git_View_Policy;
 with Git_View_Refs;
 with Git_View_Sha;
 with Git_View_Status;
+with Git_View_Highlight;
 with Git_View_Syntax;
 with Git_View_Theme;
 
@@ -34,6 +35,7 @@ procedure Behavior_Tests is
 
    use type Tui.Pager.Engine.Command;
    use type Tui.Text.Byte_Count;
+   use type Tui.Surface.Color;
 
    package Nav renames Git_View_Navigation;
    package Pol renames Git_View_Policy;
@@ -379,10 +381,28 @@ procedure Behavior_Tests is
       Header ("+++ b/src/main.c", Syn.C_Family);
       Header ("+++ b/src/app.tsx", Syn.C_Family);
       Header ("--- a/run_tests.py", Syn.Python_Like);
+      Header ("+++ b/README.md", Syn.Markdown);
+      Header ("+++ b/src/parser.mli", Syn.OCaml_Lang);
       Header ("+++ b/build.sh", Syn.Shell_Like);
       Header ("+++ b/alire.toml", Syn.Config);
       Header ("+++ b/README", Syn.Plain);        --  a header, no language
       Header ("--- a/SRC/X.ADB", Syn.Ada_Lang);  --  extensions fold case
+
+      Check
+        (Syn.Path_Language ("src/main.adb") = Syn.Ada_Lang,
+         "an Ada source path selects Ada highlighting");
+      Check
+        (Syn.Path_Language ("docs/guide.md") = Syn.Markdown,
+         "a Markdown source path selects Markdown highlighting");
+      Check
+        (Syn.Path_Language ("src/parser.ml") = Syn.OCaml_Lang,
+         "an OCaml source path selects OCaml highlighting");
+      Check
+        (Syn.Path_Language ("tests/test_cli.py") = Syn.Python_Like,
+         "a Python source path selects Python highlighting");
+      Check
+        (Syn.Path_Language ("notes.txt") = Syn.Plain,
+         "an unknown source path remains plain");
 
       No_Header ("+++ /dev/null", "the /dev/null side of a deletion");
       No_Header ("+added line", "an ordinary added line");
@@ -416,6 +436,8 @@ procedure Behavior_Tests is
       Not_Keyword ("IF", Syn.C_Family);
       Keyword ("def", Syn.Python_Like);
       Keyword ("None", Syn.Python_Like);
+      Keyword ("let", Syn.OCaml_Lang);
+      Keyword ("module", Syn.OCaml_Lang);
       Keyword ("esac", Syn.Shell_Like);
       Keyword ("true", Syn.Config);
       Not_Keyword ("procedure", Syn.Plain);
@@ -427,7 +449,19 @@ procedure Behavior_Tests is
       Comment ("/ divided", Syn.C_Family, False);
       Comment ("# a remark", Syn.Python_Like, True);
       Comment ("# a remark", Syn.Shell_Like, True);
+      Comment ("(* a remark", Syn.OCaml_Lang, True);
+      Comment ("# a heading", Syn.Markdown, False);
       Comment ("-- a remark", Syn.Plain, False);
+
+      Check
+        (Syn.Content_Offset (Bytes ("+ 12 | def f"), True) = 7,
+         "the source gutter is excluded from highlighting");
+      Check
+        (Syn.Content_Offset (Bytes ("procedure X"), False) = 0,
+         "plain source highlighting starts at the first byte");
+      Check
+        (Syn.Content_Offset (Bytes ("[content unavailable]"), True) = 21,
+         "a non-source message has no highlightable gutter content");
 
       Check
         (Syn.Is_Identifier_Start (Character'Pos ('_')),
@@ -448,6 +482,47 @@ procedure Behavior_Tests is
       Column (ASCII.HT & "x", 1, 8);           --  a tab to the next stop
       Column ("ab" & ASCII.HT, 3, 8);
       Column ("é", 2, 1);                       --  two bytes, one column
+
+      --  Token foregrounds preserve the pastel comparison background: the
+      --  two channels compose instead of either one replacing the other.
+      declare
+         S : Tui.Surface.Surface := Tui.Surface.Blank (1, 24);
+         C : Tui.Surface.Cell;
+         L : constant Tui.Text.Buffer := Bytes ("procedure X is");
+      begin
+         for Col in Tui.Surface.Col_Index range 1 .. S.Cols loop
+            C := Tui.Surface.Get (S, 1, Col);
+            C.Background := Thm.Added_Background;
+            Tui.Surface.Set (S, 1, Col, C);
+         end loop;
+         Git_View_Highlight.Source_Line (S, 1, L, Syn.Ada_Lang, 0, 0);
+         C := Tui.Surface.Get (S, 1, 1);
+         Check
+           (C.Foreground = Thm.Keyword_Color
+            and then C.Background = Thm.Added_Background,
+            "Ada keyword colour composes with an added-line wash");
+      end;
+
+      declare
+         S : Tui.Surface.Surface := Tui.Surface.Blank (1, 24);
+      begin
+         Git_View_Highlight.Source_Line
+           (S, 1, Bytes ("# Heading"), Syn.Markdown, 0, 0);
+         Check
+           (Tui.Surface.Get (S, 1, 1).Foreground = Thm.Keyword_Color,
+            "Markdown headings are highlighted");
+         Git_View_Highlight.Source_Line
+           (S, 1, Bytes ("let answer = 42"), Syn.OCaml_Lang, 0, 0);
+         Check
+           (Tui.Surface.Get (S, 1, 1).Foreground = Thm.Keyword_Color
+            and then Tui.Surface.Get (S, 1, 14).Foreground = Thm.Number_Color,
+            "OCaml keywords and numbers are highlighted");
+         Git_View_Highlight.Source_Line
+           (S, 1, Bytes ("def answer():"), Syn.Python_Like, 0, 0);
+         Check
+           (Tui.Surface.Get (S, 1, 1).Foreground = Thm.Keyword_Color,
+            "Python keywords are highlighted");
+      end;
    end Test_Syntax;
 
    ----------------

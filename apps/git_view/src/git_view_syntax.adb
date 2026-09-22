@@ -56,6 +56,91 @@ is
       return True;
    end Ends_With;
 
+   function Ends_With (Path : String; Suffix : String) return Boolean
+   with Pre => Suffix'Length in 1 .. 16
+   is
+      Off : Natural := 0;
+   begin
+      if Path'Length < Suffix'Length then
+         return False;
+      end if;
+      while Off < Suffix'Length loop
+         pragma Loop_Invariant (Off <= Suffix'Length);
+         pragma Loop_Variant (Decreases => Suffix'Length - Off);
+         declare
+            Ch : Character := Path (Path'Last - Suffix'Length + 1 + Off);
+         begin
+            if Ch in 'A' .. 'Z' then
+               Ch :=
+                 Character'Val
+                   (Character'Pos (Ch)
+                    + Character'Pos ('a')
+                    - Character'Pos ('A'));
+            end if;
+            if Ch /= Suffix (Suffix'First + Off) then
+               return False;
+            end if;
+         end;
+         Off := Off + 1;
+      end loop;
+      return True;
+   end Ends_With;
+
+   function Path_Language (Path : String) return Language is
+   begin
+      if Ends_With (Path, ".adb")
+        or else Ends_With (Path, ".ads")
+        or else Ends_With (Path, ".ada")
+        or else Ends_With (Path, ".gpr")
+      then
+         return Ada_Lang;
+      elsif Ends_With (Path, ".md") or else Ends_With (Path, ".markdown") then
+         return Markdown;
+      elsif Ends_With (Path, ".ml")
+        or else Ends_With (Path, ".mli")
+        or else Ends_With (Path, ".mll")
+        or else Ends_With (Path, ".mly")
+      then
+         return OCaml_Lang;
+      elsif Ends_With (Path, ".c")
+        or else Ends_With (Path, ".h")
+        or else Ends_With (Path, ".cc")
+        or else Ends_With (Path, ".hh")
+        or else Ends_With (Path, ".cpp")
+        or else Ends_With (Path, ".hpp")
+        or else Ends_With (Path, ".cxx")
+        or else Ends_With (Path, ".rs")
+        or else Ends_With (Path, ".go")
+        or else Ends_With (Path, ".java")
+        or else Ends_With (Path, ".js")
+        or else Ends_With (Path, ".jsx")
+        or else Ends_With (Path, ".ts")
+        or else Ends_With (Path, ".tsx")
+        or else Ends_With (Path, ".swift")
+        or else Ends_With (Path, ".kt")
+      then
+         return C_Family;
+      elsif Ends_With (Path, ".py")
+        or else Ends_With (Path, ".pyi")
+        or else Ends_With (Path, ".rb")
+      then
+         return Python_Like;
+      elsif Ends_With (Path, ".sh")
+        or else Ends_With (Path, ".bash")
+        or else Ends_With (Path, ".zsh")
+      then
+         return Shell_Like;
+      elsif Ends_With (Path, ".json")
+        or else Ends_With (Path, ".toml")
+        or else Ends_With (Path, ".yaml")
+        or else Ends_With (Path, ".yml")
+      then
+         return Config;
+      else
+         return Plain;
+      end if;
+   end Path_Language;
+
    procedure Header_Language
      (Line : Tui.Text.Buffer; Found : out Boolean; Lang : out Language) is
    begin
@@ -97,6 +182,14 @@ is
         or else Ends_With (Line, ".rb")
       then
          Lang := Python_Like;
+      elsif Ends_With (Line, ".md") or else Ends_With (Line, ".markdown") then
+         Lang := Markdown;
+      elsif Ends_With (Line, ".ml")
+        or else Ends_With (Line, ".mli")
+        or else Ends_With (Line, ".mll")
+        or else Ends_With (Line, ".mly")
+      then
+         Lang := OCaml_Lang;
       elsif Ends_With (Line, ".sh")
         or else Ends_With (Line, ".bash")
         or else Ends_With (Line, ".zsh")
@@ -179,7 +272,7 @@ is
       Fold : constant Boolean := Lang = Ada_Lang;
    begin
       case Lang is
-         when Ada_Lang    =>
+         when Ada_Lang         =>
             return
               Same_Word (Line, From, To, "procedure", Fold)
               or else Same_Word (Line, From, To, "function", Fold)
@@ -206,7 +299,7 @@ is
               or else Same_Word (Line, From, To, "body", Fold)
               or else Same_Word (Line, From, To, "null", Fold);
 
-         when C_Family    =>
+         when C_Family         =>
             return
               Same_Word (Line, From, To, "if", False)
               or else Same_Word (Line, From, To, "else", False)
@@ -231,7 +324,7 @@ is
               or else Same_Word (Line, From, To, "interface", False)
               or else Same_Word (Line, From, To, "type", False);
 
-         when Python_Like =>
+         when Python_Like      =>
             return
               Same_Word (Line, From, To, "def", False)
               or else Same_Word (Line, From, To, "class", False)
@@ -255,7 +348,39 @@ is
               or else Same_Word (Line, From, To, "False", False)
               or else Same_Word (Line, From, To, "None", False);
 
-         when Shell_Like  =>
+         when OCaml_Lang       =>
+            return
+              Same_Word (Line, From, To, "and", False)
+              or else Same_Word (Line, From, To, "begin", False)
+              or else Same_Word (Line, From, To, "class", False)
+              or else Same_Word (Line, From, To, "do", False)
+              or else Same_Word (Line, From, To, "done", False)
+              or else Same_Word (Line, From, To, "else", False)
+              or else Same_Word (Line, From, To, "end", False)
+              or else Same_Word (Line, From, To, "exception", False)
+              or else Same_Word (Line, From, To, "for", False)
+              or else Same_Word (Line, From, To, "fun", False)
+              or else Same_Word (Line, From, To, "function", False)
+              or else Same_Word (Line, From, To, "if", False)
+              or else Same_Word (Line, From, To, "in", False)
+              or else Same_Word (Line, From, To, "include", False)
+              or else Same_Word (Line, From, To, "let", False)
+              or else Same_Word (Line, From, To, "match", False)
+              or else Same_Word (Line, From, To, "module", False)
+              or else Same_Word (Line, From, To, "mutable", False)
+              or else Same_Word (Line, From, To, "of", False)
+              or else Same_Word (Line, From, To, "open", False)
+              or else Same_Word (Line, From, To, "rec", False)
+              or else Same_Word (Line, From, To, "sig", False)
+              or else Same_Word (Line, From, To, "struct", False)
+              or else Same_Word (Line, From, To, "then", False)
+              or else Same_Word (Line, From, To, "type", False)
+              or else Same_Word (Line, From, To, "val", False)
+              or else Same_Word (Line, From, To, "when", False)
+              or else Same_Word (Line, From, To, "while", False)
+              or else Same_Word (Line, From, To, "with", False);
+
+         when Shell_Like       =>
             return
               Same_Word (Line, From, To, "if", False)
               or else Same_Word (Line, From, To, "then", False)
@@ -271,13 +396,13 @@ is
               or else Same_Word (Line, From, To, "function", False)
               or else Same_Word (Line, From, To, "in", False);
 
-         when Config      =>
+         when Config           =>
             return
               Same_Word (Line, From, To, "true", False)
               or else Same_Word (Line, From, To, "false", False)
               or else Same_Word (Line, From, To, "null", False);
 
-         when Plain       =>
+         when Markdown | Plain =>
             return False;
       end case;
    end Is_Keyword;
@@ -302,13 +427,45 @@ is
               and then (Line (Pos + 1) = Character'Pos ('/')
                         or else Line (Pos + 1) = Character'Pos ('*'));
 
+         when OCaml_Lang                        =>
+            return
+              B = Character'Pos ('(')
+              and then Pos < Line'Last
+              and then Line (Pos + 1) = Character'Pos ('*');
+
          when Python_Like | Shell_Like | Config =>
             return B = Character'Pos ('#');
 
-         when Plain                             =>
+         when Markdown | Plain                  =>
             return False;
       end case;
    end Starts_Comment;
+
+   function Content_Offset
+     (Line : Tui.Text.Buffer; Has_Gutter : Boolean) return Tui.Text.Byte_Count
+   is
+   begin
+      if not Has_Gutter or else Line'Length = 0 then
+         return 0;
+      end if;
+      declare
+         Pos : Natural := Line'First;
+      begin
+         while Pos <= Line'Last loop
+            pragma Loop_Invariant (Pos in Line'First .. Line'Last + 1);
+            pragma Loop_Variant (Decreases => Line'Last + 1 - Pos);
+            if Line (Pos) = Character'Pos ('|') then
+               return
+                 (if Pos < Line'Last
+                    and then Line (Pos + 1) = Character'Pos (' ')
+                  then Pos - Line'First + 2
+                  else Line'Length);
+            end if;
+            Pos := Pos + 1;
+         end loop;
+         return Line'Length;
+      end;
+   end Content_Offset;
 
    function Display_Column
      (Line : Tui.Text.Buffer; Offset : Tui.Text.Byte_Count)

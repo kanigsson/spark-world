@@ -9,6 +9,9 @@ with Tui.Panes.Layout;
 with Tui.Panes.List;
 with Tui.Panes.Selection;
 with Tui.Term.Clipboard;
+with Git_View_Highlight;
+with Git_View_Syntax;
+with Git_View_Theme;
 
 package body Git_View_Explorer
   with
@@ -386,6 +389,10 @@ is
       Stale        : constant Boolean := Loading;
       View         : E.Instance := V.Views (P);
       Row_Selected : Tui.Text.Line_Number := V.Selected (P);
+      Lang         : constant Git_View_Syntax.Language :=
+        (if P = M.Source_Pane
+         then Git_View_Syntax.Path_Language (M.Image (Data.Scope))
+         else Git_View_Syntax.Plain);
    begin
       E.Resize (View, Natural (Rows), Natural (Width), Total);
       if Total > 0 and then P /= M.Source_Pane then
@@ -433,30 +440,46 @@ is
                      Cell_Value : Cell := Get (Part, Row, C);
                   begin
                      if Kind = R.Ghost then
-                        Cell_Value.Background := (RGB, 255, 235, 233);
+                        Cell_Value.Background :=
+                          Git_View_Theme.Removed_Background;
                         Cell_Value.Attributes.Italic := True;
-                     elsif Kind = R.Addition and then V.Decoration /= M.Plain
+                     elsif Kind = R.Addition
+                       and then (V.Decoration /= M.Plain
+                                 or else V.Side = M.Both)
                      then
-                        if V.Decoration /= M.Gutter or else C = 1 then
-                           Cell_Value.Background := (RGB, 230, 255, 236);
-                        end if;
+                        Cell_Value.Background :=
+                          Git_View_Theme.Added_Background;
                         Cell_Value.Attributes.Bold :=
                           V.Decoration = M.Emphasized;
-                     elsif Kind = R.Removal and then V.Decoration /= M.Plain
+                     elsif Kind = R.Removal
+                       and then (V.Decoration /= M.Plain
+                                 or else V.Side = M.Both)
                      then
-                        if V.Decoration /= M.Gutter or else C = 1 then
-                           Cell_Value.Background := (RGB, 255, 235, 233);
-                        end if;
+                        Cell_Value.Background :=
+                          Git_View_Theme.Removed_Background;
                         Cell_Value.Attributes.Bold :=
                           V.Decoration = M.Emphasized;
                      elsif Kind = R.Hunk_Header then
-                        Cell_Value.Foreground := (Palette, 6);
+                        Cell_Value.Foreground := Git_View_Theme.Hunk_Color;
                      elsif V.Decoration = M.Emphasized then
-                        Cell_Value.Foreground := (Palette, 8);
+                        Cell_Value.Foreground := Git_View_Theme.Comment_Color;
                      end if;
                      Set (Part, Row, C, Cell_Value);
                   end;
                end loop;
+               if Line <= Total and then Kind /= R.Hunk_Header then
+                  declare
+                     Text_Line : constant Tui.Text.Buffer :=
+                       Tui.Text.Line (Index, Content, Line);
+                     Offset    : constant Tui.Text.Byte_Count :=
+                       Git_View_Syntax.Content_Offset
+                         (Text_Line,
+                          V.Decoration /= M.Plain or else V.Side = M.Both);
+                  begin
+                     Git_View_Highlight.Source_Line
+                       (Part, Row, Text_Line, Lang, Offset, E.Left_Col (View));
+                  end;
+               end if;
             end;
          end loop;
       end if;

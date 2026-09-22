@@ -123,10 +123,13 @@ needs, so the text stays aligned throughout:
 ```
 
 Removed lines have no target line to name, so they leave that column blank and
-are drawn as italic, pale red ghost rows. New and deleted files report the side
-on which they are absent, and their existing side remains readable as ordinary
-source. Binary files and changed submodules have placeholders. Untracked,
-nonignored files are available in the working-tree view.
+are drawn as italic, pale red ghost rows. Added lines use a matching pale green
+wash. The washes change only the background, so Ada, Markdown, OCaml, Python,
+and the other recognised source formats retain their token foreground colours.
+New and deleted files report the side on which they are absent, and their
+existing side remains readable as ordinary source. Binary files and changed
+submodules have placeholders. Untracked, nonignored files are available in the
+working-tree view.
 
 Moving the selection is how the explorer is read: the history pane's row is
 the snapshot and the tree pane's row is the scope, so arriving on a row shows

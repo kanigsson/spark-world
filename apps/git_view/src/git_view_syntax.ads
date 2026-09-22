@@ -1,7 +1,7 @@
---  Lightweight syntax policy for source lines inside a unified diff. This is
---  deliberately lexical and dependency-free: language detection and token
---  classification remain SPARK instead of moving app state behind a parser
---  FFI boundary.
+--  Lightweight syntax policy for source files and lines inside a unified
+--  diff. This is deliberately lexical and dependency-free: language
+--  detection and token classification remain SPARK instead of moving app
+--  state behind a parser FFI boundary.
 
 with Tui.Text;
 with Tui.Pager;
@@ -11,7 +11,17 @@ package Git_View_Syntax
 is
 
    type Language is
-     (Plain, Ada_Lang, C_Family, Python_Like, Shell_Like, Config);
+     (Plain,
+      Ada_Lang,
+      C_Family,
+      Markdown,
+      OCaml_Lang,
+      Python_Like,
+      Shell_Like,
+      Config);
+
+   function Path_Language (Path : String) return Language
+   with Global => null;
 
    --  A --- a/path or +++ b/path header selects the language for following
    --  hunk lines. /dev/null does not erase the language learned from the
@@ -53,6 +63,13 @@ is
      (Line : Tui.Text.Buffer; Pos : Tui.Text.Byte_Index; Lang : Language)
       return Boolean
    with Global => null, Pre => Pos in Line'Range;
+
+   --  Number of leading bytes occupied by the explorer's optional source
+   --  gutter. A malformed gutter consumes the line rather than colouring its
+   --  line number as source.
+   function Content_Offset
+     (Line : Tui.Text.Buffer; Has_Gutter : Boolean) return Tui.Text.Byte_Count
+   with Global => null, Post => Content_Offset'Result <= Line'Length;
 
    --  Display column immediately before Offset bytes of Line, saturated at
    --  the pager's maximum horizontal coordinate.

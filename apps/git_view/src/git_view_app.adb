@@ -7,6 +7,7 @@ with Git_View_Sha;
 with Git_View_Status;
 with Git_View_Theme;
 with Git_View_Syntax;
+with Git_View_Highlight;
 with Git_View_Navigation;
 with Git_View_Refs;
 with Tui.App_Kit.Search_Input;
@@ -62,7 +63,6 @@ is
    use type Git_View_Status.Note;
    use type Tui.Text.Doc_Ref;
    use type Syn.Language;
-   use type Tui.Text.Byte;
 
    ---------------------------------------------------------------------------
    --  State (set by Init, then driven by the callbacks)
@@ -344,85 +344,9 @@ is
    is
    begin
       --  Unified-diff source lines carry one leading marker (+, -, or space).
-      if Lang = Syn.Plain or else Line'Length <= 1 then
-         return;
+      if Line'Length > 0 then
+         Git_View_Highlight.Source_Line (S, R, Line, Lang, 1, Left);
       end if;
-      declare
-         subtype Scan_Index is Natural range 1 .. Tui.Text.Max_Bytes + 1;
-         Last : constant Tui.Text.Byte_Index := Line'Last;
-         Pos  : Scan_Index := Line'First + 1;
-      begin
-         while Pos <= Last loop
-            pragma Loop_Invariant (Pos in Line'First + 1 .. Line'Last + 1);
-            pragma Loop_Invariant (R <= S.Rows);
-            pragma Loop_Variant (Decreases => Last + 1 - Pos);
-            if Syn.Starts_Comment (Line, Pos, Lang) then
-               Tint_Byte_Span (S, R, Line, Pos, Last, Left, Thm.Comment_Color);
-               return;
-            elsif Line (Pos) = 34
-              or else Line (Pos) = 39
-              or else Line (Pos) = 96
-            then
-               declare
-                  Quote   : constant Tui.Text.Byte := Line (Pos);
-                  Finish  : Tui.Text.Byte_Index := Pos;
-                  Escaped : Boolean := False;
-               begin
-                  while Finish < Last loop
-                     pragma Loop_Invariant (Finish in Pos .. Last);
-                     pragma Loop_Variant (Decreases => Last - Finish);
-                     Finish := Finish + 1;
-                     if not Escaped and then Line (Finish) = Quote then
-                        exit;
-                     end if;
-                     if not Escaped and then Line (Finish) = 92 then
-                        Escaped := True;
-                     else
-                        Escaped := False;
-                     end if;
-                  end loop;
-                  Tint_Byte_Span
-                    (S, R, Line, Pos, Finish, Left, Thm.String_Color);
-                  Pos := Finish + 1;
-               end;
-            elsif Syn.Is_Identifier_Start (Line (Pos)) then
-               declare
-                  Finish : Tui.Text.Byte_Index := Pos;
-               begin
-                  while Finish < Last
-                    and then Syn.Is_Identifier (Line (Finish + 1))
-                  loop
-                     pragma Loop_Invariant (Finish in Pos .. Last);
-                     pragma Loop_Variant (Decreases => Last - Finish);
-                     Finish := Finish + 1;
-                  end loop;
-                  if Syn.Is_Keyword (Line, Pos, Finish, Lang) then
-                     Tint_Byte_Span
-                       (S, R, Line, Pos, Finish, Left, Thm.Keyword_Color);
-                  end if;
-                  Pos := Finish + 1;
-               end;
-            elsif Syn.Is_Digit (Line (Pos)) then
-               declare
-                  Finish : Tui.Text.Byte_Index := Pos;
-               begin
-                  while Finish < Last
-                    and then (Syn.Is_Identifier (Line (Finish + 1))
-                              or else Line (Finish + 1) = Character'Pos ('.'))
-                  loop
-                     pragma Loop_Invariant (Finish in Pos .. Last);
-                     pragma Loop_Variant (Decreases => Last - Finish);
-                     Finish := Finish + 1;
-                  end loop;
-                  Tint_Byte_Span
-                    (S, R, Line, Pos, Finish, Left, Thm.Number_Color);
-                  Pos := Finish + 1;
-               end;
-            else
-               Pos := Pos + 1;
-            end if;
-         end loop;
-      end;
    end Colorize_Source_Line;
 
    --  Colour the rendered diff rows by what their content lines are: the
