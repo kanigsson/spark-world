@@ -10,7 +10,7 @@ procedure Worktree_Bench is
    F : Git_View_Repository.Frame;
 begin
    V.Kind := Worktree;
-   V.Lens := Hunks;
+   Select_Preset (V, Hunks);
    V.Visibility := Changed_Only;
    Git_View_Bench.Timed ("cold", 1, V, F);
    Git_View_Bench.Timed ("warm, same view", 5, V, F);

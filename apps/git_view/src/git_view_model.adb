@@ -36,13 +36,43 @@ is
       V.Selected (Source_Pane) := 1;
    end Select_Scope;
 
-   procedure Cycle_Lens (V : in out View_State) is
+   procedure Select_Preset (V : in out View_State; Value : Source_Preset) is
    begin
-      V.Lens :=
-        (if V.Lens = Change_Lens'Last
-         then Change_Lens'First
-         else Change_Lens'Succ (V.Lens));
-   end Cycle_Lens;
+      case Value is
+         when Plain         =>
+            V.Extent := Full_File;
+            V.Decoration := Plain;
+
+         when Gutter        =>
+            V.Extent := Full_File;
+            V.Decoration := Gutter;
+
+         when Changed_Lines =>
+            V.Extent := Full_File;
+            V.Decoration := Emphasized;
+
+         when Hunks         =>
+            V.Extent := Context;
+            V.Decoration := Gutter;
+      end case;
+   end Select_Preset;
+
+   procedure Cycle_Preset (V : in out View_State) is
+   begin
+      Select_Preset
+        (V,
+         (if Preset (V) = Source_Preset'Last
+          then Source_Preset'First
+          else Source_Preset'Succ (Preset (V))));
+   end Cycle_Preset;
+
+   procedure Cycle_Side (V : in out View_State) is
+   begin
+      V.Side :=
+        (if V.Side = Source_Side'Last
+         then Source_Side'First
+         else Source_Side'Succ (V.Side));
+   end Cycle_Side;
 
    procedure Cycle_Tree (V : in out View_State) is
    begin

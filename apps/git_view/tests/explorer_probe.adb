@@ -6,6 +6,7 @@ with Git_View_Source;
 with Tui.Text;
 
 procedure Explorer_Probe is
+   use type Git_View_Repository.Landmark_Ref;
    V  : View_State;
    F  : Git_View_Repository.Frame;
    Ok : Boolean;
@@ -26,7 +27,7 @@ begin
        (if Argument (2) = Message_Label then Message_Row else Argument (2));
    V.Kind := Snapshot_Kind'Value (Argument (3));
    V.Visibility := Tree_Visibility'Value (Argument (4));
-   V.Lens := Change_Lens'Value (Argument (5));
+   Select_Preset (V, Source_Preset'Value (Argument (5)));
    if Argument_Count >= 6 then
       V.Base := To_Text (Argument (6));
       V.Automatic_Base := V.Base.Last = 0;
@@ -40,11 +41,17 @@ begin
    if Argument_Count >= 9 then
       Git_View_Source.Make_Revision (Argument (9), V.History_Root, Ok);
    end if;
+   if Argument_Count >= 10 then
+      V.Side := Source_Side'Value (Argument (10));
+   end if;
    Git_View_Repository.Load (V, F);
    Put_Line ("snapshot=" & Image (F.Resolved_Snapshot));
    Put_Line ("base=" & Image (F.Resolved_Base));
    Put_Line ("scope=" & Image (F.Scope));
    Put_Line ("notice=" & Image (F.Notice));
+   Put_Line
+     ("landmarks="
+      & Natural'Image (if F.Landmarks = null then 0 else F.Landmarks'Length));
    Dump ("history", F.History.all);
    Dump ("tree", F.Tree.all);
    Dump ("source", F.Source.all);

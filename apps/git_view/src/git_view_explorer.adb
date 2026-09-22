@@ -27,6 +27,7 @@ package body Git_View_Explorer
           Screen_Width,
           Mouse,
           Message,
+          Wanted_Hunk,
           Browsing))
 is
    package M renames Git_View_Model;
@@ -40,29 +41,34 @@ is
    package Clip renames Tui.Panes.Clip;
    use type Gest.Gesture_Kind;
    use type M.Pane;
-   use type M.Change_Lens;
+   use type M.Source_Side;
+   use type M.Source_Decoration;
    use type M.Snapshot_Kind;
    use type M.Text;
    use type Tui.Text.Doc_Ref;
    use type R.Target_Ref;
    use type R.Mark_Ref;
+   use type R.Landmark_Ref;
    use type R.Mark;
    use Tui.Surface;
    use Tui.Input;
-   V          : M.View_State;
-   Stack      : M.Navigation;
-   Data       : R.Frame;
-   Loading    : Boolean := False;
+   V           : M.View_State;
+   Stack       : M.Navigation;
+   Data        : R.Frame;
+   Loading     : Boolean := False;
    --  True while the reader is moving over rows rather than opening them:
    --  the place browsing started from is already on the stack, so the moves
    --  that follow do not each record one of their own.
-   Browsing   : Boolean := False;
+   Browsing    : Boolean := False;
    type Prompt is
      (No_Prompt, File_Search, Repository_Search, Snapshot_Prompt, Base_Prompt);
-   Input_Mode : Prompt := No_Prompt;
-   Editor     : Edit.Editor;
-   Rows       : Row_Count := 0;
-   Message    : M.Text;
+   Input_Mode  : Prompt := No_Prompt;
+   Editor      : Edit.Editor;
+   Rows        : Row_Count := 0;
+   Message     : M.Text;
+   --  A comparison-span identity retained while a side or presentation
+   --  change rebuilds the source rows around it.
+   Wanted_Hunk : Natural := 0;
 
    ---------------------------------------------------------------------------
    --  The pane row
@@ -234,6 +240,47 @@ is
       end if;
    end Align_Selection;
 
+   --  The landmark array is indexed by comparison-span identity.  Retaining
+   --  that index, rather than a rendered row, keeps the same change selected
+   --  when base and target have different line counts or a context preset
+   --  inserts and removes rows.
+   procedure Remember_Hunk
+   with Global => (Input => (Data, V), Output => Wanted_Hunk)
+   is
+      Row : constant Tui.Text.Line_Number := V.Selected (M.Source_Pane);
+   begin
+      Wanted_Hunk := 0;
+      if Data.Landmarks /= null then
+         for I in Data.Landmarks'Range loop
+            exit when Data.Landmarks (I) > Row;
+            Wanted_Hunk := I;
+         end loop;
+         if Wanted_Hunk = 0 and then Data.Landmarks'Length > 0 then
+            Wanted_Hunk := Data.Landmarks'First;
+         end if;
+      end if;
+   end Remember_Hunk;
+
+   procedure Restore_Hunk
+   with Global => (Input => Data, In_Out => (V, Wanted_Hunk))
+   is
+      Row : Tui.Text.Line_Number;
+   begin
+      if Wanted_Hunk > 0
+        and then Data.Landmarks /= null
+        and then Wanted_Hunk in Data.Landmarks'Range
+        and then Data.Source /= null
+      then
+         Row := Data.Landmarks (Wanted_Hunk);
+         V.Selected (M.Source_Pane) := Row;
+         E.Go_To_Line
+           (V.Views (M.Source_Pane),
+            Row,
+            Tui.Text.Line_Count (Data.Source.Idx));
+      end if;
+      Wanted_Hunk := 0;
+   end Restore_Hunk;
+
    procedure Tick (Dirty : out Boolean) is
       Ready : Boolean;
    begin
@@ -257,6 +304,7 @@ is
                when M.Staging  => M.Index_Row,
                when M.Commit   => M.Image (V.Snapshot)));
          Align_Selection (M.Tree_Pane, M.Image (V.Scope));
+         Restore_Hunk;
          Message := Data.Notice;
       end if;
    end Tick;
@@ -387,14 +435,23 @@ is
                      if Kind = R.Ghost then
                         Cell_Value.Background := (RGB, 255, 235, 233);
                         Cell_Value.Attributes.Italic := True;
-                     elsif Kind = R.Addition then
-                        if V.Lens /= M.Gutter or else C = 1 then
+                     elsif Kind = R.Addition and then V.Decoration /= M.Plain
+                     then
+                        if V.Decoration /= M.Gutter or else C = 1 then
                            Cell_Value.Background := (RGB, 230, 255, 236);
                         end if;
-                        Cell_Value.Attributes.Bold := V.Lens = M.Changed_Lines;
+                        Cell_Value.Attributes.Bold :=
+                          V.Decoration = M.Emphasized;
+                     elsif Kind = R.Removal and then V.Decoration /= M.Plain
+                     then
+                        if V.Decoration /= M.Gutter or else C = 1 then
+                           Cell_Value.Background := (RGB, 255, 235, 233);
+                        end if;
+                        Cell_Value.Attributes.Bold :=
+                          V.Decoration = M.Emphasized;
                      elsif Kind = R.Hunk_Header then
                         Cell_Value.Foreground := (Palette, 6);
-                     elsif V.Lens = M.Changed_Lines then
+                     elsif V.Decoration = M.Emphasized then
                         Cell_Value.Foreground := (Palette, 8);
                      end if;
                      Set (Part, Row, C, Cell_Value);
@@ -425,7 +482,11 @@ is
             when M.History_Pane => "HISTORY",
             when M.Tree_Pane    =>
               "TREE / " & M.Tree_Visibility'Image (V.Visibility),
-            when M.Source_Pane  => "SOURCE / " & M.Change_Lens'Image (V.Lens)),
+            when M.Source_Pane  =>
+              "SOURCE / "
+              & M.Source_Side'Image (V.Side)
+              & " / "
+              & M.Source_Preset'Image (M.Preset (V))),
          V.Focus = P);
       Copy (Title, S, 1, At_Col);
       Copy (Part, S, 2, At_Col);
@@ -515,8 +576,10 @@ is
             & Base.Data (1 .. Natural'Min (12, Base.Last))
             & "  scope: "
             & M.Scope_Label (M.Image (V.Scope))
-            & "  lens: "
-            & M.Change_Lens'Image (V.Lens)
+            & "  source: "
+            & M.Source_Side'Image (V.Side)
+            & "/"
+            & M.Source_Preset'Image (M.Preset (V))
             & (if Loading and then R.Loaded (Data) then "  [loading]" else ""),
             True);
       end;
@@ -532,7 +595,7 @@ is
          Put
            (S,
             S.Rows,
-            "Tab panes  a tree  d lens  f history  p pin  [/] hunks  {/} files  / search  S repo-search  c snapshot  b base  w worktree  i index  BS back  Alt-Right forward");
+            "Tab panes  a tree  d view  v side  f history  p pin  [/] hunks  {/} files  / search  S repo-search  c snapshot  b base  w worktree  i index  BS back  Alt-Right forward");
       end if;
       if V.Pin.Last > 0
         or else V.Path_Filter.Last > 0
@@ -726,7 +789,8 @@ is
             else
                V.Focus := M.Source_Pane;
                if V.Repository_Search.Last > 0 then
-                  V.Lens := M.Plain;
+                  V.Side := M.Target;
+                  M.Select_Preset (V, M.Plain);
                   E.Go_To_Line
                     (V.Views (M.Source_Pane),
                      Data.Paths (Row).Line,
@@ -763,13 +827,27 @@ is
          end if;
       else
          Row := V.Selected (M.Source_Pane);
-         if Data.Marks /= null then
-            Last :=
-              Natural'Min
-                (Tui.Text.Max_Lines, Natural'Max (0, Data.Marks'Last));
+         if Data.Landmarks /= null then
+            if Next then
+               for I in Data.Landmarks'Range loop
+                  if Data.Landmarks (I) > Row then
+                     Row := Data.Landmarks (I);
+                     Found := True;
+                     exit;
+                  end if;
+               end loop;
+            else
+               for I in reverse Data.Landmarks'Range loop
+                  if Data.Landmarks (I) < Row then
+                     Row := Data.Landmarks (I);
+                     Found := True;
+                     exit;
+                  end if;
+               end loop;
+            end if;
          end if;
       end if;
-      while Row in 1 .. Last loop
+      while File and then Row in 1 .. Last loop
          if Next then
             exit when Row = Last;
             Row := Row + 1;
@@ -783,15 +861,6 @@ is
               Data.Paths (Row).Changed
               and then R.Path (Data, Row)'Length > 0
               and then R.Path (Data, Row) (R.Path (Data, Row)'Last) /= '/';
-         elsif not File
-           and then Data.Marks /= null
-           and then Row in Data.Marks'Range
-         then
-            Found :=
-              Data.Marks (Row) = R.Hunk_Header
-              or else (Data.Marks (Row) in R.Addition | R.Ghost
-                       and then (Row = Data.Marks'First
-                                 or else Data.Marks (Row - 1) = R.Normal));
          end if;
          exit when Found;
       end loop;
@@ -1148,7 +1217,13 @@ is
          Drive (E.Find_Prev);
       elsif Ch = 'd' then
          Record_Location;
-         M.Cycle_Lens (V);
+         Remember_Hunk;
+         M.Cycle_Preset (V);
+         Reload;
+      elsif Ch = 'v' then
+         Record_Location;
+         Remember_Hunk;
+         M.Cycle_Side (V);
          Reload;
       elsif Ch = 'a' then
          Record_Location;

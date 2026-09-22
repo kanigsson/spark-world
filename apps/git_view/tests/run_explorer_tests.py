@@ -36,9 +36,10 @@ with tempfile.TemporaryDirectory(prefix="gitview-explorer-") as tmp:
         return git("rev-parse", "HEAD")
 
     def probe(snapshot="HEAD", path="src/main.txt", kind="commit", tree="all_files",
-              lens="gutter", base="", search="", scope="", root="", cwd=None):
+              lens="gutter", base="", search="", scope="", root="", side="target",
+              cwd=None):
         output = subprocess.check_output(
-            [str(PROBE), snapshot, path, kind, tree, lens, base, search, scope, root],
+            [str(PROBE), snapshot, path, kind, tree, lens, base, search, scope, root, side],
             cwd=cwd or tmp, timeout=30).decode()
         assert "[git error]" not in output, output
         header, history, tree_text, source = output.split("=== ")
@@ -60,7 +61,11 @@ with tempfile.TemporaryDirectory(prefix="gitview-explorer-") as tmp:
 
     f = probe()
     check("context/unchanged.txt" in f["tree"], "full snapshot contains unchanged files")
-    check("+ 1 | new first" in f["source"] and "-   | old first" in f["source"], "replacement overlay and base ghost")
+    check("+ 1 | new first" in f["source"] and "old first" not in f["source"],
+          "target gutter keeps the resulting file free of base ghosts")
+    check("+ 1 | new first" in probe(side="both")["source"]
+          and "-   | old first" in probe(side="both")["source"],
+          "both sides interleave target lines and base ghosts")
     check("keep middle" in f["source"], "full file context remains available")
     check("[parents:" in f["history"], "history exposes graph parent information")
     check("[worktree] uncommitted changes" not in f["history"]
@@ -79,7 +84,14 @@ with tempfile.TemporaryDirectory(prefix="gitview-explorer-") as tmp:
     check("src/\n" not in f["tree"], "flat changed-only tree")
     f = probe(lens="plain")
     check("old first" not in f["source"] and "new first\nkeep middle\nnew last" in f["source"], "plain lens is target content")
-    check("[base-only deleted file]" in probe(path="deleted.txt")["source"], "deleted file is explicitly base-only")
+    check("landmarks= 2" in f["header"], "plain target content retains independent hunk landmarks")
+    check("new first" not in probe(lens="plain", side="base")["source"]
+          and "old first\nkeep middle\nold last" in probe(lens="plain", side="base")["source"],
+          "plain base lens is exact old content")
+    check("[absent in target]" in probe(path="deleted.txt")["source"],
+          "deleted file is explicitly absent on the target side")
+    check("base-only text" in probe(path="deleted.txt", lens="plain", side="base")["source"],
+          "deleted file remains readable as plain base content")
     check("R renamed.txt" in probe(path="renamed.txt")["tree"], "rename identity from git-changes")
     check("rename identity" in probe(path="renamed.txt")["source"], "renamed file content")
     check("[binary file]" in probe(path="binary.bin")["source"], "unchanged binary placeholder")
@@ -111,7 +123,8 @@ with tempfile.TemporaryDirectory(prefix="gitview-explorer-") as tmp:
     check("new first" in probe()["source"], "commit content is independent of worktree")
     check("? untracked.txt" in probe(kind="worktree", tree="changed_only")["tree"], "untracked path visible in working changes")
     check("untracked content" in probe(kind="worktree", path="untracked.txt")["source"], "untracked file can be read")
-    check("old first" in probe(base=first)["source"], "arbitrary base comparison")
+    check("old first" in probe(base=first, lens="plain", side="base")["source"],
+          "arbitrary comparison base is readable as source")
 
     git("reset", "--hard", "-q", "HEAD")
     (repo / "untracked.txt").unlink()
@@ -123,10 +136,10 @@ with tempfile.TemporaryDirectory(prefix="gitview-explorer-") as tmp:
     (repo / "untracked.txt").unlink()
     write("src/main.txt", "new first\nkeep middle\n")
     third = commit("delete at EOF")
-    check("-   | new last" in probe()["source"], "deletion anchored after final target line")
+    check("-   | new last" in probe(side="both")["source"], "deletion anchored after final target line")
     write("src/main.txt", "keep middle\n")
     fourth = commit("delete at BOF")
-    check("-   | new first" in probe()["source"], "deletion anchored before first target line")
+    check("-   | new first" in probe(side="both")["source"], "deletion anchored before first target line")
     git("checkout", "-qb", "feature", second)
     write("feature.txt", "feature branch\n")
     feature = commit("feature commit")

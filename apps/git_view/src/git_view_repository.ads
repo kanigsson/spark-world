@@ -22,14 +22,20 @@ is
    type Target_Array is array (Tui.Text.Line_Number range <>) of Row_Target;
    type Target_Ref is access Target_Array;
    type Name_Ref is access String;
-   type Mark is (Normal, Addition, Ghost, Hunk_Header);
+   type Mark is (Normal, Addition, Removal, Ghost, Hunk_Header);
    type Mark_Array is array (Tui.Text.Line_Number range <>) of Mark;
    type Mark_Ref is access Mark_Array;
+   --  One rendered source row per comparison span.  These are navigation
+   --  data, deliberately separate from Marks: a plain presentation may have
+   --  no visual change styling while retaining every hunk landmark.
+   type Landmark_Array is array (Positive range <>) of Tui.Text.Line_Number;
+   type Landmark_Ref is access Landmark_Array;
    type Frame is record
       History, Tree, Source                           : Tui.Text.Doc_Ref;
       Commits, Paths                                  : Target_Ref;
       Commit_Names, Path_Names                        : Name_Ref;
       Marks                                           : Mark_Ref;
+      Landmarks                                       : Landmark_Ref;
       Resolved_Snapshot, Resolved_Base, Scope, Notice : M.Text;
    end record;
    --  The identity behind a row of the history or tree pane; an absent row

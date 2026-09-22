@@ -20,12 +20,12 @@ relative. `--no-mouse` leaves mouse handling to the terminal.
 
 ## The model
 
-Four values decide everything on screen.
+Independent values decide what each pane shows.
 
 A **snapshot** is what you are looking at: a commit, the working tree, or the
 index. A **base** is what it is compared against, either derived automatically
-or set explicitly. The snapshot alone supplies the source text; the base only
-adds annotations to it.
+or set explicitly. The comparison therefore has a target side and a base
+side; the source pane can read either exact file or interleave both.
 
 A **pane** is one of three vertical strips, in the order one determines the
 next: history picks the snapshot, the tree picks the path, the source shows the
@@ -41,18 +41,21 @@ The tree lists the commit message as its first row, `COMMIT_MSG`, above the
 files: what the commit says about itself is read the same way as what it
 changed. A working tree and an index have no message to show.
 
-**Tree visibility** selects which files the tree lists. **A lens** selects which
-lines of the file the source shows, from the plain file through gutter
-annotations, changed lines, hunks, and before/after. The two are independent:
-one filters files, the other filters lines within whichever file is open.
+**Tree visibility** selects which files the tree lists. Source **side** selects
+target, base, or both. A source presentation preset independently selects a
+full plain file, a full file with gutter or emphasized changes, or hunks with
+nearby context. Change navigation is independent of presentation: plain files
+retain every comparison landmark even though they draw no change decoration.
 
 At startup the snapshot is `HEAD`, the base is its first parent, the tree lists
-the changed files only with the first of them in scope, and the lens is hunks.
-A comparison with no file to open falls back to the commit message.
+the changed files only with the first of them in scope, and the source shows
+target-side hunks. A comparison with no file to open falls back to the commit
+message.
 
 Everything else is a transition on those values, and the whole set — snapshot,
-base, scope, pin, filters, visibility, lens, focus, per-pane selections,
-viewports, and search patterns — is a single value. That is why back and forward
+base, scope, pin, filters, visibility, source side and presentation, focus,
+per-pane selections, viewports, and search patterns — is a single value. That
+is why back and forward
 restore a location completely rather than approximately, and why a **pin**,
 which holds one path fixed while the snapshot moves, is enough to walk a file
 through history.
@@ -71,7 +74,8 @@ through history.
 | h/l, left/right | Horizontal scrolling |
 | z | Maximize/restore; a terminal too narrow for three panes drops the most disposable one, and never the focused one |
 | a | Tree: changed only ↔ all files |
-| d | Lens: gutter → changed lines → hunks → before/after → plain |
+| d | Source presentation: hunks → plain → gutter → changed lines |
+| v | Source side: target → base → both |
 | [ / ] | Previous/next hunk |
 | { / } | Previous/next changed file |
 | f / F | Filter history to scope / clear path and repository-search filters |
@@ -102,9 +106,15 @@ parent IDs and ref decorations. Selecting a historical commit does not
 restrict the history list to that commit's ancestors: you can move both
 backward and forward through the original history scope.
 
-The source always comes from the selected snapshot. Changing the base changes
-annotations. Each row carries a sign and the snapshot line it shows, in a
-column as wide as the file needs, so the text stays aligned throughout:
+Target and base sides are exact files from the two comparison endpoints.
+`PLAIN` displays the selected file without gutters or opposite-side rows;
+`GUTTER` and `CHANGED_LINES` retain the full selected file and annotate it;
+`HUNKS` retains nearby context. `[` and `]` navigate the same comparison
+regions in every presentation and side.
+
+The `BOTH` side interleaves base-only rows with the target file. Each row
+carries a sign and the target line it shows, in a column as wide as the file
+needs, so the text stays aligned throughout:
 
 ```
    40 | unchanged line
@@ -112,11 +122,11 @@ column as wide as the file needs, so the text stays aligned throughout:
 +  41 | line the snapshot has instead
 ```
 
-Removed lines have no snapshot line to name, so they leave that column blank
-and are drawn as italic, pale red ghost rows; deleted files are labeled
-base-only. Gutter and changed-lines lenses retain the full file. Hunk lenses
-retain nearby context. Binary files and changed submodules have placeholders.
-Untracked, nonignored files are available in the working-tree view.
+Removed lines have no target line to name, so they leave that column blank and
+are drawn as italic, pale red ghost rows. New and deleted files report the side
+on which they are absent, and their existing side remains readable as ordinary
+source. Binary files and changed submodules have placeholders. Untracked,
+nonignored files are available in the working-tree view.
 
 Moving the selection is how the explorer is read: the history pane's row is
 the snapshot and the tree pane's row is the scope, so arriving on a row shows
@@ -125,7 +135,8 @@ or filters history to a directory. A run of moves records one location, the
 one it started from, so back leaves a browse rather than retracing it.
 
 Back/forward restores the snapshot, comparison, path, pin, filters, tree
-visibility, lens, focus, selections, search patterns, and pane scroll offsets.
+visibility, source side and presentation, focus, selections, search patterns,
+and pane scroll offsets.
 The stack retains 128 locations in each direction; a new navigation discards
 the forward branch.
 

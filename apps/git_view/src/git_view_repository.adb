@@ -21,7 +21,9 @@ is
    package G renames Git_Changes;
    use type G.Change_Kind;
    use type M.Snapshot_Kind;
-   use type M.Change_Lens;
+   use type M.Source_Side;
+   use type M.Source_Extent;
+   use type M.Source_Decoration;
    use type M.Tree_Visibility;
    use type Ada.Containers.Count_Type;
    LF              : constant Character := ASCII.LF;
@@ -34,6 +36,8 @@ is
    package Strings is new Ada.Containers.Vectors (Positive, Unbounded_String);
    package Targets is new Ada.Containers.Vectors (Positive, Row_Target);
    package Marks is new Ada.Containers.Vectors (Positive, Mark);
+   package Landmark_Rows is new
+     Ada.Containers.Vectors (Positive, Tui.Text.Line_Number);
    package Paths is new Ada.Containers.Indefinite_Ordered_Sets (String);
    package Change_Maps is new
      Ada.Containers.Indefinite_Ordered_Maps (String, Natural);
@@ -44,6 +48,8 @@ is
      Ada.Unchecked_Deallocation (Target_Array, Target_Ref);
    procedure Release is new Ada.Unchecked_Deallocation (String, Name_Ref);
    procedure Release is new Ada.Unchecked_Deallocation (Mark_Array, Mark_Ref);
+   procedure Release is new
+     Ada.Unchecked_Deallocation (Landmark_Array, Landmark_Ref);
 
    --  Every repository query reports failure the same way; the frame builder
    --  turns the exception into a notice rather than checking each call.
@@ -168,6 +174,7 @@ is
       Release (F.Commits);
       Release (F.Paths);
       Release (F.Marks);
+      Release (F.Landmarks);
       Release (F.Commit_Names);
       Release (F.Path_Names);
    end Free;
@@ -275,6 +282,7 @@ is
       Removed_Paths      : Paths.Set;
       Changes_By_Path    : Change_Maps.Map;
       Source_Marks       : Marks.Vector;
+      Source_Landmarks   : Landmark_Rows.Vector;
       S                  : Unbounded_String;
       Scope              : Unbounded_String :=
         To_Unbounded_String (M.Image (V.Scope));
@@ -462,15 +470,8 @@ is
          Whole_Added              : constant Boolean :=
            Cached_Untracked.Contains (To_String (Scope));
          Old_Content, New_Content : Unbounded_String;
-         Base_Only                : Boolean := False;
          Old_Lines, New_Lines     : Strings.Vector;
-
-         --  The source pane shows the snapshot file, so the gutter numbers
-         --  snapshot lines and every row is one column wide for the whole
-         --  file. A removed line has no snapshot line to name, so it leaves
-         --  that column blank rather than labelling itself: the sign and the
-         --  ghost styling already say where it came from.
-         Number_Width : Positive := 1;
+         Number_Width             : Positive := 1;
 
          function Gutter (Sign : Character; Line : Natural) return String is
             Text : constant String :=
@@ -487,6 +488,15 @@ is
          function Width_For (Count : Natural) return Positive
          is (Ore.Images.Decimal (Natural'Max (1, Count))'Length);
 
+         function Side_First (P : G.Changed_Span) return Natural
+         is (if V.Side = M.Base then P.Old_First else P.New_First);
+
+         function Side_Count (P : G.Changed_Span) return Natural
+         is (if V.Side = M.Base then P.Old_Count else P.New_Count);
+
+         function Side_Anchor (P : G.Changed_Span) return Natural
+         is (M.Deletion_Anchor (Side_First (P), Side_Count (P)));
+
          function Near_Change (Line : Natural) return Boolean is
          begin
             for J in 1 .. G.Span_Count (Cached_Changes, File) loop
@@ -494,20 +504,26 @@ is
                   P : constant G.Changed_Span :=
                     G.Span (Cached_Changes, File, J);
                begin
-                  if M.In_Context
-                       (Line,
-                        M.Deletion_Anchor (P.New_First, P.New_Count),
-                        P.New_Count)
-                  then
+                  if M.In_Context (Line, Side_Anchor (P), Side_Count (P)) then
                      return True;
                   end if;
                end;
             end loop;
             return False;
          end Near_Change;
+
+         procedure Add_Landmark (Row : Natural) is
+         begin
+            Source_Landmarks.Append
+              (Tui.Text.Line_Number
+                 (Natural'Max (1, Natural'Min (Tui.Text.Max_Lines, Row))));
+         end Add_Landmark;
+
          Previous_Visible : Boolean := False;
          Span_Index       : Positive := 1;
          Span_Total       : Natural := 0;
+         Line_Total       : Natural := 0;
+         Whole_Changed    : Boolean := False;
       begin
          if Length (Scope) = 0 then
             Emit ("Select a file in the tree.");
@@ -525,7 +541,6 @@ is
                Emit ("[binary file] " & Label (To_String (Scope)));
                return;
             end if;
-            Base_Only := G.File_Kind (Cached_Changes, File) = G.Deleted;
             if G.Content_Available (Cached_Changes, File, G.Old_Side) then
                G.Contents.Load
                  (Cached_Changes, File, G.Old_Side, Old_Content, Error);
@@ -533,16 +548,29 @@ is
             end if;
             Span_Total := G.Span_Count (Cached_Changes, File);
          end if;
-         if Base_Only then
-            Emit
-              ("[base-only deleted file] " & Label (To_String (Scope)), Ghost);
+
+         if File > 0 and then G.File_Kind (Cached_Changes, File) = G.Deleted
+         then
             Old_Lines := Split (To_String (Old_Content), LF);
+            if V.Side = M.Target then
+               Emit ("[absent in target] " & Label (To_String (Scope)));
+               Add_Landmark (1);
+               return;
+            end if;
             Number_Width := Width_For (Natural (Old_Lines.Length));
-            for Line of Old_Lines loop
-               Emit (Gutter ('-', 0) & To_String (Line), Ghost);
+            for L in 1 .. Natural (Old_Lines.Length) loop
+               if V.Side = M.Both then
+                  Emit (Gutter ('-', 0) & To_String (Old_Lines (L)), Ghost);
+               elsif V.Decoration = M.Plain then
+                  Emit (To_String (Old_Lines (L)), Removal);
+               else
+                  Emit (Gutter ('-', L) & To_String (Old_Lines (L)), Removal);
+               end if;
             end loop;
+            Add_Landmark (1);
             return;
          end if;
+
          if not In_Snapshot (To_String (Scope)) then
             Emit ("[absent in snapshot] " & Label (To_String (Scope)));
             return;
@@ -555,85 +583,142 @@ is
          end if;
          Old_Lines := Split (To_String (Old_Content), LF);
          New_Lines := Split (To_String (New_Content), LF);
-         Number_Width := Width_For (Natural (New_Lines.Length));
-         for L in 1 .. Natural (New_Lines.Length) + 1 loop
+         if File = 0 then
+            --  A path absent from the comparison is identical at both
+            --  endpoints. Avoid a second repository query for the base.
+            Old_Lines := New_Lines;
+         elsif V.Side = M.Base
+           and then not G.Content_Available (Cached_Changes, File, G.Old_Side)
+         then
+            Emit
+              ("[content unavailable in base] " & Label (To_String (Scope)));
+            return;
+         end if;
+
+         if (Whole_Added
+             or else (File > 0
+                      and then G.File_Kind (Cached_Changes, File) = G.Added))
+           and then V.Side = M.Base
+         then
+            Emit ("[absent in base] " & Label (To_String (Scope)));
+            Add_Landmark (1);
+            return;
+         end if;
+
+         Line_Total :=
+           (if V.Side = M.Base
+            then Natural (Old_Lines.Length)
+            else Natural (New_Lines.Length));
+         Whole_Changed :=
+           Whole_Added
+           or else (File > 0
+                    and then V.Side /= M.Base
+                    and then G.File_Kind (Cached_Changes, File) = G.Added);
+         Number_Width := Width_For (Line_Total);
+         if Whole_Changed and then Span_Total = 0 then
+            Add_Landmark (1);
+         end if;
+
+         for L in 1 .. Line_Total + 1 loop
             --  Spans are sorted; walk once, keeping the overlay linear in
-            --  file size plus number of spans. Deletions may anchor at EOF.
+            --  file size plus number of spans. A zero-line range on the
+            --  selected side still has an anchor, including at EOF.
             while Span_Index <= Span_Total loop
                declare
                   P      : constant G.Changed_Span :=
                     G.Span (Cached_Changes, File, Span_Index);
-                  Anchor : constant Natural :=
-                    M.Deletion_Anchor (P.New_First, P.New_Count);
+                  Anchor : constant Natural := Side_Anchor (P);
                begin
                   exit when
                     Anchor >= L
-                    or else M.In_Range (L, P.New_First, P.New_Count);
+                    or else M.In_Range (L, Side_First (P), Side_Count (P));
                   Span_Index := Span_Index + 1;
                end;
             end loop;
-            if V.Lens /= M.Plain and then Span_Index <= Span_Total then
+
+            if Span_Index <= Span_Total then
                declare
                   P : constant G.Changed_Span :=
                     G.Span (Cached_Changes, File, Span_Index);
                begin
-                  if M.Deletion_Anchor (P.New_First, P.New_Count) = L then
-                     if V.Lens = M.Before_After then
-                        Emit
-                          ("@@ -"
-                           & Ore.Images.Decimal (P.Old_First)
-                           & ","
-                           & Ore.Images.Decimal (P.Old_Count)
-                           & " +"
-                           & Ore.Images.Decimal (P.New_First)
-                           & ","
-                           & Ore.Images.Decimal (P.New_Count)
-                           & " @@",
-                           Hunk_Header);
+                  if Side_Anchor (P) = L then
+                     Add_Landmark
+                       ((if V.Side = M.Both and then P.Old_Count > 0
+                         then Natural (Source_Marks.Length) + 1
+                         elsif L > Line_Total
+                         then Natural (Source_Marks.Length)
+                         else Natural (Source_Marks.Length) + 1));
+                     if V.Side = M.Both and then P.Old_Count > 0 then
+                        for O in P.Old_First .. P.Old_First + P.Old_Count - 1
+                        loop
+                           if O in 1 .. Natural (Old_Lines.Length) then
+                              Emit
+                                (Gutter ('-', 0) & To_String (Old_Lines (O)),
+                                 Ghost);
+                           end if;
+                        end loop;
                      end if;
-                     for O in P.Old_First .. P.Old_First + P.Old_Count - 1 loop
-                        if O in 1 .. Natural (Old_Lines.Length) then
-                           Emit
-                             (Gutter ('-', 0) & To_String (Old_Lines (O)),
-                              Ghost);
-                        end if;
-                     end loop;
                   end if;
                end;
             end if;
-            if L <= Natural (New_Lines.Length) then
+
+            if L <= Line_Total then
                declare
-                  Added   : constant Boolean :=
-                    Whole_Added
+                  Changed : constant Boolean :=
+                    Whole_Changed
                     or else (Span_Index <= Span_Total
                              and then M.In_Range
                                         (L,
-                                         G.Span
-                                           (Cached_Changes, File, Span_Index)
-                                           .New_First,
-                                         G.Span
-                                           (Cached_Changes, File, Span_Index)
-                                           .New_Count));
+                                         Side_First
+                                           (G.Span
+                                              (Cached_Changes,
+                                               File,
+                                               Span_Index)),
+                                         Side_Count
+                                           (G.Span
+                                              (Cached_Changes,
+                                               File,
+                                               Span_Index))));
                   Visible : constant Boolean :=
-                    V.Lens not in M.Hunks | M.Before_After
-                    or else Whole_Added
+                    V.Extent = M.Full_File
+                    or else Whole_Changed
                     or else (File > 0 and then Near_Change (L));
                begin
                   if Visible then
-                     if not Previous_Visible and then V.Lens = M.Hunks then
+                     if not Previous_Visible and then V.Extent = M.Context then
                         Emit
-                          ("@@ snapshot line "
+                          ("@@ "
+                           & (if V.Side = M.Base then "base" else "target")
+                           & " line "
                            & Ore.Images.Decimal (L)
                            & " @@",
                            Hunk_Header);
                      end if;
-                     if V.Lens = M.Plain then
-                        Emit (To_String (New_Lines (L)));
+                     if V.Decoration = M.Plain and then V.Side /= M.Both then
+                        Emit
+                          ((if V.Side = M.Base
+                            then To_String (Old_Lines (L))
+                            else To_String (New_Lines (L))),
+                           (if Changed
+                            then
+                              (if V.Side = M.Base then Removal else Addition)
+                            else Normal));
                      else
                         Emit
-                          (Gutter ((if Added then '+' else ' '), L)
-                           & To_String (New_Lines (L)),
-                           (if Added then Addition else Normal));
+                          (Gutter
+                             ((if not Changed
+                               then ' '
+                               elsif V.Side = M.Base
+                               then '-'
+                               else '+'),
+                              L)
+                           & (if V.Side = M.Base
+                              then To_String (Old_Lines (L))
+                              else To_String (New_Lines (L))),
+                           (if Changed
+                            then
+                              (if V.Side = M.Base then Removal else Addition)
+                            else Normal));
                      end if;
                   end if;
                   Previous_Visible := Visible;
@@ -642,7 +727,7 @@ is
          end loop;
          if Length (S) = 0 then
             Emit
-              ((if V.Lens in M.Hunks | M.Before_After
+              ((if V.Extent = M.Context
                 then "[no textual hunks]"
                 else "[empty file]"));
          end if;
@@ -1051,6 +1136,7 @@ is
          when E : others =>
             S := Null_Unbounded_String;
             Source_Marks.Clear;
+            Source_Landmarks.Clear;
             Emit
               ("[content unavailable] "
                & Label (Ada.Exceptions.Exception_Message (E)));
@@ -1065,6 +1151,11 @@ is
       F.Marks := new Mark_Array (1 .. Natural (Source_Marks.Length));
       for I in F.Marks'Range loop
          F.Marks (I) := Source_Marks (I);
+      end loop;
+      F.Landmarks :=
+        new Landmark_Array (1 .. Natural (Source_Landmarks.Length));
+      for I in F.Landmarks'Range loop
+         F.Landmarks (I) := Source_Landmarks (I);
       end loop;
    exception
       when E : others =>

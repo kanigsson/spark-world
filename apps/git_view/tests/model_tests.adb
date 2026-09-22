@@ -13,6 +13,14 @@ begin
    Toggle_Pin (V);
    V.Path_Filter := V.Scope;
    V.Repository_Search := To_Text ("needle");
+   V.Side := Base;
+   Select_Preset (V, Changed_Lines);
+   pragma
+     Assert
+       (V.Side = Base
+          and then V.Extent = Full_File
+          and then V.Decoration = Emphasized
+          and then Preset (V) = Changed_Lines);
    V.Focus := Source_Pane;
    V.Selected := (2, 4, 8);
    Tui.Pager.Engine.Resize (V.Views (Source_Pane), 12, 30, 200);
@@ -39,6 +47,12 @@ begin
       pragma Assert (V.Scope = To_Text (I'Image));
    end loop;
    pragma Assert (not Can_Back (N));
+   Cycle_Preset (V);
+   pragma Assert (Preset (V) = Hunks and then V.Side = Base);
+   Cycle_Side (V);
+   pragma Assert (V.Side = Both and then Preset (V) = Hunks);
+   Cycle_Side (V);
+   pragma Assert (V.Side = Target);
    pragma Assert (Deletion_Anchor (0, 0) = 1);
    pragma Assert (Deletion_Anchor (8, 0) = 9);
    pragma Assert (Deletion_Anchor (8, 2) = 8);

@@ -108,9 +108,9 @@ weaker one. The legacy viewer classifies a patch line by its leading bytes
 into six kinds and layers presentation deliberately: polarity is confined to
 the leading gutter column so that syntax foregrounds can carry token colour
 without erasing the meaning of the row. The explorer instead receives a mark
-per line from the repository worker with four values — normal, addition,
-ghost and hunk header — and colours whole rows from them, with no layering
-and no notion of file metadata or a commit header.
+per line from the repository worker with five values — normal, addition,
+removal, ghost and hunk header — and colours whole rows from them, with no
+layering and no notion of file metadata or a commit header.
 
 Four concrete problems.
 
@@ -128,9 +128,10 @@ theme is no longer the single place a colour decision is recorded. This is
 cheap to fix and worth fixing before anything else here, because every
 improvement below otherwise has to be made twice.
 
-**Lens handling is asymmetric.** Under the gutter lens an addition is tinted
-only in its first column, but a ghost row still takes a full-row background
-regardless of lens, so the two polarities do not respond to the same control.
+**Both-side handling is asymmetric.** Under gutter decoration an addition is
+tinted only in its first column, but a base ghost in the both-side view still
+takes a full-row background, so the two polarities do not respond to the same
+control.
 
 **Syntax and lens have no defined precedence.** The changed-lines lens
 recolours unchanged rows to grey, which would also flatten any token colour

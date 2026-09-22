@@ -49,7 +49,14 @@ is
    function Scope_Label (Path : String) return String
    is (if Is_Message (Path) then Message_Label else Path);
 
-   type Change_Lens is (Plain, Gutter, Changed_Lines, Hunks, Before_After);
+   --  Source presentation has three independent dimensions.  A preset only
+   --  changes extent and decoration; the comparison side stays put, so a
+   --  reader can change how much evidence is shown without silently moving
+   --  from the old file to the new one.
+   type Source_Side is (Target, Base, Both);
+   type Source_Extent is (Full_File, Context);
+   type Source_Decoration is (Plain, Gutter, Emphasized);
+   type Source_Preset is (Plain, Gutter, Changed_Lines, Hunks);
    type Tree_Visibility is (All_Files, Changed_Only);
    type Pane is (History_Pane, Tree_Pane, Source_Pane);
    type Engines is array (Pane) of Tui.Pager.Engine.Instance;
@@ -65,7 +72,9 @@ is
       History_Filter    : Git_View_Source.Filters;
       Path_Filter       : Text;
       Repository_Search : Text;
-      Lens              : Change_Lens := Hunks;
+      Side              : Source_Side := Target;
+      Extent            : Source_Extent := Context;
+      Decoration        : Source_Decoration := Gutter;
       Visibility        : Tree_Visibility := Changed_Only;
       Focus             : Pane := History_Pane;
       Views             : Engines;
@@ -76,7 +85,18 @@ is
    procedure Select_Snapshot
      (V : in out View_State; Name : Text; Kind : Snapshot_Kind := Commit);
    procedure Select_Scope (V : in out View_State; Path : Text);
-   procedure Cycle_Lens (V : in out View_State);
+   function Preset (V : View_State) return Source_Preset
+   is (if V.Extent = Context
+       then Hunks
+       elsif V.Decoration = Plain
+       then Plain
+       elsif V.Decoration = Gutter
+       then Gutter
+       else Changed_Lines);
+   procedure Select_Preset (V : in out View_State; Value : Source_Preset)
+   with Post => Preset (V) = Value;
+   procedure Cycle_Preset (V : in out View_State);
+   procedure Cycle_Side (V : in out View_State);
    procedure Cycle_Tree (V : in out View_State);
    procedure Toggle_Pin (V : in out View_State);
 

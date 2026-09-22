@@ -191,7 +191,7 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
         check("HISTORY" in f and "TREE /" in f and "SOURCE /" in f, "three persistent panes", f)
         check(second[:12] in f and first[:12] in f, "status exposes snapshot and first-parent comparison", f)
         check("CHANGED_ONLY" in f, "tree starts on the changed files", f)
-        check("scope: later.txt" in f and "SOURCE / HUNKS" in f,
+        check("scope: later.txt" in f and "SOURCE / TARGET / HUNKS" in f,
               "the first changed file is open at startup", f)
         f = s.send(b"j")
         check(first[:12] in f and "[absent in snapshot]" in f,
@@ -231,7 +231,8 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
         f = s.send(b"\x7f")
         check("unchanged.txt:1:" in f, "back restores search results", f)
         f = s.send(b"\x1b[1;3C")
-        check("scope: unchanged.txt" in f and "SOURCE / PLAIN" in f, "forward restores source lens and scope", f)
+        check("scope: unchanged.txt" in f and "SOURCE / TARGET / PLAIN" in f,
+              "forward restores source presentation and scope", f)
         f = s.send(b"F")
         f = s.send(b"c" + second.encode() + b"\r")
         # Open later.txt using a tree click: the commit message heads the
@@ -253,6 +254,22 @@ with tempfile.TemporaryDirectory(prefix="gitview-pty-") as repo:
         # main.txt is the second file row, below the message and later.txt.
         f = s.send(b"\x1b[<0;52;4M")
         check("scope: main.txt" in f, "open another file without changing snapshot", f)
+        check("SOURCE / TARGET / PLAIN" in f,
+              "opening a file preserves the plain target presentation", f)
+        f = s.send(b"g]")
+        check("SOURCE / TARGET / PLAIN" in f and "NEW_CHANGE" in f,
+              "plain source retains comparison hunk navigation", f)
+        f = s.send(b"v")
+        check("SOURCE / BASE / PLAIN" in f and "line 050" in f
+              and "NEW_CHANGE" not in f,
+              "side toggle shows exact base source at the same hunk", f)
+        f = s.send(b"v")
+        check("SOURCE / BOTH / PLAIN" in f and "NEW_CHANGE" in f
+              and "line 050" in f,
+              "both-side view interleaves the replacement", f)
+        f = s.send(b"v")
+        check("SOURCE / TARGET / PLAIN" in f and "NEW_CHANGE" in f,
+              "side cycle returns to target source", f)
         f = s.send(b"/line 080\r")
         check("line 080" in f and "line 001" not in f, "search within source", f)
         f = s.send(b"w")
