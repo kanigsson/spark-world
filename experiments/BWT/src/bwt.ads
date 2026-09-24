@@ -143,7 +143,7 @@ is
      Pre    => Supported (S),
      Post   =>
        Rotations_Of'Result'First = 1
-       and then Rotations_Of'Result'Length = S'Length
+       and then Rotations_Of'Result'Last = S'Length
        and then (for all I in Rotations_Of'Result'Range =>
                    Rotations_Of'Result (I) = (1, S'Length, I - 1));
 

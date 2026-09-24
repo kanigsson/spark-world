@@ -166,6 +166,44 @@ is
       end loop;
    end Order_Next;
 
+   procedure Order_Split (S : String; A, B : Rotation; H, M : Natural) is
+      NA : constant Rotation := Advance (A, H);
+      NB : constant Rotation := Advance (B, H);
+   begin
+      for J in 0 .. M loop
+         pragma
+           Loop_Invariant
+             (Equal_Prefix (S, A, B, H + J)
+                = (Equal_Prefix (S, A, B, H)
+                   and then Equal_Prefix (S, NA, NB, J))
+                and then LE (S, A, B, H + J)
+                         = ((LE (S, A, B, H)
+                             and then not Equal_Prefix (S, A, B, H))
+                            or else (Equal_Prefix (S, A, B, H)
+                                     and then LE (S, NA, NB, J))));
+         if J < M then
+            Letter_Advance (S, A, H, H + J);
+            Letter_Advance (S, B, H, H + J);
+         end if;
+      end loop;
+   end Order_Split;
+
+   procedure Settled (S : String; A, B : Rotation; H, Size : Natural) is
+   begin
+      if Equal_Prefix (S, A, B, H) then
+         Same_Length_Extend (S, A, B, H, Size);
+         Order_Laws (S, A, B, A, H);
+         Order_Laws (S, A, B, A, Size);
+      else
+         declare
+            K : constant Natural := Mismatch (S, A, B, H);
+         begin
+            Decide (S, A, B, K, H);
+            Decide (S, A, B, K, Size);
+         end;
+      end if;
+   end Settled;
+
    function Mismatch
      (S : String; A, B : Rotation; Size : Natural) return Natural is
    begin

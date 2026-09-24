@@ -184,6 +184,47 @@ is
                    or else (Letter (S, A, 0) = Letter (S, B, 0)
                             and then LE (S, Next_Rot (A), Next_Rot (B), K)));
 
+   --  Comparing H + M letters is comparing H, then M more from H letters on.
+   procedure Order_Split (S : String; A, B : Rotation; H, M : Natural)
+   with
+     Ghost,
+     Pre  =>
+       Supported (S)
+       and then Valid (A, S'Length)
+       and then Valid (B, S'Length)
+       and then H < A.Length
+       and then H < B.Length
+       and then M <= 4 * Max_Length - H,
+     Post =>
+       Equal_Prefix (S, A, B, H + M)
+       = (Equal_Prefix (S, A, B, H)
+          and then Equal_Prefix (S, Advance (A, H), Advance (B, H), M))
+       and then LE (S, A, B, H + M)
+                = ((LE (S, A, B, H) and then not Equal_Prefix (S, A, B, H))
+                   or else (Equal_Prefix (S, A, B, H)
+                            and then LE
+                                       (S,
+                                        Advance (A, H),
+                                        Advance (B, H),
+                                        M)));
+
+   --  Rotations of one length compare alike on every horizon from H on, once
+   --  H covers a mismatch or a whole period.
+   procedure Settled (S : String; A, B : Rotation; H, Size : Natural)
+   with
+     Ghost,
+     Pre  =>
+       Supported (S)
+       and then Valid (A, S'Length)
+       and then Valid (B, S'Length)
+       and then A.Length = B.Length
+       and then H <= Size
+       and then Size <= 4 * Max_Length
+       and then (H >= A.Length or else not Equal_Prefix (S, A, B, H)),
+     Post =>
+       LE (S, A, B, H) = LE (S, A, B, Size)
+       and then Equal_Prefix (S, A, B, H) = Equal_Prefix (S, A, B, Size);
+
    --  The first letter where two rotations differ, or Size.
    function Mismatch
      (S : String; A, B : Rotation; Size : Natural) return Natural

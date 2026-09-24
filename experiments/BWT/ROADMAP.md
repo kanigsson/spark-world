@@ -77,7 +77,15 @@ Unchecked items are proposals. None of them is needed for what is proved today.
 
 ## Tier 2: fast encoders (refinements, projects)
 
-- [ ] **Prefix doubling over the successor permutation.** Rank positions by
+- [ ] **Prefix doubling over the successor permutation.** *Classical: done
+  (2026-09-24).* `BWT.Doubling` ranks positions by their first H letters and
+  doubles H with one stable counting sort per round (`Key_Sort`). It stops at
+  H ≥ N, or as soon as all ranks differ. It is proved through
+  `Classical_Rows_Unique` with no reference to the selection sort. At 1 KiB,
+  classical encoding went from 7 ms to 18 s, depending on shape, down to
+  0.02 to 0.09 ms. At 256 KiB it takes 12 ms (random) to 53 ms (a constant
+  byte). The forced proof grew from 6¾ to 8 min. Bijective: not done.
+  Original proposal: Rank positions by
   their first 2^k letters, from the pair (rank at length k, rank at length k
   of the position k steps on). The k-step jumps come from pointer doubling.
   With the "cycle BWT" framing, this covers both variants at once, and
@@ -89,8 +97,9 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   (produce a distinct, sorted arrangement of `Rotations_Of (S)`), then
   extend it to the bijective one through `Bijective_Rows_Unique`.
 - [ ] **Proved merge sort** (or LSD radix sort on rank pairs) replacing
-  selection sort. It is needed by the item above, and it is also a
-  standalone refinement of `Sorting.Sort` under the same postcondition.
+  selection sort. Doubling no longer needs it. Each round is one stable
+  counting sort, because the previous order, shifted back by H, already sorts
+  the second key. It remains a standalone refinement of `Sorting.Sort`.
 - [ ] **Linear-time construction (later, optional).** SA-IS for the
   end-marker BWT. For the bijective BWT and eBWT, the method in Bannai,
   Kärkkäinen, Köppl and Piątkowski, *Constructing the bijective and the
@@ -153,8 +162,9 @@ prove first.
 
 ## Proof engineering
 
-- [ ] A forced `make prove` takes about 6¾ min at `-j16` (2026-09-24, at
-  `Max_Length` = 2**24; it was 3½ min at 1,024). `Onto_Proofs` is 1,870
+- [ ] A forced `make prove` takes about 8 min at `-j16` (2026-09-24, at
+  `Max_Length` = 2**24, with the classical doubling; it was 3½ min at
+  1,024). `Onto_Proofs` is 1,870
   lines. Record per-unit times with `--report=statistics`, so that
   regressions are visible.
 - [ ] The generic alphabet and the cycle BWT will move lemmas between units.

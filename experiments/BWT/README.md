@@ -23,10 +23,12 @@ decode accepts any in-range index, but its inverse law concerns encoder output;
 arbitrary last-column/index pairs need not be canonical encodings.
 
 The core has no I/O, heap allocation, external library dependency or non-SPARK
-escape. Rotation descriptors and selection sort use O(n) auxiliary storage
-and O(n^3) worst-case encoding time. LF is a counting sort, so both decoders
-take O(n + σ) time and O(n + σ) space for an alphabet of σ bytes. Duval itself
-is linear. The encoders favor inspectable proof obligations over throughput.
+escape. The classical encoder sorts rotations by prefix doubling. Each of
+at most ⌈log₂ n⌉ rounds is one counting sort, so it takes O(n log n) time and
+O(n) space, and stops early once all ranks differ. The bijective encoder still
+uses selection sort, in O(n) auxiliary storage and O(n^3) worst-case time. LF
+is a counting sort, so both decoders take O(n + σ) time and O(n + σ) space for
+an alphabet of σ bytes. Duval itself is linear.
 
 From this directory, with a matching Ada 2022 compiler/GPRbuild/GNATprove:
 

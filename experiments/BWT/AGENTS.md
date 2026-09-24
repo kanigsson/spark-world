@@ -28,12 +28,16 @@ Before changing code, know:
   `Is_Bijective_BWT`) and the rotation vocabulary they use live in `BWT`'s
   spec: a parent's contracts cannot name its children. Lemmas about that
   vocabulary stay in `Rotations` and `Sorting`.
+- `Classical_Encode` reads its table from `Doubling`. The selection-sorted
+  `Classical_Table` in `BWT`'s body is ghost now: it only defines
+  `Classical_Rows`. A change to the encoder's order must keep the
+  hypotheses of `Classical_Rows_Unique`, not match the selection sort.
 - Ghost lemmas of the form `Get_*` extract one instance of an opaque
   predicate. They exist for proof speed, not logic.
 
-Validation (2026-09-24, `Max_Length` = 2**24): `make prove` proves all 5,831
+Validation (2026-09-24, `Max_Length` = 2**24): `make prove` proves all 6,655
 checks under the pinned GNATprove FSF 16.1.0 (Why3 1.8.2+git, CVC5 1.3.2,
-Z3 4.15.4, Alt-Ergo 2.6.1); a forced run (`-f`) takes 6¾ min at `-j16`.
+Z3 4.15.4, Alt-Ergo 2.6.1); a forced run (`-f`) takes 8 min at `-j16`.
 Three checks need Alt-Ergo (see the Makefile). The development GNATprove 0.0w
 was last checked at a bound of 1,024.
 `make test` passes 49,232 checks, `make test-contracts` passes 218, `make flow`

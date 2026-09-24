@@ -40,7 +40,40 @@ children's declarations. `Rotations` and `Sorting` keep the lemmas.
   and it orders rows as `Ordered` does. `Walk` is the LF orbit that the
   classical decoder follows.
 - `Sorting`: selection sort, which yields a key-sorted permutation of its
-  input, and the uniqueness of such permutations.
+  input, and the uniqueness of such permutations. The specified tables are
+  defined by it. The bijective encoder still uses it.
+- `Key_Sort`: LF's counting sort over integer keys `0 .. Buckets - 1`, with
+  the same proof: each element's place is its stable rank, so places form a
+  permutation ordered as (key, position).
+
+## Classical encoding by prefix doubling
+
+`Doubling.Classical_Table` builds the table that `Classical_Encode` reads.
+`Classical_Rows_Unique` then shows that it is `Classical_Rows (S)`. The proof
+never mentions the selection sort. Its invariant is `Ranked (S, R, H)`: for
+every pair of positions, `R (A) <= R (B)` is `LE` over H letters, and
+`R (A) = R (B)` is `Equal_Prefix` over H letters. A round goes from H to 2H.
+
+- `Rotations.Order_Split` says that comparing H + M letters means comparing H
+  letters, then M letters of the rotations advanced by H. So the pair (rank,
+  rank H positions on) in lexicographic order is `LE` at 2H
+  (`Double_Pair`).
+- Sorting by pairs takes one counting sort per round. The previous order,
+  with every position moved H back, is already sorted by the second key. A
+  stable sort by the first key therefore sorts by the pair. Stability is
+  used here and nowhere else, and `Key_Sort`'s (key, position) postcondition
+  states it.
+- `Dense_Ranks` numbers the classes along the sorted order. Its loop keeps
+  the pairwise fact "ranks compare as pairs" for the prefix it has numbered.
+  If there are N classes, the ranks are distinct.
+- The loop stops when H reaches N or the ranks are distinct.
+  `Rotations.Settled` lifts either case to the horizon 2N: equal rotations of
+  one length agree forever after a period, and a mismatch decides every
+  longer horizon. `Lay_Out` then sorts once more by (rank, position), which
+  is `Key_LE` with `Earlier_First` ties.
+
+Only this final pass needs the tie order. The rounds may leave equal ranks in
+any order.
 
 ## Classical
 

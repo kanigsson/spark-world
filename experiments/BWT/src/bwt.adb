@@ -1,5 +1,6 @@
 with BWT.Bijective;
 with BWT.Bijective_Proofs;
+with BWT.Doubling;
 with BWT.Onto_Proofs;
 with BWT.Ranks;
 with BWT.Sorting;
@@ -48,7 +49,7 @@ is
      Pre    => Supported (S),
      Post   =>
        Initial_Rows'Result'First = 1
-       and then Initial_Rows'Result'Length = S'Length
+       and then Initial_Rows'Result'Last = S'Length
        and then (for all I in Initial_Rows'Result'Range =>
                    Initial_Rows'Result (I) = (1, S'Length, I - 1));
 
@@ -67,9 +68,11 @@ is
    function Rotations_Of (S : String) return Table
    is (Initial_Rows (S));
 
-   --  The classical table, with the shape facts the encoder's proof needs.
+   --  The classical table as specified, by selection sort. The encoder builds
+   --  the same table by prefix doubling instead.
    function Classical_Table (S : String) return Rotation_Table
    with
+     Ghost,
      Global => null,
      Pre    => Supported (S),
      Post   =>
@@ -117,12 +120,13 @@ is
           (GNATprove, Hide_Info, "Expression_Function_Body", Matrices.Closed);
       pragma
         Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Sorted);
-      Rows   : constant Rotation_Table := Classical_Table (S);
+      Rows   : constant Rotation_Table := Doubling.Classical_Table (S);
       Result : Classical_Result (S'Length) :=
         (Length  => S'Length,
          Last    => (others => Character'First),
          Primary => 0);
    begin
+      Classical_Rows_Unique (S, Rows);
       if S'Length = 0 then
          return Result;
       end if;
