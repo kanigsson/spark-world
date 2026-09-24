@@ -109,10 +109,38 @@ is
       return R;
    end Rank;
 
-   function Count (Idx : Index; P : String) return Natural is
-      Lo : Natural := 0;
-      Hi : Natural := Idx.Length;
+   --  The stable rank is a backward step at the row's own letter and row.
+   procedure Rank_Flags (Last : String; Row : Positive)
+   with
+     Ghost,
+     Pre  => Supported (Last) and then Row in Last'Range,
+     Post =>
+       Stable_Rank (Last, Row, Last'Length)
+       = Hits (Step_Flags (Last, Last (Row), Row), Last'Length);
+
+   procedure Rank_Flags (Last : String; Row : Positive) is
    begin
+      for T in 0 .. Last'Length loop
+         pragma
+           Loop_Invariant
+             (Stable_Rank (Last, Row, T)
+                = Hits (Step_Flags (Last, Last (Row), Row), T));
+      end loop;
+   end Rank_Flags;
+
+   function LF (Idx : Index; Row : Positive) return Positive is
+      C : constant Character := Idx.Last (Row);
+   begin
+      Walk_Once (Idx.Last, Row);
+      Rank_Flags (Idx.Last, Row);
+      Step_Split (Idx.Last, C, Row);
+      return Idx.Below (C) + Rank (Idx, C, Row);
+   end LF;
+
+   procedure Interval (Idx : Index; P : String; Lo, Hi : out Natural) is
+   begin
+      Lo := 0;
+      Hi := Idx.Length;
       for J in reverse P'Range loop
          pragma Loop_Invariant (Lo = Bound (Idx.Last, P, J + 1, True));
          pragma Loop_Invariant (Hi = Bound (Idx.Last, P, J + 1, False));
@@ -122,6 +150,12 @@ is
          Hi := Idx.Below (P (J)) + Rank (Idx, P (J), Hi);
       end loop;
       pragma Assert (Search.Count (Idx.Last, P) = Hi - Lo);
+   end Interval;
+
+   function Count (Idx : Index; P : String) return Natural is
+      Lo, Hi : Natural;
+   begin
+      Interval (Idx, P, Lo, Hi);
       return Hi - Lo;
    end Count;
 end BWT.FM_Index;

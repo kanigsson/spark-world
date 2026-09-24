@@ -292,6 +292,53 @@ is
        and then Steps <= Last'Length,
      Post   => Walk'Result in Last'Range;
 
+   --  The stable rank of Row's last letter among Last (1 .. Through): rows
+   --  ending below it, then rows ending in it up to Row.
+   function Stable_Rank
+     (Last : String; Row : Positive; Through : Natural) return Natural
+   is (if Through = 0
+       then 0
+       else
+         Stable_Rank (Last, Row, Through - 1)
+         + (if Last (Through) < Last (Row)
+              or else (Last (Through) = Last (Row) and then Through <= Row)
+            then 1
+            else 0))
+   with
+     Ghost,
+     Pre                =>
+       Supported (Last)
+       and then Row in Last'Range
+       and then Through <= Last'Length,
+     Post               => Stable_Rank'Result <= Through,
+     Subprogram_Variant => (Decreases => Through);
+
+   --  One LF step is the stable rank.
+   procedure Walk_Once (Last : String; Row : Positive)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Supported (Last) and then Row in Last'Range,
+     Post   => Walk (Last, Row, 1) = Stable_Rank (Last, Row, Last'Length);
+
+   --  The specified tables themselves, built by prefix doubling: a suffix
+   --  array of rotations, for indexes that need positions.
+   function Classical_Sorted (S : String) return Table
+   with
+     Global => null,
+     Pre    => Supported (S),
+     Post   =>
+       Classical_Sorted'Result'First = 1
+       and then Classical_Sorted'Result = Classical_Rows (S);
+
+   function Bijective_Sorted (S : String) return Table
+   with
+     Global => null,
+     Pre    => Supported (S),
+     Post   =>
+       Bijective_Sorted'Result'First = 1
+       and then Bijective_Sorted'Result = Bijective_Rows (S);
+
    function Classical_Encode (S : String) return Classical_Result
    with
      Global => null,

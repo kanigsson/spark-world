@@ -68,6 +68,22 @@ is
      Pre  => Valid (Idx) and then T <= Idx.Length,
      Post => Rank'Result = Occ (Idx.Last, C, T);
 
+   --  One LF step, from the index.
+   function LF (Idx : Index; Row : Positive) return Positive
+   with
+     Pre  => Valid (Idx) and then Row in 1 .. Idx.Length,
+     Post => LF'Result = Walk (Idx.Last, Row, 1);
+
+   --  The rows Lo + 1 .. Hi are those backward search finds for P.
+   procedure Interval (Idx : Index; P : String; Lo, Hi : out Natural)
+   with
+     Pre  =>
+       Valid (Idx) and then P'First = 1 and then P'Length <= 2 * Max_Length,
+     Post =>
+       Lo = Search.Bound (Idx.Last, P, 1, True)
+       and then Hi = Search.Bound (Idx.Last, P, 1, False)
+       and then Lo <= Hi;
+
    function Count (Idx : Index; P : String) return Natural
    with
      Pre  =>

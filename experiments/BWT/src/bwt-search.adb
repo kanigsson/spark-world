@@ -570,14 +570,12 @@ is
    --  The theorems
    ---------------------------------------------------------------------------
 
-   procedure Count_Rows
+   procedure Matching_Rows
      (S : String; F, Rows : Table; Ties : Tie_Order; Last, P : String)
    is
       M : constant Natural := P'Length;
    begin
       if S'Length = 0 then
-         pragma Assert (Count (Last, P) = 0);
-         pragma Assert (Occurrences (S, F, P) = 0);
          return;
       end if;
       pragma Assert (Tabled (S, F, Rows, Ties, Last));
@@ -589,6 +587,26 @@ is
          pragma Loop_Invariant (Characterized (S, Rows, Last, P, J, True));
          pragma Loop_Invariant (Characterized (S, Rows, Last, P, J, False));
       end loop;
+      for I in Rows'Range loop
+         Exact (S, Rows (I), P, 1, M);
+         pragma
+           Loop_Invariant
+             (for all L in 1 .. I =>
+                Occurs (S, Rows (L), P)
+                = (L > Bound (Last, P, 1, True)
+                   and then L <= Bound (Last, P, 1, False)));
+      end loop;
+   end Matching_Rows;
+
+   procedure Count_Rows
+     (S : String; F, Rows : Table; Ties : Tie_Order; Last, P : String) is
+   begin
+      if S'Length = 0 then
+         pragma Assert (Count (Last, P) = 0);
+         pragma Assert (Occurrences (S, F, P) = 0);
+         return;
+      end if;
+      Matching_Rows (S, F, Rows, Ties, Last, P);
       declare
          N     : constant Positive := S'Length;
          Lo    : constant Natural := Bound (Last, P, 1, True);
@@ -598,13 +616,9 @@ is
          Pos   : constant Mapping := Positions (S, Rows);
       begin
          pragma Assert (Count (Last, P) = Hi - Lo);
-         for I in 1 .. N loop
-            Exact (S, Rows (I), P, 1, M);
-            pragma Assert (Match (I) = (I <= Hi and then I > Lo));
-            pragma
-              Loop_Invariant
-                (for all L in 1 .. I => Match (L) = (L <= Hi and then L > Lo));
-         end loop;
+         pragma
+           Assert
+             (for all I in 1 .. N => Match (I) = (I <= Hi and then I > Lo));
          Interval (Match, Lo, Hi);
          Rows_At (S, F, Rows);
          pragma

@@ -10,6 +10,11 @@ is
 
    function Rank
      (Last : String; Row : Positive; Through : Natural) return Natural
+   is (if Through = 0
+       then 0
+       else
+         Rank (Last, Row, Through - 1)
+         + (if Ordered (Last, Through, Row) then 1 else 0))
    with
      Ghost,
      Pre                =>

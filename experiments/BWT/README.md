@@ -16,6 +16,11 @@ for every supported input.
   naive rank, which scans the whole column for each pattern letter.
   `BWT.FM_Index` stores letter counts every 256 rows, at 4 bytes per input
   byte, and counts in O(|P| · 256) with the same guarantee.
+- `BWT.Locate` lists the positions of those occurrences, each once, from a
+  sample of every 32nd position per factor, by walking LF. It is proved for
+  the bijective transform, and for the classical one on primitive input.
+  `Classical_Sorted` and `Bijective_Sorted` return the sorted tables
+  themselves, from which a locator is built.
 - `BWT.Theorems` states and proves the classical decode-after-encode law and
   **both** bijective inverse laws: decode after encode, and encode after
   decode for an arbitrary last column. Together the latter two make the

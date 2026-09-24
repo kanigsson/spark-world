@@ -36,12 +36,12 @@ Before changing code, know:
 - Ghost lemmas of the form `Get_*` extract one instance of an opaque
   predicate. They exist for proof speed, not logic.
 
-Validation (2026-09-24, `Max_Length` = 2**24): `make prove` proves all 7,464
+Validation (2026-09-24, `Max_Length` = 2**24): `make prove` proves all 8,017
 checks under the pinned GNATprove FSF 16.1.0 (Why3 1.8.2+git, CVC5 1.3.2,
-Z3 4.15.4, Alt-Ergo 2.6.1); a forced run (`-f`) takes 8½ min at `-j16`.
+Z3 4.15.4, Alt-Ergo 2.6.1); a forced run (`-f`) took 8½ min at `-j16` before the search units; not re-measured since.
 Three checks need Alt-Ergo (see the Makefile). The development GNATprove 0.0w
 was last checked at a bound of 1,024.
-`make test` passes 492,204 checks, `make test-contracts` passes 2,127, `make flow`
+`make test` passes 785,470 checks in about 6 s, `make test-contracts` passes 2,127 (about 10 min: it executes the ghost proofs, and skips the locator), `make flow`
 is clean and `make format-check` passes. GPRbuild Pro 27.0w.
 
 `make bench` times a production build (`-gnatp`, no contracts). Never time

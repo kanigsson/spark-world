@@ -1,5 +1,6 @@
 with BWT;
 with BWT.FM_Index;
+with BWT.Locate;
 with BWT.Search;
 with Test_Checks;
 with Ada.Command_Line;
@@ -114,6 +115,72 @@ procedure Test_BWT is
       return Result;
    end Naive_Count;
 
+   --  Whether Position starts an occurrence of P, as Naive_Count reads it.
+   function Naive_At
+     (S, P : String; Bijective : Boolean; Position : Positive) return Boolean
+   is
+      Finish : Natural := S'Length;
+      First  : Positive;
+   begin
+      while Finish > 0 loop
+         First := 1;
+         if Bijective then
+            for I in 2 .. Finish loop
+               if S (I .. Finish) < S (First .. Finish) then
+                  First := I;
+               end if;
+            end loop;
+         end if;
+         if Position >= First then
+            declare
+               Size : constant Positive := Finish - First + 1;
+            begin
+               for K in P'Range loop
+                  if S (First + (Position - First + K - 1) mod Size) /= P (K)
+                  then
+                     return False;
+                  end if;
+               end loop;
+               return True;
+            end;
+         end if;
+         Finish := First - 1;
+      end loop;
+      return False;
+   end Naive_At;
+
+   function Primitive (S : String) return Boolean is
+   begin
+      for Shift in 1 .. S'Length - 1 loop
+         if S (Shift + 1 .. S'Last) & S (1 .. Shift) = S then
+            return False;
+         end if;
+      end loop;
+      return True;
+   end Primitive;
+
+   --  Locate lists each occurrence once, and only occurrences.
+   procedure Check_Locate
+     (S, P : String; Rows : Table; Bijective : Boolean; Name : String)
+   is
+      Found : constant Locate.Places :=
+        Locate.Locate (Locate.Build (S, Rows), P);
+      Seen  : array (1 .. S'Length) of Boolean := (others => False);
+      OK    : Boolean := Found'Length = Naive_Count (S, P, Bijective);
+   begin
+      for Position of Found loop
+         if Position not in Seen'Range
+           or else Seen (Position)
+           or else not Naive_At (S, P, Bijective, Position)
+         then
+            OK := False;
+         else
+            Seen (Position) := True;
+         end if;
+      end loop;
+      Check (OK, Name);
+   end Check_Locate;
+
    --  Backward search on both last columns agrees with the naive count.
    procedure Search_All (S, C, B, P : String) is
    begin
@@ -126,6 +193,16 @@ procedure Test_BWT is
          Check
            (FM_Index.Count (FM_Index.Build (C), P) = Naive_Count (S, P, False),
             "classical index count");
+         --  The locator's contracts, executed, would dominate the contracts
+         --  run; the runtime build checks it.
+         if Contracts then
+            return;
+         end if;
+         Check_Locate (S, P, Bijective_Sorted (S), True, "bijective locate");
+         if Primitive (S) then
+            Check_Locate
+              (S, P, Classical_Sorted (S), False, "classical locate");
+         end if;
       end if;
    end Search_All;
 

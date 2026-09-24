@@ -144,7 +144,12 @@ prove first.
   word has prefix P. Start with a naive rank (a scan), then sampled rank
   blocks as a refinement. An end-marker variant, for ordinary linear
   text, needs the generic alphabet from Tier 0.
-- [ ] **Locate.** Sample the suffix array (every k-th row's position) and walk
+- [ ] **Locate.** *Done (2026-09-24):* `Locate.Locate`, proved
+  (`Locate_Rows`) on any sorted cycle table where LF is exact. That covers
+  the bijective table, and the classical one for primitive S. A classical
+  locate for periodic S would need the end marker. Still to do: bit-packed
+  sample flags, since they now take one byte per row, and a benchmark.
+  Original proposal: Sample the suffix array (every k-th row's position) and walk
   LF to the nearest sample. Spec: it returns exactly the positions that
   `Count` counts. It depends on backward search.
 - [ ] **Extended BWT of a string collection** (Mantaci, Restivo, Rosone and

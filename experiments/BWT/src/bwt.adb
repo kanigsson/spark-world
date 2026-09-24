@@ -115,6 +115,34 @@ is
    function Bijective_Rows (S : String) return Table
    is (Bijective.Table_Of (S));
 
+   procedure Walk_Once (Last : String; Row : Positive) is
+   begin
+      Ranks.Walk_Step (Last, Row, 0);
+      for T in 0 .. Last'Length loop
+         pragma
+           Loop_Invariant
+             (Ranks.Rank (Last, Row, T) = Stable_Rank (Last, Row, T));
+      end loop;
+   end Walk_Once;
+
+   function Classical_Sorted (S : String) return Table is
+      Rotations : constant Rotation_Table := Initial_Rows (S);
+      pragma Assert (Doubling.Cycles (S, Rotations));
+      Rows      : constant Rotation_Table :=
+        Doubling.Sorted_Rows (S, Rotations, Earlier_First);
+   begin
+      Classical_Rows_Unique (S, Rows);
+      return Rows;
+   end Classical_Sorted;
+
+   function Bijective_Sorted (S : String) return Table is
+      Rows : constant Rotation_Table :=
+        Doubling.Sorted_Rows (S, Bijective.Factor_Rotations (S), Later_First);
+   begin
+      Bijective_Rows_Unique (S, Rows);
+      return Rows;
+   end Bijective_Sorted;
+
    function Classical_Encode (S : String) return Classical_Result is
       pragma
         Annotate

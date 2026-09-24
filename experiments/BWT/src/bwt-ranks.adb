@@ -1,14 +1,6 @@
 package body BWT.Ranks
   with SPARK_Mode
 is
-   function Rank
-     (Last : String; Row : Positive; Through : Natural) return Natural
-   is (if Through = 0
-       then 0
-       else
-         Rank (Last, Row, Through - 1)
-         + (if Ordered (Last, Through, Row) then 1 else 0));
-
    procedure Strict_Ranks (Last : String; A, B : Positive) is
    begin
       for I in 0 .. Last'Length loop

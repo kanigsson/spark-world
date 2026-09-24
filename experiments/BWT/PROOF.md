@@ -124,6 +124,23 @@ sort below each letter, and the letter counts at every 256th row. Its
 `Count` is proved equal to `Search.Count` (`Step_Split` splits a backward step
 into those two counts), so the theorems above carry over unchanged.
 
+## Locate
+
+`Locate` reports the positions of the rows backward search finds. Rows are
+sampled where their offset in the factor is a multiple of `Rate` (32), so
+factor starts are sampled. Any other row follows LF (`FM_Index.LF`, proved
+equal to `Walk (Last, Row, 1)` through `Walk_Once`) until it reaches a
+sampled row, and adds the steps taken (`Resolve`).
+
+`Locate_Rows` needs LF to be exact: `Rows (Walk (Last, K, 1)) = Previous
+(Rows (K))`. Then each step lowers the offset by one without wrapping, so the
+walk ends within `Rate - 1` steps at the row's own position
+(`Resolve_Exact`). `Search.Matching_Rows` identifies the rows found, and
+`Count_Rows` counts them. The result lists every occurrence once
+(`Reports`). Exactness comes from `Bijective_LF_Exact`, exported from
+`Bijective_Proofs.Exact_LF`, and from `Classical_LF_Exact` for a primitive S.
+For a periodic S, classical LF cannot be exact.
+
 ## Classical
 
 `Matrices` proves the classical case up to equal periodic words. That weaker

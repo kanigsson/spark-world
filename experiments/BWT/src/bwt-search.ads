@@ -95,6 +95,31 @@ is
        and then P'First = 1
        and then P'Length <= 2 * S'Length;
 
+   --  On the last column of any sorted cycle table, the rows between the
+   --  two bounds are those whose words start with P.
+   procedure Matching_Rows
+     (S : String; F, Rows : Table; Ties : Tie_Order; Last, P : String)
+   with
+     Ghost,
+     Pre  =>
+       Supported (S)
+       and then Doubling.Cycles (S, F)
+       and then Well_Formed (S, Rows)
+       and then Distinct (Rows)
+       and then Same_Rows (Rows, F)
+       and then Sorted (S, Rows, Ties)
+       and then Last'First = 1
+       and then Last'Length = S'Length
+       and then (for all I in Last'Range =>
+                   Last (I) = Letter (S, Rows (I), Rows (I).Length - 1))
+       and then P'First = 1
+       and then P'Length <= 2 * S'Length,
+     Post =>
+       (for all I in Rows'Range =>
+          Occurs (S, Rows (I), P)
+          = (I > Bound (Last, P, 1, True)
+             and then I <= Bound (Last, P, 1, False)));
+
    --  Count is exact on the last column of any sorted cycle table.
    procedure Count_Rows
      (S : String; F, Rows : Table; Ties : Tie_Order; Last, P : String)
