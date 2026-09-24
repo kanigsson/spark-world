@@ -25,7 +25,10 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   encoder must still sort the rows of `Lyndon_Factors`, that is, Duval's
   table. Proving that any factorization meeting the spec is Duval's would
   need the converse of `Factorizations.Spec_Form`, plus `Unique`.
-- [ ] **Unify both transforms as a "cycle BWT".** Both sort the positions of a
+- [ ] **Unify both transforms as a "cycle BWT".** *Encoding side done:*
+  `Doubling.Cycles` is the successor framing, and both encoders sort
+  through it. The decoders, the LF lemma sets and the specifications are
+  still separate. Both sort the positions of a
   string by the infinite word read along a successor permutation that is a
   union of cycles. The classical transform has one cycle of length N. The
   bijective one has one cycle per Lyndon factor. The extended BWT (Tier 3)
@@ -77,30 +80,34 @@ Unchecked items are proposals. None of them is needed for what is proved today.
 
 ## Tier 2: fast encoders (refinements, projects)
 
-- [ ] **Prefix doubling over the successor permutation.** *Classical: done
-  (2026-09-24).* `BWT.Doubling` ranks positions by their first H letters and
-  doubles H with one stable counting sort per round (`Key_Sort`). It stops at
-  H ≥ N, or as soon as all ranks differ. It is proved through
-  `Classical_Rows_Unique` with no reference to the selection sort. At 1 KiB,
-  classical encoding went from 7 ms to 18 s, depending on shape, down to
-  0.02 to 0.09 ms. At 256 KiB it takes 12 ms (random) to 53 ms (a constant
-  byte). The forced proof grew from 6¾ to 8 min. Bijective: not done.
-  Original proposal: Rank positions by
-  their first 2^k letters, from the pair (rank at length k, rank at length k
-  of the position k steps on). The k-step jumps come from pointer doubling.
-  With the "cycle BWT" framing, this covers both variants at once, and
-  log₂(2N) rounds reach the horizon that `Extend_Equality` already justifies.
-  It costs O(N log² N) with a proved merge sort, or O(N log N) with radix
-  passes, and its invariant is much simpler than SA-IS's. This is the
-  recommended first fast encoder. It need not wait for the cycle BWT: start
-  with the classical transform, proved through `Classical_Rows_Unique`
-  (produce a distinct, sorted arrangement of `Rotations_Of (S)`), then
-  extend it to the bijective one through `Bijective_Rows_Unique`.
+- [x] **Prefix doubling over the successor permutation** (2026-09-24).
+  `Doubling.Sorted_Rows` sorts any cycle table (`Doubling.Cycles`), so one
+  proof covers both encoders. They are proved through `Classical_Rows_Unique`
+  and `Bijective_Rows_Unique`, with no reference to the selection sort. Each
+  round ranks positions by their first H letters and doubles H with one
+  stable counting sort (`Key_Sort`). The previous order, shifted back by H,
+  already sorts the second key. Jumps come from the factor table, H mod the
+  factor length, rather than from pointer doubling. Doubling stops when H
+  reaches twice the longest factor, or as soon as all ranks differ.
+  O(n log n) time, O(n) space. At 1 KiB, encoding went from 7 ms to 18 s,
+  depending on shape, down to 0.03 to 0.12 ms. At 256 KiB, classical
+  encoding takes 14 to 64 ms and bijective 8 to 33 ms, against 1.5 to 3.5 ms
+  for either decoder. Open performance points:
+  - The classical transform could stop at H ≥ N (`Same_Length_Extend`)
+    rather than 2N, saving one round on periodic input. A classical-only
+    version was 15–25% faster at 256 KiB.
+  - Each round allocates five N-sized arrays on the stack. Buffers reused
+    across rounds belong to "caller-provided storage" (Tier 0).
+  - The ghost `Ranked` invariant is quadratic, which makes the `checks`
+    build unusable beyond small inputs. That is expected, and `test-contracts`
+    uses a small corpus.
 - [ ] **Proved merge sort** (or LSD radix sort on rank pairs) replacing
   selection sort. Doubling no longer needs it. Each round is one stable
   counting sort, because the previous order, shifted back by H, already sorts
   the second key. It remains a standalone refinement of `Sorting.Sort`.
-- [ ] **Linear-time construction (later, optional).** SA-IS for the
+- [ ] **Linear-time construction (later, optional).** After doubling,
+  encoders are 5–20× slower than decoders at 256 KiB, and within a factor of
+  log n of linear. SA-IS for the
   end-marker BWT. For the bijective BWT and eBWT, the method in Bannai,
   Kärkkäinen, Köppl and Piątkowski, *Constructing the bijective and the
   extended BWT in linear time* (CPM 2021, arXiv:1911.06985). Only worth it
@@ -162,9 +169,9 @@ prove first.
 
 ## Proof engineering
 
-- [ ] A forced `make prove` takes about 8 min at `-j16` (2026-09-24, at
-  `Max_Length` = 2**24, with the classical doubling; it was 3½ min at
-  1,024). `Onto_Proofs` is 1,870
+- [ ] A forced `make prove` takes about 8½ min at `-j16` (2026-09-24, at
+  `Max_Length` = 2**24, with prefix doubling for both encoders; it was 3½ min
+  at 1,024). `Doubling` alone takes about 1 min. `Onto_Proofs` is 1,870
   lines. Record per-unit times with `--report=statistics`, so that
   regressions are visible.
 - [ ] The generic alphabet and the cycle BWT will move lemmas between units.

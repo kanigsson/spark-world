@@ -120,8 +120,11 @@ is
           (GNATprove, Hide_Info, "Expression_Function_Body", Matrices.Closed);
       pragma
         Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Sorted);
-      Rows   : constant Rotation_Table := Doubling.Classical_Table (S);
-      Result : Classical_Result (S'Length) :=
+      Rotations : constant Rotation_Table := Initial_Rows (S);
+      pragma Assert (Doubling.Cycles (S, Rotations));
+      Rows      : constant Rotation_Table :=
+        Doubling.Sorted_Rows (S, Rotations, Earlier_First);
+      Result    : Classical_Result (S'Length) :=
         (Length  => S'Length,
          Last    => (others => Character'First),
          Primary => 0);
@@ -130,6 +133,7 @@ is
       if S'Length = 0 then
          return Result;
       end if;
+      Classical_Shape (Rows, Rotations, S'Length);
       Matrices.Classical_Closed (S, Rows);
       for I in Rows'Range loop
          Result.Last (I) := Letter (S, Rows (I), Rows (I).Length - 1);

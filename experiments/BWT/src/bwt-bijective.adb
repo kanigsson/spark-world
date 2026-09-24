@@ -1,4 +1,5 @@
 with BWT.Counting;
+with BWT.Doubling;
 with BWT.Sorting;
 with BWT.Words;
 
@@ -153,9 +154,14 @@ is
    end Table_Of;
 
    function Encode (S : String) return String is
-      Rows   : constant Table := Table_Of (S);
-      Result : String (1 .. S'Length) := (others => Character'First);
+      Rows      : constant Table :=
+        Doubling.Sorted_Rows (S, Factor_Rotations (S), Later_First);
+      Canonical : constant Table := Table_Of (S)
+      with Ghost;
+      Result    : String (1 .. S'Length) := (others => Character'First);
    begin
+      Sorting.Same_Rows_Trans (Canonical, Factor_Rotations (S), Rows);
+      Sorting.Sorted_Unique (S, Canonical, Rows, Later_First);
       for I in Rows'Range loop
          Result (I) := Letter (S, Rows (I), Rows (I).Length - 1);
          pragma

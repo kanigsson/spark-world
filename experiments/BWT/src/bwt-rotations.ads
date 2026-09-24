@@ -184,32 +184,74 @@ is
                    or else (Letter (S, A, 0) = Letter (S, B, 0)
                             and then LE (S, Next_Rot (A), Next_Rot (B), K)));
 
+   --  Reading D letters further, for any D, is reading from the rotation of
+   --  the same factor that starts D letters on.
+   function Skip (R : Rotation; D : Natural) return Rotation
+   is (R.First, R.Length, (R.Offset + D) mod R.Length)
+   with
+     Pre  =>
+       R.Offset < R.Length
+       and then R.Length <= Max_Length
+       and then D <= 4 * Max_Length,
+     Post =>
+       Skip'Result.First = R.First
+       and then Skip'Result.Length = R.Length
+       and then Skip'Result.Offset < R.Length;
+
+   --  The rotation of the same factor D letters back, which Skip undoes.
+   function Unskip (R : Rotation; D : Natural) return Rotation
+   is (R.First,
+       R.Length,
+       (R.Offset + (R.Length - D mod R.Length)) mod R.Length)
+   with
+     Pre  => R.Offset < R.Length and then R.Length <= Max_Length,
+     Post =>
+       Unskip'Result.First = R.First
+       and then Unskip'Result.Length = R.Length
+       and then Unskip'Result.Offset < R.Length;
+
+   procedure Skip_Unskip (R : Rotation; D : Natural)
+   with
+     Ghost,
+     Pre  =>
+       R.Offset < R.Length
+       and then R.Length <= Max_Length
+       and then D <= 4 * Max_Length,
+     Post => Skip (Unskip (R, D), D) = R;
+
+   procedure Letter_Skip (S : String; R : Rotation; D, K : Natural)
+   with
+     Ghost,
+     Pre  =>
+       Supported (S)
+       and then Valid (R, S'Length)
+       and then D <= K
+       and then K <= 4 * Max_Length,
+     Post =>
+       Valid (Skip (R, D), S'Length)
+       and then Letter (S, R, K) = Letter (S, Skip (R, D), K - D);
+
    --  Comparing H + M letters is comparing H, then M more from H letters on.
-   procedure Order_Split (S : String; A, B : Rotation; H, M : Natural)
+   procedure Skip_Split (S : String; A, B : Rotation; H, M : Natural)
    with
      Ghost,
      Pre  =>
        Supported (S)
        and then Valid (A, S'Length)
        and then Valid (B, S'Length)
-       and then H < A.Length
-       and then H < B.Length
+       and then H <= 4 * Max_Length
        and then M <= 4 * Max_Length - H,
      Post =>
        Equal_Prefix (S, A, B, H + M)
        = (Equal_Prefix (S, A, B, H)
-          and then Equal_Prefix (S, Advance (A, H), Advance (B, H), M))
+          and then Equal_Prefix (S, Skip (A, H), Skip (B, H), M))
        and then LE (S, A, B, H + M)
                 = ((LE (S, A, B, H) and then not Equal_Prefix (S, A, B, H))
                    or else (Equal_Prefix (S, A, B, H)
-                            and then LE
-                                       (S,
-                                        Advance (A, H),
-                                        Advance (B, H),
-                                        M)));
+                            and then LE (S, Skip (A, H), Skip (B, H), M)));
 
-   --  Rotations of one length compare alike on every horizon from H on, once
-   --  H covers a mismatch or a whole period.
+   --  Two rotations compare alike on H letters and on Size, once H covers a
+   --  mismatch or both periods and Size covers both periods.
    procedure Settled (S : String; A, B : Rotation; H, Size : Natural)
    with
      Ghost,
@@ -217,10 +259,10 @@ is
        Supported (S)
        and then Valid (A, S'Length)
        and then Valid (B, S'Length)
-       and then A.Length = B.Length
-       and then H <= Size
-       and then Size <= 4 * Max_Length
-       and then (H >= A.Length or else not Equal_Prefix (S, A, B, H)),
+       and then H <= 4 * Max_Length
+       and then Size in A.Length + B.Length .. 4 * Max_Length
+       and then (H >= A.Length + B.Length
+                 or else not Equal_Prefix (S, A, B, H)),
      Post =>
        LE (S, A, B, H) = LE (S, A, B, Size)
        and then Equal_Prefix (S, A, B, H) = Equal_Prefix (S, A, B, Size);

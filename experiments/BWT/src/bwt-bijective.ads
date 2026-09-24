@@ -21,9 +21,11 @@ is
        and then Lyndon_Factorization (S, Factor_Rotations'Result);
 
    --  Every factor rotation, in periodic order; rows with equal periodic
-   --  words put the later start first.
+   --  words put the later start first. This is the specified table, by
+   --  selection sort; Encode builds the same one by prefix doubling.
    function Table_Of (S : String) return Table
    with
+     Ghost,
      Pre  => Supported (S),
      Post =>
        Well_Formed (S, Table_Of'Result)

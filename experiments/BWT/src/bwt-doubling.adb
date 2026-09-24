@@ -10,40 +10,60 @@ is
    use BWT.Ranks;
    use BWT.Rotations;
 
-   --  Positions 1 .. N stand for the rotations of S starting there.
-   function Rot (N, P : Positive) return Rotation
-   is (1, N, P - 1)
-   with Pre => P <= N, Post => Valid (Rot'Result, N);
+   --  X mod L, without a division while X < 2 * L. Rounds call it for every
+   --  position, and that is nearly always the case.
+   function Reduce (X : Natural; L : Positive) return Natural
+   is (if X < L then X elsif X - L < L then X - L else X mod L)
+   with Post => Reduce'Result = X mod L;
 
-   --  The position H letters on, and the one H letters back.
-   function Next (N, P, H : Positive) return Positive
-   is (if P + H <= N then P + H else P + H - N)
+   --  The position D letters on from P, within P's factor, and the one D
+   --  letters back.
+   function Jump
+     (S : String; F : Table; P : Positive; D : Natural) return Positive
+   is (F (P).First + Reduce (F (P).Offset + D, F (P).Length))
    with
-     Pre  => N <= Max_Length and then P <= N and then H < N,
-     Post => Next'Result <= N;
+     Pre  =>
+       Supported (S)
+       and then Cycles (S, F)
+       and then P in F'Range
+       and then D <= 4 * Max_Length,
+     Post => Jump'Result in F'Range and then F (Jump'Result) = Skip (F (P), D);
 
-   function Back (N, P, H : Positive) return Positive
-   is (if P > H then P - H else P - H + N)
+   function Back
+     (S : String; F : Table; P : Positive; D : Natural) return Positive
    with
-     Pre  => N <= Max_Length and then P <= N and then H < N,
-     Post => Back'Result <= N and then Next (N, Back'Result, H) = P;
+     Pre  =>
+       Supported (S)
+       and then Cycles (S, F)
+       and then P in F'Range
+       and then D <= 4 * Max_Length,
+     Post => Back'Result in F'Range and then Jump (S, F, Back'Result, D) = P;
 
-   --  Ranks order positions as the first H letters of their rotations do.
-   function Ranked (S : String; R : Keys; H : Natural) return Boolean
+   function Back
+     (S : String; F : Table; P : Positive; D : Natural) return Positive is
+   begin
+      Skip_Unskip (F (P), D);
+      return
+        F (P).First
+        + Reduce
+            (F (P).Offset + (F (P).Length - Reduce (D, F (P).Length)),
+             F (P).Length);
+   end Back;
+
+   --  Ranks order positions as the first H letters of their rows do.
+   function Ranked
+     (S : String; F : Table; R : Keys; H : Natural) return Boolean
    is (R'First = 1
        and then R'Length = S'Length
        and then (for all X of R => X < S'Length)
        and then (for all A in R'Range =>
                    (for all B in R'Range =>
-                      (R (A) <= R (B))
-                      = LE (S, Rot (S'Length, A), Rot (S'Length, B), H)
+                      (R (A) <= R (B)) = LE (S, F (A), F (B), H)
                       and then (R (A) = R (B))
-                               = Equal_Prefix
-                                   (S,
-                                    Rot (S'Length, A),
-                                    Rot (S'Length, B),
-                                    H))))
-   with Ghost, Pre => Supported (S) and then H <= 4 * Max_Length;
+                               = Equal_Prefix (S, F (A), F (B), H))))
+   with
+     Ghost,
+     Pre => Supported (S) and then Cycles (S, F) and then H <= 4 * Max_Length;
 
    function Distinct_Keys (R : Keys) return Boolean
    is (for all A in R'Range =>
@@ -173,41 +193,52 @@ is
    end Dense_Ranks;
 
    --  One letter decides the first round.
-   procedure Initial_Pair (S : String; A, B : Positive)
+   procedure Initial_Pair (S : String; F : Table; A, B : Positive)
    with
      Ghost,
      Pre  =>
-       Supported (S) and then A in 1 .. S'Length and then B in 1 .. S'Length,
+       Supported (S)
+       and then Cycles (S, F)
+       and then A in 1 .. S'Length
+       and then B in 1 .. S'Length,
      Post =>
-       LE (S, Rot (S'Length, A), Rot (S'Length, B), 1) = (S (A) <= S (B))
-       and then Equal_Prefix (S, Rot (S'Length, A), Rot (S'Length, B), 1)
-                = (S (A) = S (B));
+       LE (S, F (A), F (B), 1) = (S (A) <= S (B))
+       and then Equal_Prefix (S, F (A), F (B), 1) = (S (A) = S (B));
 
-   procedure Initial_Pair (S : String; A, B : Positive) is
+   procedure Initial_Pair (S : String; F : Table; A, B : Positive) is
    begin
-      Letter_Direct (S, Rot (S'Length, A), 0);
-      Letter_Direct (S, Rot (S'Length, B), 0);
+      Letter_Direct (S, F (A), 0);
+      Letter_Direct (S, F (B), 0);
    end Initial_Pair;
 
    procedure Initial
-     (S : String; R : out Keys; SA : out Mapping; Classes : out Positive)
+     (S       : String;
+      F       : Table;
+      R       : out Keys;
+      SA      : out Mapping;
+      Classes : out Positive)
    with
      Pre  =>
        Supported (S)
+       and then Cycles (S, F)
        and then S'Length > 0
        and then R'First = 1
        and then R'Length = S'Length
        and then SA'First = 1
        and then SA'Length = S'Length,
      Post =>
-       Ranked (S, R, 1)
+       Ranked (S, F, R, 1)
        and then Permutation (SA)
        and then Sorted_By (R, SA)
        and then Classes <= S'Length
        and then (if Classes = S'Length then Distinct_Keys (R));
 
    procedure Initial
-     (S : String; R : out Keys; SA : out Mapping; Classes : out Positive)
+     (S       : String;
+      F       : Table;
+      R       : out Keys;
+      SA      : out Mapping;
+      Classes : out Positive)
    is
       N     : constant Positive := S'Length;
       Code  : Keys (1 .. N) := (others => 0);
@@ -237,108 +268,102 @@ is
       Dense_Ranks (SA, Code, Zero, R, Classes);
       for A in 1 .. N loop
          for B in 1 .. N loop
-            Initial_Pair (S, A, B);
+            Initial_Pair (S, F, A, B);
             pragma
               Loop_Invariant
                 (for all C in 1 .. B =>
-                   (R (A) <= R (C)) = LE (S, Rot (N, A), Rot (N, C), 1)
+                   (R (A) <= R (C)) = LE (S, F (A), F (C), 1)
                    and then (R (A) = R (C))
-                            = Equal_Prefix (S, Rot (N, A), Rot (N, C), 1));
+                            = Equal_Prefix (S, F (A), F (C), 1));
          end loop;
          pragma
            Loop_Invariant
              (for all C in 1 .. A =>
                 (for all D in 1 .. N =>
-                   (R (C) <= R (D)) = LE (S, Rot (N, C), Rot (N, D), 1)
+                   (R (C) <= R (D)) = LE (S, F (C), F (D), 1)
                    and then (R (C) = R (D))
-                            = Equal_Prefix (S, Rot (N, C), Rot (N, D), 1)));
+                            = Equal_Prefix (S, F (C), F (D), 1)));
       end loop;
    end Initial;
 
    --  Comparing 2 * H letters compares H, then H more from H letters on.
-   procedure Double_Pair (S : String; R : Keys; H : Positive; A, B : Positive)
+   procedure Double_Pair
+     (S : String; F : Table; R : Keys; H : Positive; A, B : Positive)
    with
      Ghost,
      Pre  =>
        Supported (S)
-       and then H < S'Length
-       and then Ranked (S, R, H)
+       and then Cycles (S, F)
+       and then H <= 2 * Max_Length
+       and then Ranked (S, F, R, H)
        and then A in 1 .. S'Length
        and then B in 1 .. S'Length,
      Post =>
        (R (A) < R (B)
         or else (R (A) = R (B)
-                 and then R (Next (S'Length, A, H))
-                          <= R (Next (S'Length, B, H))))
-       = LE (S, Rot (S'Length, A), Rot (S'Length, B), 2 * H)
+                 and then R (Jump (S, F, A, H)) <= R (Jump (S, F, B, H))))
+       = LE (S, F (A), F (B), 2 * H)
        and then (R (A) = R (B)
-                 and then R (Next (S'Length, A, H))
-                          = R (Next (S'Length, B, H)))
-                = Equal_Prefix
-                    (S, Rot (S'Length, A), Rot (S'Length, B), 2 * H);
+                 and then R (Jump (S, F, A, H)) = R (Jump (S, F, B, H)))
+                = Equal_Prefix (S, F (A), F (B), 2 * H);
 
-   procedure Double_Pair (S : String; R : Keys; H : Positive; A, B : Positive)
-   is
-      N  : constant Positive := S'Length;
-      RA : constant Rotation := Rot (N, A);
-      RB : constant Rotation := Rot (N, B);
+   procedure Double_Pair
+     (S : String; F : Table; R : Keys; H : Positive; A, B : Positive) is
    begin
-      Order_Split (S, RA, RB, H, H);
-      pragma Assert (Advance (RA, H) = Rot (N, Next (N, A, H)));
-      pragma Assert (Advance (RB, H) = Rot (N, Next (N, B, H)));
-      Order_Laws (S, RA, RB, RA, H);
+      Skip_Split (S, F (A), F (B), H, H);
+      Order_Laws (S, F (A), F (B), F (A), H);
    end Double_Pair;
 
-   procedure Doubled (S : String; R, K2, New_R : Keys; H : Positive)
+   procedure Doubled (S : String; F : Table; R, K2, New_R : Keys; H : Positive)
    with
      Ghost,
      Pre  =>
        Supported (S)
-       and then H < S'Length
-       and then Ranked (S, R, H)
+       and then Cycles (S, F)
+       and then S'Length > 0
+       and then H <= 2 * Max_Length
+       and then Ranked (S, F, R, H)
        and then K2'First = 1
        and then K2'Length = S'Length
-       and then (for all A in 1 .. S'Length =>
-                   K2 (A) = R (Next (S'Length, A, H)))
+       and then (for all A in 1 .. S'Length => K2 (A) = R (Jump (S, F, A, H)))
        and then New_R'First = 1
        and then New_R'Length = S'Length
        and then (for all X of New_R => X < S'Length)
        and then (for all A in New_R'Range =>
                    (for all B in New_R'Range =>
                       (New_R (A) <= New_R (B)) = Pair_LE (R, K2, A, B))),
-     Post => Ranked (S, New_R, 2 * H);
+     Post => Ranked (S, F, New_R, 2 * H);
 
-   procedure Doubled (S : String; R, K2, New_R : Keys; H : Positive) is
+   procedure Doubled (S : String; F : Table; R, K2, New_R : Keys; H : Positive)
+   is
       N : constant Positive := S'Length;
    begin
       for A in 1 .. N loop
          for B in 1 .. N loop
-            Double_Pair (S, R, H, A, B);
+            Double_Pair (S, F, R, H, A, B);
             pragma Assert ((New_R (A) <= New_R (B)) = Pair_LE (R, K2, A, B));
             pragma Assert ((New_R (B) <= New_R (A)) = Pair_LE (R, K2, B, A));
             pragma
               Loop_Invariant
                 (for all C in 1 .. B =>
-                   (New_R (A) <= New_R (C))
-                   = LE (S, Rot (N, A), Rot (N, C), 2 * H)
+                   (New_R (A) <= New_R (C)) = LE (S, F (A), F (C), 2 * H)
                    and then (New_R (A) = New_R (C))
-                            = Equal_Prefix (S, Rot (N, A), Rot (N, C), 2 * H));
+                            = Equal_Prefix (S, F (A), F (C), 2 * H));
          end loop;
          pragma
            Loop_Invariant
              (for all C in 1 .. A =>
                 (for all D in 1 .. N =>
-                   (New_R (C) <= New_R (D))
-                   = LE (S, Rot (N, C), Rot (N, D), 2 * H)
+                   (New_R (C) <= New_R (D)) = LE (S, F (C), F (D), 2 * H)
                    and then (New_R (C) = New_R (D))
-                            = Equal_Prefix
-                                (S, Rot (N, C), Rot (N, D), 2 * H)));
+                            = Equal_Prefix (S, F (C), F (D), 2 * H)));
       end loop;
    end Doubled;
 
    --  One round: ranks by the first 2 * H letters, from ranks by H.
    procedure Double
      (S       : String;
+      F       : Table;
       R       : in out Keys;
       SA      : in out Mapping;
       H       : Positive;
@@ -346,14 +371,16 @@ is
    with
      Pre  =>
        Supported (S)
-       and then H < S'Length
-       and then Ranked (S, R, H)
+       and then Cycles (S, F)
+       and then S'Length > 0
+       and then H <= 2 * Max_Length
+       and then Ranked (S, F, R, H)
        and then SA'First = 1
        and then SA'Length = S'Length
        and then Permutation (SA)
        and then Sorted_By (R, SA),
      Post =>
-       Ranked (S, R, 2 * H)
+       Ranked (S, F, R, 2 * H)
        and then Permutation (SA)
        and then Sorted_By (R, SA)
        and then Classes <= S'Length
@@ -361,6 +388,7 @@ is
 
    procedure Double
      (S       : String;
+      F       : Table;
       R       : in out Keys;
       SA      : in out Mapping;
       H       : Positive;
@@ -377,17 +405,17 @@ is
       New_R  : Keys (1 .. N);
    begin
       for K in 1 .. N loop
-         T (K) := Back (N, SA (K), H);
+         T (K) := Back (S, F, SA (K), H);
          First (K) := R (T (K));
-         Second (K) := R (Next (N, K, H));
+         Second (K) := R (Jump (S, F, K, H));
          pragma
            Loop_Invariant
              (for all J in 1 .. K =>
-                T (J) = Back (N, SA (J), H)
+                T (J) = Back (S, F, SA (J), H)
                 and then First (J) = R (T (J))
-                and then Second (J) = R (Next (N, J, H)));
+                and then Second (J) = R (Jump (S, F, J, H)));
       end loop;
-      pragma Assert (for all K in 1 .. N => Next (N, T (K), H) = SA (K));
+      pragma Assert (for all K in 1 .. N => Jump (S, F, T (K), H) = SA (K));
       pragma
         Assert
           (for all I in 1 .. N =>
@@ -417,136 +445,178 @@ is
                 (for all Q in P .. N => Pair_LE (R, Second, SA (P), SA (Q))));
       end;
       Dense_Ranks (SA, R, Second, New_R, Classes);
-      Doubled (S, R, Second, New_R, H);
+      Doubled (S, F, R, Second, New_R, H);
       R := New_R;
    end Double;
 
-   --  Once H covers a period, or no two ranks are equal, H letters decide
-   --  the order of every horizon up to 2 * N.
-   procedure Settle (S : String; R : Keys; H : Positive)
+   --  Once H covers two periods, or no two ranks are equal, H letters decide
+   --  the order of the full horizon.
+   procedure Settle (S : String; F : Table; R : Keys; H, Longest : Positive)
    with
      Ghost,
      Pre  =>
        Supported (S)
-       and then H <= 2 * S'Length
-       and then Ranked (S, R, H)
-       and then (H >= S'Length or else Distinct_Keys (R)),
-     Post => Ranked (S, R, 2 * S'Length);
+       and then Cycles (S, F)
+       and then S'Length > 0
+       and then Longest <= Max_Length
+       and then H <= 4 * Max_Length
+       and then (for all P in F'Range => F (P).Length <= Longest)
+       and then Ranked (S, F, R, H)
+       and then (H >= 2 * Longest or else Distinct_Keys (R)),
+     Post => Ranked (S, F, R, 2 * S'Length);
 
-   procedure Settle (S : String; R : Keys; H : Positive) is
+   procedure Settle (S : String; F : Table; R : Keys; H, Longest : Positive) is
       N : constant Positive := S'Length;
    begin
       for A in 1 .. N loop
          for B in 1 .. N loop
             if A = B then
-               Equal_Same (S, Rot (N, A), Rot (N, B), 2 * N);
-               Order_Laws (S, Rot (N, A), Rot (N, B), Rot (N, A), 2 * N);
+               Equal_Same (S, F (A), F (B), 2 * N);
+               Order_Laws (S, F (A), F (B), F (A), 2 * N);
             else
-               Settled (S, Rot (N, A), Rot (N, B), H, 2 * N);
+               Settled (S, F (A), F (B), H, 2 * N);
             end if;
             pragma
               Loop_Invariant
                 (for all C in 1 .. B =>
-                   (R (A) <= R (C)) = LE (S, Rot (N, A), Rot (N, C), 2 * N)
+                   (R (A) <= R (C)) = LE (S, F (A), F (C), 2 * N)
                    and then (R (A) = R (C))
-                            = Equal_Prefix (S, Rot (N, A), Rot (N, C), 2 * N));
+                            = Equal_Prefix (S, F (A), F (C), 2 * N));
          end loop;
          pragma
            Loop_Invariant
              (for all C in 1 .. A =>
                 (for all D in 1 .. N =>
-                   (R (C) <= R (D)) = LE (S, Rot (N, C), Rot (N, D), 2 * N)
+                   (R (C) <= R (D)) = LE (S, F (C), F (D), 2 * N)
                    and then (R (C) = R (D))
-                            = Equal_Prefix
-                                (S, Rot (N, C), Rot (N, D), 2 * N)));
+                            = Equal_Prefix (S, F (C), F (D), 2 * N)));
       end loop;
    end Settle;
 
-   --  The table read off final ranks: rows by rank, equal ranks by position.
-   procedure Lay_Out (S : String; R : Keys; Rows : out Table)
+   --  Where position K goes in the final pass: equal ranks keep position
+   --  order, or reverse it.
+   function Tie_Position (N, K : Positive; Ties : Tie_Order) return Positive
+   is (case Ties is
+         when Earlier_First => K,
+         when Later_First   => N + 1 - K)
+   with
+     Pre  => K <= N and then N <= Max_Length,
+     Post => Tie_Position'Result <= N;
+
+   --  The table read off final ranks, equal ranks in tie order.
+   procedure Lay_Out
+     (S : String; F : Table; R : Keys; Ties : Tie_Order; Rows : out Table)
    with
      Pre  =>
        Supported (S)
+       and then Cycles (S, F)
        and then S'Length > 0
-       and then Ranked (S, R, 2 * S'Length)
+       and then Ranked (S, F, R, 2 * S'Length)
        and then Rows'First = 1
        and then Rows'Length = S'Length,
      Post =>
        Well_Formed (S, Rows)
        and then Distinct (Rows)
-       and then Same_Rows (Rows, Rotations_Of (S))
-       and then Sorted (S, Rows, Earlier_First)
-       and then (for all Row of Rows =>
-                   Row.First = 1 and then Row.Length = S'Length)
-       and then (for some J in Rows'Range => Rows (J).Offset = 0);
+       and then Same_Rows (Rows, F)
+       and then Sorted (S, Rows, Ties);
 
-   procedure Lay_Out (S : String; R : Keys; Rows : out Table) is
-      N    : constant Positive := S'Length;
-      Map  : constant Mapping := Place (R, N);
-      Inv  : constant Mapping := Permutations.Inverse (Map)
-      with Ghost;
-      Rots : constant Table := Rotations_Of (S)
-      with Ghost;
+   procedure Lay_Out
+     (S : String; F : Table; R : Keys; Ties : Tie_Order; Rows : out Table)
+   is
+      N   : constant Positive := S'Length;
+      Key : Keys (1 .. N) := (others => 0);
    begin
-      Rows := (others => (1, 1, 0));
-      for A in 1 .. N loop
-         Rows (Map (A)) := Rot (N, A);
-         pragma
-           Loop_Invariant (for all J in 1 .. A => Rows (Map (J)) = Rot (N, J));
-      end loop;
-      pragma Assert (for all I in 1 .. N => Rows (I) = Rot (N, Inv (I)));
-      pragma Assert (for all I in 1 .. N => Rots (I) = Rot (N, I));
-      pragma Assert (for all I in 1 .. N => Rows (I) = Rots (Inv (I)));
-      pragma Assert (for all I in 1 .. N => Rots (I) = Rows (Map (I)));
-      pragma Assert (Same_Rows (Rows, Rots));
-      pragma Assert (Distinct (Rows));
-      pragma Assert (Rows (Map (1)).Offset = 0);
-      for I in 1 .. N loop
-         for J in I .. N loop
-            pragma Assert (Ordered (R, Inv (I), Inv (J)));
-            Key_Intro (S, Rows (I), Rows (J), Earlier_First);
-            pragma
-              Loop_Invariant
-                (for all L in I .. J =>
-                   Key_LE (S, Rows (I), Rows (L), Earlier_First));
-         end loop;
+      for K in 1 .. N loop
+         Key (K) := R (Tie_Position (N, K, Ties));
          pragma
            Loop_Invariant
-             (for all K in 1 .. I =>
-                (for all L in K .. N =>
-                   Key_LE (S, Rows (K), Rows (L), Earlier_First)));
+             (for all J in 1 .. K => Key (J) = R (Tie_Position (N, J, Ties)));
       end loop;
+      declare
+         Map : constant Mapping := Place (Key, N);
+         Inv : constant Mapping := Permutations.Inverse (Map)
+         with Ghost;
+      begin
+         Rows := (others => (1, 1, 0));
+         for K in 1 .. N loop
+            Rows (Map (K)) := F (Tie_Position (N, K, Ties));
+            pragma
+              Loop_Invariant
+                (for all J in 1 .. K =>
+                   Rows (Map (J)) = F (Tie_Position (N, J, Ties)));
+         end loop;
+         pragma
+           Assert
+             (for all I in 1 .. N =>
+                Rows (I) = F (Tie_Position (N, Inv (I), Ties)));
+         pragma
+           Assert
+             (for all P in 1 .. N =>
+                F (P) = Rows (Map (Tie_Position (N, P, Ties))));
+         pragma Assert (Same_Rows (Rows, F));
+         pragma
+           Assert
+             (for all I in 1 .. N =>
+                Rows (I).First + Rows (I).Offset
+                = Tie_Position (N, Inv (I), Ties));
+         pragma Assert (Distinct (Rows));
+         for I in 1 .. N loop
+            for J in I .. N loop
+               pragma Assert (Ordered (Key, Inv (I), Inv (J)));
+               Key_Intro (S, Rows (I), Rows (J), Ties);
+               pragma
+                 Loop_Invariant
+                   (for all L in I .. J =>
+                      Key_LE (S, Rows (I), Rows (L), Ties));
+            end loop;
+            pragma
+              Loop_Invariant
+                (for all K in 1 .. I =>
+                   (for all L in K .. N =>
+                      Key_LE (S, Rows (K), Rows (L), Ties)));
+         end loop;
+      end;
    end Lay_Out;
 
-   function Classical_Table (S : String) return Table is
+   function Sorted_Rows
+     (S : String; Factors : Table; Ties : Tie_Order) return Table
+   is
       N    : constant Natural := S'Length;
       Rows : Table (1 .. N) := (others => (1, 1, 0));
    begin
       if N = 0 then
-         return Rows;
+         return Factors;
       end if;
       declare
          R       : Keys (1 .. N);
          SA      : Mapping (1 .. N);
          Classes : Positive;
          H       : Positive := 1;
+         Longest : Positive := 1;
       begin
-         Initial (S, R, SA, Classes);
-         while H < N and then Classes < N loop
-            pragma Loop_Invariant (H < 2 * N);
-            pragma Loop_Invariant (Ranked (S, R, H));
+         for P in 1 .. N loop
+            Longest := Positive'Max (Longest, Factors (P).Length);
+            pragma Loop_Invariant (Longest <= N);
+            pragma
+              Loop_Invariant
+                (for all Q in 1 .. P => Factors (Q).Length <= Longest);
+         end loop;
+         Initial (S, Factors, R, SA, Classes);
+         while H < 2 * Longest and then Classes < N loop
+            pragma Loop_Invariant (H < 2 * Longest);
+            pragma Loop_Invariant (Ranked (S, Factors, R, H));
             pragma Loop_Invariant (Permutation (SA));
             pragma Loop_Invariant (Sorted_By (R, SA));
             pragma Loop_Invariant (Classes <= N);
-            pragma Loop_Invariant (if Classes = N then Distinct_Keys (R));
             pragma Loop_Variant (Increases => H);
-            Double (S, R, SA, H, Classes);
+            Double (S, Factors, R, SA, H, Classes);
             H := 2 * H;
          end loop;
-         pragma Assert (H >= N or else Distinct_Keys (R));
-         Settle (S, R, H);
-         Lay_Out (S, R, Rows);
+         pragma Assert (H < 4 * Longest);
+         pragma Assert (H >= 2 * Longest or else Distinct_Keys (R));
+         Settle (S, Factors, R, H, Longest);
+         Lay_Out (S, Factors, R, Ties, Rows);
       end;
       return Rows;
-   end Classical_Table;
+   end Sorted_Rows;
 end BWT.Doubling;

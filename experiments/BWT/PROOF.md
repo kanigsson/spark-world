@@ -40,40 +40,51 @@ children's declarations. `Rotations` and `Sorting` keep the lemmas.
   and it orders rows as `Ordered` does. `Walk` is the LF orbit that the
   classical decoder follows.
 - `Sorting`: selection sort, which yields a key-sorted permutation of its
-  input, and the uniqueness of such permutations. The specified tables are
-  defined by it. The bijective encoder still uses it.
+  input, and the uniqueness of such permutations. It now only defines the
+  specified tables; no encoder runs it.
 - `Key_Sort`: LF's counting sort over integer keys `0 .. Buckets - 1`, with
   the same proof: each element's place is its stable rank, so places form a
   permutation ordered as (key, position).
 
-## Classical encoding by prefix doubling
+## Encoding by prefix doubling
 
-`Doubling.Classical_Table` builds the table that `Classical_Encode` reads.
-`Classical_Rows_Unique` then shows that it is `Classical_Rows (S)`. The proof
-never mentions the selection sort. Its invariant is `Ranked (S, R, H)`: for
-every pair of positions, `R (A) <= R (B)` is `LE` over H letters, and
-`R (A) = R (B)` is `Equal_Prefix` over H letters. A round goes from H to 2H.
+Both encoders build their tables with `Doubling.Sorted_Rows`. It sorts any
+*cycle table*: row P is the rotation, starting at P, of the factor that
+contains P. `Doubling.Cycles` states this, in the same words as the first
+part of `Lyndon_Factorization`. The classical table is one factor of length
+N, from `Initial_Rows`. The bijective one is the Lyndon factors, from
+Duval. `Classical_Rows_Unique`, and the same two lemmas in
+`Bijective.Encode`, then show that the result is the specified table. The
+proof never mentions the selection sort.
 
-- `Rotations.Order_Split` says that comparing H + M letters means comparing H
-  letters, then M letters of the rotations advanced by H. So the pair (rank,
-  rank H positions on) in lexicographic order is `LE` at 2H
-  (`Double_Pair`).
+The invariant is `Ranked (S, F, R, H)`: for every pair of positions,
+`R (A) <= R (B)` is `LE` over H letters of their rows, and `R (A) = R (B)` is
+`Equal_Prefix` over H letters. A round goes from H to 2H.
+
+- `Rotations.Skip_Split` says that comparing H + M letters means comparing H
+  letters, then M letters of the rotations skipped by H. `Skip` reduces the
+  offset modulo the factor length, so H may exceed a short factor. The row
+  of `Jump (P, H)` is `Skip (F (P), H)`. So the pair (rank, rank of the
+  jump) in lexicographic order is `LE` at 2H (`Double_Pair`).
 - Sorting by pairs takes one counting sort per round. The previous order,
-  with every position moved H back, is already sorted by the second key. A
-  stable sort by the first key therefore sorts by the pair. Stability is
-  used here and nowhere else, and `Key_Sort`'s (key, position) postcondition
-  states it.
+  with every position moved back by H (`Back`, proved through
+  `Skip_Unskip`), is already sorted by the second key. A stable sort by the
+  first key therefore sorts by the pair. Stability is used here and in the
+  final pass, and `Key_Sort`'s (key, position) postcondition states it.
 - `Dense_Ranks` numbers the classes along the sorted order. Its loop keeps
   the pairwise fact "ranks compare as pairs" for the prefix it has numbered.
   If there are N classes, the ranks are distinct.
-- The loop stops when H reaches N or the ranks are distinct.
-  `Rotations.Settled` lifts either case to the horizon 2N: equal rotations of
-  one length agree forever after a period, and a mismatch decides every
-  longer horizon. `Lay_Out` then sorts once more by (rank, position), which
-  is `Key_LE` with `Earlier_First` ties.
+- The loop stops when H reaches twice the longest factor or the ranks are
+  distinct. `Rotations.Settled` lifts either case to the horizon 2N. Past
+  both periods, equal prefixes stay equal (`Extend_Equality`). A mismatch
+  decides every longer horizon, and it cannot lie beyond both periods.
+  `Lay_Out` then sorts once more by (rank, position), with positions reversed
+  for `Later_First`. That order is `Key_LE`.
 
-Only this final pass needs the tie order. The rounds may leave equal ranks in
-any order.
+Only the final pass needs the tie order. The rounds may leave equal ranks in
+any order. `Reduce` is a division-free `mod` for arguments below twice the
+modulus, which is nearly every call. Without it the classical encoder ran
+about twice as slowly.
 
 ## Classical
 

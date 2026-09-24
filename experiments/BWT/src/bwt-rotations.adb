@@ -166,9 +166,64 @@ is
       end loop;
    end Order_Next;
 
-   procedure Order_Split (S : String; A, B : Rotation; H, M : Natural) is
-      NA : constant Rotation := Advance (A, H);
-      NB : constant Rotation := Advance (B, H);
+   --  Removing whole periods leaves the remainder.
+   procedure Modulo_Periods (X : Natural; P : Positive; Q : Natural)
+   with
+     Ghost,
+     Pre  =>
+       X <= 5 * Max_Length
+       and then Long_Long_Integer (Q) * Long_Long_Integer (P)
+                <= Long_Long_Integer (X),
+     Post => X mod P = (X - Q * P) mod P;
+
+   procedure Modulo_Periods (X : Natural; P : Positive; Q : Natural) is
+      Y : Natural := X;
+   begin
+      for I in 1 .. Q loop
+         pragma Loop_Invariant (Y = X - (I - 1) * P);
+         pragma Loop_Invariant (X mod P = Y mod P);
+         pragma
+           Loop_Invariant
+             (Long_Long_Integer (Q - I + 1) * Long_Long_Integer (P)
+                <= Long_Long_Integer (Y));
+         Modulo_Period (Y, P);
+         Y := Y - P;
+      end loop;
+      pragma Assert (Y = X - Q * P);
+   end Modulo_Periods;
+
+   procedure Letter_Skip (S : String; R : Rotation; D, K : Natural) is
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+      Q : constant Natural := (R.Offset + D) / R.Length;
+   begin
+      pragma
+        Assert ((R.Offset + D) mod R.Length = R.Offset + D - Q * R.Length);
+      pragma Assert (Q * R.Length <= R.Offset + K);
+      Modulo_Periods (R.Offset + K, R.Length, Q);
+      pragma
+        Assert (Skip (R, D).Offset + (K - D) = R.Offset + K - Q * R.Length);
+   end Letter_Skip;
+
+   procedure Skip_Unskip (R : Rotation; D : Natural) is
+      L  : constant Positive := R.Length;
+      M  : constant Natural := D mod L;
+      Up : constant Positive := R.Offset + (L - M);
+      Q1 : constant Natural := Up / L;
+      QD : constant Natural := D / L;
+      X  : constant Natural := Unskip (R, D).Offset + D;
+   begin
+      pragma Assert (Q1 <= 1);
+      pragma Assert (Unskip (R, D).Offset = Up - Q1 * L);
+      pragma Assert (D = QD * L + M);
+      pragma Assert (X = R.Offset + (1 - Q1 + QD) * L);
+      Modulo_Periods (X, L, 1 - Q1 + QD);
+      pragma Assert (R.Offset mod L = R.Offset);
+   end Skip_Unskip;
+
+   procedure Skip_Split (S : String; A, B : Rotation; H, M : Natural) is
+      NA : constant Rotation := Skip (A, H);
+      NB : constant Rotation := Skip (B, H);
    begin
       for J in 0 .. M loop
          pragma
@@ -182,22 +237,28 @@ is
                             or else (Equal_Prefix (S, A, B, H)
                                      and then LE (S, NA, NB, J))));
          if J < M then
-            Letter_Advance (S, A, H, H + J);
-            Letter_Advance (S, B, H, H + J);
+            Letter_Skip (S, A, H, H + J);
+            Letter_Skip (S, B, H, H + J);
          end if;
       end loop;
-   end Order_Split;
+   end Skip_Split;
 
    procedure Settled (S : String; A, B : Rotation; H, Size : Natural) is
    begin
       if Equal_Prefix (S, A, B, H) then
-         Same_Length_Extend (S, A, B, H, Size);
+         Equal_Prefix_Shorter (S, A, B, H, A.Length + B.Length);
+         Extend_Equality (S, A, B, Size);
          Order_Laws (S, A, B, A, H);
          Order_Laws (S, A, B, A, Size);
       else
          declare
             K : constant Natural := Mismatch (S, A, B, H);
          begin
+            if K >= A.Length + B.Length then
+               Equal_Prefix_Shorter (S, A, B, K, A.Length + B.Length);
+               Extend_Equality (S, A, B, H);
+            end if;
+            pragma Assert (K < Size);
             Decide (S, A, B, K, H);
             Decide (S, A, B, K, Size);
          end;
