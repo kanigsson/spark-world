@@ -86,6 +86,39 @@ any order. `Reduce` is a division-free `mod` for arguments below twice the
 modulus, which is nearly every call. Without it the classical encoder ran
 about twice as slowly.
 
+## Backward search
+
+`Search.Count (Last, P)` is the FM-index count. It reads P backwards and
+keeps two row bounds, `Lo` and `Hi`. Each letter C moves a bound T to the
+number of rows whose last letter is below C, or is C at a row up to T. Its
+contract is `Bound`, which is that recursion stated on `Last` alone.
+`Count_Rows` proves it exact for the last column of any sorted cycle table.
+`Classical_Count` and `Bijective_Count` instantiate it, because both
+specified tables are such rows (`Doubling.Cycles`).
+
+The invariant (`Characterized`) says that, after reading P (J .. M), row I is
+at most the strict bound exactly when its first M - J + 1 letters are below
+that part of P, and at most the other bound when they are at most it.
+`Below_Pattern` defines both orders from the front, one letter and then
+`Next_Rot`, which matches how a backward step prepends a letter.
+
+- A step is two counts over a renumbering (`Count_Perm`). Numbered by the
+  position its row starts at, a row satisfies the new condition exactly when
+  its predecessor rotation satisfies the step's condition. That uses
+  `Shift_Letter`: the last letter of a row is the first letter of the
+  rotation before it. So the step's count is the number of rows below the
+  longer pattern. Positions are a permutation because rows are distinct
+  rotations of a cycle table (`Rows_At`), and `Prev_Pos` is one because
+  `Next_Pos` undoes it.
+- Sorted rows below a bound form a prefix of the table (`Mono`,
+  `Prefix_Set`). That turns the count back into a bound on row indices.
+- At the end, rows between the bounds are those whose words start with P
+  (`Exact`). There are `Hi - Lo` of them, and renumbering by position counts
+  `Occurrences`.
+
+Patterns up to 2N letters are covered, the horizon at which rows are sorted.
+The rank is a scan of the column, so a count costs O(|P| · N).
+
 ## Classical
 
 `Matrices` proves the classical case up to equal periodic words. That weaker

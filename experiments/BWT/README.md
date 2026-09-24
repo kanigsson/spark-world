@@ -9,6 +9,11 @@ for every supported input.
   the factors' rotations by their infinite periodic extensions (omega order).
   `Bijective_Decode` reconstructs factors from stable LF cycles and fills the
   output backwards. It accepts every supported last column, without metadata.
+- `BWT.Search.Count` is backward search (FM-index count) on either last
+  column. It is proved to count the circular occurrences of a pattern in S
+  (classical), or its occurrences in the periodic words of S's Lyndon
+  factors (bijective), for patterns up to twice the input length. It uses a
+  naive rank, which scans the whole column for each pattern letter.
 - `BWT.Theorems` states and proves the classical decode-after-encode law and
   **both** bijective inverse laws: decode after encode, and encode after
   decode for an arbitrary last column. Together the latter two make the

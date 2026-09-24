@@ -125,7 +125,10 @@ prove first.
   structures, and for de-duplicating rotations. Spec: `Least_Rotation (S)` is
   a rotation of S and ≤ every rotation. Most of the lemmas are already in `Words` and
   `Lyndon_Order`.
-- [ ] **Backward search (FM-index "count").** Store the BWT plus the counting
+- [ ] **Backward search (FM-index "count").** *Done with a naive rank
+  (2026-09-24):* `Search.Count`, proved through `Count_Rows` for any sorted
+  cycle table, with the classical and bijective corollaries. Still to do:
+  sampled rank blocks (below), and the end-marker variant. Store the BWT plus the counting
   table C and a rank structure. Then the number of occurrences of a pattern
   P costs O(|P|) rank queries. This reuses the LF lemmas. What the cyclic
   transforms here give:
