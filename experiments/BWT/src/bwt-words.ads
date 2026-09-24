@@ -124,7 +124,7 @@ is
        and then P in 1 .. S'Length
        and then Periodic (S, I, J, P)
        and then X <= J - 1
-       and then T <= S'Length
+       and then T <= S'Length / P
        and then X >= I + T * P,
      Post               => S (X) = S (X - T * P),
      Subprogram_Variant => (Decreases => T);

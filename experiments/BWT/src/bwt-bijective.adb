@@ -209,7 +209,9 @@ is
                             (for all Y in 1 .. Order (P - 1) - 1 =>
                                Seen (Y) and then Pos (Y) >= P)));
          Row := Start;
-         while not Seen (Row) loop
+         --  The exit follows the invariants, so they also describe the state
+         --  in which the block closes, which the outer invariant needs.
+         loop
             pragma Loop_Invariant (Row in 1 .. N);
             pragma Loop_Invariant (Next = Unseen (Seen, N));
             pragma Loop_Invariant (for all I in 1 .. Start - 1 => Seen (I));
@@ -248,6 +250,7 @@ is
                                (for all Y in 1 .. Order (P - 1) - 1 =>
                                   Seen (Y) and then Pos (Y) >= P)));
             pragma Loop_Variant (Decreases => Next);
+            exit when Seen (Row);
             pragma Assert (Next > 0);
             Order (Next) := Row;
             Pos (Row) := Next;

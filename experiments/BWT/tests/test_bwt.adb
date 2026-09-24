@@ -112,8 +112,10 @@ begin
    end loop;
    if not Contracts then
       declare
+         --  Long, not maximal: the reference encoders are cubic on
+         --  repetitive input, so a block of Max_Length would not finish.
          All_Bytes : String (1 .. 256);
-         Long      : String (1 .. Max_Length) := (others => 'a');
+         Long      : String (1 .. 1_024) := (others => 'a');
       begin
          for I in All_Bytes'Range loop
             All_Bytes (I) := Character'Val (I - 1);

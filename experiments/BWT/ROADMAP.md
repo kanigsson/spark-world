@@ -42,10 +42,18 @@ Unchecked items are proposals. None of them is needed for what is proved today.
 
   Make the core generic over a discrete, totally ordered symbol type and an
   array type. Instantiate it for `Character` to keep today's API.
-- [ ] **Lift `Max_Length`.** The 1,024 bound only keeps arithmetic small. The
-  targets are 2**24 first, then 2**30. Audit the `4 * Max_Length` and
-  `2 * N` horizons and the `Natural` sums for overflow. This should be
-  mechanical, but the proof may need to be rerun near its time limits.
+- [x] **Lift `Max_Length` to 2**24.** One real overflow: `Words.Shift_Back`
+  multiplied a period count by a period, now bounded by `S'Length / P`. The
+  tightest check, an invariant after `Decode_Order`'s inner loop, stopped
+  proving under a full `-j16` load. That loop now exits after its invariants,
+  so they describe the exit state. CVC5 and Z3 stopped proving three
+  easy-looking checks (the `Bijective_Rows` post, a `Same_Rows_Trans`
+  precondition in `Bijective_Rows_Unique`, a post of
+  `Onto_Proofs.Get_Rows_Ctx`), even at level 4 with a minute each. Alt-Ergo
+  proves them in under 130 steps, so it joined the prover list. Why the bound
+  affects them is not understood. A forced proof now takes 6¾ min at `-j16`.
+- [ ] **Lift `Max_Length` to 2**30.** `4 * Max_Length` must fit in
+  `Integer`, so the horizons need `Long_Long_Integer`, or a bound of 2**28.
 - [ ] **Caller-provided storage.** Unconstrained function results and local
   tables live on the secondary stack or the primary stack, which fails at
   large N. Add procedure forms with `out` buffers and a reusable workspace
@@ -63,6 +71,9 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   encoders are the bottleneck: 7 ms on random bytes, but about 1 s (classical)
   and 6.6 s (bijective) on `abcabc...`, and 14 to 18 s on a single repeated
   byte. Selection sort makes O(N²) comparisons, each up to 2N letters long.
+  Past the old bound, the decoders take 1.3 to 3.8 ms at 256 KiB and grow
+  linearly. Classical encoding of random bytes is quadratic, at 1.8 s for
+  16 KiB, and text at 4 KiB takes 1.7 s (classical) and 10 s (bijective).
 
 ## Tier 2: fast encoders (refinements, projects)
 

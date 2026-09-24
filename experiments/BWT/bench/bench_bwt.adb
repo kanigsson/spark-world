@@ -54,76 +54,84 @@ procedure Bench_BWT is
       end if;
    end Check;
 
-   --  Each Time_* repeats one transform until Budget has elapsed.
+   type Transform is
+     (Classical_Encoding,
+      Classical_Decoding,
+      Bijective_Encoding,
+      Bijective_Decoding);
 
-   procedure Time_Classical_Encode (Name, S : String) is
+   --  Runs one transform once on S. The decoders take S as a last column:
+   --  both accept any, so they need not wait for the encoders.
+   procedure Run (Op : Transform; S : String) is
+   begin
+      case Op is
+         when Classical_Encoding =>
+            Sink := Sink + Classical_Encode (S).Primary;
+
+         when Classical_Decoding =>
+            Sink := Sink + Character'Pos (Classical_Decode (S, 1) (1));
+
+         when Bijective_Encoding =>
+            Sink := Sink + Character'Pos (Bijective_Encode (S) (1));
+
+         when Bijective_Decoding =>
+            Sink := Sink + Character'Pos (Bijective_Decode (S) (1));
+      end case;
+   end Run;
+
+   --  Repeats Op until Budget has elapsed and reports the mean. Returns the
+   --  mean, so that the caller can stop a series that has become too slow.
+   function Timed (Name : String; Op : Transform; S : String) return Duration
+   is
       Watch : constant Bench_Timing.Stopwatch := Bench_Timing.Started;
       Runs  : Positive := 1;
    begin
       loop
-         Sink := Sink + Classical_Encode (S).Primary;
+         Run (Op, S);
          exit when Bench_Timing.Elapsed (Watch) >= Budget;
          Runs := Runs + 1;
       end loop;
       Bench_Timing.Report (Name, Bench_Timing.Elapsed (Watch), Runs);
-   end Time_Classical_Encode;
+      return Bench_Timing.Elapsed (Watch) / Runs;
+   end Timed;
 
-   procedure Time_Classical_Decode (Name, Last : String; Primary : Natural) is
-      Watch : constant Bench_Timing.Stopwatch := Bench_Timing.Started;
-      Runs  : Positive := 1;
-   begin
-      loop
-         Sink := Sink + Character'Pos (Classical_Decode (Last, Primary) (1));
-         exit when Bench_Timing.Elapsed (Watch) >= Budget;
-         Runs := Runs + 1;
-      end loop;
-      Bench_Timing.Report (Name, Bench_Timing.Elapsed (Watch), Runs);
-   end Time_Classical_Decode;
+   --  A series stops growing once one run takes longer than this: every
+   --  size is four times the last, and the encoders are up to cubic.
+   Too_Slow : constant Duration := 0.25;
 
-   procedure Time_Bijective_Encode (Name, S : String) is
-      Watch : constant Bench_Timing.Stopwatch := Bench_Timing.Started;
-      Runs  : Positive := 1;
-   begin
-      loop
-         Sink := Sink + Character'Pos (Bijective_Encode (S) (1));
-         exit when Bench_Timing.Elapsed (Watch) >= Budget;
-         Runs := Runs + 1;
-      end loop;
-      Bench_Timing.Report (Name, Bench_Timing.Elapsed (Watch), Runs);
-   end Time_Bijective_Encode;
-
-   procedure Time_Bijective_Decode (Name, Last : String) is
-      Watch : constant Bench_Timing.Stopwatch := Bench_Timing.Started;
-      Runs  : Positive := 1;
-   begin
-      loop
-         Sink := Sink + Character'Pos (Bijective_Decode (Last) (1));
-         exit when Bench_Timing.Elapsed (Watch) >= Budget;
-         Runs := Runs + 1;
-      end loop;
-      Bench_Timing.Report (Name, Bench_Timing.Elapsed (Watch), Runs);
-   end Time_Bijective_Decode;
-
-   Sizes : constant array (Positive range <>) of Positive :=
-     [128, 256, 512, Max_Length];
+   Sizes   : constant array (Positive range <>) of Positive :=
+     [1_024, 4_096, 16_384, 65_536, 262_144];
+   Stopped : array (Shape, Transform) of Boolean :=
+     [others => [others => False]];
 begin
    for Kind in Shape loop
       for N of Sizes loop
          declare
             S     : constant String := Input (Kind, N);
-            C     : constant Classical_Result := Classical_Encode (S);
-            B     : constant String := Bijective_Encode (S);
             Label : constant String :=
               Shape'Image (Kind) & " n=" & Natural'Image (N) & " ";
          begin
-            Check
-              (Classical_Decode (C.Last, C.Primary) = S, Label & "classical");
-            Check (Bijective_Decode (B) = S, Label & "bijective");
-            Time_Classical_Encode (Label & "classical encode", S);
-            Time_Classical_Decode
-              (Label & "classical decode", C.Last, C.Primary);
-            Time_Bijective_Encode (Label & "bijective encode", S);
-            Time_Bijective_Decode (Label & "bijective decode", B);
+            --  Round trips, while the encoders are still fast enough to try.
+            if not Stopped (Kind, Classical_Encoding) then
+               declare
+                  C : constant Classical_Result := Classical_Encode (S);
+               begin
+                  Check
+                    (Classical_Decode (C.Last, C.Primary) = S,
+                     Label & "classical");
+               end;
+            end if;
+            if not Stopped (Kind, Bijective_Encoding) then
+               Check
+                 (Bijective_Decode (Bijective_Encode (S)) = S,
+                  Label & "bijective");
+            end if;
+            for Op in Transform loop
+               if not Stopped (Kind, Op) then
+                  Stopped (Kind, Op) :=
+                    Timed (Label & Transform'Image (Op), Op, S) > Too_Slow;
+               end if;
+            end loop;
          end;
       end loop;
    end loop;

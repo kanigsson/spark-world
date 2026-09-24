@@ -2,8 +2,9 @@ package BWT
   with SPARK_Mode
 is
    --  Reference implementation: byte strings, normalized to a first index of 1.
-   --  The bound keeps arithmetic small; no byte is reserved as a sentinel.
-   Max_Length : constant := 1_024;
+   --  The bound keeps arithmetic within Integer, with room for the 4 * N
+   --  comparison horizons; no byte is reserved as a sentinel.
+   Max_Length : constant := 2**24;
 
    function Supported (S : String) return Boolean
    is (S'First = 1 and then S'Length <= Max_Length);

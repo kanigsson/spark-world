@@ -22,8 +22,11 @@ flow:
 
 #  A short budget on purpose: every check is meant to prove quickly, and one
 #  that needs longer is a sign its lemma wants splitting, not more time.
+#  Alt-Ergo is listed for three checks that CVC5 and Z3 stopped proving when
+#  Max_Length grew to 2**24, even at level 4 with a minute each; Alt-Ergo
+#  needs a fraction of a second for them.
 prove:
-	$(GNATPROVE) -P bwt.gpr -U --level=2 --timeout=5 --prover=cvc5,z3 --counterexamples=off -j$(JOBS)
+	$(GNATPROVE) -P bwt.gpr -U --level=2 --timeout=5 --prover=cvc5,z3,altergo --counterexamples=off -j$(JOBS)
 
 #  A production build on purpose: contracts and run-time checks off, so the
 #  timings measure the transforms and not their verification.

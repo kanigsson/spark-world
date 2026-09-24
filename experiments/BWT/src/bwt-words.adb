@@ -139,6 +139,7 @@ is
       U : constant Positive := J - I + 1;
    begin
       pragma Assert (O = A * P + B);
+      pragma Assert (A <= S'Length / P);
       if B /= 0 then
          pragma Assert (Below_Suffix (S, I, P, I + B));
          declare

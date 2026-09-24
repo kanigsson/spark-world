@@ -31,11 +31,11 @@ Before changing code, know:
 - Ghost lemmas of the form `Get_*` extract one instance of an opaque
   predicate. They exist for proof speed, not logic.
 
-Validation (2026-09-24): `make prove` proves all 5,827 checks under the
-pinned GNATprove FSF 16.1.0 (Why3 1.8.2+git, CVC5 1.3.2, Z3 4.15.4); a forced
-run (`-f`) takes 3½ min at `-j16`. Before the functional specifications, the
-development GNATprove 0.0w also proved all checks. Its tightest check is a
-frame-heavy invariant in `Decode_Order`: it needs more than 2 s but fits in 5.
+Validation (2026-09-24, `Max_Length` = 2**24): `make prove` proves all 5,831
+checks under the pinned GNATprove FSF 16.1.0 (Why3 1.8.2+git, CVC5 1.3.2,
+Z3 4.15.4, Alt-Ergo 2.6.1); a forced run (`-f`) takes 6¾ min at `-j16`.
+Three checks need Alt-Ergo (see the Makefile). The development GNATprove 0.0w
+was last checked at a bound of 1,024.
 `make test` passes 49,232 checks, `make test-contracts` passes 218, `make flow`
 is clean and `make format-check` passes. GPRbuild Pro 27.0w.
 

@@ -15,7 +15,8 @@ for every supported input.
   bijective transform a bijection on strings of each length.
 
 Inputs are Ada `String` byte sequences with first index 1 and length at most
-`BWT.Max_Length` (1,024). All 256 `Character` values are data. Empty strings
+`BWT.Max_Length` (2**24). Results and working tables live on the stack, so
+the practical limit is lower: a few hundred KiB with an 8 MiB stack. All 256 `Character` values are data. Empty strings
 are supported; classical empty output has primary index 0. Normalize slices
 before passing them to the API. Results always start at index 1. Classical
 decode accepts any in-range index, but its inverse law concerns encoder output;
