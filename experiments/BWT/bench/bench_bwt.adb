@@ -5,6 +5,8 @@
 with Ada.Command_Line;
 with Ada.Text_IO;
 with BWT;
+with BWT.FM_Index;
+with BWT.Search;
 with Bench_Timing;
 
 procedure Bench_BWT is
@@ -135,6 +137,51 @@ begin
          end;
       end loop;
    end loop;
+   --  Pattern counts on the classical column of the largest text: backward
+   --  search with a scanned rank, against the index with rank checkpoints.
+   declare
+      S       : constant String := Input (Text, Sizes (Sizes'Last));
+      Last    : constant String := Classical_Encode (S).Last;
+      Idx     : constant FM_Index.Index := FM_Index.Build (Last);
+      Pattern : constant String := "it was the age of";
+      Watch   : Bench_Timing.Stopwatch := Bench_Timing.Started;
+      Runs    : Positive := 1;
+   begin
+      Check
+        (Search.Count (Last, Pattern) = FM_Index.Count (Idx, Pattern),
+         "index count");
+      loop
+         Sink := Sink + FM_Index.Build (Last).Below ('a');
+         exit when Bench_Timing.Elapsed (Watch) >= Budget;
+         Runs := Runs + 1;
+      end loop;
+      Bench_Timing.Report
+        ("TEXT n=" & Natural'Image (S'Length) & " INDEX_BUILD",
+         Bench_Timing.Elapsed (Watch),
+         Runs);
+      Watch := Bench_Timing.Started;
+      Runs := 1;
+      loop
+         Sink := Sink + Search.Count (Last, Pattern);
+         exit when Bench_Timing.Elapsed (Watch) >= Budget;
+         Runs := Runs + 1;
+      end loop;
+      Bench_Timing.Report
+        ("TEXT n=" & Natural'Image (S'Length) & " COUNT_SCANNED_RANK",
+         Bench_Timing.Elapsed (Watch),
+         Runs);
+      Watch := Bench_Timing.Started;
+      Runs := 1;
+      loop
+         Sink := Sink + FM_Index.Count (Idx, Pattern);
+         exit when Bench_Timing.Elapsed (Watch) >= Budget;
+         Runs := Runs + 1;
+      end loop;
+      Bench_Timing.Report
+        ("TEXT n=" & Natural'Image (S'Length) & " COUNT_INDEX",
+         Bench_Timing.Elapsed (Watch),
+         Runs);
+   end;
    --  Keeps the results live, so the optimiser cannot drop the work.
    if Sink = 0 then
       Ada.Text_IO.Put_Line ("(no work)");

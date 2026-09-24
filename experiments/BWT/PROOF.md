@@ -119,6 +119,11 @@ that part of P, and at most the other bound when they are at most it.
 Patterns up to 2N letters are covered, the horizon at which rows are sorted.
 The rank is a scan of the column, so a count costs O(|P| · N).
 
+`FM_Index` is a refinement of `Count`. It stores the column, how many letters
+sort below each letter, and the letter counts at every 256th row. Its
+`Count` is proved equal to `Search.Count` (`Step_Split` splits a backward step
+into those two counts), so the theorems above carry over unchanged.
+
 ## Classical
 
 `Matrices` proves the classical case up to equal periodic words. That weaker

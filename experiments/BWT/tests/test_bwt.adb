@@ -1,4 +1,5 @@
 with BWT;
+with BWT.FM_Index;
 with BWT.Search;
 with Test_Checks;
 with Ada.Command_Line;
@@ -122,6 +123,9 @@ procedure Test_BWT is
             "classical count");
          Check
            (Search.Count (B, P) = Naive_Count (S, P, True), "bijective count");
+         Check
+           (FM_Index.Count (FM_Index.Build (C), P) = Naive_Count (S, P, False),
+            "classical index count");
       end if;
    end Search_All;
 

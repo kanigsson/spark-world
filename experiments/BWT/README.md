@@ -14,6 +14,8 @@ for every supported input.
   (classical), or its occurrences in the periodic words of S's Lyndon
   factors (bijective), for patterns up to twice the input length. It uses a
   naive rank, which scans the whole column for each pattern letter.
+  `BWT.FM_Index` stores letter counts every 256 rows, at 4 bytes per input
+  byte, and counts in O(|P| · 256) with the same guarantee.
 - `BWT.Theorems` states and proves the classical decode-after-encode law and
   **both** bijective inverse laws: decode after encode, and encode after
   decode for an arbitrary last column. Together the latter two make the
