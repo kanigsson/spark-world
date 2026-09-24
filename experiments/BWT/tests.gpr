@@ -1,0 +1,11 @@
+with "bwt.gpr";
+with "../../tools/testing/testing.gpr";
+project Tests is
+   for Source_Dirs use ("tests");
+   for Object_Dir use "obj/" & BWT.Build & "/tests";
+   for Exec_Dir use "bin/" & BWT.Build;
+   for Main use ("test_bwt.adb");
+   package Compiler is
+      for Default_Switches ("Ada") use ("-gnat2022", "-gnata", "-gnatwa", "-O2");
+   end Compiler;
+end Tests;

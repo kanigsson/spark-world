@@ -1,0 +1,4 @@
+obj/
+bin/
+proof/
+local.mk
