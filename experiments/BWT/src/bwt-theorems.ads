@@ -1,5 +1,5 @@
---  Proof targets, not established lemmas. The bodies deliberately contain the
---  outstanding equalities: no assumptions, imported axioms or suppression.
+--  The inverse laws, proved for every supported input: no assumptions,
+--  imported axioms or suppression.
 
 package BWT.Theorems
   with SPARK_Mode, Ghost

@@ -23,13 +23,15 @@ is
    procedure Suffix_Above
      (S : String; UF, N, VF, M, O : Positive; E : out Natural)
    with
-     Pre                => In_Word (S, UF, N)
+     Pre                =>
+       In_Word (S, UF, N)
        and then In_Word (S, VF, M)
        and then Lyndon (S, VF, M)
        and then N < M
        and then Same (S, UF, VF, N)
        and then O < M,
-     Post               => E < M - O
+     Post               =>
+       E < M - O
        and then Equal_Prefix (S, (VF, M, O), (UF, N, 0), E)
        and then Letter (S, (UF, N, 0), E) < Letter (S, (VF, M, O), E),
      Subprogram_Variant => (Decreases => M - O);
@@ -46,12 +48,15 @@ is
       pragma Assert (Below_Suffix (S, VF, M, Y));
       pragma Assert (DV < M - O);
       if C < Natural'Min (N, M - O) then
-         pragma Assert
-           (if DV < C
-            then S (UF + DV) = S (VF + DV) and then S (UF + DV) = S (Y + DV));
-         pragma Assert
-           (if DV > C
-            then S (UF + C) = S (VF + C) and then S (VF + C) = S (Y + C));
+         pragma
+           Assert
+             (if DV < C
+                then
+                  S (UF + DV) = S (VF + DV) and then S (UF + DV) = S (Y + DV));
+         pragma
+           Assert
+             (if DV > C
+                then S (UF + C) = S (VF + C) and then S (VF + C) = S (Y + C));
          pragma Assert (DV = C);
          E := C;
          for K in 0 .. C - 1 loop
@@ -65,8 +70,8 @@ is
          for X in VF .. VF + (M - O) - 1 loop
             pragma Assert (S (X - VF + UF) = S (X));
             pragma Assert (S (X - VF + UF) = S (X - VF + Y));
-            pragma Loop_Invariant
-              (for all Z in VF .. X => S (Z) = S (Z - VF + Y));
+            pragma
+              Loop_Invariant (for all Z in VF .. X => S (Z) = S (Z - VF + Y));
          end loop;
          pragma Assert (Same (S, VF, Y, M - O));
          pragma Assert (Common (S, VF, Y, M - O) = M - O);
@@ -172,8 +177,8 @@ is
       if E >= L - O then
          --  Then the rotation by L - O would precede A.
          declare
-            T  : constant Natural := E - (L - O);
-            C  : constant Rotation := (F, L, L - O);
+            T : constant Natural := E - (L - O);
+            C : constant Rotation := (F, L, L - O);
          begin
             for K in 0 .. T - 1 loop
                pragma Loop_Invariant (Equal_Prefix (S, C, A, K));
@@ -208,8 +213,9 @@ is
    begin
       for O in 1 .. L - 1 loop
          Least_Suffix (S, F, L, O);
-         pragma Loop_Invariant
-           (for all X in F + 1 .. F + O => Below_Suffix (S, F, L, X));
+         pragma
+           Loop_Invariant
+             (for all X in F + 1 .. F + O => Below_Suffix (S, F, L, X));
       end loop;
    end Least_Lyndon;
 

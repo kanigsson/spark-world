@@ -1,6 +1,8 @@
 package body BWT.Orders
   with SPARK_Mode
 is
+   procedure Get_Rule (Map, W, Inv : Mapping; P : Positive) is null;
+
    procedure Order_Unique (Map, W1, Inv1, W2, Inv2 : Mapping) is
       N : constant Natural := W1'Length;
    begin
@@ -10,8 +12,8 @@ is
       for P in reverse 2 .. N loop
          pragma Loop_Invariant (for all Q in P .. N => W1 (Q) = W2 (Q));
          --  Both orders have written the same rows at P .. N.
-         pragma Assert
-           (for all X in 1 .. N => (Inv1 (X) >= P) = (Inv2 (X) >= P));
+         pragma
+           Assert (for all X in 1 .. N => (Inv1 (X) >= P) = (Inv2 (X) >= P));
          declare
             X : constant Positive := Map (W1 (P));
          begin

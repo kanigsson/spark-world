@@ -8,9 +8,11 @@ is
    begin
       --  Both contracts describe position I through the same LF orbit step.
       for I in S'Range loop
-         pragma Assert
-           (Decoded (I)
-            = Encoded.Last (Walk (Encoded.Last, Encoded.Primary, S'Length - I)));
+         pragma
+           Assert
+             (Decoded (I)
+                = Encoded.Last
+                    (Walk (Encoded.Last, Encoded.Primary, S'Length - I)));
          pragma Loop_Invariant (for all J in 1 .. I => Decoded (J) = S (J));
       end loop;
       pragma Assert (Decoded = S);
@@ -23,6 +25,6 @@ is
 
    procedure Bijective_Onto (Last : String) is
    begin
-      pragma Assert (Bijective_Encode (Bijective_Decode (Last)) = Last);
+      Prove_Bijective_Onto (Last);
    end Bijective_Onto;
 end BWT.Theorems;

@@ -1,7 +1,8 @@
 include ../../tools/project.mk
 
-# Proof is incomplete; use the caller's matching toolchain, not the clean-proof pin.
-GNATPROVE ?= gnatprove
+#  Pinned: this project proves clean under the pinned prover, so it states
+#  which prover that is rather than trusting PATH. See tools/toolchain.mk.
+GNATPROVE ?= $(SPARK_WORLD_PROVE)
 
 .PHONY: build test test-contracts flow prove
 build:
@@ -19,6 +20,7 @@ test-contracts:
 flow:
 	$(GNATPROVE) -P bwt.gpr -U --mode=flow -j$(JOBS)
 
-# Short baseline budget: unresolved obligations must remain visible and fail.
+#  A short budget on purpose: every check is meant to prove quickly, and one
+#  that needs longer is a sign its lemma wants splitting, not more time.
 prove:
 	$(GNATPROVE) -P bwt.gpr -U --level=2 --timeout=5 --prover=cvc5,z3 --counterexamples=off -j$(JOBS)

@@ -23,10 +23,7 @@ is
    --  A Lyndon word precedes every other rotation of itself.
    procedure Lyndon_Least (S : String; F, L, O : Positive)
    with
-     Pre  =>
-       In_Word (S, F, L)
-       and then Lyndon (S, F, L)
-       and then O < L,
+     Pre  => In_Word (S, F, L) and then Lyndon (S, F, L) and then O < L,
      Post => Omega_Less (S, (F, L, 0), (F, L, O));
 
    --  Lyndon words keep their lexicographic order when repeated forever.

@@ -16,11 +16,10 @@ tools/          repo-wide build and proof drivers, and shared test scaffolding
 That uniform depth is load-bearing: it makes every cross-project reference the
 same shape, so moving a project between tiers is a one-token edit.
 
-> **Migration in progress.** Every project has reached its tier;
-> `experiments/` does not exist yet, and `docs/` still has
-> repo-wide material to absorb. `docs/STATUS.md` records what builds and
-> proves, in the flat layout it was measured in. Delete this note when those
-> are settled.
+> **Migration in progress.** Every project has reached its tier, and `docs/`
+> still has repo-wide material to absorb. `docs/STATUS.md` records what builds
+> and proves, in the flat layout it was measured in. Delete this note when
+> those are settled.
 
 ## Cross-project references
 

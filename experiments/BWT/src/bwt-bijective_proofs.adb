@@ -40,39 +40,51 @@ is
        and then FR (Q).First <= Max_Length
        and then FR (Q).Length <= Max_Length;
 
+   function Cyc_Fact (FR : Table; Q : Positive) return Boolean
+   is (Q in FR'Range
+       and then FR'Last <= Max_Length
+       and then FR (Q).First <= Max_Length
+       and then FR (Q).Length <= Max_Length
+       and then Next_In (FR, Q) in FR'Range
+       and then Prev_In (FR, Q) in FR'Range
+       and then FR (Next_In (FR, Q)).First = FR (Q).First
+       and then FR (Next_In (FR, Q)).Length = FR (Q).Length
+       and then FR (Prev_In (FR, Q)).First = FR (Q).First
+       and then FR (Prev_In (FR, Q)).Length = FR (Q).Length
+       and then FR (Next_In (FR, Q)).First <= Max_Length
+       and then FR (Next_In (FR, Q)).Length <= Max_Length
+       and then FR (Prev_In (FR, Q)).First <= Max_Length
+       and then FR (Prev_In (FR, Q)).Length <= Max_Length
+       and then Prev_In (FR, Next_In (FR, Q)) = Q
+       and then Next_In (FR, Prev_In (FR, Q)) = Q
+       and then FR (Q).Offset < FR (Q).Length
+       and then Previous (FR (Q)) = FR (Prev_In (FR, Q)));
+
+   procedure Cyclic_At (S : String; FR : Table; Q : Positive)
+   with
+     Pre  => Factorization (S, FR) and then Q in FR'Range,
+     Post => Cyc_Fact (FR, Q);
+
+   procedure Cyclic_At (S : String; FR : Table; Q : Positive) is
+   begin
+      pragma Assert (FR (FR (Q).First).First = FR (Q).First);
+      pragma
+        Assert (FR (FR (Q).First + FR (Q).Length - 1).First = FR (Q).First);
+   end Cyclic_At;
+
    procedure Cyclic_Facts (S : String; FR : Table)
    with
      Pre  => Factorization (S, FR),
-     Post =>
-       (for all Q in FR'Range =>
-          Next_In (FR, Q) in FR'Range
-          and then Prev_In (FR, Q) in FR'Range
-          and then FR (Next_In (FR, Q)).First = FR (Q).First
-          and then FR (Next_In (FR, Q)).Length = FR (Q).Length
-          and then FR (Prev_In (FR, Q)).First = FR (Q).First
-          and then FR (Prev_In (FR, Q)).Length = FR (Q).Length
-          and then Prev_In (FR, Next_In (FR, Q)) = Q
-          and then Next_In (FR, Prev_In (FR, Q)) = Q
-          and then Previous (FR (Q)) = FR (Prev_In (FR, Q)));
+     Post => (for all Q in FR'Range => Cyc_Fact (FR, Q));
 
    procedure Cyclic_Facts (S : String; FR : Table) is
+      pragma
+        Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Cyc_Fact);
    begin
       for Q in FR'Range loop
-         pragma Assert (FR (FR (Q).First).First = FR (Q).First);
+         Cyclic_At (S, FR, Q);
          pragma
-           Assert
-             (FR (FR (Q).First + FR (Q).Length - 1).First = FR (Q).First);
-         pragma Loop_Invariant
-           (for all P in 1 .. Q =>
-              Next_In (FR, P) in FR'Range
-              and then Prev_In (FR, P) in FR'Range
-              and then FR (Next_In (FR, P)).First = FR (P).First
-              and then FR (Next_In (FR, P)).Length = FR (P).Length
-              and then FR (Prev_In (FR, P)).First = FR (P).First
-              and then FR (Prev_In (FR, P)).Length = FR (P).Length
-              and then Prev_In (FR, Next_In (FR, P)) = P
-              and then Next_In (FR, Prev_In (FR, P)) = P
-              and then Previous (FR (P)) = FR (Prev_In (FR, P)));
+           Loop_Invariant (for all P in FR'First .. Q => Cyc_Fact (FR, P));
       end loop;
    end Cyclic_Facts;
 
@@ -114,8 +126,10 @@ is
    begin
       for Q in FR'Range loop
          Idx (Q) := Find (R, FR (Q));
-         pragma Loop_Invariant
-           (for all P in 1 .. Q => Idx (P) in R'Range and then R (Idx (P)) = FR (P));
+         pragma
+           Loop_Invariant
+             (for all P in 1 .. Q =>
+                Idx (P) in R'Range and then R (Idx (P)) = FR (P));
       end loop;
       return Idx;
    end Index_Of;
@@ -140,9 +154,10 @@ is
          begin
             pragma Assert (Pos (FR (J)) = J);
          end;
-         pragma Loop_Invariant
-           (for all K in 1 .. I =>
-              Pos (R (K)) in FR'Range and then R (K) = FR (Pos (R (K))));
+         pragma
+           Loop_Invariant
+             (for all K in 1 .. I =>
+                Pos (R (K)) in FR'Range and then R (K) = FR (Pos (R (K))));
       end loop;
    end Rows_Are_Factors;
 
@@ -229,8 +244,7 @@ is
        and then J in R'Range
        and then I /= J
        and then Ordered (L, I, J),
-     Post =>
-       not Key_LE (S, Previous (R (J)), Previous (R (I)), Later_First);
+     Post => not Key_LE (S, Previous (R (J)), Previous (R (I)), Later_First);
 
    procedure Prev_Less (S : String; FR, R : Table; L : String; I, J : Positive)
    is
@@ -268,14 +282,13 @@ is
             end if;
             pragma Assert (A.First /= B.First);
             pragma
-              Assert
-                (if A.First <= Pos (B) then FR (Pos (B)).First = A.First);
+              Assert (if A.First <= Pos (B) then FR (Pos (B)).First = A.First);
             pragma Assert (A.First > Pos (B));
             pragma Assert (FR (A.First).First = A.First);
             pragma
               Assert
                 (if A.First <= B.First + B.Length - 1
-                 then FR (A.First).First = B.First);
+                   then FR (A.First).First = B.First);
             pragma Assert (A.First >= B.First + B.Length);
             pragma Assert (Pos (PA) > Pos (PB));
          end if;
@@ -319,13 +332,17 @@ is
    begin
       for K in P'Range loop
          P (K) := Idx (Prev_In (FR, Pos (R (K))));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. K => P (J) = Idx (Prev_In (FR, Pos (R (J)))));
+      end loop;
+      for K in P'Range loop
          pragma Assert (P (K) in R'Range);
          pragma Assert (R (P (K)) = Previous (R (K)));
-         pragma Loop_Invariant (for all J in 1 .. K => P (J) in R'Range);
-         pragma Loop_Invariant
-           (for all J in 1 .. K => P (J) = Idx (Prev_In (FR, Pos (R (J)))));
-         pragma Loop_Invariant
-           (for all J in 1 .. K => R (P (J)) = Previous (R (J)));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. K =>
+                P (J) in R'Range and then R (P (J)) = Previous (R (J)));
       end loop;
       return P;
    end Pred_Index;
@@ -386,7 +403,7 @@ is
       pragma
         Assert
           (if P (J) <= P (I)
-           then Key_LE (S, R (P (J)), R (P (I)), Later_First));
+             then Key_LE (S, R (P (J)), R (P (I)), Later_First));
    end Pair_Step;
 
    function Compose (P, Inv : Mapping) return Mapping
@@ -410,11 +427,28 @@ is
    begin
       for A in Q'Range loop
          Q (A) := P (Inv (A));
-         pragma Loop_Invariant
-           (for all B in 1 .. A => Q (B) = P (Inv (B)) and then Q (B) in P'Range);
+         pragma
+           Loop_Invariant
+             (for all B in 1 .. A =>
+                Q (B) = P (Inv (B)) and then Q (B) in P'Range);
       end loop;
       return Q;
    end Compose;
+
+   procedure Get_Ordered (L : String; Map : Mapping; I, J : Positive)
+   with
+     Pre  =>
+       Supported (L)
+       and then Map'First = 1
+       and then Map'Length = L'Length
+       and then (for all A in L'Range =>
+                   (for all B in L'Range =>
+                      Ordered (L, A, B) = (Map (A) <= Map (B))))
+       and then I in L'Range
+       and then J in L'Range,
+     Post => Ordered (L, I, J) = (Map (I) <= Map (J));
+
+   procedure Get_Ordered (L : String; Map : Mapping; I, J : Positive) is null;
 
    --  The LF map is exact on the bijective table: it moves each row to the
    --  row of the rotation starting one position earlier in its factor.
@@ -434,8 +468,7 @@ is
        and then (for all Q in FR'Range =>
                    Idx (Q) in R'Range and then R (Idx (Q)) = FR (Q)),
      Post =>
-       (for all K in R'Range =>
-          Map (K) = Idx (Prev_In (FR, Pos (R (K)))));
+       (for all K in R'Range => Map (K) = Idx (Prev_In (FR, Pos (R (K)))));
 
    procedure Exact_LF
      (S : String; FR, R : Table; L : String; Map, Idx : Mapping)
@@ -447,25 +480,28 @@ is
       declare
          P : constant Mapping := Pred_Index (FR, R, Idx);
       begin
-      for A in 1 .. N - 1 loop
-         pragma Assert (Map (Inv (A)) = A and then Map (Inv (A + 1)) = A + 1);
-         pragma Assert (Ordered (L, Inv (A), Inv (A + 1)));
-         Pair_Step (S, FR, R, L, Map, P, Inv (A), Inv (A + 1));
-         pragma Loop_Invariant
-           (for all B in 1 .. A => P (Inv (B)) < P (Inv (B + 1)));
-      end loop;
-      declare
-         Q : constant Mapping := Compose (P, Inv);
-      begin
-         Permutations.Increasing_Identity (Q);
-         pragma Assert (for all K in 1 .. N => Q (Map (K)) = P (K));
-      end;
+         for A in 1 .. N - 1 loop
+            pragma
+              Assert (Map (Inv (A)) = A and then Map (Inv (A + 1)) = A + 1);
+            Get_Ordered (L, Map, Inv (A), Inv (A + 1));
+            pragma Assert (Ordered (L, Inv (A), Inv (A + 1)));
+            Pair_Step (S, FR, R, L, Map, P, Inv (A), Inv (A + 1));
+            pragma
+              Loop_Invariant
+                (for all B in 1 .. A => P (Inv (B)) < P (Inv (B + 1)));
+         end loop;
+         declare
+            Q : constant Mapping := Compose (P, Inv);
+         begin
+            Permutations.Increasing_Identity (Q);
+            pragma Assert (for all K in 1 .. N => Q (Map (K)) = P (K));
+         end;
       end;
    end Exact_LF;
 
    --  The facts about the order the round trip predicts.
-   function Model (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping)
-     return Boolean
+   function Model
+     (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping) return Boolean
    is (S'Length > 0
        and then Factorization (S, FR)
        and then Sorting.Well_Formed (S, R)
@@ -526,6 +562,99 @@ is
       end loop;
    end Model_Start;
 
+   --  The decoder's rule for position P holds for the predicted order.
+   procedure Model_At
+     (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping; P : Positive)
+   with
+     Pre  => Model (S, FR, R, Map, Idx, W, Inv) and then P in 2 .. S'Length,
+     Post => Orders.Rule (Map, W, Inv, P);
+
+   procedure Model_At
+     (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping; P : Positive) is
+   begin
+      Cyclic_Facts (S, FR);
+      pragma Assert (Map (W (P)) = Idx (P));
+      pragma Assert (Inv (Idx (P)) = Prev_In (FR, P));
+      if P > FR (P).First then
+         pragma Assert (Next_In (FR, P - 1) = P);
+      else
+         Model_Start (S, FR, R, Map, Idx, W, Inv, P);
+      end if;
+   end Model_At;
+
+   procedure Rules (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping)
+   with
+     Pre  => Model (S, FR, R, Map, Idx, W, Inv),
+     Post => (for all P in 2 .. S'Length => Orders.Rule (Map, W, Inv, P));
+
+   procedure Rules (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping) is
+      pragma
+        Annotate
+          (GNATprove, Hide_Info, "Expression_Function_Body", Orders.Rule);
+   begin
+      for P in 2 .. S'Length loop
+         Model_At (S, FR, R, Map, Idx, W, Inv, P);
+         pragma
+           Loop_Invariant
+             (for all Q in 2 .. P => Orders.Rule (Map, W, Inv, Q));
+      end loop;
+   end Rules;
+
+   procedure Inverse_At
+     (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping; K : Positive)
+   with
+     Pre  => Model (S, FR, R, Map, Idx, W, Inv) and then K in 1 .. S'Length,
+     Post =>
+       K in W'Range
+       and then K in Inv'Range
+       and then W (K) in Inv'Range
+       and then Inv (K) in W'Range
+       and then Inv (W (K)) = K
+       and then W (Inv (K)) = K;
+
+   procedure Inverse_At
+     (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping; K : Positive) is
+   begin
+      Cyclic_At (S, FR, K);
+      Cyclic_At (S, FR, Pos (R (K)));
+      Cyclic_At (S, FR, Next_In (FR, K));
+      pragma Assert (Idx (Pos (R (K))) = K);
+      pragma Assert (Pos (R (Idx (Next_In (FR, K)))) = Next_In (FR, K));
+   end Inverse_At;
+
+   procedure Model_Inverse
+     (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping)
+   with
+     Pre  => Model (S, FR, R, Map, Idx, W, Inv),
+     Post =>
+       (for all K in 1 .. S'Length =>
+          K in W'Range
+          and then K in Inv'Range
+          and then W (K) in Inv'Range
+          and then Inv (K) in W'Range
+          and then Inv (W (K)) = K
+          and then W (Inv (K)) = K);
+
+   procedure Model_Inverse
+     (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping)
+   is
+      pragma
+        Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Model);
+   begin
+      for K in 1 .. S'Length loop
+         Inverse_At (S, FR, R, Map, Idx, W, Inv, K);
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. K =>
+                J in W'Range
+                and then J in Inv'Range
+                and then W (J) in Inv'Range
+                and then Inv (J) in W'Range
+                and then Inv (W (J)) = J
+                and then W (Inv (J)) = J);
+      end loop;
+   end Model_Inverse;
+
    --  The predicted order is the decoder's visiting order.
    procedure Model_Order
      (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping)
@@ -540,9 +669,7 @@ is
       G : constant Positive := FR (N).First;
    begin
       Cyclic_Facts (S, FR);
-      pragma Assert (for all K in R'Range => Idx (Pos (R (K))) = K);
-      pragma Assert (for all P in W'Range => Inv (W (P)) = P);
-      pragma Assert (for all K in Inv'Range => W (Inv (K)) = K);
+      Model_Inverse (S, FR, R, Map, Idx, W, Inv);
       --  The last factor's Lyndon rotation is the least row.
       pragma Assert (Next_In (FR, N) = G);
       pragma Assert (FR (G).Offset = 0);
@@ -552,20 +679,9 @@ is
          pragma Assert (R (1) = R (Idx (G)));
       end if;
       pragma Assert (W (N) = 1);
-      for P in 2 .. N loop
-         pragma Assert (Map (W (P)) = Idx (P));
-         pragma Assert (Inv (Idx (P)) = Prev_In (FR, P));
-         if P > FR (P).First then
-            pragma Assert (Next_In (FR, P - 1) = P);
-         else
-            Model_Start (S, FR, R, Map, Idx, W, Inv, P);
-         end if;
-         pragma Loop_Invariant
-           (for all Q in 2 .. P =>
-              (if Inv (Map (W (Q))) < Q
-               then W (Q - 1) = Map (W (Q))
-               else (for all Y in 1 .. W (Q - 1) - 1 => Inv (Y) >= Q)));
-      end loop;
+      pragma Assert (for all P in W'Range => W (P) in Inv'Range);
+      pragma Assert (for all K in Inv'Range => Inv (K) in W'Range);
+      Rules (S, FR, R, Map, Idx, W, Inv);
    end Model_Order;
 
    --  The letter before the rotation starting after Q is the letter at Q.
@@ -614,8 +730,9 @@ is
    begin
       for P in W'Range loop
          W (P) := Idx (Next_In (FR, P));
-         pragma Loop_Invariant
-           (for all Q in 1 .. P => W (Q) = Idx (Next_In (FR, Q)));
+         pragma
+           Loop_Invariant
+             (for all Q in 1 .. P => W (Q) = Idx (Next_In (FR, Q)));
       end loop;
       return W;
    end Next_Rows;
@@ -644,14 +761,16 @@ is
    begin
       for K in Inv'Range loop
          Inv (K) := Prev_In (FR, Pos (R (K)));
-         pragma Loop_Invariant
-           (for all J in 1 .. K => Inv (J) = Prev_In (FR, Pos (R (J))));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. K => Inv (J) = Prev_In (FR, Pos (R (J))));
       end loop;
       return Inv;
    end Written_At;
 
    --  With the model order in hand, the decoder writes back S.
-   procedure Decode_Model (S : String; FR, R : Table; L : String; Idx : Mapping)
+   procedure Decode_Model
+     (S : String; FR, R : Table; L : String; Idx : Mapping)
    with
      Pre  =>
        Context (S, FR, R, L)
@@ -664,7 +783,8 @@ is
                    LF (L) (K) = Idx (Prev_In (FR, Pos (R (K))))),
      Post => Bijective.Decode (L) = S;
 
-   procedure Decode_Model (S : String; FR, R : Table; L : String; Idx : Mapping)
+   procedure Decode_Model
+     (S : String; FR, R : Table; L : String; Idx : Mapping)
    is
       N   : constant Positive := S'Length;
       Map : constant Mapping := LF (L);

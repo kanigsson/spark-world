@@ -20,16 +20,38 @@ is
        and then (for all P in W'Range => Inv (W (P)) = P)
        and then (for all I in Inv'Range => W (Inv (I)) = I));
 
+   --  The step that writes position P - 1 after position P.
+   function Rule (Map, W, Inv : Mapping; P : Positive) return Boolean
+   is (P in W'Range
+       and then P - 1 in W'Range
+       and then W (P) in Map'Range
+       and then Map (W (P)) in Inv'Range
+       and then (if Inv (Map (W (P))) < P
+                 then W (P - 1) = Map (W (P))
+                 else
+                   (for all Y in 1 .. W (P - 1) - 1 =>
+                      Y in Inv'Range and then Inv (Y) >= P)));
+
    function Is_Order (Map, W, Inv : Mapping) return Boolean
    is (Inverse_Pair (W, Inv)
        and then Map'First = 1
        and then Map'Length = W'Length
        and then (for all I in Map'Range => Map (I) in Map'Range)
        and then (if W'Length > 0 then W (W'Last) = 1)
-       and then (for all P in 2 .. W'Last =>
-                   (if Inv (Map (W (P))) < P
-                    then W (P - 1) = Map (W (P))
-                    else (for all Y in 1 .. W (P - 1) - 1 => Inv (Y) >= P))));
+       and then (for all P in 2 .. W'Last => Rule (Map, W, Inv, P)));
+
+   procedure Get_Rule (Map, W, Inv : Mapping; P : Positive)
+   with
+     Pre  => Is_Order (Map, W, Inv) and then P in 2 .. W'Length,
+     Post =>
+       P - 1 in W'Range
+       and then W (P) in Map'Range
+       and then Map (W (P)) in Inv'Range
+       and then (if Inv (Map (W (P))) < P
+                 then W (P - 1) = Map (W (P))
+                 else
+                   (for all Y in 1 .. W (P - 1) - 1 =>
+                      Y in Inv'Range and then Inv (Y) >= P));
 
    --  The visiting order is determined by Map alone.
    procedure Order_Unique (Map, W1, Inv1, W2, Inv2 : Mapping)

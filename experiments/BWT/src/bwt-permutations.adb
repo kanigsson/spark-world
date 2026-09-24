@@ -1,23 +1,28 @@
 with BWT.Counting;
 
-package body BWT.Permutations with SPARK_Mode is
+package body BWT.Permutations
+  with SPARK_Mode
+is
    function Inverse (Map : Mapping) return Mapping is
       Result : Mapping (1 .. Map'Length) := (others => 1);
-      Seen : Counting.Flags (1 .. Map'Length) := (others => False);
+      Seen   : Counting.Flags (1 .. Map'Length) := (others => False);
    begin
       Counting.All_Clear (Seen);
       for I in Map'Range loop
-         pragma Loop_Invariant
-           (Counting.Unseen (Seen, Seen'Length) = Map'Length - I + 1);
-         pragma Loop_Invariant
-           (for all J in Map'Range =>
-             (Seen (J) = (for some K in 1 .. I - 1 => Map (K) = J)));
-         pragma Loop_Invariant
-           (for all J in 1 .. I - 1 => Result (Map (J)) = J);
-         pragma Loop_Invariant
-           (for all J in Map'Range =>
-             Result (J) in Map'Range
-               and then (if Seen (J) then Map (Result (J)) = J));
+         pragma
+           Loop_Invariant
+             (Counting.Unseen (Seen, Seen'Length) = Map'Length - I + 1);
+         pragma
+           Loop_Invariant
+             (for all J in Map'Range =>
+                (Seen (J) = (for some K in 1 .. I - 1 => Map (K) = J)));
+         pragma
+           Loop_Invariant (for all J in 1 .. I - 1 => Result (Map (J)) = J);
+         pragma
+           Loop_Invariant
+             (for all J in Map'Range =>
+                Result (J) in Map'Range
+                and then (if Seen (J) then Map (Result (J)) = J));
          declare
             Before : constant Counting.Flags := Seen;
          begin
@@ -43,8 +48,7 @@ package body BWT.Permutations with SPARK_Mode is
          pragma Loop_Invariant (for all J in 1 .. I => Map (J) >= J);
       end loop;
       for I in reverse Map'Range loop
-         pragma Loop_Invariant
-           (for all J in I .. Map'Last => Map (J) <= J);
+         pragma Loop_Invariant (for all J in I .. Map'Last => Map (J) <= J);
       end loop;
    end Increasing_Identity;
 end BWT.Permutations;

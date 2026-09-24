@@ -1,14 +1,18 @@
-package body BWT.Rotations with SPARK_Mode is
+package body BWT.Rotations
+  with SPARK_Mode
+is
    procedure Previous_Injective (A, B : Rotation) is
    begin
       null;
    end Previous_Injective;
 
-   function Letter (S : String; R : Rotation; K : Natural) return Character is
-     (S (R.First + (R.Offset + K) mod R.Length));
+   function Letter (S : String; R : Rotation; K : Natural) return Character
+   is (S (R.First + (R.Offset + K) mod R.Length));
 
    procedure Modulo_Period (X : Natural; P : Positive)
-   with Ghost, Pre => X <= 5 * Max_Length and then P <= X,
+   with
+     Ghost,
+     Pre  => X <= 5 * Max_Length and then P <= X,
      Post => X mod P = (X - P) mod P;
 
    procedure Modulo_Period (X : Natural; P : Positive) is
@@ -17,19 +21,22 @@ package body BWT.Rotations with SPARK_Mode is
    end Modulo_Period;
 
    procedure Equal_Same (S : String; A, B : Rotation; Size : Natural) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
    begin
       null;
    end Equal_Same;
 
    procedure Period (S : String; A : Rotation; K : Natural) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
    begin
       Modulo_Period (A.Offset + K, A.Length);
    end Period;
 
    procedure Shift_Letter (S : String; R : Rotation; K : Natural) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
    begin
       if R.Offset = 0 and then K > 0 then
          Modulo_Period (R.Length - 1 + K, R.Length);
@@ -47,17 +54,20 @@ package body BWT.Rotations with SPARK_Mode is
    procedure Order_Laws (S : String; A, B, C : Rotation; Size : Natural) is
    begin
       for K in 0 .. Size loop
-         pragma Loop_Invariant
-           (LE (S, A, B, K) or LE (S, B, A, K));
-         pragma Loop_Invariant
-           ((LE (S, A, B, K) and LE (S, B, A, K)) =
-              Equal_Prefix (S, A, B, K));
-         pragma Loop_Invariant
-           (if LE (S, A, B, Size) and LE (S, B, C, Size)
-            then LE (S, A, C, K)
-              and then (if Equal_Prefix (S, A, C, K)
-                        then Equal_Prefix (S, A, B, K)
-                          and then Equal_Prefix (S, B, C, K)));
+         pragma Loop_Invariant (LE (S, A, B, K) or LE (S, B, A, K));
+         pragma
+           Loop_Invariant
+             ((LE (S, A, B, K) and LE (S, B, A, K))
+                = Equal_Prefix (S, A, B, K));
+         pragma
+           Loop_Invariant
+             (if LE (S, A, B, Size) and LE (S, B, C, Size)
+                then
+                  LE (S, A, C, K)
+                  and then (if Equal_Prefix (S, A, C, K)
+                            then
+                              Equal_Prefix (S, A, B, K)
+                              and then Equal_Prefix (S, B, C, K)));
       end loop;
    end Order_Laws;
 
@@ -74,19 +84,22 @@ package body BWT.Rotations with SPARK_Mode is
          Period (S, A, K - B.Length);
          pragma Assert (Letter (S, A, K) = Letter (S, A, K - A.Length));
          pragma Assert (Letter (S, B, K) = Letter (S, B, K - B.Length));
-         pragma Assert
-           (Letter (S, B, K - A.Length) =
-              Letter (S, B, K - A.Length - B.Length));
-         pragma Assert
-           (Letter (S, A, K - B.Length) =
-              Letter (S, A, K - A.Length - B.Length));
-         pragma Assert
-           (Letter (S, A, K - A.Length) = Letter (S, B, K - A.Length));
-         pragma Assert
-           (Letter (S, A, K - B.Length) = Letter (S, B, K - B.Length));
-         pragma Assert
-           (Letter (S, A, K - A.Length - B.Length) =
-              Letter (S, B, K - A.Length - B.Length));
+         pragma
+           Assert
+             (Letter (S, B, K - A.Length)
+                = Letter (S, B, K - A.Length - B.Length));
+         pragma
+           Assert
+             (Letter (S, A, K - B.Length)
+                = Letter (S, A, K - A.Length - B.Length));
+         pragma
+           Assert (Letter (S, A, K - A.Length) = Letter (S, B, K - A.Length));
+         pragma
+           Assert (Letter (S, A, K - B.Length) = Letter (S, B, K - B.Length));
+         pragma
+           Assert
+             (Letter (S, A, K - A.Length - B.Length)
+                = Letter (S, B, K - A.Length - B.Length));
          pragma Assert (Letter (S, A, K) = Letter (S, B, K));
       end loop;
    end Extend_Equality;
@@ -95,25 +108,29 @@ package body BWT.Rotations with SPARK_Mode is
    begin
       for N in K + 1 .. Size loop
          pragma Loop_Invariant (not Equal_Prefix (S, A, B, N));
-         pragma Loop_Invariant
-           (LE (S, A, B, N) = (Letter (S, A, K) < Letter (S, B, K)));
+         pragma
+           Loop_Invariant
+             (LE (S, A, B, N) = (Letter (S, A, K) < Letter (S, B, K)));
       end loop;
    end Decide;
 
    procedure Letter_Direct (S : String; R : Rotation; K : Natural) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
    begin
       null;
    end Letter_Direct;
 
    procedure Letter_Wrap (S : String; R : Rotation; K : Natural) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
    begin
       pragma Assert ((R.Offset + K) mod R.Length = R.Offset + K - R.Length);
    end Letter_Wrap;
 
    procedure Letter_Advance (S : String; R : Rotation; D, K : Natural) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
       A : constant Rotation := Advance (R, D);
    begin
       if R.Offset + D >= R.Length then
@@ -122,8 +139,38 @@ package body BWT.Rotations with SPARK_Mode is
       end if;
    end Letter_Advance;
 
-   function Mismatch (S : String; A, B : Rotation; Size : Natural)
-     return Natural is
+   procedure Letter_Next (S : String; R : Rotation; K : Natural) is
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+   begin
+      if R.Offset + 1 = R.Length then
+         Modulo_Period (R.Offset + K + 1, R.Length);
+      end if;
+   end Letter_Next;
+
+   procedure Order_Next (S : String; A, B : Rotation; K : Natural) is
+      NA : constant Rotation := Next_Rot (A);
+      NB : constant Rotation := Next_Rot (B);
+   begin
+      for J in 0 .. K loop
+         pragma
+           Loop_Invariant
+             (Equal_Prefix (S, A, B, J + 1)
+                = (Letter (S, A, 0) = Letter (S, B, 0)
+                   and then Equal_Prefix (S, NA, NB, J))
+                and then LE (S, A, B, J + 1)
+                         = (Letter (S, A, 0) < Letter (S, B, 0)
+                            or else (Letter (S, A, 0) = Letter (S, B, 0)
+                                     and then LE (S, NA, NB, J))));
+         if J < K then
+            Letter_Next (S, A, J);
+            Letter_Next (S, B, J);
+         end if;
+      end loop;
+   end Order_Next;
+
+   function Mismatch
+     (S : String; A, B : Rotation; Size : Natural) return Natural is
    begin
       for K in 0 .. Size - 1 loop
          pragma Loop_Invariant (Equal_Prefix (S, A, B, K));
@@ -151,8 +198,10 @@ package body BWT.Rotations with SPARK_Mode is
    end Less;
 
    procedure Key_Order
-     (S : String; A, B, C : Rotation; Ties : Tie_Order := Earlier_First) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
+     (S : String; A, B, C : Rotation; Ties : Tie_Order := Earlier_First)
+   is
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
    begin
       Order_Laws (S, A, B, C, 2 * S'Length);
       Order_Laws (S, B, C, A, 2 * S'Length);
@@ -160,29 +209,37 @@ package body BWT.Rotations with SPARK_Mode is
    end Key_Order;
 
    procedure Key_Weakening
-     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
+   is
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
    begin
       null;
    end Key_Weakening;
 
    procedure Key_Intro
-     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
+   is
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
    begin
       null;
    end Key_Intro;
 
    procedure Key_Tie
-     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
+   is
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
    begin
       null;
    end Key_Tie;
 
    procedure Key_Antisym
-     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
+   is
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
    begin
       Order_Laws (S, A, B, A, 2 * S'Length);
       Order_Laws (S, B, A, B, 2 * S'Length);
@@ -196,8 +253,8 @@ package body BWT.Rotations with SPARK_Mode is
       end if;
    end Equal_Prefix_Shorter;
 
-   procedure Same_Length_Extend (S : String; A, B : Rotation; H, Size : Natural)
-   is
+   procedure Same_Length_Extend
+     (S : String; A, B : Rotation; H, Size : Natural) is
    begin
       if Size <= H then
          Equal_Prefix_Shorter (S, A, B, H, Size);
@@ -214,8 +271,7 @@ package body BWT.Rotations with SPARK_Mode is
    procedure Equal_Horizon (S : String; A, B : Rotation) is
    begin
       if A.Length + B.Length <= 2 * S'Length - 1 then
-         Equal_Prefix_Shorter
-           (S, A, B, 2 * S'Length - 1, A.Length + B.Length);
+         Equal_Prefix_Shorter (S, A, B, 2 * S'Length - 1, A.Length + B.Length);
          Extend_Equality (S, A, B, 2 * S'Length);
       else
          pragma Assert (A.Length = S'Length and then B.Length = S'Length);
@@ -231,10 +287,11 @@ package body BWT.Rotations with SPARK_Mode is
       Shift_Letter (S, A, 0);
       Shift_Letter (S, B, 0);
       for K in 0 .. N - 1 loop
-         pragma Loop_Invariant
-           (LE (S, PA, PB, K + 1) = LE (S, A, B, K)
-            and then Equal_Prefix (S, PA, PB, K + 1)
-                     = Equal_Prefix (S, A, B, K));
+         pragma
+           Loop_Invariant
+             (LE (S, PA, PB, K + 1) = LE (S, A, B, K)
+                and then Equal_Prefix (S, PA, PB, K + 1)
+                         = Equal_Prefix (S, A, B, K));
          if K + 1 < N then
             Shift_Letter (S, A, K + 1);
             Shift_Letter (S, B, K + 1);
@@ -267,10 +324,11 @@ package body BWT.Rotations with SPARK_Mode is
       for K in 1 .. 2 * S'Length loop
          Shift_Letter (S, A, K - 1);
          Shift_Letter (S, B, K - 1);
-         pragma Loop_Invariant
-           (Equal_Prefix (S, PA, PB, K) =
-             (Letter (S, A, A.Length - 1) = Letter (S, B, B.Length - 1)
-               and then Equal_Prefix (S, A, B, K - 1)));
+         pragma
+           Loop_Invariant
+             (Equal_Prefix (S, PA, PB, K)
+                = (Letter (S, A, A.Length - 1) = Letter (S, B, B.Length - 1)
+                   and then Equal_Prefix (S, A, B, K - 1)));
          pragma Loop_Invariant (LE (S, PA, PB, K));
       end loop;
    end Prepend_Order;
@@ -285,7 +343,8 @@ package body BWT.Rotations with SPARK_Mode is
    end Shift_Equal;
 
    procedure Classical_Character (S : String; Steps : Natural) is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
    begin
       if Steps > 0 then
          Modulo_Period (2 * S'Length - Steps - 1, S'Length);
@@ -294,8 +353,10 @@ package body BWT.Rotations with SPARK_Mode is
 
    function Key_Less
      (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
-     return Boolean is
-      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
+      return Boolean
+   is
+      pragma
+        Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
    begin
       Order_Laws (S, A, B, A, 2 * S'Length);
       if Less (S, A, B) then

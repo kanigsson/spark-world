@@ -111,20 +111,20 @@ begin
       end loop;
    end loop;
    if not Contracts then
-   declare
-      All_Bytes : String (1 .. 256);
-      Long      : String (1 .. Max_Length) := (others => 'a');
-   begin
-      for I in All_Bytes'Range loop
-         All_Bytes (I) := Character'Val (I - 1);
-      end loop;
-      Exercise (All_Bytes, Oracle => False);
-      Exercise (Long, Oracle => False);
-      for I in Long'Range loop
-         Long (I) := Character'Val ((I * 137 + I / 7) mod 256);
-      end loop;
-      Exercise (Long, Oracle => False);
-   end;
+      declare
+         All_Bytes : String (1 .. 256);
+         Long      : String (1 .. Max_Length) := (others => 'a');
+      begin
+         for I in All_Bytes'Range loop
+            All_Bytes (I) := Character'Val (I - 1);
+         end loop;
+         Exercise (All_Bytes, Oracle => False);
+         Exercise (Long, Oracle => False);
+         for I in Long'Range loop
+            Long (I) := Character'Val ((I * 137 + I / 7) mod 256);
+         end loop;
+         Exercise (Long, Oracle => False);
+      end;
    end if;
    Report;
 end Test_BWT;

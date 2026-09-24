@@ -64,7 +64,8 @@ is
    with
      Pre  => In_Word (S, A, LA) and then In_Word (S, B, LB),
      Post =>
-       (Lex_Less (S, A, LA, B, LB) or else Lex_Less (S, B, LB, A, LA)
+       (Lex_Less (S, A, LA, B, LB)
+        or else Lex_Less (S, B, LB, A, LA)
         or else (LA = LB and then Same (S, A, B, LA)))
        and then not (Lex_Less (S, A, LA, B, LB)
                      and then Lex_Less (S, B, LB, A, LA))
@@ -107,20 +108,25 @@ is
    --  Periodicity with period P on I .. J - 1, in the form Duval maintains.
    function Periodic (S : String; I, J, P : Positive) return Boolean
    is (for all X in I + P .. J - 1 => S (X) = S (X - P))
-   with Pre => Supported (S) and then J - 1 <= S'Length and then I <= J
-     and then P <= S'Length;
+   with
+     Pre =>
+       Supported (S)
+       and then J - 1 <= S'Length
+       and then I <= J
+       and then P <= S'Length;
 
    procedure Shift_Back (S : String; I, J, P, X, T : Natural)
    with
-     Pre  =>
+     Pre                =>
        Supported (S)
-       and then J - 1 <= S'Length and then I in 1 .. J
+       and then J - 1 <= S'Length
+       and then I in 1 .. J
        and then P in 1 .. S'Length
        and then Periodic (S, I, J, P)
        and then X <= J - 1
        and then T <= S'Length
        and then X >= I + T * P,
-     Post => S (X) = S (X - T * P),
+     Post               => S (X) = S (X - T * P),
      Subprogram_Variant => (Decreases => T);
 
    --  The step of Duval's algorithm that lengthens the current Lyndon word:

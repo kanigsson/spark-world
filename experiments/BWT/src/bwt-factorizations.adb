@@ -7,43 +7,49 @@ is
    is
       E : constant Positive := I + Size;
    begin
-      pragma Assert
-        (for all P in 1 .. E - 1 =>
-           Valid (Rows (P), S'Length)
-           and then Rows (P).First + Rows (P).Offset = P
-           and then Rows (P).First + Rows (P).Length <= E);
-      pragma Assert
-        (for all P in 1 .. I - 1 =>
-           (for all Q in
-              Rows (P).First .. Rows (P).First + Rows (P).Length - 1 =>
+      pragma
+        Assert
+          (for all P in 1 .. E - 1 =>
+             Valid (Rows (P), S'Length)
+             and then Rows (P).First + Rows (P).Offset = P
+             and then Rows (P).First + Rows (P).Length <= E);
+      pragma
+        Assert
+          (for all P in 1 .. I - 1 =>
+             (for all Q in
+                Rows (P).First .. Rows (P).First + Rows (P).Length - 1 =>
                 Rows (Q) = Old (Q)));
-      pragma Assert
-        (for all P in 1 .. E - 1 =>
-           (for all Q in
-              Rows (P).First .. Rows (P).First + Rows (P).Length - 1 =>
+      pragma
+        Assert
+          (for all P in 1 .. E - 1 =>
+             (for all Q in
+                Rows (P).First .. Rows (P).First + Rows (P).Length - 1 =>
                 Rows (Q).First = Rows (P).First
                 and then Rows (Q).Length = Rows (P).Length));
-      pragma Assert
-        (for all P in 1 .. E - 1 =>
-           Lyndon (S, Rows (P).First, Rows (P).Length));
+      pragma
+        Assert
+          (for all P in 1 .. E - 1 =>
+             Lyndon (S, Rows (P).First, Rows (P).Length));
       --  The factor that ended at I - 1 is the one the new factor follows.
-      pragma Assert
-        (for all P in 1 .. I - 1 =>
-           (if Old (P).First + Old (P).Length = I
-            then
-              Old (I - 1).First = Old (P).First
-              and then Old (I - 1).Length = Old (P).Length));
-      pragma Assert
-        (for all P in 1 .. E - 1 =>
-           (if Rows (P).First + Rows (P).Length < E
-            then
-              Rows (Rows (P).First + Rows (P).Length).Offset = 0
-              and then Lex_LE
-                         (S,
-                          Rows (P).First + Rows (P).Length,
-                          Rows (Rows (P).First + Rows (P).Length).Length,
-                          Rows (P).First,
-                          Rows (P).Length)));
+      pragma
+        Assert
+          (for all P in 1 .. I - 1 =>
+             (if Old (P).First + Old (P).Length = I
+              then
+                Old (I - 1).First = Old (P).First
+                and then Old (I - 1).Length = Old (P).Length));
+      pragma
+        Assert
+          (for all P in 1 .. E - 1 =>
+             (if Rows (P).First + Rows (P).Length < E
+              then
+                Rows (Rows (P).First + Rows (P).Length).Offset = 0
+                and then Lex_LE
+                           (S,
+                            Rows (P).First + Rows (P).Length,
+                            Rows (Rows (P).First + Rows (P).Length).Length,
+                            Rows (P).First,
+                            Rows (P).Length)));
    end Extend_Prefix;
 
    procedure Dominated_Less (S : String; I, F, L, D, Len : Natural) is
@@ -58,6 +64,10 @@ is
       end if;
    end Dominated_Less;
 
+   procedure Bounds (S : String; Rows : Table) is null;
+
+   procedure Intro (S : String; Rows : Table) is null;
+
    procedure Chain_LE (S : String; Rows : Table; B, C : Positive) is
       X : Positive := B;
    begin
@@ -65,8 +75,8 @@ is
       while X < C loop
          pragma Loop_Invariant (X in B .. C);
          pragma Loop_Invariant (Rows (X).Offset = 0);
-         pragma Loop_Invariant
-           (Lex_LE (S, X, Rows (X).Length, B, Rows (B).Length));
+         pragma
+           Loop_Invariant (Lex_LE (S, X, Rows (X).Length, B, Rows (B).Length));
          pragma Loop_Variant (Increases => X);
          declare
             Next : constant Positive := X + Rows (X).Length;
@@ -131,9 +141,10 @@ is
          declare
             L : constant Positive := A (I).Length;
          begin
-            pragma Assert
-              (for all P in I .. I + L - 1 =>
-                 A (P) = (I, L, P - I) and then B (P) = (I, L, P - I));
+            pragma
+              Assert
+                (for all P in I .. I + L - 1 =>
+                   A (P) = (I, L, P - I) and then B (P) = (I, L, P - I));
             I := I + L;
          end;
       end loop;

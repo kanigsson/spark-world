@@ -1,45 +1,36 @@
 # BWT
 
-Experimental SPARK reference algorithms, not yet proved roundtrip. All core
-code and ghost theorem bodies are in `src/`; `tests/` is ordinary Ada and uses
-`../../tools/testing/testing.gpr`. No generated source and no SPARK-off core.
+SPARK reference implementations of the classical and bijective BWT, with all
+three inverse laws in `BWT.Theorems` proved. Core code and ghost proofs are
+in `src/`. `tests/` is ordinary Ada and uses
+`../../tools/testing/testing.gpr`. There is no generated source and no
+SPARK-off code. [PROOF.md](PROOF.md) maps the proof.
 
-`BWT.Theorems` contains three **unproved targets**, not trusted lemmas. Do not
-call them to justify other proofs until their bodies are discharged. Do not
-move their assertions into assumed/imported contracts or silence failures.
-`PLAN.md` gives the proof order and the important duplicate/periodic cases.
+`make prove` must report zero unproved checks. It names the pinned prover and
+treats unproved checks as errors. Keep `-U`, or uncalled ghost proof units
+drop out of the run. The 5-second budget is deliberate: every check proves
+well inside it. If a change needs more, split the lemma instead (see the
+proof-engineering notes in PROOF.md). A 2-second from-scratch run
+(`--timeout=2 -f`) is a quick way to find checks near the edge.
 
-Use one matching compiler/prover toolchain. `make prove` deliberately uses the
-caller-provided GNATprove and treats unproved checks as errors. Keep `-U`:
-otherwise uncalled theorem units can disappear from a proof run. All normal
-builds enable contracts, so `test` and `test-contracts` run the same suite.
+Before changing code, know:
 
-Validation baseline (2026-09-22): `make test` passes 49,232 checks;
-`make flow` passes all 23 checks; `make format-check` passes. Toolchain:
-GNAT/GPRbuild Pro 27.0w (20260910), development GNATprove reporting `0.0w`,
-Why3 1.8.2+git, CVC5 1.3.2 and Z3 4.15.4. The repository formatter resolves
-the shared pin; no local tool locations belong in tracked files.
+- The bijective table sorts with `Later_First` ties and the classical one with
+  `Earlier_First`. The bijective proof needs exact LF, which only the later-first
+  order gives. The classical order fixes which of several equal rows is
+  `Primary`, so changing it changes classical output.
+- `Bijective_Decode` first computes its visiting order (`Decode_Order`), then
+  gathers letters. SPARK has no ghost parameters, so the order must be an
+  ordinary result for its contract to reach the proofs.
+- The bijective contracts live in `BWT.Bijective`. The public functions in `BWT`
+  are thin wrappers, and the bijective laws are proved in `BWT`'s body.
+- Ghost lemmas of the form `Get_*` extract one instance of an opaque
+  predicate. They exist for proof speed, not logic.
 
-`make prove`: **199/206 checks proved, seven unproved**, with a nonzero exit
-as intended. Nothing is justified or suppressed. Exact remaining obligations:
-
-- `bwt-theorems.adb:7,12,17`: the three inverse equalities. The algorithms'
-  contracts currently specify shape only; the semantic lemmas in `PLAN.md`
-  are needed. A proved theorem *postcondition* downstream of an unproved
-  assertion does not establish the theorem.
-- `bwt.ads:24`: the nonempty classical primary row is in range. Sorting needs
-  a permutation/preservation contract and the extraction loop needs a witness.
-- `bwt.adb:225`: initialization of the inverse's `Next <= Last'Length`
-  invariant; the outer loop needs to carry it.
-- `bwt.adb:227`: output indexing at `Next`. Relate remaining output space to
-  unvisited positions to establish positivity.
-- `bwt.adb:233`: all output positions filled (`Next = 0`). Requires visited
-  accounting and coverage invariants across the outer scan.
-
-All seven reached the five-second proof budget; this is not evidence that
-longer timeouts alone suffice. There is also a harmless flow warning for the
-redundant initialization of the classical decoder's output (`bwt.adb:134`).
-Full runtime safety and all universal inverse laws remain unproved. Successful
-helper proofs establish only their current contracts: in particular, LF's
-range is proved, but its permutation property is not yet specified or proved.
-The generated full report is `obj/core/gnatprove/gnatprove.out` (untracked).
+Validation (2026-09-24): `make prove` proves all 5,506 checks from a clean
+tree under the pinned GNATprove FSF 16.1.0 (Why3 1.8.2+git, CVC5 1.3.2,
+Z3 4.15.4). The development GNATprove 0.0w also proves them all. Its
+tightest check is a frame-heavy invariant in `Decode_Order`: it needs more
+than 2 s but fits in 5. `make test` passes 49,232 checks,
+`make test-contracts` passes 218, `make flow` is clean and
+`make format-check` passes. GPRbuild Pro 27.0w.

@@ -7,8 +7,8 @@ is
          if S (A + K) /= S (B + K) then
             return K;
          end if;
-         pragma Loop_Invariant
-           (for all X in A .. A + K => S (X) = S (X - A + B));
+         pragma
+           Loop_Invariant (for all X in A .. A + K => S (X) = S (X - A + B));
       end loop;
       return Len;
    end Common;
@@ -24,6 +24,33 @@ is
       pragma Assert (Common (S, B, A, M) = Common (S, A, B, M));
    end Lex_Total;
 
+   --  Both comparisons between two words, unfolded at their first mismatch.
+   procedure Lex_Unfold (S : String; A, LA, B, LB : Natural)
+   with
+     Pre  => In_Word (S, A, LA) and then In_Word (S, B, LB),
+     Post =>
+       Common (S, A, B, Natural'Min (LA, LB))
+       = Common (S, B, A, Natural'Min (LB, LA))
+       and then (if Common (S, A, B, Natural'Min (LA, LB))
+                   < Natural'Min (LA, LB)
+                 then
+                   S (A + Common (S, A, B, Natural'Min (LA, LB)))
+                   /= S (B + Common (S, A, B, Natural'Min (LA, LB))))
+       and then Lex_LE (S, A, LA, B, LB)
+                = (if Common (S, A, B, Natural'Min (LA, LB))
+                     < Natural'Min (LA, LB)
+                   then
+                     S (A + Common (S, A, B, Natural'Min (LA, LB)))
+                     < S (B + Common (S, A, B, Natural'Min (LA, LB)))
+                   else LA <= LB);
+
+   procedure Lex_Unfold (S : String; A, LA, B, LB : Natural) is
+      M : constant Natural := Natural'Min (LA, LB);
+   begin
+      pragma Assert (Natural'Min (LB, LA) = M);
+      pragma Assert (Common (S, B, A, M) = Common (S, A, B, M));
+   end Lex_Unfold;
+
    procedure Lex_Trans (S : String; A, LA, B, LB, C, LC : Natural) is
       M1 : constant Natural := Natural'Min (LA, LB);
       M2 : constant Natural := Natural'Min (LB, LC);
@@ -32,17 +59,28 @@ is
       D2 : constant Natural := Common (S, B, C, M2);
       D3 : constant Natural := Common (S, A, C, M3);
    begin
-      pragma Assert (Common (S, B, A, M1) = D1);
-      pragma Assert (Common (S, C, B, M2) = D2);
-      pragma Assert (Common (S, C, A, M3) = D3);
+      Lex_Unfold (S, A, LA, B, LB);
+      Lex_Unfold (S, B, LB, C, LC);
+      Lex_Unfold (S, A, LA, C, LC);
       if D1 < M1 and then D2 < M2 then
+         if D1 < D2 then
+            pragma Assert (S (B + D1) = S (C + D1));
+         elsif D2 < D1 then
+            pragma Assert (S (A + D2) = S (B + D2));
+         end if;
          pragma Assert (D3 = Natural'Min (D1, D2));
+         pragma Assert (S (A + D3) < S (C + D3));
       elsif D1 < M1 then
          pragma Assert (LB <= LC);
+         pragma Assert (S (B + D1) = S (C + D1));
          pragma Assert (D3 = D1);
+         pragma Assert (S (A + D3) < S (C + D3));
       elsif D2 < M2 then
+         pragma Assert (LA <= LB);
          if D2 < LA then
+            pragma Assert (S (A + D2) = S (B + D2));
             pragma Assert (D3 = D2);
+            pragma Assert (S (A + D3) < S (C + D3));
          else
             pragma Assert (LA < LC);
             pragma Assert (D3 = LA);
@@ -63,8 +101,9 @@ is
       for O in 1 .. L - 1 loop
          pragma Assert (Below_Suffix (S, A, L, A + O));
          Common_Same (S, A, A + O, B, B + O, L - O);
-         pragma Loop_Invariant
-           (for all X in B + 1 .. B + O => Below_Suffix (S, B, L, X));
+         pragma
+           Loop_Invariant
+             (for all X in B + 1 .. B + O => Below_Suffix (S, B, L, X));
       end loop;
    end Lyndon_Same;
 
@@ -111,8 +150,10 @@ is
                for X in 0 .. D loop
                   Shift_Back (S, I, J, P, I + O + X, A);
                   pragma Assert (I + O + X - A * P = I + B + X);
-                  pragma Loop_Invariant
-                    (for all Z in I + O .. I + O + X => S (Z) = S (Z - O + B));
+                  pragma
+                    Loop_Invariant
+                      (for all Z in I + O .. I + O + X =>
+                         S (Z) = S (Z - O + B));
                end loop;
                pragma Assert (S (I + D) < S (I + O + D));
                pragma Assert (Common (S, I, I + O, U - O) = D);
@@ -120,8 +161,9 @@ is
                for X in 0 .. R - 1 loop
                   Shift_Back (S, I, J, P, I + O + X, A);
                   pragma Assert (I + O + X - A * P = I + B + X);
-                  pragma Loop_Invariant
-                    (for all Z in I + O .. I + O + X => S (Z) = S (Z - O));
+                  pragma
+                    Loop_Invariant
+                      (for all Z in I + O .. I + O + X => S (Z) = S (Z - O));
                end loop;
                pragma Assert (A >= 1 or else B + R = J - P - I);
                if A >= 1 then
@@ -139,8 +181,9 @@ is
          for X in 0 .. R - 1 loop
             Shift_Back (S, I, J, P, I + O + X, A);
             pragma Assert (I + O + X - A * P = I + X);
-            pragma Loop_Invariant
-              (for all Z in I + O .. I + O + X => S (Z) = S (Z - O));
+            pragma
+              Loop_Invariant
+                (for all Z in I + O .. I + O + X => S (Z) = S (Z - O));
          end loop;
          Shift_Back (S, I, J, P, J - P, A - 1);
          pragma Assert (J - P - (A - 1) * P = I + R);
@@ -153,8 +196,10 @@ is
    begin
       for O in 1 .. J - I loop
          Extend_Suffix (S, I, J, P, O);
-         pragma Loop_Invariant
-           (for all X in I + 1 .. I + O => Below_Suffix (S, I, J - I + 1, X));
+         pragma
+           Loop_Invariant
+             (for all X in I + 1 .. I + O =>
+                Below_Suffix (S, I, J - I + 1, X));
       end loop;
    end Lyndon_Extend;
 end BWT.Words;

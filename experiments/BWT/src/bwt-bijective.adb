@@ -40,11 +40,12 @@ is
       begin
          for Offset in 0 .. Size - 1 loop
             Rows (I + Offset) := (I, Size, Offset);
-            pragma Loop_Invariant
-              (for all P in Rows'Range =>
-                 (if P in I .. I + Offset
-                  then Rows (P) = (I, Size, P - I)
-                  else Rows (P) = Rows'Loop_Entry (P)));
+            pragma
+              Loop_Invariant
+                (for all P in Rows'Range =>
+                   (if P in I .. I + Offset
+                    then Rows (P) = (I, Size, P - I)
+                    else Rows (P) = Rows'Loop_Entry (P)));
          end loop;
       end Emit;
    begin
@@ -52,9 +53,12 @@ is
       while I <= S'Length loop
          pragma Loop_Invariant (I <= S'Length + 1);
          pragma Loop_Invariant (Prefix_Factorization (S, Rows, I));
-         pragma Loop_Invariant
-           (if I > 1
-            then Dominated (S, I, Rows (I - 1).First, Rows (I - 1).Length, Dom));
+         pragma
+           Loop_Invariant
+             (if I > 1
+                then
+                  Dominated
+                    (S, I, Rows (I - 1).First, Rows (I - 1).Length, Dom));
          pragma Loop_Variant (Increases => I);
          J := I + 1;
          K := I;
@@ -88,16 +92,22 @@ is
                pragma Loop_Invariant (I <= S'Length + 1);
                pragma Loop_Invariant (Prefix_Factorization (S, Rows, I));
                pragma Loop_Invariant (Lyndon (S, I, Size));
-               pragma Loop_Invariant
-                 (if I > 1
-                  then
-                    Lex_LE
-                      (S, I, Size, Rows (I - 1).First, Rows (I - 1).Length));
-               pragma Loop_Invariant
-                 (if I > Run_Start
-                  then
-                    Rows (I - 1).First = I - Size
-                    and then Rows (I - 1).Length = Size);
+               pragma
+                 Loop_Invariant
+                   (if I > 1
+                      then
+                        Lex_LE
+                          (S,
+                           I,
+                           Size,
+                           Rows (I - 1).First,
+                           Rows (I - 1).Length));
+               pragma
+                 Loop_Invariant
+                   (if I > Run_Start
+                      then
+                        Rows (I - 1).First = I - Size
+                        and then Rows (I - 1).Length = Size);
                pragma Loop_Variant (Increases => I);
                declare
                   Old : constant Table := Rows
@@ -125,10 +135,11 @@ is
       Rows : Table := Factor_Rotations (S);
    begin
       pragma Assert (Sorting.Well_Formed (S, Rows));
-      pragma Assert
-        (for all I in Rows'Range =>
-           (for all J in Rows'Range =>
-              (if I /= J then Rows (I) /= Rows (J))));
+      pragma
+        Assert
+          (for all I in Rows'Range =>
+             (for all J in Rows'Range =>
+                (if I /= J then Rows (I) /= Rows (J))));
       declare
          Original : constant Table := Rows
          with Ghost;
@@ -145,9 +156,10 @@ is
    begin
       for I in Rows'Range loop
          Result (I) := Letter (S, Rows (I), Rows (I).Length - 1);
-         pragma Loop_Invariant
-           (for all J in 1 .. I =>
-              Result (J) = Letter (S, Rows (J), Rows (J).Length - 1));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. I =>
+                Result (J) = Letter (S, Rows (J), Rows (J).Length - 1));
       end loop;
       return Result;
    end Encode;
@@ -172,58 +184,67 @@ is
          pragma Loop_Invariant (for all I in 1 .. Start - 1 => Seen (I));
          pragma Loop_Invariant (for all P in 1 .. N => Order (P) in 1 .. N);
          pragma Loop_Invariant (for all R in 1 .. N => Pos (R) in 1 .. N);
-         pragma Loop_Invariant
-           (for all R in 1 .. N =>
-              (if Seen (R)
-               then Pos (R) in Next + 1 .. N and then Order (Pos (R)) = R));
-         pragma Loop_Invariant
-           (for all P in Next + 1 .. N =>
-              Seen (Order (P)) and then Pos (Order (P)) = P);
-         pragma Loop_Invariant
-           (for all R in 1 .. N => (if Seen (R) then Seen (Map (R))));
+         pragma
+           Loop_Invariant
+             (for all R in 1 .. N =>
+                (if Seen (R)
+                 then Pos (R) in Next + 1 .. N and then Order (Pos (R)) = R));
+         pragma
+           Loop_Invariant
+             (for all P in Next + 1 .. N =>
+                Seen (Order (P)) and then Pos (Order (P)) = P);
+         pragma
+           Loop_Invariant
+             (for all R in 1 .. N => (if Seen (R) then Seen (Map (R))));
          pragma Loop_Invariant (if Next < N then Order (N) = 1);
-         pragma Loop_Invariant
-           (for all P in Next + 2 .. N =>
-              Seen (Map (Order (P)))
-              and then (if Pos (Map (Order (P))) < P
-                        then Order (P - 1) = Map (Order (P))
-                        else
-                          (for all Y in 1 .. Order (P - 1) - 1 =>
-                             Seen (Y) and then Pos (Y) >= P)));
+         pragma
+           Loop_Invariant
+             (for all P in Next + 2 .. N =>
+                Seen (Map (Order (P)))
+                and then (if Pos (Map (Order (P))) < P
+                          then Order (P - 1) = Map (Order (P))
+                          else
+                            (for all Y in 1 .. Order (P - 1) - 1 =>
+                               Seen (Y) and then Pos (Y) >= P)));
          Row := Start;
          while not Seen (Row) loop
             pragma Loop_Invariant (Row in 1 .. N);
             pragma Loop_Invariant (Next = Unseen (Seen, N));
             pragma Loop_Invariant (for all I in 1 .. Start - 1 => Seen (I));
             pragma Loop_Invariant (if Row /= Start then Seen (Start));
-            pragma Loop_Invariant
-              (for all P in 1 .. N => Order (P) in 1 .. N);
+            pragma Loop_Invariant (for all P in 1 .. N => Order (P) in 1 .. N);
             pragma Loop_Invariant (for all R in 1 .. N => Pos (R) in 1 .. N);
-            pragma Loop_Invariant
-              (for all R in 1 .. N =>
-                 (if Seen (R)
-                  then Pos (R) in Next + 1 .. N and then Order (Pos (R)) = R));
-            pragma Loop_Invariant
-              (for all P in Next + 1 .. N =>
-                 Seen (Order (P)) and then Pos (Order (P)) = P);
-            pragma Loop_Invariant
-              (if Row /= Start
-               then Next < N and then Row = Map (Order (Next + 1)));
-            pragma Loop_Invariant
-              (for all R in 1 .. N =>
-                 (if Seen (R)
-                  then
-                    Seen (Map (R))
-                    or else (Row /= Start and then R = Order (Next + 1))));
+            pragma
+              Loop_Invariant
+                (for all R in 1 .. N =>
+                   (if Seen (R)
+                    then
+                      Pos (R) in Next + 1 .. N and then Order (Pos (R)) = R));
+            pragma
+              Loop_Invariant
+                (for all P in Next + 1 .. N =>
+                   Seen (Order (P)) and then Pos (Order (P)) = P);
+            pragma
+              Loop_Invariant
+                (if Row /= Start
+                   then Next < N and then Row = Map (Order (Next + 1)));
+            pragma
+              Loop_Invariant
+                (for all R in 1 .. N =>
+                   (if Seen (R)
+                    then
+                      Seen (Map (R))
+                      or else (Row /= Start and then R = Order (Next + 1))));
             pragma Loop_Invariant (if Next < N then Order (N) = 1);
-            pragma Loop_Invariant
-              (for all P in Next + 2 .. N =>
-                 Seen (Map (Order (P)))
-                 and then (if Pos (Map (Order (P))) < P
-                           then Order (P - 1) = Map (Order (P))
-                           else
-                             (for all Y in 1 .. Order (P - 1) - 1 =>
-                                Seen (Y) and then Pos (Y) >= P)));
+            pragma
+              Loop_Invariant
+                (for all P in Next + 2 .. N =>
+                   Seen (Map (Order (P)))
+                   and then (if Pos (Map (Order (P))) < P
+                             then Order (P - 1) = Map (Order (P))
+                             else
+                               (for all Y in 1 .. Order (P - 1) - 1 =>
+                                  Seen (Y) and then Pos (Y) >= P)));
             pragma Loop_Variant (Decreases => Next);
             pragma Assert (Next > 0);
             Order (Next) := Row;
@@ -257,8 +278,9 @@ is
    begin
       for P in Result'Range loop
          Result (P) := Last (Order (P));
-         pragma Loop_Invariant
-           (for all Q in 1 .. P => Result (Q) = Last (Order (Q)));
+         pragma
+           Loop_Invariant
+             (for all Q in 1 .. P => Result (Q) = Last (Order (Q)));
       end loop;
       return Result;
    end Decode;
