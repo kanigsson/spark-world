@@ -1,17 +1,6 @@
 package BWT.Rotations
   with SPARK_Mode
 is
-   function Previous (R : Rotation) return Rotation
-   is (R.First,
-       R.Length,
-       (if R.Offset = 0 then R.Length - 1 else R.Offset - 1))
-   with
-     Pre  => R.Offset < R.Length,
-     Post =>
-       Previous'Result.First = R.First
-       and then Previous'Result.Length = R.Length
-       and then Previous'Result.Offset < R.Length;
-
    procedure Previous_Injective (A, B : Rotation)
    with
      Ghost,

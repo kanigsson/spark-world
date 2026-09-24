@@ -828,4 +828,30 @@ is
          Decode_Model (S, FR, R, L, Idx);
       end;
    end Round_Trip;
+
+   procedure LF_Exact (S : String) is
+   begin
+      if S'Length = 0 then
+         return;
+      end if;
+      declare
+         FR  : constant Table := Bijective.Factor_Rotations (S);
+         R   : constant Table := Bijective.Table_Of (S);
+         L   : constant String := Bijective.Encode (S);
+         Map : constant Mapping := LF (L);
+         Idx : constant Mapping := Index_Of (FR, R);
+      begin
+         Rows_Are_Factors (S, FR, R);
+         Cyclic_Facts (S, FR);
+         Exact_LF (S, FR, R, L, Map, Idx);
+         for K in R'Range loop
+            pragma Assert (Cyc_Fact (FR, Pos (R (K))));
+            pragma Assert (R (Map (K)) = FR (Prev_In (FR, Pos (R (K)))));
+            pragma Assert (FR (Prev_In (FR, Pos (R (K)))) = Previous (R (K)));
+            pragma
+              Loop_Invariant
+                (for all J in 1 .. K => R (Map (J)) = Previous (R (J)));
+         end loop;
+      end;
+   end LF_Exact;
 end BWT.Bijective_Proofs;

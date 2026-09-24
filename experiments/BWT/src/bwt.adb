@@ -3,6 +3,7 @@ with BWT.Bijective_Proofs;
 with BWT.Doubling;
 with BWT.Onto_Proofs;
 with BWT.Ranks;
+with BWT.Rotations;
 with BWT.Sorting;
 with BWT.Matrices;
 
@@ -197,6 +198,55 @@ is
    begin
       Onto_Proofs.Onto (Last);
    end Prove_Bijective_Onto;
+
+   procedure Bijective_LF_Exact (S : String) is
+   begin
+      Bijective_Proofs.LF_Exact (S);
+      for K in 1 .. S'Length loop
+         Ranks.Walk_Step (Bijective_Encode (S), K, 0);
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. K =>
+                Walk (Bijective_Encode (S), J, 1)
+                = LF (Bijective_Encode (S)) (J));
+      end loop;
+   end Bijective_LF_Exact;
+
+   procedure Classical_LF_Exact (S : String) is
+      pragma
+        Annotate
+          (GNATprove, Hide_Info, "Expression_Function_Body", Matrices.Closed);
+      N    : constant Natural := S'Length;
+      Rows : constant Rotation_Table := Classical_Table (S);
+      Last : constant String := Classical_Encode (S).Last;
+   begin
+      if N = 0 then
+         return;
+      end if;
+      Classical_Shape (Rows, Initial_Rows (S), N);
+      Matrices.Classical_Closed (S, Rows);
+      declare
+         Map : constant Indices := LF (Last);
+      begin
+         Matrices.LF_Shifts (S, Rows, Last, Map);
+         for K in 1 .. N loop
+            Ranks.Walk_Step (Last, K, 0);
+            Rotations.Equal_Prefix_Shorter
+              (S, Rows (Map (K)), Previous (Rows (K)), 2 * N, N);
+            pragma
+              Assert
+                (Rows (Map (K)) = (1, N, Rows (Map (K)).Offset)
+                   and then Previous (Rows (K))
+                            = (1, N, Previous (Rows (K)).Offset));
+            pragma Assert (Rows (Map (K)) = Previous (Rows (K)));
+            pragma
+              Loop_Invariant
+                (for all J in 1 .. K =>
+                   Walk (Last, J, 1) = Map (J)
+                   and then Rows (Map (J)) = Previous (Rows (J)));
+         end loop;
+      end;
+   end Classical_LF_Exact;
 
    procedure Classical_Rows_Unique (S : String; Rows : Table) is
       Canonical : constant Rotation_Table := Classical_Table (S);

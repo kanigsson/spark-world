@@ -20,6 +20,18 @@ is
    end record;
    type Table is array (Positive range <>) of Rotation;
 
+   --  The rotation one letter earlier in the same factor.
+   function Previous (R : Rotation) return Rotation
+   is (R.First,
+       R.Length,
+       (if R.Offset = 0 then R.Length - 1 else R.Offset - 1))
+   with
+     Pre  => R.Offset < R.Length,
+     Post =>
+       Previous'Result.First = R.First
+       and then Previous'Result.Length = R.Length
+       and then Previous'Result.Offset < R.Length;
+
    function Valid (R : Rotation; N : Natural) return Boolean
    is (R.First <= N
        and then R.Length <= N - R.First + 1
@@ -334,6 +346,43 @@ is
      Post   =>
        Supported (Bijective_Decode'Result)
        and then Bijective_Decode'Result'Length = Last'Length;
+   --  LF moves each row of the bijective table to the row of the rotation one
+   --  letter earlier in its factor. Walk (Last, K, 1) is LF applied to K.
+   procedure Bijective_LF_Exact (S : String)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Supported (S),
+     Post   =>
+       (for all K in 1 .. S'Length =>
+          Bijective_Rows (S) (Walk (Bijective_Encode (S), K, 1))
+          = Previous (Bijective_Rows (S) (K)));
+
+   --  S differs from each of its other rotations.
+   function Primitive (S : String) return Boolean
+   is (for all P in 1 .. S'Length =>
+         (for all Q in 1 .. S'Length =>
+            (if P /= Q
+             then
+               not Equal_Prefix
+                     (S,
+                      (1, S'Length, P - 1),
+                      (1, S'Length, Q - 1),
+                      S'Length))))
+   with Ghost, Pre => Supported (S);
+
+   --  The same holds for the classical table of a primitive string. Of a
+   --  periodic one it cannot: LF would have to order each class of equal
+   --  rotations consistently with a cyclic shift.
+   procedure Classical_LF_Exact (S : String)
+   with
+     Ghost,
+     Global => null,
+     Pre    => Supported (S) and then Primitive (S),
+     Post   =>
+       (for all K in 1 .. S'Length =>
+          Classical_Rows (S) (Walk (Classical_Encode (S).Last, K, 1))
+          = Previous (Classical_Rows (S) (K)));
 private
    --  The bijective inverse laws are proved where the implementation is
    --  visible; BWT.Theorems states them against the public functions.
