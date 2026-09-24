@@ -35,7 +35,8 @@ children's declarations. `Rotations` and `Sorting` keep the lemmas.
   periodic words up to a horizon. The sort uses `2 * N`, which
   `Extend_Equality` shows is enough. `Key_LE` breaks ties between equal
   words by start position, in either direction (`Tie_Order`).
-- `Ranks`: `LF` is the stable rank of each last letter. It is a permutation
+- `Ranks`: `LF` is the stable rank of each last letter, computed by a
+  counting sort and proved equal to `Rank` pointwise. It is a permutation
   and it orders rows as `Ordered` does. `Walk` is the LF orbit that the
   classical decoder follows.
 - `Sorting`: selection sort, which yields a key-sorted permutation of its

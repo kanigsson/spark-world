@@ -23,9 +23,9 @@ arbitrary last-column/index pairs need not be canonical encodings.
 
 The core has no I/O, heap allocation, external library dependency or non-SPARK
 escape. Rotation descriptors and selection sort use O(n) auxiliary storage
-and O(n^3) worst-case encoding time. LF uses the direct stable-rank formula,
-so decoding takes O(n^2) time and O(n) space. Duval itself is linear. These
-choices favor inspectable proof obligations over throughput.
+and O(n^3) worst-case encoding time. LF is a counting sort, so both decoders
+take O(n + σ) time and O(n + σ) space for an alphabet of σ bytes. Duval itself
+is linear. The encoders favor inspectable proof obligations over throughput.
 
 From this directory, with a matching Ada 2022 compiler/GPRbuild/GNATprove:
 
@@ -35,6 +35,7 @@ make test-contracts
 make flow
 make prove         # every check, including the theorems; pinned GNATprove
 make format-check
+make bench         # production build: no contracts, no run-time checks
 ```
 
 The Ada test harness uses the repository's ordinary-Ada `Test_Checks` package.

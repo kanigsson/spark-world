@@ -54,15 +54,15 @@ Unchecked items are proposals. None of them is needed for what is proved today.
 
 ## Tier 1: fast decoders (refinements, cheap)
 
-- [ ] **Counting-sort LF.** Count each symbol, take prefix sums, then make one
-  stable pass. That is O(N + σ) instead of today's O(N²) stable-rank loop.
-  Prove that the result equals `Rank` pointwise. The permutation and
-  order-preservation posts then follow from the existing lemmas. It is the
-  single change that makes both decoders linear: `Decode_Order` already
-  visits each row once.
-- [ ] **Classical decode in O(N)** follows immediately from the item above.
-- [ ] **`bench` target** with a `Bench_Timing` stopwatch, as the other
-  projects have. Measure first, so each later tier is justified by numbers.
+- [x] **Counting-sort LF.** Counts, prefix sums and one stable pass, proved
+  equal to `Rank` pointwise; the order and permutation posts come from the
+  existing `Strict_Ranks`, in a ghost procedure the production build drops.
+- [x] **Classical decode in O(N)** followed from the item above.
+- [x] **`bench` target** (`make bench`, a production build). At 1,024 bytes
+  on 2026-09-24, both decoders went from 1 to 3 ms to 4 to 6 µs. The
+  encoders are the bottleneck: 7 ms on random bytes, but about 1 s (classical)
+  and 6.6 s (bijective) on `abcabc...`, and 14 to 18 s on a single repeated
+  byte. Selection sort makes O(N²) comparisons, each up to 2N letters long.
 
 ## Tier 2: fast encoders (refinements, projects)
 

@@ -4,7 +4,7 @@ include ../../tools/project.mk
 #  which prover that is rather than trusting PATH. See tools/toolchain.mk.
 GNATPROVE ?= $(SPARK_WORLD_PROVE)
 
-.PHONY: build test test-contracts flow prove
+.PHONY: build test test-contracts flow prove bench
 build:
 	$(GPRBUILD) -P tests.gpr -j$(JOBS)
 
@@ -24,3 +24,9 @@ flow:
 #  that needs longer is a sign its lemma wants splitting, not more time.
 prove:
 	$(GNATPROVE) -P bwt.gpr -U --level=2 --timeout=5 --prover=cvc5,z3 --counterexamples=off -j$(JOBS)
+
+#  A production build on purpose: contracts and run-time checks off, so the
+#  timings measure the transforms and not their verification.
+bench:
+	$(GPRBUILD) -P bench.gpr -XBWT_BUILD=bench -j$(JOBS)
+	bin/bench/bench_bwt
