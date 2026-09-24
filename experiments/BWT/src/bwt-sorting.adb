@@ -1,28 +1,31 @@
 package body BWT.Sorting with SPARK_Mode is
-   function Prefix_Sorted (S : String; Rows : Table; Through : Natural)
+   function Prefix_Sorted
+     (S : String; Rows : Table; Through : Natural; Ties : Tie_Order)
      return Boolean is
      (for all P in 1 .. Through => (for all Q in P .. Rows'Last =>
-       Key_LE (S, Rows (P), Rows (Q))))
+       Key_LE (S, Rows (P), Rows (Q), Ties)))
    with Ghost, Pre => Well_Formed (S, Rows) and then Through <= Rows'Length;
 
-   procedure Extend_Sorted (S : String; Before, After : Table; Pos, Best : Positive)
+   procedure Extend_Sorted
+     (S : String; Before, After : Table; Pos, Best : Positive; Ties : Tie_Order)
    with Ghost, Pre => Well_Formed (S, Before) and then Well_Formed (S, After)
      and then Pos in Before'Range and then Best in Pos .. Before'Last
-     and then Prefix_Sorted (S, Before, Pos - 1)
-     and then (for all Q in Pos .. Before'Last => Key_LE (S, Before (Best), Before (Q)))
+     and then Prefix_Sorted (S, Before, Pos - 1, Ties)
+     and then (for all Q in Pos .. Before'Last => Key_LE (S, Before (Best), Before (Q), Ties))
      and then (for all Q in Before'Range => After (Q) =
        (if Q = Pos then Before (Best) elsif Q = Best then Before (Pos) else Before (Q))),
-     Post => Prefix_Sorted (S, After, Pos);
+     Post => Prefix_Sorted (S, After, Pos, Ties);
 
-   procedure Extend_Sorted (S : String; Before, After : Table; Pos, Best : Positive) is
+   procedure Extend_Sorted
+     (S : String; Before, After : Table; Pos, Best : Positive; Ties : Tie_Order) is
    begin
       for I in 1 .. Pos loop
          for J in I .. After'Last loop
-            pragma Assert (Key_LE (S, After (I), After (J)));
+            pragma Assert (Key_LE (S, After (I), After (J), Ties));
             pragma Loop_Invariant
-              (for all Q in I .. J => Key_LE (S, After (I), After (Q)));
+              (for all Q in I .. J => Key_LE (S, After (I), After (Q), Ties));
          end loop;
-         pragma Loop_Invariant (Prefix_Sorted (S, After, I));
+         pragma Loop_Invariant (Prefix_Sorted (S, After, I, Ties));
       end loop;
    end Extend_Sorted;
 
@@ -72,7 +75,7 @@ package body BWT.Sorting with SPARK_Mode is
 
    procedure Swap (Rows : in out Table; A, B : Positive)
    with Pre => A in Rows'Range and then B in Rows'Range,
-     Post => Same_Rows (Rows, Rows'Old)
+     Post => Same_Rows (Rows, Rows'Old) and then Same_Rows (Rows'Old, Rows)
        and then Distinct (Rows) = Distinct (Rows'Old)
        and then (for all I in Rows'Range =>
          Rows (I) = (if I = A then Rows'Old (B)
@@ -100,7 +103,8 @@ package body BWT.Sorting with SPARK_Mode is
       end loop;
    end Swap;
 
-   procedure Sort (S : String; Rows : in out Table) is
+   procedure Sort
+     (S : String; Rows : in out Table; Ties : Tie_Order := Earlier_First) is
       pragma Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Distinct);
       Original : constant Table := Rows with Ghost;
       Before : Table := Rows with Ghost;
@@ -111,32 +115,32 @@ package body BWT.Sorting with SPARK_Mode is
          declare
             Best : Positive := I;
          begin
-            Key_Order (S, Rows (I), Rows (I), Rows (I));
+            Key_Order (S, Rows (I), Rows (I), Rows (I), Ties);
             for J in I + 1 .. Rows'Last loop
-               if Key_Less (S, Rows (J), Rows (Best)) then
+               if Key_Less (S, Rows (J), Rows (Best), Ties) then
                   for K in I .. J - 1 loop
-                     Key_Order (S, Rows (J), Rows (Best), Rows (K));
+                     Key_Order (S, Rows (J), Rows (Best), Rows (K), Ties);
                      pragma Loop_Invariant
-                       (for all P in I .. K => Key_LE (S, Rows (J), Rows (P)));
+                       (for all P in I .. K => Key_LE (S, Rows (J), Rows (P), Ties));
                   end loop;
                   Best := J;
                end if;
-               Key_Order (S, Rows (Best), Rows (J), Rows (Best));
+               Key_Order (S, Rows (Best), Rows (J), Rows (Best), Ties);
                pragma Loop_Invariant (Best in I .. J);
                pragma Loop_Invariant
-                 (for all K in I .. J => Key_LE (S, Rows (Best), Rows (K)));
+                 (for all K in I .. J => Key_LE (S, Rows (Best), Rows (K), Ties));
             end loop;
             Before := Rows;
             Swap (Rows, I, Best);
-            Extend_Sorted (S, Before, Rows, I, Best);
+            Extend_Sorted (S, Before, Rows, I, Best, Ties);
             Compose (Original, Before, Rows);
          end;
          pragma Loop_Invariant (Well_Formed (S, Rows));
          pragma Loop_Invariant (Distinct (Rows));
          pragma Loop_Invariant (Same_Rows (Rows, Original));
-         pragma Loop_Invariant (Prefix_Sorted (S, Rows, I));
+         pragma Loop_Invariant (Prefix_Sorted (S, Rows, I, Ties));
       end loop;
       pragma Assert (Same_Rows (Rows, Original));
-      pragma Assert (Sorted (S, Rows));
+      pragma Assert (Sorted (S, Rows, Ties));
    end Sort;
 end BWT.Sorting;

@@ -11,7 +11,9 @@ is
    subtype Rotation_Table is BWT.Rotations.Table;
    subtype Indices is Ranks.Mapping;
 
-   procedure Sort (S : String; Rows : in out Rotation_Table)
+   procedure Sort
+     (S : String; Rows : in out Rotation_Table;
+      Ties : Tie_Order := Earlier_First)
      renames Sorting.Sort;
 
    function LF (Last : String) return Indices renames Ranks.LF;

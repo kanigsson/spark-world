@@ -97,24 +97,40 @@ package BWT.Rotations with SPARK_Mode is
      and then Valid (B, S'Length),
      Post => Less'Result = not LE (S, B, A, 2 * S'Length);
 
-   function Key_LE (S : String; A, B : Rotation) return Boolean is
+   --  Rows whose periodic words agree are ordered by start position. The
+   --  classical transform puts the earlier start first; the bijective one
+   --  puts the later start first, which keeps every LF step exact.
+   type Tie_Order is (Earlier_First, Later_First);
+
+   function Tie_LE (A, B : Rotation; Ties : Tie_Order) return Boolean is
+     (case Ties is
+        when Earlier_First => A.First + A.Offset <= B.First + B.Offset,
+        when Later_First => A.First + A.Offset >= B.First + B.Offset)
+   with Pre => A.First <= Max_Length and then B.First <= Max_Length
+     and then A.Offset <= Max_Length and then B.Offset <= Max_Length;
+
+   function Key_LE
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
+     return Boolean is
      (LE (S, A, B, 2 * S'Length)
        and then (if Equal_Prefix (S, A, B, 2 * S'Length)
-                 then A.First + A.Offset <= B.First + B.Offset))
+                 then Tie_LE (A, B, Ties)))
    with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
      and then Valid (B, S'Length),
      Annotate => (GNATprove, Hide_Info, "Expression_Function_Body");
 
-   procedure Key_Order (S : String; A, B, C : Rotation)
+   procedure Key_Order
+     (S : String; A, B, C : Rotation; Ties : Tie_Order := Earlier_First)
    with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
      and then Valid (B, S'Length) and then Valid (C, S'Length),
-     Post => (Key_LE (S, A, B) or Key_LE (S, B, A))
-       and then (if Key_LE (S, A, B) and Key_LE (S, B, C)
-                 then Key_LE (S, A, C));
+     Post => (Key_LE (S, A, B, Ties) or Key_LE (S, B, A, Ties))
+       and then (if Key_LE (S, A, B, Ties) and Key_LE (S, B, C, Ties)
+                 then Key_LE (S, A, C, Ties));
 
-   procedure Key_Weakening (S : String; A, B : Rotation)
+   procedure Key_Weakening
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
    with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
-     and then Valid (B, S'Length) and then Key_LE (S, A, B),
+     and then Valid (B, S'Length) and then Key_LE (S, A, B, Ties),
      Post => LE (S, A, B, 2 * S'Length);
 
    procedure Equivalent_Order (S : String; A, B, C : Rotation)
@@ -146,8 +162,10 @@ package BWT.Rotations with SPARK_Mode is
        (S, (1, S'Length, (if Steps = 0 then 0 else S'Length - Steps)),
         S'Length - 1) = S (S'Length - Steps);
 
-   function Key_Less (S : String; A, B : Rotation) return Boolean
+   function Key_Less
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
+     return Boolean
    with Pre => Supported (S) and then Valid (A, S'Length)
      and then Valid (B, S'Length),
-     Post => Key_Less'Result = not Key_LE (S, B, A);
+     Post => Key_Less'Result = not Key_LE (S, B, A, Ties);
 end BWT.Rotations;

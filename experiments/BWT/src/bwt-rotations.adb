@@ -121,7 +121,8 @@ package body BWT.Rotations with SPARK_Mode is
       return False;
    end Less;
 
-   procedure Key_Order (S : String; A, B, C : Rotation) is
+   procedure Key_Order
+     (S : String; A, B, C : Rotation; Ties : Tie_Order := Earlier_First) is
       pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
    begin
       Order_Laws (S, A, B, C, 2 * S'Length);
@@ -129,7 +130,8 @@ package body BWT.Rotations with SPARK_Mode is
       Order_Laws (S, C, A, B, 2 * S'Length);
    end Key_Order;
 
-   procedure Key_Weakening (S : String; A, B : Rotation) is
+   procedure Key_Weakening
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First) is
       pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
    begin
       null;
@@ -180,7 +182,9 @@ package body BWT.Rotations with SPARK_Mode is
       end if;
    end Classical_Character;
 
-   function Key_Less (S : String; A, B : Rotation) return Boolean is
+   function Key_Less
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
+     return Boolean is
       pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
    begin
       Order_Laws (S, A, B, A, 2 * S'Length);
@@ -189,7 +193,7 @@ package body BWT.Rotations with SPARK_Mode is
       elsif Less (S, B, A) then
          return False;
       else
-         return A.First + A.Offset < B.First + B.Offset;
+         return not Tie_LE (B, A, Ties);
       end if;
    end Key_Less;
 end BWT.Rotations;
