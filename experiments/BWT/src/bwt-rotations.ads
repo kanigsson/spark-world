@@ -57,6 +57,12 @@ package BWT.Rotations with SPARK_Mode is
           then Letter (S, A, K - 1) <= Letter (S, B, K - 1))),
      Subprogram_Variant => (Decreases => Size);
 
+   procedure Equal_Same (S : String; A, B : Rotation; Size : Natural)
+   with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
+     and then Valid (B, S'Length) and then Size <= 4 * Max_Length
+     and then A = B,
+     Post => Equal_Prefix (S, A, B, Size);
+
    procedure Period (S : String; A : Rotation; K : Natural)
    with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
      and then K in A.Length .. 4 * Max_Length,

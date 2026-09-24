@@ -17,11 +17,27 @@ is
    function LF (Last : String) return Indices renames Ranks.LF;
 
    function Walk (Last : String; Primary : Positive; Steps : Natural)
-     return Positive is
-     (if Steps = 0 then Primary
-      else LF (Last) (Walk (Last, Primary, Steps - 1)));
+     return Positive is (Ranks.Walk (Last, Primary, Steps));
+
+   --  Sorting only permutes rows, so the shape shared by all classical
+   --  rotations survives it, and so does the unshifted one.
+   procedure Classical_Shape (Rows, Original : Rotation_Table; N : Positive)
+   with Ghost, Global => null,
+     Pre => Sorting.Same_Rows (Rows, Original)
+       and then Original'First = 1 and then Original'Length = N
+       and then (for all R of Original => R.First = 1 and then R.Length = N)
+       and then Original (1).Offset = 0,
+     Post => (for all R of Rows => R.First = 1 and then R.Length = N)
+       and then (for some J in Rows'Range => Rows (J).Offset = 0);
+
+   procedure Classical_Shape (Rows, Original : Rotation_Table; N : Positive)
+   is null;
 
    function Classical_Encode (S : String) return Classical_Result is
+      pragma Annotate
+        (GNATprove, Hide_Info, "Expression_Function_Body", Matrices.Closed);
+      pragma Annotate
+        (GNATprove, Hide_Info, "Expression_Function_Body", Sorting.Sorted);
       Rows   : Rotation_Table (1 .. S'Length);
       Result : Classical_Result (S'Length) :=
         (Length  => S'Length,
@@ -41,7 +57,12 @@ is
          pragma
            Loop_Invariant (for all J in 1 .. I => Valid (Rows (J), S'Length));
       end loop;
-      Sort (S, Rows);
+      declare
+         Original : constant Rotation_Table := Rows with Ghost;
+      begin
+         Sort (S, Rows);
+         Classical_Shape (Rows, Original, S'Length);
+      end;
       Matrices.Classical_Closed (S, Rows);
       for I in Rows'Range loop
          Result.Last (I) := Letter (S, Rows (I), Rows (I).Length - 1);
@@ -67,12 +88,18 @@ is
       Result : String (1 .. Last'Length) := (others => Character'First);
       Row    : Natural := Primary;
    begin
+      if Last'Length > 0 then
+         Ranks.Walk_Step (Last, Primary, 0);
+      end if;
       for I in reverse Result'Range loop
          pragma Loop_Invariant (Row in Map'Range);
          pragma Loop_Invariant (Row = Walk (Last, Primary, Last'Length - I));
          pragma Loop_Invariant
            (for all K in I + 1 .. Last'Length =>
              Result (K) = Last (Walk (Last, Primary, Last'Length - K)));
+         if I > 1 then
+            Ranks.Walk_Step (Last, Primary, Last'Length - I);
+         end if;
          Result (I) := Last (Row);
          Row := Map (Row);
       end loop;

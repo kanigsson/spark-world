@@ -16,6 +16,12 @@ package body BWT.Rotations with SPARK_Mode is
       pragma Assert (X / P = (X - P) / P + 1);
    end Modulo_Period;
 
+   procedure Equal_Same (S : String; A, B : Rotation; Size : Natural) is
+      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+   begin
+      null;
+   end Equal_Same;
+
    procedure Period (S : String; A : Rotation; K : Natural) is
       pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
    begin

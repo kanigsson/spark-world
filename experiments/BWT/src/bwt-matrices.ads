@@ -33,8 +33,10 @@ package BWT.Matrices with SPARK_Mode, Ghost is
 
    procedure LF_Shifts (S : String; Rows : Table; Last : String; Map : Mapping)
    with Pre => Closed (S, Rows) and then Supported (Last)
-     and then Last'Length = S'Length and then Map'First = 1
-     and then Map = LF (Last)
+     and then Last'Length = S'Length
+     and then Permutation (Map) and then Map'Length = Rows'Length
+     and then (for all A in Rows'Range => (for all B in Rows'Range =>
+       (Ordered (Last, A, B) = (Map (A) <= Map (B)))))
      and then (for all I in Last'Range =>
        Last (I) = Letter (S, Rows (I), Rows (I).Length - 1)),
      Post => (for all I in Rows'Range =>
@@ -48,6 +50,6 @@ package BWT.Matrices with SPARK_Mode, Ghost is
      and then (for all R of Rows => R.First = 1 and then R.Length = S'Length)
      and then (for all I in Last'Range =>
        Last (I) = Letter (S, Rows (I), S'Length - 1)),
-     Post => (for all K in 1 .. S'Length =>
-       Last (Walk (Last, Primary, K - 1)) = S (S'Length - K + 1));
+     Post => (for all K in 0 .. S'Length - 1 =>
+       Last (Ranks.Walk (Last, Primary, K)) = S (S'Length - K));
 end BWT.Matrices;

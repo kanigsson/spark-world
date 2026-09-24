@@ -52,4 +52,10 @@ package body BWT.Ranks with SPARK_Mode is
       end loop;
       return Map;
    end LF;
+
+   procedure Walk_Step (Last : String; Primary : Positive; Steps : Natural) is
+      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Walk);
+   begin
+      null;
+   end Walk_Step;
 end BWT.Ranks;

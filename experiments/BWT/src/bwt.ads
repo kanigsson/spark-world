@@ -20,8 +20,7 @@ is
    with Ghost, Global => null,
      Pre => Supported (Last) and then Primary in Last'Range
        and then Steps <= Last'Length,
-     Post => Walk'Result in Last'Range,
-     Subprogram_Variant => (Decreases => Steps);
+     Post => Walk'Result in Last'Range;
 
    function Classical_Encode (S : String) return Classical_Result
    with
@@ -32,10 +31,10 @@ is
        and then (if S'Length = 0
                  then Classical_Encode'Result.Primary = 0
                  else Classical_Encode'Result.Primary in 1 .. S'Length)
-       and then (for all K in 1 .. S'Length =>
+       and then (for all K in 0 .. S'Length - 1 =>
          Classical_Encode'Result.Last
-           (Walk (Classical_Encode'Result.Last, Classical_Encode'Result.Primary, K - 1))
-         = S (S'Length - K + 1));
+           (Walk (Classical_Encode'Result.Last, Classical_Encode'Result.Primary, K))
+         = S (S'Length - K));
 
    --  Decoding is defined for every in-range primary index. The roundtrip law
    --  applies to pairs produced by Classical_Encode, not arbitrary pairs.
@@ -50,9 +49,9 @@ is
      Post   =>
        Supported (Classical_Decode'Result)
        and then Classical_Decode'Result'Length = Last'Length
-       and then (for all K in 1 .. Last'Length =>
-         Classical_Decode'Result (Last'Length - K + 1) =
-           Last (Walk (Last, Primary, K - 1)));
+       and then (for all K in 0 .. Last'Length - 1 =>
+         Classical_Decode'Result (Last'Length - K) =
+           Last (Walk (Last, Primary, K)));
 
    function Bijective_Encode (S : String) return String
    with
