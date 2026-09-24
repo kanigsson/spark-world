@@ -582,7 +582,7 @@ is
      (S : String; Factors : Table; Ties : Tie_Order) return Table
    is
       N    : constant Natural := S'Length;
-      Rows : Table (1 .. N) := (others => (1, 1, 0));
+      Rows : Table (1 .. N);
    begin
       if N = 0 then
          return Factors;
