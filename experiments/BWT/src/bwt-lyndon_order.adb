@@ -212,4 +212,65 @@ is
            (for all X in F + 1 .. F + O => Below_Suffix (S, F, L, X));
       end loop;
    end Least_Lyndon;
+
+   procedure Primitive_Ordered (S : String; F, L, A, B : Natural)
+   with
+     Pre  =>
+       In_Word (S, F, L)
+       and then F >= 1
+       and then Lyndon (S, F, L)
+       and then A < B
+       and then B < L,
+     Post => not Equal_Prefix (S, (F, L, A), (F, L, B), 2 * S'Length);
+
+   procedure Primitive_Ordered (S : String; F, L, A, B : Natural) is
+      RA : constant Rotation := (F, L, A);
+      RB : constant Rotation := (F, L, B);
+   begin
+      if A = 0 then
+         Lyndon_Least (S, F, L, B);
+         Order_Laws (S, RA, RB, RA, 2 * S'Length);
+      elsif Equal_Prefix (S, RA, RB, 2 * S'Length) then
+         declare
+            D  : constant Positive := L - A;
+            XA : constant Rotation := (F, L, 0);
+            XB : constant Rotation := (F, L, B - A);
+         begin
+            for K in 0 .. L - 1 loop
+               pragma Loop_Invariant (Equal_Prefix (S, XA, XB, K));
+               Letter_Advance (S, RA, D, K + D);
+               Letter_Advance (S, RB, D, K + D);
+               pragma Assert (Advance (RA, D) = XA);
+               pragma Assert (Advance (RB, D) = XB);
+               Prefix_Letter (S, RA, RB, 2 * S'Length, K + D);
+            end loop;
+            Same_Length_Extend (S, XA, XB, L, 2 * S'Length);
+            Lyndon_Least (S, F, L, B - A);
+            Order_Laws (S, XA, XB, XA, 2 * S'Length);
+         end;
+      end if;
+   end Primitive_Ordered;
+
+   procedure Primitive (S : String; F, L, A, B : Natural) is
+   begin
+      if A < B then
+         Primitive_Ordered (S, F, L, A, B);
+      else
+         Primitive_Ordered (S, F, L, B, A);
+         Order_Laws (S, (F, L, A), (F, L, B), (F, L, A), 2 * S'Length);
+         Order_Laws (S, (F, L, B), (F, L, A), (F, L, B), 2 * S'Length);
+      end if;
+   end Primitive;
+
+   procedure Same_Word_Equal (S : String; G, H, L : Positive) is
+      A : constant Rotation := (G, L, 0);
+      B : constant Rotation := (H, L, 0);
+   begin
+      for K in 0 .. L - 1 loop
+         pragma Loop_Invariant (Equal_Prefix (S, A, B, K));
+         Letter_Direct (S, A, K);
+         Letter_Direct (S, B, K);
+      end loop;
+      Same_Length_Extend (S, A, B, L, 2 * S'Length);
+   end Same_Word_Equal;
 end BWT.Lyndon_Order;

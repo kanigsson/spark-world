@@ -181,6 +181,59 @@ package BWT.Rotations with SPARK_Mode is
      and then Valid (B, S'Length) and then Key_LE (S, A, B, Ties),
      Post => LE (S, A, B, 2 * S'Length);
 
+   procedure Key_Intro
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
+   with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
+     and then Valid (B, S'Length) and then LE (S, A, B, 2 * S'Length)
+     and then (if Equal_Prefix (S, A, B, 2 * S'Length)
+               then Tie_LE (A, B, Ties)),
+     Post => Key_LE (S, A, B, Ties);
+
+   procedure Key_Tie
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
+   with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
+     and then Valid (B, S'Length) and then Key_LE (S, A, B, Ties)
+     and then Equal_Prefix (S, A, B, 2 * S'Length),
+     Post => Tie_LE (A, B, Ties);
+
+   procedure Key_Antisym
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
+   with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
+     and then Valid (B, S'Length) and then Key_LE (S, A, B, Ties)
+     and then Key_LE (S, B, A, Ties),
+     Post => Equal_Prefix (S, A, B, 2 * S'Length)
+       and then A.First + A.Offset = B.First + B.Offset;
+
+   procedure Equal_Prefix_Shorter (S : String; A, B : Rotation; H, K : Natural)
+   with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
+     and then Valid (B, S'Length) and then H <= 4 * Max_Length
+     and then K <= H and then Equal_Prefix (S, A, B, H),
+     Post => Equal_Prefix (S, A, B, K),
+     Subprogram_Variant => (Decreases => H);
+
+   --  Rotations of one length that agree for a full period agree forever.
+   procedure Same_Length_Extend (S : String; A, B : Rotation; H, Size : Natural)
+   with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
+     and then Valid (B, S'Length) and then A.Length = B.Length
+     and then H in A.Length .. 4 * Max_Length
+     and then Size <= 4 * Max_Length
+     and then Equal_Prefix (S, A, B, H),
+     Post => Equal_Prefix (S, A, B, Size);
+
+   procedure Equal_Horizon (S : String; A, B : Rotation)
+   with Ghost, Pre => Supported (S) and then S'Length > 0
+     and then Valid (A, S'Length) and then Valid (B, S'Length)
+     and then Equal_Prefix (S, A, B, 2 * S'Length - 1),
+     Post => Equal_Prefix (S, A, B, 2 * S'Length);
+
+   --  Removing a shared first letter keeps the order.
+   procedure Unprepend (S : String; A, B : Rotation)
+   with Ghost, Pre => Supported (S) and then S'Length > 0
+     and then Valid (A, S'Length) and then Valid (B, S'Length)
+     and then Letter (S, A, A.Length - 1) = Letter (S, B, B.Length - 1)
+     and then LE (S, Previous (A), Previous (B), 2 * S'Length),
+     Post => LE (S, A, B, 2 * S'Length);
+
    procedure Equivalent_Order (S : String; A, B, C : Rotation)
    with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
      and then Valid (B, S'Length) and then Valid (C, S'Length)

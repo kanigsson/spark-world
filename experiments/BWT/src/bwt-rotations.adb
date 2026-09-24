@@ -166,6 +166,87 @@ package body BWT.Rotations with SPARK_Mode is
       null;
    end Key_Weakening;
 
+   procedure Key_Intro
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First) is
+      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
+   begin
+      null;
+   end Key_Intro;
+
+   procedure Key_Tie
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First) is
+      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
+   begin
+      null;
+   end Key_Tie;
+
+   procedure Key_Antisym
+     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First) is
+      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Key_LE);
+   begin
+      Order_Laws (S, A, B, A, 2 * S'Length);
+      Order_Laws (S, B, A, B, 2 * S'Length);
+   end Key_Antisym;
+
+   procedure Equal_Prefix_Shorter (S : String; A, B : Rotation; H, K : Natural)
+   is
+   begin
+      if K < H then
+         Equal_Prefix_Shorter (S, A, B, H - 1, K);
+      end if;
+   end Equal_Prefix_Shorter;
+
+   procedure Same_Length_Extend (S : String; A, B : Rotation; H, Size : Natural)
+   is
+   begin
+      if Size <= H then
+         Equal_Prefix_Shorter (S, A, B, H, Size);
+      else
+         for K in H .. Size - 1 loop
+            pragma Loop_Invariant (Equal_Prefix (S, A, B, K));
+            Period (S, A, K);
+            Period (S, B, K);
+            Prefix_Letter (S, A, B, K, K - A.Length);
+         end loop;
+      end if;
+   end Same_Length_Extend;
+
+   procedure Equal_Horizon (S : String; A, B : Rotation) is
+   begin
+      if A.Length + B.Length <= 2 * S'Length - 1 then
+         Equal_Prefix_Shorter
+           (S, A, B, 2 * S'Length - 1, A.Length + B.Length);
+         Extend_Equality (S, A, B, 2 * S'Length);
+      else
+         pragma Assert (A.Length = S'Length and then B.Length = S'Length);
+         Same_Length_Extend (S, A, B, 2 * S'Length - 1, 2 * S'Length);
+      end if;
+   end Equal_Horizon;
+
+   procedure Unprepend (S : String; A, B : Rotation) is
+      PA : constant Rotation := Previous (A);
+      PB : constant Rotation := Previous (B);
+      N  : constant Natural := 2 * S'Length;
+   begin
+      Shift_Letter (S, A, 0);
+      Shift_Letter (S, B, 0);
+      for K in 0 .. N - 1 loop
+         pragma Loop_Invariant
+           (LE (S, PA, PB, K + 1) = LE (S, A, B, K)
+            and then Equal_Prefix (S, PA, PB, K + 1)
+                     = Equal_Prefix (S, A, B, K));
+         if K + 1 < N then
+            Shift_Letter (S, A, K + 1);
+            Shift_Letter (S, B, K + 1);
+         end if;
+      end loop;
+      pragma Assert (LE (S, A, B, N - 1));
+      if Equal_Prefix (S, A, B, N - 1) then
+         Equal_Horizon (S, A, B);
+         Order_Laws (S, A, B, A, N);
+      end if;
+   end Unprepend;
+
    procedure Equivalent_Order (S : String; A, B, C : Rotation) is
       N : constant Natural := 2 * S'Length;
    begin

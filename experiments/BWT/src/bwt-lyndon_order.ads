@@ -48,4 +48,22 @@ is
        and then (for all O in 1 .. L - 1 =>
                    Omega_Less (S, (F, L, 0), (F, L, O))),
      Post => Lyndon (S, F, L);
+
+   --  Distinct rotations of a Lyndon word differ somewhere.
+   procedure Primitive (S : String; F, L, A, B : Natural)
+   with
+     Pre  =>
+       In_Word (S, F, L)
+       and then F >= 1
+       and then Lyndon (S, F, L)
+       and then A < L
+       and then B < L
+       and then A /= B,
+     Post => not Equal_Prefix (S, (F, L, A), (F, L, B), 2 * S'Length);
+
+   procedure Same_Word_Equal (S : String; G, H, L : Positive)
+   with
+     Pre  =>
+       In_Word (S, G, L) and then In_Word (S, H, L) and then Same (S, G, H, L),
+     Post => Equal_Prefix (S, (G, L, 0), (H, L, 0), 2 * S'Length);
 end BWT.Lyndon_Order;
