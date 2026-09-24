@@ -84,7 +84,10 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   log₂(2N) rounds reach the horizon that `Extend_Equality` already justifies.
   It costs O(N log² N) with a proved merge sort, or O(N log N) with radix
   passes, and its invariant is much simpler than SA-IS's. This is the
-  recommended first fast encoder.
+  recommended first fast encoder. It need not wait for the cycle BWT: start
+  with the classical transform, proved through `Classical_Rows_Unique`
+  (produce a distinct, sorted arrangement of `Rotations_Of (S)`), then
+  extend it to the bijective one through `Bijective_Rows_Unique`.
 - [ ] **Proved merge sort** (or LSD radix sort on rank pairs) replacing
   selection sort. It is needed by the item above, and it is also a
   standalone refinement of `Sorting.Sort` under the same postcondition.
@@ -150,9 +153,10 @@ prove first.
 
 ## Proof engineering
 
-- [ ] A from-scratch `make prove` takes about 4½ min at `-j8` (2026-09-24).
-  `Onto_Proofs` is 1,870 lines. Before Tier 0 widens the proof, record
-  per-unit times with `--report=statistics`, so that regressions are visible.
+- [ ] A forced `make prove` takes about 6¾ min at `-j16` (2026-09-24, at
+  `Max_Length` = 2**24; it was 3½ min at 1,024). `Onto_Proofs` is 1,870
+  lines. Record per-unit times with `--report=statistics`, so that
+  regressions are visible.
 - [ ] The generic alphabet and the cycle BWT will move lemmas between units.
   Carry the "quantify over positions, not offsets" and "opaque atoms"
   practices from PROOF.md into the new units from the start.
