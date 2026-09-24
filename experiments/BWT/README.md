@@ -46,6 +46,8 @@ all byte values, and maximum-length blocks.
 
 See [PROOF.md](PROOF.md) for how the proof is put together and
 [AGENTS.md](AGENTS.md) for what to know before changing it.
+[ROADMAP.md](ROADMAP.md) lists the planned work toward efficiency and
+applications.
 
 Algorithm references:
 [Gil and Scott, A Bijective String Sorting Transform](https://arxiv.org/abs/1201.3077)
