@@ -1,4 +1,5 @@
 with BWT.Counting;
+with BWT.Sorting;
 with BWT.Words;
 
 package body BWT.Bijective
@@ -128,13 +129,14 @@ is
             pragma Assert (Same (S, I, I - Size, Dom));
          end;
       end loop;
+      Spec_Form (S, Rows);
       return Rows;
    end Factor_Rotations;
 
    function Table_Of (S : String) return Table is
       Rows : Table := Factor_Rotations (S);
    begin
-      pragma Assert (Sorting.Well_Formed (S, Rows));
+      pragma Assert (Well_Formed (S, Rows));
       pragma
         Assert
           (for all I in Rows'Range =>
@@ -145,7 +147,7 @@ is
          with Ghost;
       begin
          Sorting.Sort (S, Rows, Later_First);
-         pragma Assert (Sorting.Same_Rows (Rows, Original));
+         pragma Assert (Same_Rows (Rows, Original));
       end;
       return Rows;
    end Table_Of;

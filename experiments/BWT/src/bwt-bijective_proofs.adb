@@ -4,7 +4,6 @@ with BWT.Orders;
 with BWT.Permutations;
 with BWT.Ranks;
 with BWT.Rotations;
-with BWT.Sorting;
 with BWT.Words;
 
 package body BWT.Bijective_Proofs
@@ -141,7 +140,7 @@ is
        Factorization (S, FR)
        and then R'First = 1
        and then R'Length = S'Length
-       and then Sorting.Same_Rows (R, FR),
+       and then Same_Rows (R, FR),
      Post =>
        (for all I in R'Range =>
           Pos (R (I)) in FR'Range and then R (I) = FR (Pos (R (I))));
@@ -225,9 +224,9 @@ is
    function Context (S : String; FR, R : Table; L : String) return Boolean
    is (S'Length > 0
        and then Factorization (S, FR)
-       and then Sorting.Well_Formed (S, R)
-       and then Sorting.Distinct (R)
-       and then Sorting.Sorted (S, R, Later_First)
+       and then Well_Formed (S, R)
+       and then Distinct (R)
+       and then Sorted (S, R, Later_First)
        and then (for all K in R'Range =>
                    Pos (R (K)) in FR'Range and then R (K) = FR (Pos (R (K))))
        and then L'First = 1
@@ -504,9 +503,9 @@ is
      (S : String; FR, R : Table; Map, Idx, W, Inv : Mapping) return Boolean
    is (S'Length > 0
        and then Factorization (S, FR)
-       and then Sorting.Well_Formed (S, R)
-       and then Sorting.Distinct (R)
-       and then Sorting.Sorted (S, R, Later_First)
+       and then Well_Formed (S, R)
+       and then Distinct (R)
+       and then Sorted (S, R, Later_First)
        and then (for all K in R'Range =>
                    Pos (R (K)) in FR'Range and then R (K) = FR (Pos (R (K))))
        and then Map'First = 1

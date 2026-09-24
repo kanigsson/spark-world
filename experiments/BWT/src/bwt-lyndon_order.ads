@@ -1,4 +1,3 @@
-with BWT.Rotations;
 with BWT.Words;
 
 --  How Lyndon words, ordered as finite words, sit in the periodic order
@@ -7,7 +6,6 @@ with BWT.Words;
 package BWT.Lyndon_Order
   with SPARK_Mode, Ghost
 is
-   use BWT.Rotations;
    use BWT.Words;
 
    --  A strictly precedes B in the periodic order.

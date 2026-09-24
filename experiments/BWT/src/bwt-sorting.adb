@@ -1,6 +1,10 @@
+with BWT.Rotations;
+
 package body BWT.Sorting
   with SPARK_Mode
 is
+   use BWT.Rotations;
+
    function Prefix_Sorted
      (S : String; Rows : Table; Through : Natural; Ties : Tie_Order)
       return Boolean
@@ -83,6 +87,7 @@ is
             M : constant Positive := Find (A, B (L));
          begin
             pragma Assert (A (I) = C (K));
+            pragma Assert (for some J in C'Range => A (I) = C (J));
             pragma Assert (C (I) = A (M));
          end;
          pragma
@@ -214,4 +219,56 @@ is
       Same_Symm (Original, Rows);
       pragma Assert (Sorted (S, Rows, Ties));
    end Sort;
+
+   --  Every row of A is a row of C, when it is one of B and B's are C's.
+   procedure Contained (A, B, C : Table)
+   with
+     Ghost,
+     Pre  =>
+       (for all I in A'Range => (for some J in B'Range => A (I) = B (J)))
+       and then (for all I in B'Range =>
+                   (for some J in C'Range => B (I) = C (J))),
+     Post =>
+       (for all I in A'Range => (for some J in C'Range => A (I) = C (J)));
+
+   procedure Contained (A, B, C : Table) is
+   begin
+      for I in A'Range loop
+         declare
+            J : constant Positive := Find (B, A (I));
+            K : constant Positive := Find (C, B (J));
+         begin
+            pragma Assert (A (I) = C (K));
+         end;
+         pragma
+           Loop_Invariant
+             (for all P in A'First .. I =>
+                (for some J in C'Range => A (P) = C (J)));
+      end loop;
+   end Contained;
+
+   procedure Same_Rows_Trans (A, B, C : Table) is
+   begin
+      Contained (A, B, C);
+      Contained (C, B, A);
+   end Same_Rows_Trans;
+
+   procedure Sorted_Unique (S : String; A, B : Table; Ties : Tie_Order) is
+   begin
+      for I in A'Range loop
+         pragma
+           Loop_Invariant (for all P in A'First .. I - 1 => A (P) = B (P));
+         declare
+            J : constant Positive := Find (B, A (I));
+            K : constant Positive := Find (A, B (I));
+         begin
+            pragma Assert (J >= I);
+            pragma Assert (K >= I);
+            pragma Assert (Key_LE (S, A (I), A (K), Ties));
+            pragma Assert (Key_LE (S, B (I), B (J), Ties));
+            Key_Antisym (S, A (I), A (K), Ties);
+            pragma Assert (A (I) = A (K));
+         end;
+      end loop;
+   end Sorted_Unique;
 end BWT.Sorting;

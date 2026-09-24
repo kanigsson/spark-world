@@ -2,15 +2,13 @@ with BWT.Bijective;
 with BWT.Bijective_Proofs;
 with BWT.Onto_Proofs;
 with BWT.Ranks;
-with BWT.Rotations;
 with BWT.Sorting;
 with BWT.Matrices;
 
 package body BWT
   with SPARK_Mode
 is
-   use BWT.Rotations;
-   subtype Rotation_Table is BWT.Rotations.Table;
+   subtype Rotation_Table is BWT.Table;
    subtype Indices is Ranks.Mapping;
 
    procedure Sort
@@ -32,7 +30,7 @@ is
      Ghost,
      Global => null,
      Pre    =>
-       Sorting.Same_Rows (Rows, Original)
+       Same_Rows (Rows, Original)
        and then Original'First = 1
        and then Original'Length = N
        and then (for all R of Original => R.First = 1 and then R.Length = N)
@@ -44,14 +42,82 @@ is
    procedure Classical_Shape (Rows, Original : Rotation_Table; N : Positive)
    is null;
 
+   function Initial_Rows (S : String) return Rotation_Table
+   with
+     Global => null,
+     Pre    => Supported (S),
+     Post   =>
+       Initial_Rows'Result'First = 1
+       and then Initial_Rows'Result'Length = S'Length
+       and then (for all I in Initial_Rows'Result'Range =>
+                   Initial_Rows'Result (I) = (1, S'Length, I - 1));
+
+   function Initial_Rows (S : String) return Rotation_Table is
+      Rows : Rotation_Table (1 .. S'Length);
+   begin
+      for I in Rows'Range loop
+         Rows (I) := (First => 1, Length => S'Length, Offset => I - 1);
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. I => Rows (J) = (1, S'Length, J - 1));
+      end loop;
+      return Rows;
+   end Initial_Rows;
+
+   function Rotations_Of (S : String) return Table
+   is (Initial_Rows (S));
+
+   --  The classical table, with the shape facts the encoder's proof needs.
+   function Classical_Table (S : String) return Rotation_Table
+   with
+     Global => null,
+     Pre    => Supported (S),
+     Post   =>
+       Well_Formed (S, Classical_Table'Result)
+       and then Distinct (Classical_Table'Result)
+       and then Same_Rows (Classical_Table'Result, Rotations_Of (S))
+       and then Sorted (S, Classical_Table'Result, Earlier_First)
+       and then (for all R of Classical_Table'Result =>
+                   R.First = 1 and then R.Length = S'Length)
+       and then (if S'Length > 0
+                 then
+                   (for some J in Classical_Table'Result'Range =>
+                      Classical_Table'Result (J).Offset = 0));
+
+   function Classical_Table (S : String) return Rotation_Table is
+      pragma
+        Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Sorted);
+      Rows : Rotation_Table := Initial_Rows (S);
+   begin
+      pragma Assert (for all R of Rows => Valid (R, S'Length));
+      declare
+         Original : constant Rotation_Table := Rows
+         with Ghost;
+      begin
+         Sort (S, Rows);
+         if S'Length > 0 then
+            Classical_Shape (Rows, Original, S'Length);
+         end if;
+      end;
+      return Rows;
+   end Classical_Table;
+
+   function Classical_Rows (S : String) return Table
+   is (Classical_Table (S));
+
+   function Lyndon_Factors (S : String) return Table
+   is (Bijective.Factor_Rotations (S));
+
+   function Bijective_Rows (S : String) return Table
+   is (Bijective.Table_Of (S));
+
    function Classical_Encode (S : String) return Classical_Result is
       pragma
         Annotate
           (GNATprove, Hide_Info, "Expression_Function_Body", Matrices.Closed);
       pragma
-        Annotate
-          (GNATprove, Hide_Info, "Expression_Function_Body", Sorting.Sorted);
-      Rows   : Rotation_Table (1 .. S'Length);
+        Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Sorted);
+      Rows   : constant Rotation_Table := Classical_Table (S);
       Result : Classical_Result (S'Length) :=
         (Length  => S'Length,
          Last    => (others => Character'First),
@@ -60,26 +126,6 @@ is
       if S'Length = 0 then
          return Result;
       end if;
-      for I in Rows'Range loop
-         Rows (I) := (First => 1, Length => S'Length, Offset => I - 1);
-         pragma Loop_Invariant (Rows (1).Offset = 0);
-         pragma
-           Loop_Invariant
-             (for all J in 1 .. I => Rows (J).First + Rows (J).Offset = J);
-         pragma
-           Loop_Invariant
-             (for all J in 1 .. I =>
-                Rows (J).First = 1 and then Rows (J).Length = S'Length);
-         pragma
-           Loop_Invariant (for all J in 1 .. I => Valid (Rows (J), S'Length));
-      end loop;
-      declare
-         Original : constant Rotation_Table := Rows
-         with Ghost;
-      begin
-         Sort (S, Rows);
-         Classical_Shape (Rows, Original, S'Length);
-      end;
       Matrices.Classical_Closed (S, Rows);
       for I in Rows'Range loop
          Result.Last (I) := Letter (S, Rows (I), Rows (I).Length - 1);
@@ -143,4 +189,25 @@ is
    begin
       Onto_Proofs.Onto (Last);
    end Prove_Bijective_Onto;
+
+   procedure Classical_Rows_Unique (S : String; Rows : Table) is
+      Canonical : constant Rotation_Table := Classical_Table (S);
+   begin
+      pragma
+        Assert
+          (for all I in Rows'Range =>
+             (for some J in Canonical'Range => Rows (I) = Canonical (J)));
+      pragma
+        Assert
+          (for all I in Canonical'Range =>
+             (for some J in Rows'Range => Canonical (I) = Rows (J)));
+      Sorting.Sorted_Unique (S, Canonical, Rows, Earlier_First);
+   end Classical_Rows_Unique;
+
+   procedure Bijective_Rows_Unique (S : String; Rows : Table) is
+      Canonical : constant Rotation_Table := Bijective.Table_Of (S);
+   begin
+      Sorting.Same_Rows_Trans (Canonical, Lyndon_Factors (S), Rows);
+      Sorting.Sorted_Unique (S, Canonical, Rows, Later_First);
+   end Bijective_Rows_Unique;
 end BWT;

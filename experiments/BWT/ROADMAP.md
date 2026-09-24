@@ -14,13 +14,17 @@ Unchecked items are proposals. None of them is needed for what is proved today.
 
 ## Tier 0: specification shape (do first; everything below depends on it)
 
-- [ ] **Export functional specifications.** Today the public `Classical_Encode`
-  contract describes its output only through the LF orbit. The bijective one
-  is pinned down only in `BWT.Bijective`. Add ghost predicates for both,
-  `Is_Classical_BWT (S, Last, Primary)` and `Is_Bijective_BWT (S, Last)`,
-  stated with sorted rotations and the Lyndon factorization. Make them the
-  encoders' postconditions. Every fast encoder later is then one theorem:
-  "satisfies the same predicate".
+- [x] **Export functional specifications.** `Is_Classical_BWT (S, Last,
+  Primary)` and `Is_Bijective_BWT (S, Last)` in `BWT`, stated with sorted
+  rotation tables and a Lyndon factorization in the periodic order, are the
+  encoders' postconditions. `Classical_Rows_Unique` and
+  `Bijective_Rows_Unique` show that any sorted arrangement of the same rows
+  is the specified table, so a fast encoder is one theorem: "produces such
+  an arrangement". The rotation vocabulary had to move into `BWT`, since a
+  parent's contracts cannot name its children. Not done: a fast bijective
+  encoder must still sort the rows of `Lyndon_Factors`, that is, Duval's
+  table. Proving that any factorization meeting the spec is Duval's would
+  need the converse of `Factorizations.Spec_Form`, plus `Unique`.
 - [ ] **Unify both transforms as a "cycle BWT".** Both sort the positions of a
   string by the infinite word read along a successor permutation that is a
   union of cycles. The classical transform has one cycle of length N. The

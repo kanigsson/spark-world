@@ -7,6 +7,27 @@ The bijective laws are proved in `BWT`'s body, where the implementation is
 visible, through two ghost procedures in its private part. `BWT.Theorems` only
 calls them.
 
+## Functional specifications
+
+`BWT` states what each encoder computes, not only that it inverts.
+`Is_Classical_BWT` and `Is_Bijective_BWT` read the last column of a sorted
+rotation table, and the encoders' postconditions assert them. The tables are
+ghost functions characterised by their postconditions: `Classical_Rows` sorts
+`Rotations_Of (S)` with earlier starts first, and `Bijective_Rows` sorts the
+rotations of `Lyndon_Factors (S)` with later starts first. The factorization
+is stated in the periodic order alone: each factor precedes its other
+rotations, and factors never increase. `Factorizations.Spec_Form` derives
+that from Duval's `Factorization`, through `Lyndon_Least` and `Lyndon_Omega`.
+
+`Classical_Rows_Unique` and `Bijective_Rows_Unique` show that the tables are
+determined: any distinct, sorted arrangement of the same rows is the table.
+Both reduce to `Sorting.Sorted_Unique`. A faster encoder is therefore proved
+by producing such an arrangement, without reference to the selection sort.
+
+The rotation vocabulary (`Rotation`, `Letter`, `LE`, `Key_LE`, `Sorted`, ...)
+lives in `BWT` itself, because a parent's postconditions cannot name its
+children's declarations. `Rotations` and `Sorting` keep the lemmas.
+
 ## Shared machinery
 
 - `Rotations`: a rotation is a descriptor `(First, Length, Offset)` into the
@@ -18,7 +39,7 @@ calls them.
   and it orders rows as `Ordered` does. `Walk` is the LF orbit that the
   classical decoder follows.
 - `Sorting`: selection sort, which yields a key-sorted permutation of its
-  input.
+  input, and the uniqueness of such permutations.
 
 ## Classical
 

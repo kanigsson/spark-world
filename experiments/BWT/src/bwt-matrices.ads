@@ -1,6 +1,5 @@
 with BWT.Ranks;
 with BWT.Rotations;
-with BWT.Sorting;
 
 package BWT.Matrices
   with SPARK_Mode, Ghost
@@ -15,15 +14,15 @@ is
             LE (S, Rows (Map (I)), Rows (Map (J)), 2 * S'Length)))
    with
      Pre =>
-       Sorting.Well_Formed (S, Rows)
+       Well_Formed (S, Rows)
        and then Permutation (Map)
        and then Map'Length = Rows'Length;
 
    procedure Sorted_Permutation (S : String; Rows : Table; Map : Mapping)
    with
      Pre  =>
-       Sorting.Well_Formed (S, Rows)
-       and then Sorting.Sorted (S, Rows)
+       Well_Formed (S, Rows)
+       and then Sorted (S, Rows)
        and then Permutation (Map)
        and then Map'Length = Rows'Length
        and then Ordered_Image (S, Rows, Map),
@@ -32,18 +31,18 @@ is
           Equal_Prefix (S, Rows (I), Rows (Map (I)), 2 * S'Length));
 
    function Closed (S : String; Rows : Table) return Boolean
-   is (Sorting.Well_Formed (S, Rows)
-       and then Sorting.Distinct (Rows)
-       and then Sorting.Sorted (S, Rows)
+   is (Well_Formed (S, Rows)
+       and then Distinct (Rows)
+       and then Sorted (S, Rows)
        and then (for all R of Rows =>
                    (for some Q of Rows => Q = Previous (R))));
 
    procedure Classical_Closed (S : String; Rows : Table)
    with
      Pre  =>
-       Sorting.Well_Formed (S, Rows)
-       and then Sorting.Distinct (Rows)
-       and then Sorting.Sorted (S, Rows)
+       Well_Formed (S, Rows)
+       and then Distinct (Rows)
+       and then Sorted (S, Rows)
        and then (for all R of Rows =>
                    R.First = 1 and then R.Length = S'Length),
      Post => Closed (S, Rows);

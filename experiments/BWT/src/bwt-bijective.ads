@@ -2,8 +2,6 @@ with BWT.Factorizations;
 with BWT.Orders;
 with BWT.Permutations;
 with BWT.Ranks;
-with BWT.Rotations;
-with BWT.Sorting;
 
 --  The bijective transform's internals, with the contracts its inverse laws
 --  are proved from.
@@ -12,14 +10,15 @@ package BWT.Bijective
   with SPARK_Mode
 is
    use BWT.Ranks;
-   use BWT.Rotations;
 
    --  Duval emits the unique nonincreasing Lyndon factorization. Each factor
    --  contributes all its rotations, including every occurrence of duplicates.
    function Factor_Rotations (S : String) return Table
    with
      Pre  => Supported (S),
-     Post => Factorizations.Factorization (S, Factor_Rotations'Result);
+     Post =>
+       Factorizations.Factorization (S, Factor_Rotations'Result)
+       and then Lyndon_Factorization (S, Factor_Rotations'Result);
 
    --  Every factor rotation, in periodic order; rows with equal periodic
    --  words put the later start first.
@@ -27,10 +26,10 @@ is
    with
      Pre  => Supported (S),
      Post =>
-       Sorting.Well_Formed (S, Table_Of'Result)
-       and then Sorting.Distinct (Table_Of'Result)
-       and then Sorting.Same_Rows (Table_Of'Result, Factor_Rotations (S))
-       and then Sorting.Sorted (S, Table_Of'Result, Later_First);
+       Well_Formed (S, Table_Of'Result)
+       and then Distinct (Table_Of'Result)
+       and then Same_Rows (Table_Of'Result, Factor_Rotations (S))
+       and then Sorted (S, Table_Of'Result, Later_First);
 
    function Encode (S : String) return String
    with

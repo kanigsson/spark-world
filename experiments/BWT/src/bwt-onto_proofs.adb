@@ -4,7 +4,6 @@ with BWT.Orders;
 with BWT.Permutations;
 with BWT.Ranks;
 with BWT.Rotations;
-with BWT.Sorting;
 with BWT.Words;
 
 package body BWT.Onto_Proofs
@@ -1579,10 +1578,10 @@ is
      Pre  =>
        Onto_Ctx (L, T, Map, Psi, W, IW, BS, BE, BT, IRA, Rot, F)
        and then Key_Sorted (T, Rot)
-       and then Sorting.Well_Formed (T, RT)
-       and then Sorting.Distinct (RT)
-       and then Sorting.Sorted (T, RT, Later_First)
-       and then Sorting.Same_Rows (RT, BT),
+       and then Well_Formed (T, RT)
+       and then Distinct (RT)
+       and then Sorted (T, RT, Later_First)
+       and then Same_Rows (RT, BT),
      Post => (for all I in RT'Range => RT (I) = Rot (I));
 
    procedure Sorted_Equal
@@ -1659,11 +1658,11 @@ is
    procedure Same_Rows_Transfer (A, B, C : Table)
    with
      Pre  =>
-       Sorting.Same_Rows (A, B)
+       Same_Rows (A, B)
        and then C'First = B'First
        and then C'Last = B'Last
        and then (for all P in B'Range => B (P) = C (P)),
-     Post => Sorting.Same_Rows (A, C);
+     Post => Same_Rows (A, C);
 
    procedure Same_Rows_Transfer (A, B, C : Table) is
    begin
@@ -1782,11 +1781,7 @@ is
         Annotate
           (GNATprove, Hide_Info, "Expression_Function_Body", Factorization);
       pragma
-        Annotate
-          (GNATprove,
-           Hide_Info,
-           "Expression_Function_Body",
-           Sorting.Same_Rows);
+        Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Same_Rows);
    begin
       if Last'Length = 0 then
          return;

@@ -1,24 +1,6 @@
 package BWT.Rotations
   with SPARK_Mode
 is
-   type Rotation is record
-      First  : Positive := 1;
-      Length : Positive := 1;
-      Offset : Natural := 0;
-   end record;
-   type Table is array (Positive range <>) of Rotation;
-
-   function Valid (R : Rotation; N : Natural) return Boolean
-   is (R.First <= N
-       and then R.Length <= N - R.First + 1
-       and then R.Offset < R.Length);
-
-   function Letter (S : String; R : Rotation; K : Natural) return Character
-   with
-     Pre      =>
-       Supported (S) and then Valid (R, S'Length) and then K <= 4 * Max_Length,
-     Annotate => (GNATprove, Hide_Info, "Expression_Function_Body");
-
    function Previous (R : Rotation) return Rotation
    is (R.First,
        R.Length,
@@ -44,47 +26,6 @@ is
      Post =>
        Letter (S, Previous (R), K)
        = (if K = 0 then Letter (S, R, R.Length - 1) else Letter (S, R, K - 1));
-
-   function Equal_Prefix
-     (S : String; A, B : Rotation; Size : Natural) return Boolean
-   is (if Size = 0
-       then True
-       else
-         Equal_Prefix (S, A, B, Size - 1)
-         and then Letter (S, A, Size - 1) = Letter (S, B, Size - 1))
-   with
-     Ghost,
-     Pre                =>
-       Supported (S)
-       and then Valid (A, S'Length)
-       and then Valid (B, S'Length)
-       and then Size <= 4 * Max_Length,
-     Post               =>
-       Equal_Prefix'Result
-       = (for all K in 1 .. Size =>
-            Letter (S, A, K - 1) = Letter (S, B, K - 1)),
-     Subprogram_Variant => (Decreases => Size);
-
-   function LE (S : String; A, B : Rotation; Size : Natural) return Boolean
-   is (if Size = 0
-       then True
-       else
-         LE (S, A, B, Size - 1)
-         and then (if Equal_Prefix (S, A, B, Size - 1)
-                   then Letter (S, A, Size - 1) <= Letter (S, B, Size - 1)))
-   with
-     Ghost,
-     Pre                =>
-       Supported (S)
-       and then Valid (A, S'Length)
-       and then Valid (B, S'Length)
-       and then Size <= 4 * Max_Length,
-     Post               =>
-       LE'Result
-       = (for all K in 1 .. Size =>
-            (if Equal_Prefix (S, A, B, K - 1)
-             then Letter (S, A, K - 1) <= Letter (S, B, K - 1))),
-     Subprogram_Variant => (Decreases => Size);
 
    procedure Equal_Same (S : String; A, B : Rotation; Size : Natural)
    with
@@ -268,34 +209,6 @@ is
      Pre  =>
        Supported (S) and then Valid (A, S'Length) and then Valid (B, S'Length),
      Post => Less'Result = not LE (S, B, A, 2 * S'Length);
-
-   --  Rows whose periodic words agree are ordered by start position. The
-   --  classical transform puts the earlier start first; the bijective one
-   --  puts the later start first, which keeps every LF step exact.
-   type Tie_Order is (Earlier_First, Later_First);
-
-   function Tie_LE (A, B : Rotation; Ties : Tie_Order) return Boolean
-   is (case Ties is
-         when Earlier_First => A.First + A.Offset <= B.First + B.Offset,
-         when Later_First   => A.First + A.Offset >= B.First + B.Offset)
-   with
-     Pre =>
-       A.First <= Max_Length
-       and then B.First <= Max_Length
-       and then A.Offset <= Max_Length
-       and then B.Offset <= Max_Length;
-
-   function Key_LE
-     (S : String; A, B : Rotation; Ties : Tie_Order := Earlier_First)
-      return Boolean
-   is (LE (S, A, B, 2 * S'Length)
-       and then (if Equal_Prefix (S, A, B, 2 * S'Length)
-                 then Tie_LE (A, B, Ties)))
-   with
-     Ghost,
-     Pre      =>
-       Supported (S) and then Valid (A, S'Length) and then Valid (B, S'Length),
-     Annotate => (GNATprove, Hide_Info, "Expression_Function_Body");
 
    procedure Key_Order
      (S : String; A, B, C : Rotation; Ties : Tie_Order := Earlier_First)

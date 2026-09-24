@@ -7,7 +7,7 @@ is
    procedure Same_Image (S : String; Rows : Table; A, B : Mapping)
    with
      Pre  =>
-       Sorting.Well_Formed (S, Rows)
+       Well_Formed (S, Rows)
        and then Permutation (A)
        and then Permutation (B)
        and then A'Length = Rows'Length
@@ -128,8 +128,8 @@ is
      (S : String; Rows : Table; Last : String; A, B : Positive)
    with
      Pre  =>
-       Sorting.Well_Formed (S, Rows)
-       and then Sorting.Sorted (S, Rows)
+       Well_Formed (S, Rows)
+       and then Sorted (S, Rows)
        and then Supported (Last)
        and then Last'Length = S'Length
        and then A in Rows'Range
@@ -157,8 +157,8 @@ is
       I           : Positive)
    with
      Pre  =>
-       Sorting.Well_Formed (S, Rows)
-       and then Sorting.Sorted (S, Rows)
+       Well_Formed (S, Rows)
+       and then Sorted (S, Rows)
        and then Supported (Last)
        and then Last'Length = S'Length
        and then Permutation (Map)
@@ -203,8 +203,8 @@ is
      (S : String; Rows : Table; Last : String; Map, Inv, P : Mapping)
    with
      Pre  =>
-       Sorting.Well_Formed (S, Rows)
-       and then Sorting.Sorted (S, Rows)
+       Well_Formed (S, Rows)
+       and then Sorted (S, Rows)
        and then Supported (Last)
        and then Last'Length = S'Length
        and then Permutation (Map)
@@ -276,7 +276,7 @@ is
      Pre  =>
        Rows'First = 1
        and then Rows'Length <= Max_Length
-       and then Sorting.Distinct (Rows)
+       and then Distinct (Rows)
        and then (for all R of Rows => R.Offset < R.Length)
        and then Pred'First = 1
        and then Pred'Length = Rows'Length
@@ -312,7 +312,7 @@ is
      Pre  =>
        Rows'First = 1
        and then Rows'Length <= Max_Length
-       and then Sorting.Distinct (Rows)
+       and then Distinct (Rows)
        and then (for all R of Rows => R.Offset < R.Length)
        and then (for all R of Rows =>
                    (for some Q of Rows => Q = Previous (R))),
@@ -326,8 +326,7 @@ is
 
    function Pred_Rows (Rows : Table) return Mapping is
       pragma
-        Annotate
-          (GNATprove, Hide_Info, "Expression_Function_Body", Sorting.Distinct);
+        Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Distinct);
       pragma
         Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Unshared);
       Pred : constant Mapping := Pred_Build (Rows);
@@ -406,7 +405,7 @@ is
       Steps     : Natural)
    with
      Pre  =>
-       Sorting.Well_Formed (S, Rows)
+       Well_Formed (S, Rows)
        and then S'Length > 0
        and then Supported (Last)
        and then Last'Length = S'Length
@@ -457,11 +456,9 @@ is
      (S : String; Rows : Table; Last : String; Primary : Positive)
    is
       pragma
-        Annotate
-          (GNATprove, Hide_Info, "Expression_Function_Body", Sorting.Sorted);
+        Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Sorted);
       pragma
-        Annotate
-          (GNATprove, Hide_Info, "Expression_Function_Body", Sorting.Distinct);
+        Annotate (GNATprove, Hide_Info, "Expression_Function_Body", Distinct);
       Map : constant Mapping := LF (Last);
       Row : Positive := Primary;
    begin

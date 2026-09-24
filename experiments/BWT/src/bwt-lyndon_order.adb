@@ -1,6 +1,10 @@
+with BWT.Rotations;
+
 package body BWT.Lyndon_Order
   with SPARK_Mode
 is
+   use BWT.Rotations;
+
    procedure Lyndon_Least (S : String; F, L, O : Positive) is
       A : constant Rotation := (F, L, 0);
       B : constant Rotation := (F, L, O);

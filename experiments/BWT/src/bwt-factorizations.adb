@@ -1,3 +1,6 @@
+with BWT.Lyndon_Order;
+with BWT.Rotations;
+
 package body BWT.Factorizations
   with SPARK_Mode
 is
@@ -149,4 +152,107 @@ is
          end;
       end loop;
    end Unique;
+   --  A factor precedes its other rotations.
+   procedure Least_At (S : String; Rows : Table; P : Positive)
+   with
+     Pre  => Factorization (S, Rows) and then P <= S'Length,
+     Post =>
+       (if Rows (P).Offset > 0
+        then
+          not LE
+                (S,
+                 Rows (P),
+                 (Rows (P).First, Rows (P).Length, 0),
+                 2 * S'Length));
+
+   procedure Least_At (S : String; Rows : Table; P : Positive) is
+   begin
+      if Rows (P).Offset > 0 then
+         Lyndon_Order.Lyndon_Least
+           (S, Rows (P).First, Rows (P).Length, Rows (P).Offset);
+      end if;
+   end Least_At;
+
+   --  Lyndon words ordered as finite words are ordered as periodic ones.
+   procedure Lyndon_LE (S : String; A, LA, B, LB : Positive)
+   with
+     Pre  =>
+       In_Word (S, A, LA)
+       and then In_Word (S, B, LB)
+       and then Lyndon (S, A, LA)
+       and then Lyndon (S, B, LB)
+       and then Lex_LE (S, A, LA, B, LB),
+     Post => LE (S, (A, LA, 0), (B, LB, 0), 2 * S'Length);
+
+   procedure Lyndon_LE (S : String; A, LA, B, LB : Positive) is
+   begin
+      Lex_Total (S, A, LA, B, LB);
+      Rotations.Order_Laws
+        (S, (A, LA, 0), (B, LB, 0), (A, LA, 0), 2 * S'Length);
+      if Lex_Less (S, A, LA, B, LB) then
+         Lyndon_Order.Lyndon_Omega (S, A, LA, B, LB);
+      else
+         Lyndon_Order.Same_Word_Equal (S, A, B, LA);
+      end if;
+   end Lyndon_LE;
+
+   --  The factor starting at P is at most the one before it.
+   procedure Decreasing_At (S : String; Rows : Table; P : Positive)
+   with
+     Pre  => Factorization (S, Rows) and then P in 2 .. S'Length,
+     Post =>
+       (if Rows (P).Offset = 0
+        then
+          LE
+            (S,
+             Rows (P),
+             (Rows (P - 1).First, Rows (P - 1).Length, 0),
+             2 * S'Length));
+
+   procedure Decreasing_At (S : String; Rows : Table; P : Positive) is
+      G : constant Positive := Rows (P - 1).First;
+      M : constant Positive := Rows (P - 1).Length;
+   begin
+      if Rows (P).Offset = 0 then
+         pragma Assert (Rows (P).First = P);
+         pragma Assert (G + M >= P);
+         if G + M > P then
+            pragma Assert (P in G .. G + M - 1);
+            pragma Assert (Rows (P).First = G);
+         end if;
+         pragma Assert (G + M = P);
+         pragma Assert (Lex_LE (S, P, Rows (P).Length, G, M));
+         Lyndon_LE (S, P, Rows (P).Length, G, M);
+      end if;
+   end Decreasing_At;
+
+   procedure Spec_Form (S : String; Rows : Table) is
+   begin
+      for P in Rows'Range loop
+         Least_At (S, Rows, P);
+         pragma
+           Loop_Invariant
+             (for all Q in 1 .. P =>
+                (if Rows (Q).Offset > 0
+                 then
+                   not LE
+                         (S,
+                          Rows (Q),
+                          (Rows (Q).First, Rows (Q).Length, 0),
+                          2 * S'Length)));
+      end loop;
+      for P in 2 .. Rows'Last loop
+         Decreasing_At (S, Rows, P);
+         pragma
+           Loop_Invariant
+             (for all Q in 2 .. P =>
+                (if Rows (Q).Offset = 0
+                 then
+                   LE
+                     (S,
+                      Rows (Q),
+                      (Rows (Q - 1).First, Rows (Q - 1).Length, 0),
+                      2 * S'Length)));
+      end loop;
+   end Spec_Form;
 end BWT.Factorizations;

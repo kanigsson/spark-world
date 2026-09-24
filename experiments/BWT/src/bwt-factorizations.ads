@@ -1,4 +1,3 @@
-with BWT.Rotations;
 with BWT.Words;
 
 --  A rotation table that records a Lyndon factorization: row P describes the
@@ -7,7 +6,6 @@ with BWT.Words;
 package BWT.Factorizations
   with SPARK_Mode, Ghost
 is
-   use BWT.Rotations;
    use BWT.Words;
 
    --  Positions 1 .. I - 1 are covered by complete, nonincreasing Lyndon
@@ -150,4 +148,8 @@ is
    with
      Pre  => Factorization (S, A) and then Factorization (S, B),
      Post => (for all P in A'Range => A (P) = B (P));
+
+   --  The factorization in the terms of the public specification.
+   procedure Spec_Form (S : String; Rows : Table)
+   with Pre => Factorization (S, Rows), Post => Lyndon_Factorization (S, Rows);
 end BWT.Factorizations;

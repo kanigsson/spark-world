@@ -1,37 +1,6 @@
-with BWT.Rotations;
-
 package BWT.Sorting
   with SPARK_Mode
 is
-   use BWT.Rotations;
-
-   function Well_Formed (S : String; Rows : Table) return Boolean
-   is (Supported (S)
-       and then Rows'First = 1
-       and then Rows'Length = S'Length
-       and then (for all R of Rows => Valid (R, S'Length)));
-
-   function Same_Rows (A, B : Table) return Boolean
-   is (A'First = B'First
-       and then A'Last = B'Last
-       and then (for all I in A'Range =>
-                   (for some J in B'Range => A (I) = B (J)))
-       and then (for all I in B'Range =>
-                   (for some J in A'Range => B (I) = A (J))))
-   with Ghost;
-
-   function Distinct (Rows : Table) return Boolean
-   is (for all I in Rows'Range =>
-         (for all J in Rows'Range => (if I /= J then Rows (I) /= Rows (J))))
-   with Ghost;
-
-   function Sorted
-     (S : String; Rows : Table; Ties : Tie_Order := Earlier_First)
-      return Boolean
-   is (for all I in Rows'Range =>
-         (for all J in I .. Rows'Last => Key_LE (S, Rows (I), Rows (J), Ties)))
-   with Ghost, Pre => Well_Formed (S, Rows);
-
    procedure Sort
      (S : String; Rows : in out Table; Ties : Tie_Order := Earlier_First)
    with
@@ -41,4 +10,29 @@ is
        and then Distinct (Rows)
        and then Same_Rows (Rows, Rows'Old)
        and then Sorted (S, Rows, Ties);
+
+   procedure Same_Rows_Trans (A, B, C : Table)
+   with
+     Ghost,
+     Pre  => Same_Rows (A, B) and then Same_Rows (B, C),
+     Post => Same_Rows (A, C);
+
+   --  A sorted arrangement is unique, when rows at one position are one row.
+   procedure Sorted_Unique (S : String; A, B : Table; Ties : Tie_Order)
+   with
+     Ghost,
+     Pre  =>
+       Well_Formed (S, A)
+       and then Well_Formed (S, B)
+       and then Distinct (A)
+       and then Distinct (B)
+       and then Same_Rows (A, B)
+       and then Sorted (S, A, Ties)
+       and then Sorted (S, B, Ties)
+       and then (for all I in A'Range =>
+                   (for all J in A'Range =>
+                      (if A (I).First + A (I).Offset
+                         = A (J).First + A (J).Offset
+                       then A (I) = A (J)))),
+     Post => (for all I in A'Range => A (I) = B (I));
 end BWT.Sorting;

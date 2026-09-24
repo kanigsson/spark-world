@@ -6,9 +6,6 @@ is
       null;
    end Previous_Injective;
 
-   function Letter (S : String; R : Rotation; K : Natural) return Character
-   is (S (R.First + (R.Offset + K) mod R.Length));
-
    procedure Modulo_Period (X : Natural; P : Positive)
    with
      Ghost,
