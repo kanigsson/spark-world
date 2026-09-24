@@ -16,4 +16,11 @@ package BWT.Permutations with SPARK_Mode, Ghost is
      Post => Permutation (Map)
        and then (for all I in Map'Range => Map (I) =
          (if I = A then Map'Old (B) elsif I = B then Map'Old (A) else Map'Old (I)));
+
+   --  A strictly increasing map of 1 .. N into itself is the identity.
+   procedure Increasing_Identity (Map : Mapping)
+   with Pre => Map'First = 1 and then Map'Length <= Max_Length
+     and then (for all I in Map'Range => Map (I) in Map'Range)
+     and then (for all I in 1 .. Map'Length - 1 => Map (I) < Map (I + 1)),
+     Post => (for all I in Map'Range => Map (I) = I);
 end BWT.Permutations;

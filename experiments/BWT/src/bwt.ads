@@ -68,4 +68,12 @@ is
      Post   =>
        Supported (Bijective_Decode'Result)
        and then Bijective_Decode'Result'Length = Last'Length;
+private
+   --  The bijective inverse laws are proved where the implementation is
+   --  visible; BWT.Theorems states them against the public functions.
+
+   procedure Prove_Bijective_Round_Trip (S : String)
+   with Ghost, Global => null,
+     Pre  => Supported (S),
+     Post => Bijective_Decode (Bijective_Encode (S)) = S;
 end BWT;

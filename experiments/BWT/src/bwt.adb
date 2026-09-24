@@ -1,4 +1,5 @@
 with BWT.Bijective;
+with BWT.Bijective_Proofs;
 with BWT.Ranks;
 with BWT.Rotations;
 with BWT.Sorting;
@@ -113,4 +114,9 @@ is
 
    function Bijective_Decode (Last : String) return String
    is (Bijective.Decode (Last));
+
+   procedure Prove_Bijective_Round_Trip (S : String) is
+   begin
+      Bijective_Proofs.Round_Trip (S);
+   end Prove_Bijective_Round_Trip;
 end BWT;

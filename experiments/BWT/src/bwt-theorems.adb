@@ -18,7 +18,7 @@ is
 
    procedure Bijective_Round_Trip (S : String) is
    begin
-      pragma Assert (Bijective_Decode (Bijective_Encode (S)) = S);
+      Prove_Bijective_Round_Trip (S);
    end Bijective_Round_Trip;
 
    procedure Bijective_Onto (Last : String) is

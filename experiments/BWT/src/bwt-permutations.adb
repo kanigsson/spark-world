@@ -36,4 +36,15 @@ package body BWT.Permutations with SPARK_Mode is
       Map (A) := Map (B);
       Map (B) := Temp;
    end Swap;
+
+   procedure Increasing_Identity (Map : Mapping) is
+   begin
+      for I in Map'Range loop
+         pragma Loop_Invariant (for all J in 1 .. I => Map (J) >= J);
+      end loop;
+      for I in reverse Map'Range loop
+         pragma Loop_Invariant
+           (for all J in I .. Map'Last => Map (J) <= J);
+      end loop;
+   end Increasing_Identity;
 end BWT.Permutations;
