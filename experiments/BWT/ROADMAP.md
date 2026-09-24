@@ -125,33 +125,30 @@ prove first.
   structures, and for de-duplicating rotations. Spec: `Least_Rotation (S)` is
   a rotation of S and ≤ every rotation. Most of the lemmas are already in `Words` and
   `Lyndon_Order`.
-- [ ] **Backward search (FM-index "count").** *Done with a naive rank
-  (2026-09-24):* `Search.Count`, proved through `Count_Rows` for any sorted
-  cycle table, with the classical and bijective corollaries.
-  `FM_Index` adds rank checkpoints every 256 rows, and its `Count` is
-  proved equal. On 256 KiB of text, one count of a 17-letter pattern takes
-  0.47 µs, against 2.5 ms with the scanned rank. Building the index takes
-  0.46 ms. Still to do: the end-marker variant, which needs the generic
-  alphabet. Store the BWT plus the counting
-  table C and a rank structure. Then the number of occurrences of a pattern
-  P costs O(|P|) rank queries. This reuses the LF lemmas. What the cyclic
-  transforms here give:
+- [x] **Backward search (FM-index "count")** (2026-09-24). Store the BWT
+  plus the counting table C and a rank structure. Then the number of
+  occurrences of a pattern P costs O(|P|) rank queries, reusing the LF
+  lemmas. Spec: `Count (Index, P)` = the number of rotations/rows whose
+  infinite word has prefix P. `Search.Count` uses a naive rank, and is proved
+  through `Count_Rows` for any sorted cycle table, with the classical and
+  bijective corollaries. `FM_Index` adds rank checkpoints every 256 rows, and
+  its `Count` is proved equal. On 256 KiB of text, one count of a 17-letter
+  pattern takes 0.47 µs, against 2.5 ms with the scanned rank. Building the
+  index takes 0.46 ms. What the cyclic transforms here give:
   - on the classical BWT, occurrences of P in *circular* S;
   - on the bijective BWT, occurrences in the ω-words of the Lyndon factors
     (Bannai et al., *Indexing the bijective BWT*, CPM 2019).
-
-  Spec: `Count (Index, P)` = the number of rotations/rows whose infinite
-  word has prefix P. Start with a naive rank (a scan), then sampled rank
-  blocks as a refinement. An end-marker variant, for ordinary linear
-  text, needs the generic alphabet from Tier 0.
-- [ ] **Locate.** *Done (2026-09-24):* `Locate.Locate`, proved
-  (`Locate_Rows`) on any sorted cycle table where LF is exact. That covers
-  the bijective table, and the classical one for primitive S. A classical
-  locate for periodic S would need the end marker. Still to do: bit-packed
-  sample flags, since they now take one byte per row, and a benchmark.
-  Original proposal: Sample the suffix array (every k-th row's position) and walk
-  LF to the nearest sample. Spec: it returns exactly the positions that
-  `Count` counts. It depends on backward search.
+- [ ] **End-marker backward search**, for ordinary linear text. It needs the
+  generic alphabet from Tier 0.
+- [x] **Locate** (2026-09-24). Sample the suffix array (every k-th row's
+  position) and walk LF to the nearest sample. Spec: it returns exactly the
+  positions that `Count` counts. `Locate.Locate` is proved (`Locate_Rows`) on
+  any sorted cycle table where LF is exact. That covers the bijective table,
+  and the classical one for primitive S.
+- [ ] **Locate, remaining work.**
+  - Bit-packed sample flags, since they now take one byte per row.
+  - A benchmark.
+  - A classical locate for periodic S, which needs the end marker.
 - [ ] **Extended BWT of a string collection** (Mantaci, Restivo, Rosone and
   Sciortino). It sorts all rotations of a *multiset* of words by ω-order.
   It is used for collections of reads, metagenomics and comparing sequence
