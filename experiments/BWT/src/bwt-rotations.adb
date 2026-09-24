@@ -91,13 +91,6 @@ package body BWT.Rotations with SPARK_Mode is
       end loop;
    end Extend_Equality;
 
-   procedure Decide (S : String; A, B : Rotation; K, Size : Natural)
-   with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
-     and then Valid (B, S'Length) and then Size <= 4 * Max_Length
-     and then K < Size and then Equal_Prefix (S, A, B, K)
-     and then Letter (S, A, K) /= Letter (S, B, K),
-     Post => LE (S, A, B, Size) = (Letter (S, A, K) < Letter (S, B, K));
-
    procedure Decide (S : String; A, B : Rotation; K, Size : Natural) is
    begin
       for N in K + 1 .. Size loop
@@ -107,12 +100,48 @@ package body BWT.Rotations with SPARK_Mode is
       end loop;
    end Decide;
 
+   procedure Letter_Direct (S : String; R : Rotation; K : Natural) is
+      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+   begin
+      null;
+   end Letter_Direct;
+
+   procedure Letter_Wrap (S : String; R : Rotation; K : Natural) is
+      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+   begin
+      pragma Assert ((R.Offset + K) mod R.Length = R.Offset + K - R.Length);
+   end Letter_Wrap;
+
+   procedure Letter_Advance (S : String; R : Rotation; D, K : Natural) is
+      pragma Annotate (GNATprove, Unhide_Info, "Expression_Function_Body", Letter);
+      A : constant Rotation := Advance (R, D);
+   begin
+      if R.Offset + D >= R.Length then
+         Modulo_Period (R.Offset + K, R.Length);
+         pragma Assert (A.Offset + (K - D) = R.Offset + K - R.Length);
+      end if;
+   end Letter_Advance;
+
+   function Mismatch (S : String; A, B : Rotation; Size : Natural)
+     return Natural is
+   begin
+      for K in 0 .. Size - 1 loop
+         pragma Loop_Invariant (Equal_Prefix (S, A, B, K));
+         pragma Loop_Invariant (Equal_Prefix (S, B, A, K));
+         if Letter (S, A, K) /= Letter (S, B, K) then
+            return K;
+         end if;
+      end loop;
+      return Size;
+   end Mismatch;
+
    function Less (S : String; A, B : Rotation) return Boolean is
    begin
       --  A common comparison horizon makes order laws independent of the
       --  lengths. Extend_Equality justifies the shorter p + q stopping bound.
       for K in 0 .. 2 * S'Length - 1 loop
          pragma Loop_Invariant (Equal_Prefix (S, A, B, K));
+         pragma Loop_Invariant (Equal_Prefix (S, B, A, K));
          if Letter (S, A, K) /= Letter (S, B, K) then
             Decide (S, B, A, K, 2 * S'Length);
             return Letter (S, A, K) < Letter (S, B, K);

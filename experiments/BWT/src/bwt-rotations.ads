@@ -92,6 +92,54 @@ package BWT.Rotations with SPARK_Mode is
      and then Equal_Prefix (S, A, B, A.Length + B.Length),
      Post => Equal_Prefix (S, A, B, Size);
 
+   procedure Decide (S : String; A, B : Rotation; K, Size : Natural)
+   with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
+     and then Valid (B, S'Length) and then Size <= 4 * Max_Length
+     and then K < Size and then Equal_Prefix (S, A, B, K)
+     and then Letter (S, A, K) /= Letter (S, B, K),
+     Post => LE (S, A, B, Size) = (Letter (S, A, K) < Letter (S, B, K))
+       and then not Equal_Prefix (S, A, B, Size);
+
+   --  A letter before the rotation wraps around its factor.
+   procedure Letter_Direct (S : String; R : Rotation; K : Natural)
+   with Ghost, Pre => Supported (S) and then Valid (R, S'Length)
+     and then K <= 4 * Max_Length and then R.Offset + K < R.Length,
+     Post => Letter (S, R, K) = S (R.First + R.Offset + K);
+
+   --  A letter after the rotation has wrapped around once.
+   procedure Letter_Wrap (S : String; R : Rotation; K : Natural)
+   with Ghost, Pre => Supported (S) and then Valid (R, S'Length)
+     and then K <= 4 * Max_Length
+     and then R.Offset + K in R.Length .. 2 * R.Length - 1,
+     Post => Letter (S, R, K) = S (R.First + R.Offset + K - R.Length);
+
+   --  Reading D letters further is reading from a rotation D letters on.
+   function Advance (R : Rotation; D : Natural) return Rotation is
+     (R.First, R.Length,
+      (if R.Offset + D < R.Length then R.Offset + D
+       else R.Offset + D - R.Length))
+   with Pre => R.Offset < R.Length and then D < R.Length
+     and then R.Length <= Max_Length;
+
+   procedure Letter_Advance (S : String; R : Rotation; D, K : Natural)
+   with Ghost, Pre => Supported (S) and then Valid (R, S'Length)
+     and then D < R.Length and then D <= K and then K <= 4 * Max_Length,
+     Post => Valid (Advance (R, D), S'Length)
+       and then Letter (S, R, K) = Letter (S, Advance (R, D), K - D);
+
+   --  The first letter where two rotations differ, or Size.
+   function Mismatch (S : String; A, B : Rotation; Size : Natural)
+     return Natural
+   with Ghost, Pre => Supported (S) and then Valid (A, S'Length)
+     and then Valid (B, S'Length) and then Size <= 4 * Max_Length,
+     Post => Mismatch'Result <= Size
+       and then Equal_Prefix (S, A, B, Mismatch'Result)
+       and then Equal_Prefix (S, B, A, Mismatch'Result)
+       and then (if Mismatch'Result < Size
+                 then Letter (S, A, Mismatch'Result)
+                   /= Letter (S, B, Mismatch'Result)
+                 else Equal_Prefix (S, A, B, Size));
+
    function Less (S : String; A, B : Rotation) return Boolean
    with Pre => Supported (S) and then Valid (A, S'Length)
      and then Valid (B, S'Length),
