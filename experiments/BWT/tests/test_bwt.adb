@@ -324,7 +324,14 @@ begin
          --  repetitive input, so a block of Max_Length would not finish.
          All_Bytes : String (1 .. 256);
          Long      : String (1 .. 1_024) := (others => 'a');
+         --  Varied text, then a run: once the text is settled, the rows in
+         --  the run form one large class, which a sparse round partitions.
+         Mixed     : String (1 .. 400) := (others => 'a');
       begin
+         for I in 1 .. 300 loop
+            Mixed (I) := Character'Val ((I * 137 + I / 7) mod 256);
+         end loop;
+         Exercise (Mixed);
          for I in All_Bytes'Range loop
             All_Bytes (I) := Character'Val (I - 1);
          end loop;

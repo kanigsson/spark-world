@@ -44,9 +44,9 @@ children's declarations. `Rotations` and `Sorting` keep the lemmas.
   specified tables; no encoder runs it.
 - `Key_Sort`: LF's counting sort over integer keys `0 .. Buckets - 1`, with
   the same proof: each element's place is its stable rank, so places form a
-  permutation ordered as (key, position). Doubling uses it for the first
-  letter and for the final pass when ranks tie; the rounds place elements
-  from class runs instead.
+  permutation ordered as (key, position). Doubling uses it for the final
+  pass when ranks tie. The first letter is sorted by `Ranks.LF` itself, and
+  the rounds place elements from class runs instead.
 
 ## Encoding by prefix doubling
 
@@ -94,7 +94,8 @@ The invariant is `Ranked (S, F, R, H)`: for every pair of positions,
   wait for a cache-missing load, which was 7 times slower at 4 MiB.
   `Back` reads no factor table in the classical case (`Back_Single`), and
   only a 4-byte start array when the position is at least H letters into
-  its factor (`Back_Inside`).
+  its factor (`Back_Inside`). In the classical case the second keys are the
+  ranks rotated, two block copies (`Second_Keys`, through `Jump_Single`).
 - The loop stops when H reaches twice the longest factor or the ranks are
   distinct. `Rotations.Settled` lifts either case to the horizon 2N. Past
   both periods, equal prefixes stay equal (`Extend_Equality`). A mismatch
@@ -106,6 +107,25 @@ The invariant is `Ranked (S, F, R, H)`: for every pair of positions,
   time, to any horizon. Without this case, input whose rows have equal
   words (periodic input, or repeated Lyndon factors) would run until H
   reaches twice the longest factor.
+- Once at most a quarter of the rows are unsettled, the rounds sort only
+  the classes that still hold several rows (Larsson and Sadakane).
+  `Sparse_Double` has `Double`'s contract. Its first scan (`Sort_Groups`)
+  reads the second keys of each group and sorts the group in place in SA.
+  The sort moves elements by swaps only, so SA stays a permutation and
+  every element keeps its key and its class (`Paired`). It is an introsort:
+  quicksort within a partition budget, then heapsort (`Heap_Sort`, with the
+  heap property `Heap_From`), and insertion sort for short ranges. The
+  second scan (`Renumber_Groups`) numbers each sorted group as runs and
+  spreads its ranks. No rank changes before every second key of the round
+  is read, so the round still goes from exactly H letters to 2H, and
+  `Ranked` is unchanged. The contract of `Renumber_Groups` is
+  `Dense_Runs`'s: `Pair_LE` compares second keys only within a class, so
+  the keys of rows alone in their class are never read (`Pair_Translate`).
+- Both scans jump over stretches of rows alone in their class. `Skip` leads
+  from such a row to the end of a stretch of them (`Skips`). A row alone in
+  its class stays so, which keeps a stretch valid in later rounds. The
+  elements of a numbered group restart with themselves (`Skips_Kept`), and
+  a group that splits entirely joins the stretch before it (`Skips_Close`).
 - After the loop, when some ranks are equal, `Lay_Out` sorts once more by
   (rank, position), with positions reversed for `Later_First`. That order is
   `Key_LE`.

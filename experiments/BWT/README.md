@@ -39,10 +39,14 @@ decode accepts any in-range index, but its inverse law concerns encoder output;
 arbitrary last-column/index pairs need not be canonical encodings.
 
 The core has no I/O, heap allocation, external library dependency or non-SPARK
-escape. Both encoders sort rotations by prefix doubling. Each round is one
-stable bucket pass, so encoding takes O(n log n) time and O(n) space. There are at
-most ⌈log₂ 2m⌉ rounds for a longest factor of m letters (m = n for the
-classical transform), and doubling stops early once all ranks differ. LF is a
+escape. Both encoders sort rotations by prefix doubling. There are at most
+⌈log₂ 2m⌉ rounds for a longest factor of m letters (m = n for the classical
+transform), and doubling stops early once all ranks differ, or once a round
+splits no class. A round is one stable bucket pass, O(n), until at most a
+quarter of the rows are unsettled. After that it sorts only the u unsettled
+rows, by comparison, in O(u log u) (Larsson and Sadakane). Encoding therefore
+takes O(n log² n) time in the worst case, and O(n) space. On real text the
+unsettled rows shrink quickly, and the sparse rounds cost little. LF is a
 counting sort, so both decoders take O(n + σ) time and O(n + σ) space for an
 alphabet of σ bytes. Duval itself is linear.
 

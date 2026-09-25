@@ -203,23 +203,46 @@ Unchecked items are proposals. None of them is needed for what is proved today.
 - [ ] **Less fixed overhead around the rounds.** Done: when the ranks end up
   distinct, the rows are `F (SA (I))` with no second sort (`Read_Off`), and
   the last column is read without a division (`Rotations.Last_Letter`).
-  Open: the last column could be read from SA directly, without building
-  12-byte rotation tables; `Initial` could take its head ranks from the
-  byte histogram instead of a gather and a spread (about 100 ms at 4 MiB,
-  a round's worth).
-- [ ] **Skip settled groups** (Larsson–Sadakane). On source code at 4 MiB,
-  fewer than 3% of positions are unsettled after 256 letters, yet every round
-  touches all of them. Re-sorting only unsettled groups does 2.5× less work.
-  It replaces the global counting sort with per-group sorting, so most of
-  the round proof is new. On the public corpora at 4 MiB, the share of
-  element-rounds that touch unsettled positions is:
-  - 0.21 to 0.37 on real data (mozilla, dickens, kernel, E.coli), so 3–5×
-    less work;
-  - 0.67 on random bytes;
-  - 0.93 on Fibonacci strings and `abba`, so almost nothing.
+  Since 2026-09-25 (at 4 MiB):
+  - `Initial` sorts the first letter with `Ranks.LF`, and no longer builds
+    three N-sized arrays of its own: from about 97 ms to 48 ms.
+  - With a single factor, `Read_Off` builds each row without reading the
+    factor table (from 37 ms to 5 ms), and the second keys of a round are
+    two block copies of the ranks.
 
-  After the leaner round, `dickens` at 4 MiB is 5.7× behind libsais on S·S,
-  so skipping settled groups could bring real text to about 2×.
+  Open: the classical encoder still builds a 12-byte rotation table
+  (`Initial_Rows`, about 20 ms) only to hand it to `Sorted_Rows`. Reading
+  the last column from SA directly would need `Sorted_Rows` to return SA,
+  with the table kept ghost; `Classical_Rows_Unique` and the matrix lemmas
+  are phrased over the table.
+- [x] **Skip settled groups** (Larsson–Sadakane, 2026-09-25). Once at most
+  a quarter of the rows are unsettled, `Sparse_Double` replaces the global
+  round. It has the same contract, so nothing downstream changed. It sorts
+  each class that still holds several rows by its second key, in place in
+  SA, with a proved introsort (quicksort, heapsort after too many
+  partitions, insertion sort for short ranges). All the second keys of a
+  round are read before any rank changes, so the round goes from exactly H
+  letters to 2H. Larsson and Sadakane update ranks in place, which mixes
+  horizons and would have needed a new `Ranked`. A `Skip` array lets both
+  scans jump over stretches of settled rows, so a late round costs well
+  under 1 ms at 4 MiB instead of two full scans (10 ms). Switching when a
+  quarter, an eighth or a sixteenth of the rows are unsettled measured
+  within noise on text, and the later switches were up to 50% slower on
+  `mozilla`. The worst case is now O(n log² n): a sparse round sorts up to
+  n/2 rows by comparison.
+
+  On the public corpora (geometric means, against the same reference
+  timings as below), together with the fixed-overhead items above:
+  - classical: from 4.3× to 2.7× the best cyclic reference at 1 MiB, and
+    from 4.7× to 2.6× at 4 MiB; 1.4–2.2× on real text at 4 MiB, and faster
+    than libsais on `x-ray`;
+  - bijective: from 2.7× to 1.9× Bannai et al. at 1 MiB, and from 3.6× to
+    2.2× at 4 MiB; on par or faster on `dna`, `sao`, `x-ray` and `ooffice`
+    at 1 MiB.
+
+  As predicted, the Gauntlet (Fibonacci strings, `fss`, `abba`,
+  `book1x20`) gains nothing from this and stays 5–9× behind: nearly every
+  row stays unsettled until the last rounds.
 - [ ] **Proved merge sort** (or LSD radix sort on rank pairs) replacing
   selection sort. Doubling no longer needs it. Each round is one stable
   counting sort, because the previous order, shifted back by H, already sorts
@@ -231,9 +254,12 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   Kärkkäinen, Köppl and Piątkowski, *Constructing the bijective and the
   extended BWT in linear time* (CPM 2021, arXiv:1911.06985). Only worth it
   if the benchmarks show that doubling is the bottleneck. Try skipping
-  settled groups first. The benchmarks now show it: this is the only route
-  to parity at large N. At 4 MiB libsais takes 20–30 ns per byte, and even
-  the untuned linear BBWT is 2.4–38× faster than doubling. Bannai et al.'s
+  settled groups first. Done: that brought real text to within about 2× of
+  the references. What is left is the Gauntlet, 5–9× behind, and only a
+  linear-time construction closes that gap. At 4 MiB libsais takes 20–30 ns
+  per byte, and even the untuned linear BBWT is up to 9.6× faster than
+  doubling on the Gauntlet (it was 2.4–38× before settled groups were
+  skipped). Bannai et al.'s
   circular SA-IS would cover the bijective transform and the eBWT with one
   proof, which fits the cycle BWT of Tier 0. The classical transform could
   use the same circular sort, or SA-IS with the end marker from the generic
