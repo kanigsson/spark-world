@@ -28,8 +28,22 @@ flow:
 prove:
 	$(GNATPROVE) -P bwt.gpr -U --level=2 --timeout=5 --prover=cvc5,z3,altergo --counterexamples=off -j$(JOBS)
 
+#  Real text for the SOURCE shape: the repository's own tracked sources and
+#  documents, in a fixed order, so that it only changes with the commit.
+#  Pass CORPUS=<file> to use another, for instance one past 4 MiB.
+CORPUS ?= obj/bench/corpus.txt
+
+#  Rebuilt on every run, so that it never lags behind the checkout.
+.PHONY: obj/bench/corpus.txt
+obj/bench/corpus.txt:
+	mkdir -p obj/bench
+	git -C ../.. ls-files -z '*.ads' '*.adb' '*.md' | sort -z \
+	  | (cd ../.. && xargs -0 cat) > $@
+
 #  A production build on purpose: contracts and run-time checks off, so the
-#  timings measure the transforms and not their verification.
-bench:
+#  timings measure the transforms and not their verification. The stack
+#  limit is lifted because the encoders keep their tables on the stack, which
+#  overflows the default 8 MiB from about 1 MiB of input.
+bench: $(CORPUS)
 	$(GPRBUILD) -P bench.gpr -XBWT_BUILD=bench -j$(JOBS)
-	bin/bench/bench_bwt
+	ulimit -s unlimited && bin/bench/bench_bwt $(CORPUS)

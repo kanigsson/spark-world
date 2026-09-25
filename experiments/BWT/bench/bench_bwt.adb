@@ -1,8 +1,13 @@
 --  Times the four transforms and the least rotation on inputs of several shapes and sizes. Each
 --  measurement repeats until it has run for a while, and reports the mean.
 --  Every result is checked once, so a broken build cannot report a speed.
+--
+--  The one argument names a corpus of real text for the SOURCE shape. Sizes
+--  beyond its length are skipped rather than padded, since padding would
+--  repeat it and make it easier or harder than real data.
 
 with Ada.Command_Line;
+with Ada.Streams.Stream_IO;
 with Ada.Text_IO;
 with BWT;
 with BWT.Circular;
@@ -16,9 +21,29 @@ procedure Bench_BWT is
    --  How long each measurement runs, at least.
    Budget : constant Duration := 0.2;
 
-   type Shape is (Random, Text, Periodic, Constant_Byte);
+   --  Prose_Loop repeats one sentence, so every rotation has a repeat of
+   --  length about N: much harder for doubling than real text, which Source
+   --  is.
+   type Shape is (Random, Source, Prose_Loop, Periodic, Constant_Byte);
 
    type Word is mod 2**32;
+
+   type Text_Access is access String;
+
+   function Read_Corpus (Name : String) return Text_Access is
+      use Ada.Streams.Stream_IO;
+      File   : File_Type;
+      Result : Text_Access;
+   begin
+      Open (File, In_File, Name);
+      Result := new String (1 .. Natural (Size (File)));
+      String'Read (Stream (File), Result.all);
+      Close (File);
+      return Result;
+   end Read_Corpus;
+
+   Corpus : constant Text_Access :=
+     Read_Corpus (Ada.Command_Line.Argument (1));
 
    function Input (Kind : Shape; N : Natural) return String is
       Result : String (1 .. N);
@@ -33,7 +58,10 @@ procedure Bench_BWT is
                Seed := Seed * 1_103_515_245 + 12_345;
                Result (I) := Character'Val (Seed / 2**16 mod 256);
 
-            when Text          =>
+            when Source        =>
+               Result (I) := Corpus (I);
+
+            when Prose_Loop    =>
                Result (I) := Prose ((I - 1) mod Prose'Length + 1);
 
             when Periodic      =>
@@ -107,12 +135,13 @@ procedure Bench_BWT is
    Too_Slow : constant Duration := 0.25;
 
    Sizes   : constant array (Positive range <>) of Positive :=
-     [1_024, 4_096, 16_384, 65_536, 262_144];
+     [1_024, 4_096, 16_384, 65_536, 262_144, 1_048_576, 4_194_304];
    Stopped : array (Shape, Transform) of Boolean :=
      [others => [others => False]];
 begin
    for Kind in Shape loop
       for N of Sizes loop
+         exit when Kind = Source and then N > Corpus'Length;
          declare
             S     : constant String := Input (Kind, N);
             Label : constant String :=
@@ -142,10 +171,11 @@ begin
          end;
       end loop;
    end loop;
-   --  Pattern counts on the classical column of the largest text: backward
-   --  search with a scanned rank, against the index with rank checkpoints.
+   --  Pattern counts on the classical column of 256 KiB of repeated prose:
+   --  backward search with a scanned rank, against the index with rank
+   --  checkpoints.
    declare
-      S       : constant String := Input (Text, Sizes (Sizes'Last));
+      S       : constant String := Input (Prose_Loop, 262_144);
       Last    : constant String := Classical_Encode (S).Last;
       Idx     : constant FM_Index.Index := FM_Index.Build (Last);
       Pattern : constant String := "it was the age of";
@@ -161,7 +191,7 @@ begin
          Runs := Runs + 1;
       end loop;
       Bench_Timing.Report
-        ("TEXT n=" & Natural'Image (S'Length) & " INDEX_BUILD",
+        ("PROSE_LOOP n=" & Natural'Image (S'Length) & " INDEX_BUILD",
          Bench_Timing.Elapsed (Watch),
          Runs);
       Watch := Bench_Timing.Started;
@@ -172,7 +202,7 @@ begin
          Runs := Runs + 1;
       end loop;
       Bench_Timing.Report
-        ("TEXT n=" & Natural'Image (S'Length) & " COUNT_SCANNED_RANK",
+        ("PROSE_LOOP n=" & Natural'Image (S'Length) & " COUNT_SCANNED_RANK",
          Bench_Timing.Elapsed (Watch),
          Runs);
       Watch := Bench_Timing.Started;
@@ -183,7 +213,7 @@ begin
          Runs := Runs + 1;
       end loop;
       Bench_Timing.Report
-        ("TEXT n=" & Natural'Image (S'Length) & " COUNT_INDEX",
+        ("PROSE_LOOP n=" & Natural'Image (S'Length) & " COUNT_INDEX",
          Bench_Timing.Elapsed (Watch),
          Runs);
    end;

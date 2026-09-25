@@ -46,4 +46,6 @@ was last checked at a bound of 1,024.
 is clean and `make format-check` passes. GPRbuild Pro 27.0w.
 
 `make bench` times a production build (`-gnatp`, no contracts). Never time
-the `checks` build: its ghost checks dominate everything it runs.
+the `checks` build: its ghost checks dominate everything it runs. The bench
+lifts the stack limit itself, and reads its `SOURCE` corpus from the
+repository's tracked files (about 45 s in all).
