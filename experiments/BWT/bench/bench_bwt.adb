@@ -1,10 +1,11 @@
---  Times the four transforms on inputs of several shapes and sizes. Each
+--  Times the four transforms and the least rotation on inputs of several shapes and sizes. Each
 --  measurement repeats until it has run for a while, and reports the mean.
 --  Every result is checked once, so a broken build cannot report a speed.
 
 with Ada.Command_Line;
 with Ada.Text_IO;
 with BWT;
+with BWT.Circular;
 with BWT.FM_Index;
 with BWT.Search;
 with Bench_Timing;
@@ -60,7 +61,8 @@ procedure Bench_BWT is
      (Classical_Encoding,
       Classical_Decoding,
       Bijective_Encoding,
-      Bijective_Decoding);
+      Bijective_Decoding,
+      Least_Rotation);
 
    --  Runs one transform once on S. The decoders take S as a last column:
    --  both accept any, so they need not wait for the encoders.
@@ -78,6 +80,9 @@ procedure Bench_BWT is
 
          when Bijective_Decoding =>
             Sink := Sink + Character'Pos (Bijective_Decode (S) (1));
+
+         when Least_Rotation     =>
+            Sink := Sink + Circular.Least_Rotation (S);
       end case;
    end Run;
 

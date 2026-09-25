@@ -118,13 +118,18 @@ Unchecked items are proposals. None of them is needed for what is proved today.
 Listed roughly by payoff over effort. Each one names the specification to
 prove first.
 
-- [ ] **Canonical rotations of circular sequences (cheap, uses Duval
-  directly).** The least rotation of S starts where the last Lyndon factor of
-  S·S that begins inside the first copy of S begins. This gives a canonical
-  key for circular data, such as plasmids, mitochondrial DNA and ring
-  structures, and for de-duplicating rotations. Spec: `Least_Rotation (S)` is
-  a rotation of S and ≤ every rotation. Most of the lemmas are already in `Words` and
-  `Lyndon_Order`.
+- [x] **Canonical rotations of circular sequences** (2026-09-25).
+  `Circular.Least_Rotation (S)` returns the earliest offset of a least
+  rotation (`Is_Least_Rotation`), and `Circular.Canonical (S)` returns that
+  rotation. It is a canonical key for circular data, such as plasmids,
+  mitochondrial DNA and ring structures, and for de-duplicating rotations.
+  The roadmap proposed Duval on S·S. The two-candidate search (a mismatch
+  after K equal letters rules out K + 1 offsets) is linear with constant
+  space and proves from `Rotations` alone, so it was used instead. At
+  256 KiB it takes 0.4 to 1 ms, about as long as a decoder. Open:
+  - State and prove that `Canonical` is invariant under rotation, and that
+    equal canonical forms mean rotations of each other. `make test` checks
+    the first on every test input.
 - [x] **Backward search (FM-index "count")** (2026-09-24). Store the BWT
   plus the counting table C and a rank structure. Then the number of
   occurrences of a pattern P costs O(|P|) rank queries, reusing the LF

@@ -141,6 +141,23 @@ walk ends within `Rate - 1` steps at the row's own position
 `Bijective_Proofs.Exact_LF`, and from `Classical_LF_Exact` for a primitive S.
 For a periodic S, classical LF cannot be exact.
 
+## Least rotation
+
+`Circular.Least_Rotation` keeps two candidate offsets, I and J, whose
+rotations agree for K letters. A ghost `Best`, the least offset found by a
+naive scan (`Naive_Least`), names the answer. The invariant is that `Best` is
+I, J, or above both.
+
+- A mismatch at K rules out the offsets from the candidate with the larger
+  letter, say I, to I + K. For each T up to K, the rotation from I + T agrees with the one
+  from J + T for K - T letters and then is larger (`Worse`, by `Decide` and
+  `Skip_Split`). So none of them is least (`Eliminate`).
+- If K reaches N, the two rotations are equal, so S has period |I - J|.
+  An offset above both would have an equal rotation |I - J| earlier
+  (`Same_Length_Extend`, then `Skip_Split`), so `Best` is the smaller
+  candidate (`Settle`).
+- Otherwise one candidate has run past N, and `Best` is the other.
+
 ## Classical
 
 `Matrices` proves the classical case up to equal periodic words. That weaker

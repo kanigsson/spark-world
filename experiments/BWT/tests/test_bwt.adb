@@ -1,4 +1,5 @@
 with BWT;
+with BWT.Circular;
 with BWT.FM_Index;
 with BWT.Locate;
 with BWT.Search;
@@ -206,6 +207,39 @@ procedure Test_BWT is
       end if;
    end Search_All;
 
+   --  The least rotation against materialized rotations and Ada's string
+   --  order, and the canonical form's independence of where S was cut.
+   procedure Check_Circular (S : String) is
+      N : constant Natural := S'Length;
+
+      --  Normalized to a first index of 1, as the API requires.
+      function Turn (T : String; O : Natural) return String is
+         R : constant String :=
+           T (T'First + O .. T'Last) & T (T'First .. T'First + O - 1);
+      begin
+         return Result : constant String (1 .. R'Length) := R;
+      end Turn;
+
+      Best : Natural := 0;
+   begin
+      if N = 0 then
+         Check (Circular.Canonical (S) = "", "circular: empty");
+         return;
+      end if;
+      for O in 1 .. N - 1 loop
+         if Turn (S, O) < Turn (S, Best) then
+            Best := O;
+         end if;
+      end loop;
+      Check (Circular.Least_Rotation (S) = Best, "circular: least offset");
+      Check (Circular.Canonical (S) = Turn (S, Best), "circular: canonical");
+      for O in 0 .. N - 1 loop
+         Check
+           (Circular.Canonical (Turn (S, O)) = Turn (S, Best),
+            "circular: rotation invariance");
+      end loop;
+   end Check_Circular;
+
    procedure Exercise (S : String; Oracle : Boolean := True) is
       C : constant Classical_Result := Classical_Encode (S);
       B : constant String := Bijective_Encode (S);
@@ -231,6 +265,7 @@ procedure Test_BWT is
       Check (Classical_Decode (C.Last, C.Primary) = S, "classical roundtrip");
       Check (Bijective_Decode (B) = S, "bijective roundtrip");
       Check (Bijective_Encode (Bijective_Decode (S)) = S, "bijective onto");
+      Check_Circular (S);
       if Oracle then
          Check (C = Reference (S, False), "classical definition");
          Check (B = Reference (S, True).Last, "bijective definition");
@@ -246,6 +281,9 @@ begin
    Check (Search.Count ("nnbaaa", "nab") = 1, "banana: circular nab");
    Check (Search.Count ("nnbaaa", "x") = 0, "banana: absent letter");
    Check (Search.Count ("nnbaaa", "") = 6, "banana: empty pattern");
+   Check (Circular.Canonical ("banana") = "abanan", "banana: least rotation");
+   Check (Circular.Least_Rotation ("abab") = 0, "abab: earliest least offset");
+   Check (Circular.Least_Rotation ("baabaa") = 1, "baabaa: periodic");
    declare
       Text : constant String := "mississippi";
       Last : constant String := Classical_Encode (Text).Last;

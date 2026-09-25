@@ -21,6 +21,10 @@ for every supported input.
   the bijective transform, and for the classical one on primitive input.
   `Classical_Sorted` and `Bijective_Sorted` return the sorted tables
   themselves, from which a locator is built.
+- `BWT.Circular.Least_Rotation` finds the earliest offset of the least
+  rotation of S, in linear time and constant space. `Canonical` returns
+  that rotation, a key for circular sequences that does not depend on where
+  they were cut. Both are proved against the rotation order.
 - `BWT.Theorems` states and proves the classical decode-after-encode law and
   **both** bijective inverse laws: decode after encode, and encode after
   decode for an arbitrary last column. Together the latter two make the
