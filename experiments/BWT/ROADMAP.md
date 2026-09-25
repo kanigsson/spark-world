@@ -61,7 +61,11 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   tables live on the secondary stack or the primary stack, which fails at
   large N. Add procedure forms with `out` buffers and a reusable workspace
   record, as `spark_re`'s `Matcher` does. Keep the functions as the spec,
-  proved equal to the procedures.
+  proved equal to the procedures. This is a usability problem, not only a
+  speed one: with the default 8 MiB stack, the encoders raise `Storage_Error`
+  from about 1 MiB, so `Max_Length` is only reachable with an unlimited stack.
+  Peak memory is about 56 bytes per input byte, mostly 12-byte `Rotation`
+  tables and fresh key arrays in every round.
 
 ## Tier 1: fast decoders (refinements, cheap)
 
@@ -77,6 +81,14 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   Past the old bound, the decoders take 1.3 to 3.8 ms at 256 KiB and grow
   linearly. Classical encoding of random bytes is quadratic, at 1.8 s for
   16 KiB, and text at 4 KiB takes 1.7 s (classical) and 10 s (bijective).
+  The "text" there is one 110-byte sentence repeated, which is much harder
+  for doubling than real text.
+- [ ] **Pack each letter with its LF link.** With `Max_Length` = 2**24, an LF
+  index fits in 24 bits, so one 32-bit word per row halves the arrays the
+  walk misses in. A prototype of the classical walk was 2.4× faster at 4 MiB,
+  and about 15% faster at 256 KiB and 16 MiB. This conflicts with lifting
+  `Max_Length` to 2**30, so choose the bound first. `Decode_Order` could pack
+  `Seen` with `Map` the same way.
 
 ## Tier 2: fast encoders (refinements, projects)
 
@@ -101,6 +113,45 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   - The ghost `Ranked` invariant is quadratic, which makes the `checks`
     build unusable beyond small inputs. That is expected, and `test-contracts`
     uses a small corpus.
+
+  A performance review on 2026-09-25 (callgrind, and unproved prototypes
+  checked against the proved encoders) gave the items below.
+- [x] **Stop doubling when a round splits no class** (2026-09-25). When two
+  rows have
+  equal infinite words, the ranks never all differ, and the loop runs until
+  H reaches twice the longest factor. That is 19 rounds instead of 1 for
+  periodic or constant classical input at 256 KiB. On 16 MiB of random bytes,
+  whose Lyndon factorization has two equal factors, bijective encoding took
+  41.8 s against 4.4 s for classical. When a round splits nothing, equal
+  prefixes of H letters extend to every horizon along the successor
+  permutation, so the ranking is final. `Dense_Ranks` reports the split, and
+  `Closed_Extend` proves the extension. Constant classical input now takes
+  7.7 ms at 256 KiB, down from 62 ms, and 0.15 s at 4 MiB, down from 1.3 s.
+  The 16 MiB random case now takes 7.8 s, down from 41.8 s.
+- [x] **Benchmark realistic data at larger sizes** (2026-09-25). `SOURCE` is
+  the repository's own tracked sources and documents (3.6 MB, so it stops at
+  1 MiB unless `CORPUS=` names a larger file). The old `TEXT` is now
+  `PROSE_LOOP`, and sizes go up to 4 MiB, with the stack limit lifted. At
+  1 MiB, both encoders take 0.32 s on `SOURCE`, against 0.1 s on random
+  bytes. In the prototype, source code at 4 MiB took about 1 µs per byte:
+  long duplicated regions need 14 rounds.
+- [ ] **A leaner doubling round.** Each round makes about nine passes over N:
+  `Place` with `Buckets = N` zeroes and prefix-sums an N-sized count array,
+  and five zero-filled arrays are allocated. Bucket heads can be read off the
+  sorted order instead, so the counting sort becomes one scatter. Reuse one
+  workspace across rounds, as part of "caller-provided storage". Prototype:
+  20–40% faster. Keep the random-access loops *separate*: a fused
+  single-pass version ran fewer instructions but up to 3× slower, because
+  the CPU could overlap fewer cache misses.
+- [ ] **Less fixed overhead around the rounds** (about 30 ns per byte at
+  4 MiB). When the ranks end up distinct, the rows are `F (SA (I))` with no
+  second sort, and the last column can be read from SA directly, without
+  building 12-byte rotation tables.
+- [ ] **Skip settled groups** (Larsson–Sadakane). On source code at 4 MiB,
+  fewer than 3% of positions are unsettled after 256 letters, yet every round
+  touches all of them. Re-sorting only unsettled groups does 2.5× less work.
+  It replaces the global counting sort with per-group sorting, so most of
+  the round proof is new.
 - [ ] **Proved merge sort** (or LSD radix sort on rank pairs) replacing
   selection sort. Doubling no longer needs it. Each round is one stable
   counting sort, because the previous order, shifted back by H, already sorts
@@ -111,7 +162,8 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   end-marker BWT. For the bijective BWT and eBWT, the method in Bannai,
   Kärkkäinen, Köppl and Piątkowski, *Constructing the bijective and the
   extended BWT in linear time* (CPM 2021, arXiv:1911.06985). Only worth it
-  if the benchmarks show that doubling is the bottleneck.
+  if the benchmarks show that doubling is the bottleneck. Try skipping
+  settled groups first.
 
 ## Tier 3: applications beyond compression
 
