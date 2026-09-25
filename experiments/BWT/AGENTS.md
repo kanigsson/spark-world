@@ -36,7 +36,7 @@ Before changing code, know:
 - Ghost lemmas of the form `Get_*` extract one instance of an opaque
   predicate. They exist for proof speed, not logic.
 
-Validation (2026-09-24, `Max_Length` = 2**24): `make prove` proves all 8,277
+Validation (2026-09-25, `Max_Length` = 2**24): `make prove` proves all 8,388
 checks under the pinned GNATprove FSF 16.1.0 (Why3 1.8.2+git, CVC5 1.3.2,
 Z3 4.15.4, Alt-Ergo 2.6.1); a forced run (`-f`) took 8½ min at `-j16` before the search units; not re-measured since.
 Three checks need Alt-Ergo (see the Makefile). `BWT.Circular` (2026-09-25) proves from scratch at `--timeout=2`.

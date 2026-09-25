@@ -65,6 +65,19 @@ is
      Ghost,
      Pre => Supported (S) and then Cycles (S, F) and then H <= 4 * Max_Length;
 
+   --  Rows that agree on H letters still agree on H letters after H more.
+   --  Agreement on H letters then extends to every horizon.
+   function Closed (S : String; F : Table; H : Natural) return Boolean
+   is (for all A in F'Range =>
+         (for all B in F'Range =>
+            (if Equal_Prefix (S, F (A), F (B), H)
+             then
+               Equal_Prefix
+                 (S, F (Jump (S, F, A, H)), F (Jump (S, F, B, H)), H))))
+   with
+     Ghost,
+     Pre => Supported (S) and then Cycles (S, F) and then H <= 4 * Max_Length;
+
    function Distinct_Keys (R : Keys) return Boolean
    is (for all A in R'Range =>
          (for all B in R'Range => (if A /= B then R (A) /= R (B))))
@@ -119,9 +132,14 @@ is
         Assert (for all I in Result'Range => Result (I) = Items (Inv (I)));
    end Scatter;
 
-   --  Numbers the classes of equal pairs along SA, from 0.
+   --  Numbers the classes of equal pairs along SA, from 0. Split tells
+   --  whether some class of first keys has more than one second key.
    procedure Dense_Ranks
-     (SA : Mapping; K1, K2 : Keys; R : out Keys; Classes : out Positive)
+     (SA      : Mapping;
+      K1, K2  : Keys;
+      R       : out Keys;
+      Classes : out Positive;
+      Split   : out Boolean)
    with
      Pre  =>
        Permutation (SA)
@@ -142,23 +160,44 @@ is
                       (R (A) <= R (B)) = Pair_LE (K1, K2, A, B)))
        and then Classes <= R'Length
        and then (if Classes = R'Length then Distinct_Keys (R))
-       and then Sorted_By (R, SA);
+       and then Sorted_By (R, SA)
+       and then (if not Split
+                 then
+                   (for all A in K1'Range =>
+                      (for all B in K1'Range =>
+                         (if K1 (A) = K1 (B) then K2 (A) = K2 (B)))));
 
    procedure Dense_Ranks
-     (SA : Mapping; K1, K2 : Keys; R : out Keys; Classes : out Positive)
+     (SA      : Mapping;
+      K1, K2  : Keys;
+      R       : out Keys;
+      Classes : out Positive;
+      Split   : out Boolean)
    is
       Inv : constant Mapping := Permutations.Inverse (SA)
       with Ghost;
    begin
       R := (others => 0);
       Classes := 1;
+      Split := False;
       for I in 2 .. SA'Last loop
          if K1 (SA (I)) /= K1 (SA (I - 1))
            or else K2 (SA (I)) /= K2 (SA (I - 1))
          then
+            if K1 (SA (I)) = K1 (SA (I - 1)) then
+               Split := True;
+            end if;
             Classes := Classes + 1;
          end if;
          R (SA (I)) := Classes - 1;
+         pragma
+           Loop_Invariant
+             (if not Split
+                then
+                  (for all P in 1 .. I =>
+                     (for all Q in 1 .. I =>
+                        (if K1 (SA (P)) = K1 (SA (Q))
+                         then K2 (SA (P)) = K2 (SA (Q))))));
          pragma Loop_Invariant (Classes <= I);
          pragma Loop_Invariant (R (SA (I)) = Classes - 1);
          pragma
@@ -189,6 +228,28 @@ is
       if Classes = R'Length then
          pragma Assert (for all P in SA'Range => R (SA (P)) = P - 1);
          pragma Assert (for all A in R'Range => R (A) = Inv (A) - 1);
+      end if;
+      if not Split then
+         pragma
+           Assert
+             (for all A in K1'Range =>
+                (for all B in K1'Range =>
+                   (if K1 (SA (Inv (A))) = K1 (SA (Inv (B)))
+                    then K2 (SA (Inv (A))) = K2 (SA (Inv (B))))));
+         for A in K1'Range loop
+            for B in K1'Range loop
+               pragma Assert (SA (Inv (A)) = A and then SA (Inv (B)) = B);
+               pragma
+                 Loop_Invariant
+                   (for all C in K1'First .. B =>
+                      (if K1 (A) = K1 (C) then K2 (A) = K2 (C)));
+            end loop;
+            pragma
+              Loop_Invariant
+                (for all D in K1'First .. A =>
+                   (for all C in K1'Range =>
+                      (if K1 (D) = K1 (C) then K2 (D) = K2 (C))));
+         end loop;
       end if;
    end Dense_Ranks;
 
@@ -244,6 +305,7 @@ is
       Code  : Keys (1 .. N) := (others => 0);
       Zero  : constant Keys (1 .. N) := (others => 0);
       Ident : Mapping (1 .. N) := (others => 1);
+      Split : Boolean;
    begin
       for I in 1 .. N loop
          Code (I) := Character'Pos (S (I));
@@ -265,7 +327,8 @@ is
              (for all P in 1 .. N =>
                 (for all Q in P .. N => Ordered (Code, Inv (P), Inv (Q))));
       end;
-      Dense_Ranks (SA, Code, Zero, R, Classes);
+      Dense_Ranks (SA, Code, Zero, R, Classes, Split);
+      pragma Unreferenced (Split);
       for A in 1 .. N loop
          for B in 1 .. N loop
             Initial_Pair (S, F, A, B);
@@ -360,14 +423,16 @@ is
       end loop;
    end Doubled;
 
-   --  One round: ranks by the first 2 * H letters, from ranks by H.
+   --  One round: ranks by the first 2 * H letters, from ranks by H. When no
+   --  class splits, the ranks are final (Closed).
    procedure Double
      (S       : String;
       F       : Table;
       R       : in out Keys;
       SA      : in out Mapping;
       H       : Positive;
-      Classes : out Positive)
+      Classes : out Positive;
+      Split   : out Boolean)
    with
      Pre  =>
        Supported (S)
@@ -384,7 +449,8 @@ is
        and then Permutation (SA)
        and then Sorted_By (R, SA)
        and then Classes <= S'Length
-       and then (if Classes = S'Length then Distinct_Keys (R));
+       and then (if Classes = S'Length then Distinct_Keys (R))
+       and then (if not Split then Closed (S, F, H));
 
    procedure Double
      (S       : String;
@@ -392,7 +458,8 @@ is
       R       : in out Keys;
       SA      : in out Mapping;
       H       : Positive;
-      Classes : out Positive)
+      Classes : out Positive;
+      Split   : out Boolean)
    is
       N      : constant Positive := S'Length;
       --  The previous order, each position moved H letters back: sorted by
@@ -444,14 +511,53 @@ is
              (for all P in 1 .. N =>
                 (for all Q in P .. N => Pair_LE (R, Second, SA (P), SA (Q))));
       end;
-      Dense_Ranks (SA, R, Second, New_R, Classes);
+      Dense_Ranks (SA, R, Second, New_R, Classes, Split);
       Doubled (S, F, R, Second, New_R, H);
+      if not Split then
+         pragma
+           Assert
+             (for all A in 1 .. N =>
+                (for all B in 1 .. N =>
+                   (if R (A) = R (B)
+                    then R (Jump (S, F, A, H)) = R (Jump (S, F, B, H)))));
+         pragma Assert (Closed (S, F, H));
+      end if;
       R := New_R;
    end Double;
 
-   --  Once H covers two periods, or no two ranks are equal, H letters decide
-   --  the order of the full horizon.
-   procedure Settle (S : String; F : Table; R : Keys; H, Longest : Positive)
+   --  Under Closed, rows that agree on H letters agree on any number.
+   procedure Closed_Extend
+     (S : String; F : Table; H : Positive; A, B : Positive; Size : Natural)
+   with
+     Ghost,
+     Pre                =>
+       Supported (S)
+       and then Cycles (S, F)
+       and then H <= 4 * Max_Length
+       and then Size <= 4 * Max_Length
+       and then Closed (S, F, H)
+       and then A in F'Range
+       and then B in F'Range
+       and then Equal_Prefix (S, F (A), F (B), H),
+     Post               => Equal_Prefix (S, F (A), F (B), Size),
+     Subprogram_Variant => (Decreases => Size);
+
+   procedure Closed_Extend
+     (S : String; F : Table; H : Positive; A, B : Positive; Size : Natural) is
+   begin
+      if Size <= H then
+         Equal_Prefix_Shorter (S, F (A), F (B), H, Size);
+      else
+         Closed_Extend
+           (S, F, H, Jump (S, F, A, H), Jump (S, F, B, H), Size - H);
+         Skip_Split (S, F (A), F (B), H, Size - H);
+      end if;
+   end Closed_Extend;
+
+   --  Once H covers two periods, or no two ranks are equal, or the ranks
+   --  stopped splitting at G letters, H letters decide the order of the full
+   --  horizon.
+   procedure Settle (S : String; F : Table; R : Keys; G, H, Longest : Positive)
    with
      Ghost,
      Pre  =>
@@ -462,10 +568,14 @@ is
        and then H <= 4 * Max_Length
        and then (for all P in F'Range => F (P).Length <= Longest)
        and then Ranked (S, F, R, H)
-       and then (H >= 2 * Longest or else Distinct_Keys (R)),
+       and then G <= H
+       and then (H >= 2 * Longest
+                 or else Distinct_Keys (R)
+                 or else Closed (S, F, G)),
      Post => Ranked (S, F, R, 2 * S'Length);
 
-   procedure Settle (S : String; F : Table; R : Keys; H, Longest : Positive) is
+   procedure Settle (S : String; F : Table; R : Keys; G, H, Longest : Positive)
+   is
       N : constant Positive := S'Length;
    begin
       for A in 1 .. N loop
@@ -473,8 +583,14 @@ is
             if A = B then
                Equal_Same (S, F (A), F (B), 2 * N);
                Order_Laws (S, F (A), F (B), F (A), 2 * N);
-            else
+            elsif H >= 2 * Longest
+              or else not Equal_Prefix (S, F (A), F (B), H)
+            then
                Settled (S, F (A), F (B), H, 2 * N);
+            else
+               Equal_Prefix_Shorter (S, F (A), F (B), H, G);
+               Closed_Extend (S, F, G, A, B, 2 * N);
+               Order_Laws (S, F (A), F (B), F (A), 2 * N);
             end if;
             pragma
               Loop_Invariant
@@ -593,6 +709,11 @@ is
          Classes : Positive;
          H       : Positive := 1;
          Longest : Positive := 1;
+         Split   : Boolean := True;
+         --  The horizon of the last round, at which Closed holds once a
+         --  round splits nothing.
+         Last_H  : Positive := 1
+         with Ghost;
       begin
          for P in 1 .. N loop
             Longest := Positive'Max (Longest, Factors (P).Length);
@@ -602,19 +723,25 @@ is
                 (for all Q in 1 .. P => Factors (Q).Length <= Longest);
          end loop;
          Initial (S, Factors, R, SA, Classes);
-         while H < 2 * Longest and then Classes < N loop
+         while H < 2 * Longest and then Classes < N and then Split loop
             pragma Loop_Invariant (H < 2 * Longest);
+            pragma Loop_Invariant (Last_H <= H);
             pragma Loop_Invariant (Ranked (S, Factors, R, H));
             pragma Loop_Invariant (Permutation (SA));
             pragma Loop_Invariant (Sorted_By (R, SA));
             pragma Loop_Invariant (Classes <= N);
             pragma Loop_Variant (Increases => H);
-            Double (S, Factors, R, SA, H, Classes);
+            Double (S, Factors, R, SA, H, Classes, Split);
+            Last_H := H;
             H := 2 * H;
          end loop;
          pragma Assert (H < 4 * Longest);
-         pragma Assert (H >= 2 * Longest or else Distinct_Keys (R));
-         Settle (S, Factors, R, H, Longest);
+         pragma
+           Assert
+             (H >= 2 * Longest
+                or else Distinct_Keys (R)
+                or else Closed (S, Factors, Last_H));
+         Settle (S, Factors, R, Last_H, H, Longest);
          Lay_Out (S, Factors, R, Ties, Rows);
       end;
       return Rows;

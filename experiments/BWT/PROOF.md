@@ -78,7 +78,14 @@ The invariant is `Ranked (S, F, R, H)`: for every pair of positions,
   distinct. `Rotations.Settled` lifts either case to the horizon 2N. Past
   both periods, equal prefixes stay equal (`Extend_Equality`). A mismatch
   decides every longer horizon, and it cannot lie beyond both periods.
-  `Lay_Out` then sorts once more by (rank, position), with positions reversed
+- The loop also stops after a round that splits no class. `Dense_Ranks`
+  reports whether some class of first keys met two second keys. If none
+  did, rows that agree on H letters still agree on H letters after H more
+  (`Closed`). `Closed_Extend` then walks along the cycles, H letters at a
+  time, to any horizon. Without this case, input whose rows have equal
+  words (periodic input, or repeated Lyndon factors) would run until H
+  reaches twice the longest factor.
+- After the loop, `Lay_Out` sorts once more by (rank, position), with positions reversed
   for `Later_First`. That order is `Key_LE`.
 
 Only the final pass needs the tie order. The rounds may leave equal ranks in
