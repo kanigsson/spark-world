@@ -88,7 +88,11 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   walk misses in. A prototype of the classical walk was 2.4× faster at 4 MiB,
   and about 15% faster at 256 KiB and 16 MiB. This conflicts with lifting
   `Max_Length` to 2**30, so choose the bound first. `Decode_Order` could pack
-  `Seen` with `Map` the same way.
+  `Seen` with `Map` the same way. Against references (`make bench-corpora`,
+  2026-09-25), both decoders match `libsais_unbwt` and Bannai et al.'s
+  `unbbwt` at 1 MiB. At 4 MiB the classical one is 1.9× slower than libsais,
+  the one place where we trail a reference on the same linear algorithm.
+  This item is expected to close that gap.
 
 ## Tier 2: fast encoders (refinements, projects)
 
@@ -135,6 +139,40 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   1 MiB, both encoders take 0.32 s on `SOURCE`, against 0.1 s on random
   bytes. In the prototype, source code at 4 MiB took about 1 µs per byte:
   long duplicated regions need 14 rounds.
+- [x] **Public corpora and reference implementations** (2026-09-25).
+  `make bench-corpora` times the four transforms on the corpora that
+  suffix-sorting libraries are benchmarked on:
+  - Silesia and Large Canterbury;
+  - the Gauntlet, built to defeat suffix sorters;
+  - Pizza&Chili DNA, proteins and repetitive collections;
+  - bzip2's samples.
+
+  `bench/fetch-corpora.sh` downloads them into `obj/corpora` and cuts 1 MiB
+  and 4 MiB prefixes. They are never committed. A one-off comparison against
+  libsais, bzip2's block sort and Bannai et al.'s linear-time BBWT
+  (github.com/mmpiatkowski/bbwt) found byte-identical output on 57 inputs.
+  Only the classical primary index differs on periodic input, where it
+  depends on the tie order. The same run measured how much slower the
+  encoders are, as a geometric mean:
+  - classical: 8.7× at 1 MiB and 13× at 4 MiB, against the best of bzip2 and
+    libsais on S·S; up to 59× on the Gauntlet's `abba`;
+  - bijective: 4.7× and 8.5×, against Bannai et al.
+
+  The gap is the log factor: 13–15 rounds on text and code at 4 MiB, 22 on
+  Fibonacci strings. The reference drivers stay outside the repository.
+  Measured and ruled out for the encoders:
+  - SIMD: every round is gathers and scatters; AVX2 has no scatter, and its
+    gather is no faster than scalar loads on Zen 2;
+  - software prefetch: no gain, sometimes slower;
+  - huge pages: no change;
+  - 4-byte initial keys: saves 2 rounds, but costs as much;
+  - threads: libsais itself gains only 1.2–1.5× from 16 threads.
+
+  At 4 MiB a round is bound by DRAM latency, and even an unproved C port of
+  today's algorithm is no faster than the proved code.
+- [ ] **Gauntlet `test3` is slow for the classical encoder.** At 1 MiB it takes
+  1.5 s classical against 0.56 s bijective, and 0.08 s in libsais. Find out
+  whether it is the round count or a fixed cost.
 - [ ] **A leaner doubling round.** Each round makes about nine passes over N:
   `Place` with `Buckets = N` zeroes and prefix-sums an N-sized count array,
   and five zero-filled arrays are allocated. Bucket heads can be read off the
@@ -142,7 +180,10 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   workspace across rounds, as part of "caller-provided storage". Prototype:
   20–40% faster. Keep the random-access loops *separate*: a fused
   single-pass version ran fewer instructions but up to 3× slower, because
-  the CPU could overlap fewer cache misses.
+  the CPU could overlap fewer cache misses. On the public corpora, an
+  unproved C port with this round was 1.3–1.6× faster than the plain round
+  at 1 MiB, and 13.5% of today's instructions there are `memset`. Expect
+  nothing at 4 MiB on real data: rounds there are memory-bound.
 - [ ] **Less fixed overhead around the rounds** (about 30 ns per byte at
   4 MiB). When the ranks end up distinct, the rows are `F (SA (I))` with no
   second sort, and the last column can be read from SA directly, without
@@ -151,7 +192,14 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   fewer than 3% of positions are unsettled after 256 letters, yet every round
   touches all of them. Re-sorting only unsettled groups does 2.5× less work.
   It replaces the global counting sort with per-group sorting, so most of
-  the round proof is new.
+  the round proof is new. On the public corpora at 4 MiB, the share of
+  element-rounds that touch unsettled positions is:
+  - 0.21 to 0.37 on real data (mozilla, dickens, kernel, E.coli), so 3–5×
+    less work;
+  - 0.67 on random bytes;
+  - 0.93 on Fibonacci strings and `abba`, so almost nothing.
+
+  Even then, `dickens` would stay about 5× behind libsais.
 - [ ] **Proved merge sort** (or LSD radix sort on rank pairs) replacing
   selection sort. Doubling no longer needs it. Each round is one stable
   counting sort, because the previous order, shifted back by H, already sorts
@@ -163,7 +211,13 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   Kärkkäinen, Köppl and Piątkowski, *Constructing the bijective and the
   extended BWT in linear time* (CPM 2021, arXiv:1911.06985). Only worth it
   if the benchmarks show that doubling is the bottleneck. Try skipping
-  settled groups first.
+  settled groups first. The benchmarks now show it: this is the only route
+  to parity at large N. At 4 MiB libsais takes 20–30 ns per byte, and even
+  the untuned linear BBWT is 2.4–38× faster than doubling. Bannai et al.'s
+  circular SA-IS would cover the bijective transform and the eBWT with one
+  proof, which fits the cycle BWT of Tier 0. The classical transform could
+  use the same circular sort, or SA-IS with the end marker from the generic
+  alphabet.
 
 ## Tier 3: applications beyond compression
 
@@ -231,7 +285,11 @@ prove first.
   existing BWT and BBWT libraries against the proved reference, on
   exhaustive small inputs and random larger ones. Candidates are
   libdivsufsort, sais and published BBWT code. This is cheap, useful now,
-  and does not need Tier 1 or 2.
+  and does not need Tier 1 or 2. Done once by hand on 2026-09-25 against
+  libsais, bzip2 and Bannai et al.'s BBWT, on the public corpora (see
+  "Public corpora and reference implementations"). All matched. What
+  remains is an automated, repeatable harness, including exhaustive small
+  inputs.
 
 ## Proof engineering
 

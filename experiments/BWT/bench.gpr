@@ -4,7 +4,7 @@ project Bench is
    for Source_Dirs use ("bench");
    for Object_Dir use "obj/" & BWT.Build & "/bench";
    for Exec_Dir use "bin/" & BWT.Build;
-   for Main use ("bench_bwt.adb");
+   for Main use ("bench_bwt.adb", "bench_corpora.adb");
    package Compiler is
       for Default_Switches ("Ada") use ("-gnat2022", "-gnatwa", "-O2", "-gnatp", "-gnatn");
    end Compiler;

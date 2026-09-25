@@ -4,7 +4,7 @@ include ../../tools/project.mk
 #  which prover that is rather than trusting PATH. See tools/toolchain.mk.
 GNATPROVE ?= $(SPARK_WORLD_PROVE)
 
-.PHONY: build test test-contracts flow prove bench
+.PHONY: build test test-contracts flow prove bench bench-corpora
 build:
 	$(GPRBUILD) -P tests.gpr -j$(JOBS)
 
@@ -47,3 +47,17 @@ obj/bench/corpus.txt:
 bench: $(CORPUS)
 	$(GPRBUILD) -P bench.gpr -XBWT_BUILD=bench -j$(JOBS)
 	ulimit -s unlimited && bin/bench/bench_bwt $(CORPUS)
+
+#  The public corpora that suffix-sorting and BWT libraries are benchmarked on
+#  (Silesia, Canterbury, the Gauntlet, Pizza&Chili, bzip2's samples), cut to
+#  CORPORA_SIZES bytes. They are downloaded on first use and never committed;
+#  obj/ is ignored. At 4 MiB an encoding takes seconds, so this is opt-in and
+#  takes several minutes. Pass CORPORA_SIZES=1048576 for a quicker run.
+CORPORA ?= obj/corpora
+CORPORA_SIZES ?= 1048576 4194304
+
+bench-corpora:
+	bench/fetch-corpora.sh $(CORPORA) $(CORPORA_SIZES)
+	$(GPRBUILD) -P bench.gpr -XBWT_BUILD=bench -j$(JOBS)
+	ulimit -s unlimited && bin/bench/bench_corpora \
+	  $(foreach n,$(CORPORA_SIZES),$(CORPORA)/$(n)/*)

@@ -48,4 +48,7 @@ is clean and `make format-check` passes. GPRbuild Pro 27.0w.
 `make bench` times a production build (`-gnatp`, no contracts). Never time
 the `checks` build: its ghost checks dominate everything it runs. The bench
 lifts the stack limit itself, and reads its `SOURCE` corpus from the
-repository's tracked files (about 45 s in all).
+repository's tracked files (about 45 s in all). `make bench-corpora` times
+the same build on public corpora, which `bench/fetch-corpora.sh` downloads
+into `obj/corpora` on first use. Never commit them. It takes several
+minutes at 4 MiB; `CORPORA_SIZES=1048576` is quicker.
