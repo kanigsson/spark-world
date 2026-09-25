@@ -1,5 +1,6 @@
 with BWT.Counting;
 with BWT.Doubling;
+with BWT.Rotations;
 with BWT.Sorting;
 with BWT.Words;
 
@@ -163,7 +164,7 @@ is
       Sorting.Same_Rows_Trans (Canonical, Factor_Rotations (S), Rows);
       Sorting.Sorted_Unique (S, Canonical, Rows, Later_First);
       for I in Rows'Range loop
-         Result (I) := Letter (S, Rows (I), Rows (I).Length - 1);
+         Result (I) := Rotations.Last_Letter (S, Rows (I));
          pragma
            Loop_Invariant
              (for all J in 1 .. I =>

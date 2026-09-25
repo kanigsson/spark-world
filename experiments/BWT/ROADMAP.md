@@ -83,16 +83,16 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   16 KiB, and text at 4 KiB takes 1.7 s (classical) and 10 s (bijective).
   The "text" there is one 110-byte sentence repeated, which is much harder
   for doubling than real text.
-- [ ] **Pack each letter with its LF link.** With `Max_Length` = 2**24, an LF
-  index fits in 24 bits, so one 32-bit word per row halves the arrays the
-  walk misses in. A prototype of the classical walk was 2.4× faster at 4 MiB,
-  and about 15% faster at 256 KiB and 16 MiB. This conflicts with lifting
-  `Max_Length` to 2**30, so choose the bound first. `Decode_Order` could pack
-  `Seen` with `Map` the same way. Against references (`make bench-corpora`,
-  2026-09-25), both decoders match `libsais_unbwt` and Bannai et al.'s
-  `unbbwt` at 1 MiB. At 4 MiB the classical one is 1.9× slower than libsais,
-  the one place where we trail a reference on the same linear algorithm.
-  This item is expected to close that gap.
+- [x] **Pack each letter with its LF link** (classical decoder, 2026-09-25).
+  With `Max_Length` = 2**24, an LF index fits in 24 bits, so one 32-bit word
+  per row (`Pack`, `Next_Of`, `Letter_Of` in `BWT`'s body) makes each step of
+  the walk miss once instead of twice. At 4 MiB the classical decoder went
+  from 1.86× to 1.17× the time of `libsais_unbwt` (geometric mean over the
+  public corpora; `dickens` 134 → 87 ms). At 1 MiB, where the arrays fit in
+  the cache, the extra packing pass costs about 1 ms. The word must widen if
+  `Max_Length` grows past 2**24. Open: `Decode_Order` could pack `Seen` with
+  `Map` the same way; the bijective decoder is 1.25× Bannai et al.'s
+  `unbbwt` at 4 MiB.
 
 ## Tier 2: fast encoders (refinements, projects)
 
@@ -112,8 +112,10 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   - The classical transform could stop at H ≥ N (`Same_Length_Extend`)
     rather than 2N, saving one round on periodic input. A classical-only
     version was 15–25% faster at 256 KiB.
-  - Each round allocates five N-sized arrays on the stack. Buffers reused
-    across rounds belong to "caller-provided storage" (Tier 0).
+  - Each round declares six N-sized arrays on the stack. They are no longer
+    zero-filled (`Relaxed_Initialization`), so declaring them costs nothing,
+    but they still count against the stack. Buffers reused across rounds
+    belong to "caller-provided storage" (Tier 0).
   - The ghost `Ranked` invariant is quadratic, which makes the `checks`
     build unusable beyond small inputs. That is expected, and `test-contracts`
     uses a small corpus.
@@ -170,24 +172,41 @@ Unchecked items are proposals. None of them is needed for what is proved today.
 
   At 4 MiB a round is bound by DRAM latency, and even an unproved C port of
   today's algorithm is no faster than the proved code.
-- [ ] **Gauntlet `test3` is slow for the classical encoder.** At 1 MiB it takes
-  1.5 s classical against 0.56 s bijective, and 0.08 s in libsais. Find out
-  whether it is the round count or a fixed cost.
-- [ ] **A leaner doubling round.** Each round makes about nine passes over N:
-  `Place` with `Buckets = N` zeroes and prefix-sums an N-sized count array,
-  and five zero-filled arrays are allocated. Bucket heads can be read off the
-  sorted order instead, so the counting sort becomes one scatter. Reuse one
-  workspace across rounds, as part of "caller-provided storage". Prototype:
-  20–40% faster. Keep the random-access loops *separate*: a fused
-  single-pass version ran fewer instructions but up to 3× slower, because
-  the CPU could overlap fewer cache misses. On the public corpora, an
-  unproved C port with this round was 1.3–1.6× faster than the plain round
-  at 1 MiB, and 13.5% of today's instructions there are `memset`. Expect
-  nothing at 4 MiB on real data: rounds there are memory-bound.
-- [ ] **Less fixed overhead around the rounds** (about 30 ns per byte at
-  4 MiB). When the ranks end up distinct, the rows are `F (SA (I))` with no
-  second sort, and the last column can be read from SA directly, without
-  building 12-byte rotation tables.
+- [x] **Gauntlet `test3` is slow for the classical encoder** (2026-09-25). It is
+  the round count. `test3` is a 16-bit little-endian counter, so its 1 MiB
+  prefix is nearly periodic: classical doubling needs 20 rounds before all
+  ranks differ, while the bijective transform stops after 7 rounds on
+  repeated Lyndon factors. After the leaner round below, it takes 0.28 s
+  classical (from 1.6 s) and 0.14 s bijective, against 0.08 s in libsais.
+- [x] **A leaner doubling round** (2026-09-25). Ranks are now class heads,
+  kept in SA order as runs (`Runs`), so each class's run in SA tells where
+  its elements go: the counting sort became one slot pass and one scatter
+  (`Slots`, proved with a pigeonhole lemma). The first key along the new
+  order is read sequentially, `Back` needs no factor table for the
+  classical transform and only a 4-byte start array for the bijective one,
+  the table is read off SA when all ranks differ (`Read_Off`), and no array
+  is zero-filled. Each random access has a loop of its own. Computing the
+  slot and scattering in one loop made every store wait for a missing load,
+  7× slower at 4 MiB. The expectation that nothing would help at 4 MiB was
+  wrong: the reading of the factor table and the fused loops were the
+  bottleneck, not DRAM. On the public corpora (geometric means, against the
+  reference timings recorded on 2026-09-25):
+  - classical: 2.1× faster at 1 MiB and 3.0× at 4 MiB; from 8.9× to 4.3×
+    the best cyclic reference at 1 MiB, and from 14× to 4.7× at 4 MiB;
+  - bijective: 1.8× and 2.5× faster; from 5.0× to 2.7× Bannai et al. at
+    1 MiB, and from 9.0× to 3.6× at 4 MiB.
+
+  At 4 MiB a round now takes about 95 ms for 4 M elements (classical), in
+  six random-access passes. `Initial` (about 100 ms at 4 MiB) and the
+  bijective `Back` (24 ms a round, for its start-array reads) are the next
+  constant factors.
+- [ ] **Less fixed overhead around the rounds.** Done: when the ranks end up
+  distinct, the rows are `F (SA (I))` with no second sort (`Read_Off`), and
+  the last column is read without a division (`Rotations.Last_Letter`).
+  Open: the last column could be read from SA directly, without building
+  12-byte rotation tables; `Initial` could take its head ranks from the
+  byte histogram instead of a gather and a spread (about 100 ms at 4 MiB,
+  a round's worth).
 - [ ] **Skip settled groups** (Larsson–Sadakane). On source code at 4 MiB,
   fewer than 3% of positions are unsettled after 256 letters, yet every round
   touches all of them. Re-sorting only unsettled groups does 2.5× less work.
@@ -199,7 +218,8 @@ Unchecked items are proposals. None of them is needed for what is proved today.
   - 0.67 on random bytes;
   - 0.93 on Fibonacci strings and `abba`, so almost nothing.
 
-  Even then, `dickens` would stay about 5× behind libsais.
+  After the leaner round, `dickens` at 4 MiB is 5.7× behind libsais on S·S,
+  so skipping settled groups could bring real text to about 2×.
 - [ ] **Proved merge sort** (or LSD radix sort on rank pairs) replacing
   selection sort. Doubling no longer needs it. Each round is one stable
   counting sort, because the previous order, shifted back by H, already sorts
@@ -295,7 +315,9 @@ prove first.
 
 - [ ] A forced `make prove` takes about 8½ min at `-j16` (2026-09-24, at
   `Max_Length` = 2**24, with prefix doubling for both encoders; it was 3½ min
-  at 1,024). `Doubling` alone takes about 1 min. `Onto_Proofs` is 1,870
+  at 1,024). `Doubling` alone took about 1 min; with the leaner round
+  (1,474 checks) it takes 4½ min from scratch at `-j16` under a parallel
+  load (2026-09-25). `Onto_Proofs` is 1,870
   lines. Record per-unit times with `--report=statistics`, so that
   regressions are visible.
 - [ ] The generic alphabet and the cycle BWT will move lemmas between units.

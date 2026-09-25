@@ -463,4 +463,15 @@ is
          return not Tie_LE (B, A, Ties);
       end if;
    end Key_Less;
+
+   function Last_Letter (S : String; R : Rotation) return Character is
+   begin
+      if R.Offset = 0 then
+         Letter_Direct (S, R, R.Length - 1);
+         return S (R.First + R.Length - 1);
+      else
+         Letter_Wrap (S, R, R.Length - 1);
+         return S (R.First + R.Offset - 1);
+      end if;
+   end Last_Letter;
 end BWT.Rotations;

@@ -165,7 +165,7 @@ is
       Classical_Shape (Rows, Rotations, S'Length);
       Matrices.Classical_Closed (S, Rows);
       for I in Rows'Range loop
-         Result.Last (I) := Letter (S, Rows (I), Rows (I).Length - 1);
+         Result.Last (I) := BWT.Rotations.Last_Letter (S, Rows (I));
          if Rows (I).Offset = 0 then
             Result.Primary := I;
          end if;
@@ -186,12 +186,40 @@ is
       return Result;
    end Classical_Encode;
 
+   --  A row's LF link and its letter in one word: with Max_Length = 2**24,
+   --  the link takes 24 bits and the letter 8.
+   type Link is mod 2**32;
+   type Links is array (Positive range <>) of Link;
+
+   function Pack (Next : Positive; C : Character) return Link
+   is (Link (Next - 1) * 256 + Character'Pos (C))
+   with Pre => Next <= Max_Length;
+
+   function Next_Of (L : Link) return Positive
+   is (Natural (L / 256) + 1);
+
+   function Letter_Of (L : Link) return Character
+   is (Character'Val (L mod 256));
+
+   --  The walk reads each row's link and letter from one word, so that each
+   --  step misses the cache once rather than twice.
    function Classical_Decode (Last : String; Primary : Natural) return String
    is
       Map    : constant Indices := LF (Last);
+      Row_Of : Links (1 .. Last'Length)
+      with Relaxed_Initialization;
       Result : String (1 .. Last'Length) := (others => Character'First);
       Row    : Natural := Primary;
    begin
+      for R in Row_Of'Range loop
+         Row_Of (R) := Pack (Map (R), Last (R));
+         pragma
+           Loop_Invariant
+             (for all Q in 1 .. R =>
+                Row_Of (Q)'Initialized
+                and then Next_Of (Row_Of (Q)) = Map (Q)
+                and then Letter_Of (Row_Of (Q)) = Last (Q));
+      end loop;
       if Last'Length > 0 then
          Ranks.Walk_Step (Last, Primary, 0);
       end if;
@@ -205,8 +233,8 @@ is
          if I > 1 then
             Ranks.Walk_Step (Last, Primary, Last'Length - I);
          end if;
-         Result (I) := Last (Row);
-         Row := Map (Row);
+         Result (I) := Letter_Of (Row_Of (Row));
+         Row := Next_Of (Row_Of (Row));
       end loop;
       return Result;
    end Classical_Decode;

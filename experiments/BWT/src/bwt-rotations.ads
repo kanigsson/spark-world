@@ -113,6 +113,14 @@ is
        and then R.Offset + K in R.Length .. 2 * R.Length - 1,
      Post => Letter (S, R, K) = S (R.First + R.Offset + K - R.Length);
 
+   --  The letter before R, which is the last column of a sorted table, read
+   --  without a division.
+   function Last_Letter (S : String; R : Rotation) return Character
+   with
+     Inline,
+     Pre  => Supported (S) and then Valid (R, S'Length),
+     Post => Last_Letter'Result = Letter (S, R, R.Length - 1);
+
    --  Reading D letters further is reading from a rotation D letters on.
    function Advance (R : Rotation; D : Natural) return Rotation
    is (R.First,

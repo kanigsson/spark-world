@@ -44,7 +44,9 @@ children's declarations. `Rotations` and `Sorting` keep the lemmas.
   specified tables; no encoder runs it.
 - `Key_Sort`: LF's counting sort over integer keys `0 .. Buckets - 1`, with
   the same proof: each element's place is its stable rank, so places form a
-  permutation ordered as (key, position).
+  permutation ordered as (key, position). Doubling uses it for the first
+  letter and for the final pass when ranks tie; the rounds place elements
+  from class runs instead.
 
 ## Encoding by prefix doubling
 
@@ -66,27 +68,47 @@ The invariant is `Ranked (S, F, R, H)`: for every pair of positions,
   offset modulo the factor length, so H may exceed a short factor. The row
   of `Jump (P, H)` is `Skip (F (P), H)`. So the pair (rank, rank of the
   jump) in lexicographic order is `LE` at 2H (`Double_Pair`).
-- Sorting by pairs takes one counting sort per round. The previous order,
+- Sorting by pairs takes one stable pass per round. The previous order,
   with every position moved back by H (`Back`, proved through
   `Skip_Unskip`), is already sorted by the second key. A stable sort by the
-  first key therefore sorts by the pair. Stability is used here and in the
-  final pass, and `Key_Sort`'s (key, position) postcondition states it.
-- `Dense_Ranks` numbers the classes along the sorted order. Its loop keeps
-  the pairwise fact "ranks compare as pairs" for the prefix it has numbered.
-  If there are N classes, the ranks are distinct.
+  first key therefore sorts by the pair.
+- Ranks are class heads: a row's rank is the number of rows in lower
+  classes. `V` holds the ranks in the order of SA, and `Runs (V)` states
+  the shape: V never decreases, and `V (P) < P` with `V (V (P) + 1) = V (P)`,
+  so the run of rank C starts at C + 1. The stable pass (`Slots`) therefore
+  needs no counting pass: each element goes to the next free place of its
+  class's run. `Next_Free` shows that place stays inside the run. If the
+  run were full, its owners and the element to place would be more
+  elements of that class than the run has places, and `No_Injection` (a
+  pigeonhole argument from `Permutations.Inverse`) rules that out. The
+  scatter keeps every place in its old class, so V stays valid for the new
+  SA.
+- `Dense_Runs` numbers the classes of equal pairs as runs, in place along
+  SA. Its loop keeps the pairwise fact "ranks compare as pairs" for the
+  prefix it has numbered. If there are N classes, `V (P) = P - 1`, the ranks
+  are distinct, and `Read_Off` lays the table out as `F (SA (P))`. `Spread`
+  writes the new ranks back to positions.
+- The round keeps each random access in a loop of its own (moving back,
+  gathering the first key, finding slots, scattering, gathering the second
+  key, spreading ranks). A slot and its scatter in one loop made each store
+  wait for a cache-missing load, which was 7 times slower at 4 MiB.
+  `Back` reads no factor table in the classical case (`Back_Single`), and
+  only a 4-byte start array when the position is at least H letters into
+  its factor (`Back_Inside`).
 - The loop stops when H reaches twice the longest factor or the ranks are
   distinct. `Rotations.Settled` lifts either case to the horizon 2N. Past
   both periods, equal prefixes stay equal (`Extend_Equality`). A mismatch
   decides every longer horizon, and it cannot lie beyond both periods.
-- The loop also stops after a round that splits no class. `Dense_Ranks`
+- The loop also stops after a round that splits no class. `Dense_Runs`
   reports whether some class of first keys met two second keys. If none
   did, rows that agree on H letters still agree on H letters after H more
   (`Closed`). `Closed_Extend` then walks along the cycles, H letters at a
   time, to any horizon. Without this case, input whose rows have equal
   words (periodic input, or repeated Lyndon factors) would run until H
   reaches twice the longest factor.
-- After the loop, `Lay_Out` sorts once more by (rank, position), with positions reversed
-  for `Later_First`. That order is `Key_LE`.
+- After the loop, when some ranks are equal, `Lay_Out` sorts once more by
+  (rank, position), with positions reversed for `Later_First`. That order is
+  `Key_LE`.
 
 Only the final pass needs the tie order. The rounds may leave equal ranks in
 any order. `Reduce` is a division-free `mod` for arguments below twice the
@@ -173,7 +195,9 @@ so LF cannot be exact on rows. `LF_Shifts` shows that LF maps each sorted row
 to a row whose word equals its predecessor rotation's. `Classical_Thread`
 then follows the orbit from the primary row and reads the input backwards.
 `Classical_Round_Trip` matches that against the decoder's contract, one
-position at a time.
+position at a time. The decoder packs each row's LF link and letter into one
+32-bit word (`Pack`, `Next_Of`, `Letter_Of`), which relies on `Max_Length`
+being 2**24: lifting the bound past it means widening that word.
 
 ## Bijective, decode after encode
 

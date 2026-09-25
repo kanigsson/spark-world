@@ -40,7 +40,7 @@ arbitrary last-column/index pairs need not be canonical encodings.
 
 The core has no I/O, heap allocation, external library dependency or non-SPARK
 escape. Both encoders sort rotations by prefix doubling. Each round is one
-counting sort, so encoding takes O(n log n) time and O(n) space. There are at
+stable bucket pass, so encoding takes O(n log n) time and O(n) space. There are at
 most ⌈log₂ 2m⌉ rounds for a longest factor of m letters (m = n for the
 classical transform), and doubling stops early once all ranks differ. LF is a
 counting sort, so both decoders take O(n + σ) time and O(n + σ) space for an

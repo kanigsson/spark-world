@@ -37,7 +37,15 @@ is
        and then Cycles (S, F)
        and then P in F'Range
        and then D <= 4 * Max_Length,
-     Post => Back'Result in F'Range and then Jump (S, F, Back'Result, D) = P;
+     Post =>
+       Back'Result in F'Range
+       and then Jump (S, F, Back'Result, D) = P
+       and then Back'Result
+                = F (P).First
+                  + Reduce
+                      (F (P).Offset
+                       + (F (P).Length - Reduce (D, F (P).Length)),
+                       F (P).Length);
 
    function Back
      (S : String; F : Table; P : Positive; D : Natural) return Positive is
@@ -83,11 +91,17 @@ is
          (for all B in R'Range => (if A /= B then R (A) /= R (B))))
    with Ghost;
 
-   --  Positions listed in SA have nondecreasing ranks.
-   function Sorted_By (R : Keys; SA : Mapping) return Boolean
-   is (for all P in SA'Range =>
-         (for all Q in P .. SA'Last => R (SA (P)) <= R (SA (Q))))
-   with Ghost, Pre => (for all X of SA => X in R'Range);
+   --  The classes of an ordered sequence of ranks, as runs: ranks never
+   --  decrease along V, and each rank is the index just before its run, so
+   --  the run of rank C starts at C + 1.
+   function Runs (V : Keys) return Boolean
+   is (V'First = 1
+       and then V'Length <= Max_Length
+       and then (for all P in V'Range =>
+                   V (P) < P and then V (V (P) + 1) = V (P))
+       and then (for all P in V'Range =>
+                   (for all Q in P .. V'Last => V (P) <= V (Q))))
+   with Ghost;
 
    --  The lexicographic order of rank pairs.
    function Pair_LE (K1, K2 : Keys; A, B : Positive) return Boolean
@@ -101,7 +115,7 @@ is
        and then B in K1'Range;
 
    --  Result (Map (K)) := Items (K), for all K.
-   procedure Scatter (Map, Items : Mapping; Result : out Mapping)
+   procedure Scatter (Map, Items : Mapping; Result : in out Mapping)
    with
      Pre  =>
        Permutation (Map)
@@ -117,11 +131,10 @@ is
        Permutation (Result)
        and then (for all K in Map'Range => Result (Map (K)) = Items (K));
 
-   procedure Scatter (Map, Items : Mapping; Result : out Mapping) is
+   procedure Scatter (Map, Items : Mapping; Result : in out Mapping) is
       Inv : constant Mapping := Permutations.Inverse (Map)
       with Ghost;
    begin
-      Result := (others => 1);
       for K in Map'Range loop
          Result (Map (K)) := Items (K);
          pragma
@@ -132,126 +145,407 @@ is
         Assert (for all I in Result'Range => Result (I) = Items (Inv (I)));
    end Scatter;
 
-   --  Numbers the classes of equal pairs along SA, from 0. Split tells
-   --  whether some class of first keys has more than one second key.
-   procedure Dense_Ranks
-     (SA      : Mapping;
-      K1, K2  : Keys;
-      R       : out Keys;
-      Classes : out Positive;
-      Split   : out Boolean)
+   --  R (SA (P)) := V (P), for all P: ranks in the order of SA, spread back
+   --  to positions.
+   procedure Spread (SA : Mapping; V : Keys; R : in out Keys)
    with
      Pre  =>
        Permutation (SA)
-       and then SA'Length >= 1
-       and then K1'First = 1
-       and then K1'Length = SA'Length
-       and then K2'First = 1
-       and then K2'Length = SA'Length
+       and then V'First = 1
+       and then V'Length = SA'Length
        and then R'First = 1
-       and then R'Length = SA'Length
-       and then (for all P in SA'Range =>
-                   (for all Q in P .. SA'Last =>
-                      Pair_LE (K1, K2, SA (P), SA (Q)))),
-     Post =>
-       (for all X of R => X < R'Length)
-       and then (for all A in R'Range =>
-                   (for all B in R'Range =>
-                      (R (A) <= R (B)) = Pair_LE (K1, K2, A, B)))
-       and then Classes <= R'Length
-       and then (if Classes = R'Length then Distinct_Keys (R))
-       and then Sorted_By (R, SA)
-       and then (if not Split
-                 then
-                   (for all A in K1'Range =>
-                      (for all B in K1'Range =>
-                         (if K1 (A) = K1 (B) then K2 (A) = K2 (B)))));
+       and then R'Length = SA'Length,
+     Post => (for all P in SA'Range => R (SA (P)) = V (P));
 
-   procedure Dense_Ranks
-     (SA      : Mapping;
-      K1, K2  : Keys;
-      R       : out Keys;
-      Classes : out Positive;
-      Split   : out Boolean)
+   procedure Spread (SA : Mapping; V : Keys; R : in out Keys) is
+   begin
+      for I in SA'Range loop
+         R (SA (I)) := V (I);
+         pragma Loop_Invariant (for all P in 1 .. I => R (SA (P)) = V (P));
+      end loop;
+   end Spread;
+
+   --  Result (I) := Items (Map (I)), for all I.
+   procedure Gather (Items : Keys; Map : Mapping; Result : out Keys)
+   with
+     Relaxed_Initialization => Result,
+     Pre                    =>
+       Map'First = 1
+       and then Result'First = 1
+       and then Result'Length = Map'Length
+       and then (for all X of Map => X in Items'Range),
+     Post                   =>
+       Result'Initialized
+       and then (for all I in Map'Range => Result (I) = Items (Map (I)));
+
+   procedure Gather (Items : Keys; Map : Mapping; Result : out Keys) is
+   begin
+      for I in Map'Range loop
+         Result (I) := Items (Map (I));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. I =>
+                Result (J)'Initialized and then Result (J) = Items (Map (J)));
+      end loop;
+   end Gather;
+
+   --  Rows that agree on H letters agree on H more when their ranks H
+   --  letters on agree too.
+   procedure Closed_Intro (S : String; F : Table; R : Keys; H : Positive)
+   with
+     Ghost,
+     Pre  =>
+       Supported (S)
+       and then Cycles (S, F)
+       and then H <= 2 * Max_Length
+       and then Ranked (S, F, R, H)
+       and then (for all A in 1 .. S'Length =>
+                   (for all B in 1 .. S'Length =>
+                      (if R (A) = R (B)
+                       then R (Jump (S, F, A, H)) = R (Jump (S, F, B, H))))),
+     Post => Closed (S, F, H);
+
+   procedure Closed_Intro (S : String; F : Table; R : Keys; H : Positive)
+   is null;
+
+   --  No map of Size + 1 places into Size places is one to one: its first
+   --  Size places already take every value.
+   procedure No_Injection (M : Mapping; Size : Natural)
+   with
+     Ghost,
+     Pre  =>
+       M'First = 1
+       and then Size <= Max_Length
+       and then M'Length = Size + 1
+       and then (for all X of M => X <= Size)
+       and then (for all I in M'Range =>
+                   (for all J in M'Range => (if I /= J then M (I) /= M (J)))),
+     Post => False;
+
+   procedure No_Injection (M : Mapping; Size : Natural) is
+   begin
+      if Size = 0 then
+         pragma Assert (M (1) <= 0);
+         return;
+      end if;
+      declare
+         Head : constant Mapping (1 .. Size) := M (1 .. Size);
+         Inv  : constant Mapping := Permutations.Inverse (Head);
+      begin
+         pragma Assert (Head (Inv (M (Size + 1))) = M (Size + 1));
+         pragma Assert (Inv (M (Size + 1)) /= Size + 1);
+      end;
+   end No_Injection;
+
+   --  The next free place of a class is still inside its run. Otherwise the
+   --  run is full, and its elements and the one to place are more elements
+   --  of that class than the run has places.
+   procedure Next_Free
+     (SA, Inv    : Mapping;
+      V          : Keys;
+      T          : Mapping;
+      First      : Keys;
+      Cur, Owner : Keys;
+      K          : Positive)
+   with
+     Ghost,
+     Pre  =>
+       Permutation (SA)
+       and then Inv'First = 1
+       and then Inv'Length = SA'Length
+       and then (for all X of Inv => X in SA'Range)
+       and then (for all P in SA'Range => SA (Inv (P)) = P)
+       and then (for all P in SA'Range => Inv (SA (P)) = P)
+       and then V'First = 1
+       and then V'Length = SA'Length
+       and then Runs (V)
+       and then T'First = 1
+       and then T'Length = SA'Length
+       and then (for all X of T => X in SA'Range)
+       and then (for all I in T'Range =>
+                   (for all J in T'Range => (if I /= J then T (I) /= T (J))))
+       and then First'First = 1
+       and then First'Length = SA'Length
+       and then (for all J in T'Range => First (J) = V (Inv (T (J))))
+       and then Cur'First = 1
+       and then Cur'Length = SA'Length
+       and then Owner'First = 1
+       and then Owner'Length = SA'Length
+       and then K in T'Range
+       and then (for all P in SA'Range =>
+                   Owner (P) < K
+                   and then (Owner (P) /= 0) = (P < Cur (V (P) + 1))
+                   and then (if Owner (P) /= 0 then First (Owner (P)) = V (P)))
+       and then (for all P in SA'Range =>
+                   (for all Q in SA'Range =>
+                      (if P /= Q and then Owner (P) /= 0
+                       then Owner (P) /= Owner (Q))))
+       and then (for all P in SA'Range =>
+                   V (P) < Cur (V (P) + 1)
+                   and then Cur (V (P) + 1) <= SA'Length + 1
+                   and then (Cur (V (P) + 1) = V (P) + 1
+                             or else V (Cur (V (P) + 1) - 1) = V (P))),
+     Post =>
+       Cur (First (K) + 1) <= SA'Length
+       and then V (Cur (First (K) + 1)) = First (K);
+
+   procedure Next_Free
+     (SA, Inv    : Mapping;
+      V          : Keys;
+      T          : Mapping;
+      First      : Keys;
+      Cur, Owner : Keys;
+      K          : Positive)
    is
-      Inv : constant Mapping := Permutations.Inverse (SA)
+      C  : constant Natural := First (K);
+      P0 : constant Positive := Inv (T (K));
+   begin
+      pragma Assert (V (P0) = C);
+      pragma Assert (V (C + 1) = C);
+      if Cur (C + 1) <= SA'Length and then V (Cur (C + 1)) = C then
+         return;
+      end if;
+      declare
+         D    : constant Positive := Cur (C + 1);
+         Size : constant Natural := D - 1 - C;
+         M    : Mapping (1 .. Size + 1) := (others => 1);
+      begin
+         pragma Assert (D > C + 1 and then V (D - 1) = C);
+         pragma Assert (Size <= SA'Length);
+         pragma
+           Assert
+             (for all Q in SA'Range =>
+                (if V (Q) = C then Q in C + 1 .. D - 1));
+         pragma Assert (for all Q in C + 1 .. D - 1 => V (Q) = C);
+         pragma Assert (for all Q in C + 1 .. D - 1 => Owner (Q) /= 0);
+         for I in 1 .. Size loop
+            pragma Assert (First (Owner (C + I)) = C);
+            M (I) := Inv (T (Owner (C + I))) - C;
+            pragma
+              Loop_Invariant
+                (for all J in 1 .. I =>
+                   M (J) = Inv (T (Owner (C + J))) - C
+                   and then M (J) in 1 .. Size);
+         end loop;
+         M (Size + 1) := P0 - C;
+         pragma
+           Assert
+             (for all I in 1 .. Size =>
+                (for all J in 1 .. Size =>
+                   (if I /= J then Owner (C + I) /= Owner (C + J))));
+         pragma Assert (for all I in 1 .. Size => Owner (C + I) /= K);
+         No_Injection (M, Size);
+      end;
+   end Next_Free;
+
+   --  Where each element of T goes when T is sorted stably by class: the
+   --  next free place in its class's run. The run of class C starts at
+   --  C + 1, so no counting pass is needed.
+   procedure Slots
+     (SA : Mapping; V : Keys; T : Mapping; First : Keys; Dest : out Mapping)
+   with
+     Relaxed_Initialization => Dest,
+     Pre                    =>
+       Permutation (SA)
+       and then SA'Length >= 1
+       and then V'First = 1
+       and then V'Length = SA'Length
+       and then Runs (V)
+       and then T'First = 1
+       and then T'Length = SA'Length
+       and then (for all X of T => X in SA'Range)
+       and then (for all I in T'Range =>
+                   (for all J in T'Range => (if I /= J then T (I) /= T (J))))
+       and then First'First = 1
+       and then First'Length = SA'Length
+       and then (for all J in T'Range =>
+                   (for all P in SA'Range =>
+                      (if SA (P) = T (J) then V (P) = First (J))))
+       and then Dest'First = 1
+       and then Dest'Length = SA'Length,
+     Post                   =>
+       Dest'Initialized
+       and then Permutation (Dest)
+       and then (for all K in Dest'Range => V (Dest (K)) = First (K))
+       and then (for all J in Dest'Range =>
+                   (for all K in Dest'Range =>
+                      (if J < K and then First (J) = First (K)
+                       then Dest (J) < Dest (K))));
+
+   procedure Slots
+     (SA : Mapping; V : Keys; T : Mapping; First : Keys; Dest : out Mapping)
+   is
+      N     : constant Positive := SA'Length;
+      --  The next free place of each class, at the class plus one.
+      Cur   : Keys (1 .. N)
+      with Relaxed_Initialization;
+      Place : Positive;
+      --  Which element took each place, or 0.
+      Owner : Keys (1 .. N) := (others => 0)
+      with Ghost;
+      Inv   : constant Mapping := Permutations.Inverse (SA)
       with Ghost;
    begin
-      R := (others => 0);
+      for P in 1 .. N loop
+         Cur (P) := P;
+         pragma
+           Loop_Invariant
+             (for all Q in 1 .. P => Cur (Q)'Initialized and then Cur (Q) = Q);
+      end loop;
+      pragma Assert (for all J in 1 .. N => First (J) = V (Inv (T (J))));
+      for K in 1 .. N loop
+         Next_Free (SA, Inv, V, T, First, Cur, Owner, K);
+         Place := Cur (First (K) + 1);
+         Dest (K) := Place;
+         Cur (First (K) + 1) := Place + 1;
+         Owner (Place) := K;
+         pragma Loop_Invariant (Cur'Initialized);
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. K =>
+                Dest (J)'Initialized
+                and then Dest (J) in 1 .. N
+                and then V (Dest (J)) = First (J)
+                and then Owner (Dest (J)) = J
+                and then Dest (J) < Cur (First (J) + 1));
+         pragma
+           Loop_Invariant
+             (for all P in 1 .. N =>
+                Owner (P) <= K
+                and then (Owner (P) /= 0) = (P < Cur (V (P) + 1))
+                and then (if Owner (P) /= 0 then First (Owner (P)) = V (P)));
+         pragma
+           Loop_Invariant
+             (for all P in 1 .. N =>
+                (for all Q in 1 .. N =>
+                   (if P /= Q and then Owner (P) /= 0
+                    then Owner (P) /= Owner (Q))));
+         pragma
+           Loop_Invariant
+             (for all P in 1 .. N =>
+                V (P) < Cur (V (P) + 1)
+                and then Cur (V (P) + 1) <= N + 1
+                and then (Cur (V (P) + 1) = V (P) + 1
+                          or else V (Cur (V (P) + 1) - 1) = V (P)));
+         pragma
+           Loop_Invariant
+             (for all I in 1 .. K =>
+                (for all J in 1 .. K =>
+                   (if I < J and then First (I) = First (J)
+                    then Dest (I) < Dest (J))));
+      end loop;
+   end Slots;
+
+   --  Numbers the classes of equal pairs along an order sorted by pairs, as
+   --  runs, in place. Split tells whether some class of first keys has more
+   --  than one second key.
+   procedure Dense_Runs
+     (V : in out Keys; K2 : Keys; Classes : out Positive; Split : out Boolean)
+   with
+     Pre  =>
+       V'First = 1
+       and then V'Length >= 1
+       and then V'Length <= Max_Length
+       and then K2'First = 1
+       and then K2'Last = V'Last
+       and then (for all P in V'Range =>
+                   (for all Q in P .. V'Last => Pair_LE (V, K2, P, Q))),
+     Post =>
+       Runs (V)
+       and then (for all P in V'Range =>
+                   (for all Q in V'Range =>
+                      (V (P) <= V (Q)) = Pair_LE (V'Old, K2, P, Q)))
+       and then Classes <= V'Length
+       and then (if Classes = V'Length
+                 then (for all P in V'Range => V (P) = P - 1))
+       and then (if not Split
+                 then
+                   (for all P in V'Range =>
+                      (for all Q in V'Range =>
+                         (if V'Old (P) = V'Old (Q) then K2 (P) = K2 (Q)))));
+
+   procedure Dense_Runs
+     (V : in out Keys; K2 : Keys; Classes : out Positive; Split : out Boolean)
+   is
+      Old  : constant Keys := V
+      with Ghost;
+      Next : Boolean
+      with Ghost;
+      --  The previous pair, and the run it belongs to.
+      P1   : Natural := V (1);
+      P2   : Natural := K2 (1);
+      Head : Natural := 0;
+   begin
       Classes := 1;
       Split := False;
-      for I in 2 .. SA'Last loop
-         if K1 (SA (I)) /= K1 (SA (I - 1))
-           or else K2 (SA (I)) /= K2 (SA (I - 1))
-         then
-            if K1 (SA (I)) = K1 (SA (I - 1)) then
+      V (1) := 0;
+      pragma
+        Assert
+          (for all P in V'Range =>
+             (for all Q in P .. V'Last => Pair_LE (Old, K2, P, Q)));
+      for I in 2 .. V'Last loop
+         Next := V (I) /= P1 or else K2 (I) /= P2;
+         if V (I) /= P1 or else K2 (I) /= P2 then
+            if V (I) = P1 then
                Split := True;
             end if;
             Classes := Classes + 1;
+            Head := I - 1;
          end if;
-         R (SA (I)) := Classes - 1;
+         P1 := V (I);
+         P2 := K2 (I);
+         V (I) := Head;
+         pragma Assert (if Next then not Pair_LE (Old, K2, I, I - 1));
+         pragma
+           Assert
+             (if Next
+                then
+                  (for all P in 1 .. I - 1 =>
+                     V (P) < V (I) and then not Pair_LE (Old, K2, I, P)));
+         pragma Assert (if not Next then V (I) = V (I - 1));
+         pragma Assert (if Next and then not Split then Old (I - 1) < Old (I));
+         pragma
+           Assert
+             (if not Split
+                then
+                  (for all P in 1 .. I - 1 =>
+                     (if Old (P) = Old (I) then K2 (P) = K2 (I))));
+         pragma
+           Assert
+             (if not Next
+                then
+                  (for all P in 1 .. I - 1 =>
+                     Pair_LE (Old, K2, P, I) = Pair_LE (Old, K2, P, I - 1)
+                     and then Pair_LE (Old, K2, I, P)
+                              = Pair_LE (Old, K2, I - 1, P)));
+         pragma Loop_Invariant (P1 = Old (I) and then P2 = K2 (I));
+         pragma
+           Loop_Invariant (for all Q in I + 1 .. V'Last => V (Q) = Old (Q));
+         pragma Loop_Invariant (Head = V (I));
+         pragma Loop_Invariant (Classes <= I);
+         pragma
+           Loop_Invariant
+             (if Classes = I then (for all P in 1 .. I => V (P) = P - 1));
+         pragma
+           Loop_Invariant
+             (for all P in 1 .. I => V (P) < P and then V (V (P) + 1) = V (P));
+         pragma
+           Loop_Invariant
+             (for all P in 1 .. I => (for all Q in P .. I => V (P) <= V (Q)));
+         pragma
+           Loop_Invariant
+             (for all P in 1 .. I =>
+                (for all Q in 1 .. I =>
+                   (V (P) <= V (Q)) = Pair_LE (Old, K2, P, Q)));
          pragma
            Loop_Invariant
              (if not Split
                 then
                   (for all P in 1 .. I =>
                      (for all Q in 1 .. I =>
-                        (if K1 (SA (P)) = K1 (SA (Q))
-                         then K2 (SA (P)) = K2 (SA (Q))))));
-         pragma Loop_Invariant (Classes <= I);
-         pragma Loop_Invariant (R (SA (I)) = Classes - 1);
-         pragma
-           Loop_Invariant
-             (for all P in 1 .. I =>
-                R (SA (P)) <= P - 1 and then R (SA (I)) - R (SA (P)) <= I - P);
-         pragma
-           Loop_Invariant
-             (for all P in 1 .. I =>
-                (for all Q in 1 .. I =>
-                   (R (SA (P)) <= R (SA (Q)))
-                   = Pair_LE (K1, K2, SA (P), SA (Q))));
+                        (if Old (P) = Old (Q) then K2 (P) = K2 (Q)))));
       end loop;
-      pragma Assert (R (SA (SA'Last)) = Classes - 1);
-      pragma
-        Assert
-          (for all P in SA'Range =>
-             (for all Q in SA'Range =>
-                (R (SA (P)) <= R (SA (Q)))
-                = Pair_LE (K1, K2, SA (P), SA (Q))));
-      pragma Assert (for all A in R'Range => SA (Inv (A)) = A);
-      pragma
-        Assert
-          (for all A in R'Range =>
-             (for all B in R'Range =>
-                (R (SA (Inv (A))) <= R (SA (Inv (B))))
-                = Pair_LE (K1, K2, SA (Inv (A)), SA (Inv (B)))));
-      if Classes = R'Length then
-         pragma Assert (for all P in SA'Range => R (SA (P)) = P - 1);
-         pragma Assert (for all A in R'Range => R (A) = Inv (A) - 1);
-      end if;
-      if not Split then
-         pragma
-           Assert
-             (for all A in K1'Range =>
-                (for all B in K1'Range =>
-                   (if K1 (SA (Inv (A))) = K1 (SA (Inv (B)))
-                    then K2 (SA (Inv (A))) = K2 (SA (Inv (B))))));
-         for A in K1'Range loop
-            for B in K1'Range loop
-               pragma Assert (SA (Inv (A)) = A and then SA (Inv (B)) = B);
-               pragma
-                 Loop_Invariant
-                   (for all C in K1'First .. B =>
-                      (if K1 (A) = K1 (C) then K2 (A) = K2 (C)));
-            end loop;
-            pragma
-              Loop_Invariant
-                (for all D in K1'First .. A =>
-                   (for all C in K1'Range =>
-                      (if K1 (D) = K1 (C) then K2 (D) = K2 (C))));
-         end loop;
-      end if;
-   end Dense_Ranks;
+   end Dense_Runs;
 
    --  One letter decides the first round.
    procedure Initial_Pair (S : String; F : Table; A, B : Positive)
@@ -277,6 +571,7 @@ is
       F       : Table;
       R       : out Keys;
       SA      : out Mapping;
+      V       : out Keys;
       Classes : out Positive)
    with
      Pre  =>
@@ -286,19 +581,25 @@ is
        and then R'First = 1
        and then R'Length = S'Length
        and then SA'First = 1
-       and then SA'Length = S'Length,
+       and then SA'Length = S'Length
+       and then V'First = 1
+       and then V'Length = S'Length,
      Post =>
        Ranked (S, F, R, 1)
        and then Permutation (SA)
-       and then Sorted_By (R, SA)
+       and then (for all P in SA'Range => V (P) = R (SA (P)))
+       and then Runs (V)
        and then Classes <= S'Length
-       and then (if Classes = S'Length then Distinct_Keys (R));
+       and then (if Classes = S'Length then Distinct_Keys (R))
+       and then (if Classes = S'Length
+                 then (for all P in SA'Range => V (P) = P - 1));
 
    procedure Initial
      (S       : String;
       F       : Table;
       R       : out Keys;
       SA      : out Mapping;
+      V       : out Keys;
       Classes : out Positive)
    is
       N     : constant Positive := S'Length;
@@ -307,6 +608,9 @@ is
       Ident : Mapping (1 .. N) := (others => 1);
       Split : Boolean;
    begin
+      R := (others => 0);
+      SA := (others => 1);
+      V := (others => 0);
       for I in 1 .. N loop
          Code (I) := Character'Pos (S (I));
          Ident (I) := I;
@@ -327,7 +631,35 @@ is
              (for all P in 1 .. N =>
                 (for all Q in P .. N => Ordered (Code, Inv (P), Inv (Q))));
       end;
-      Dense_Ranks (SA, Code, Zero, R, Classes, Split);
+      for I in 1 .. N loop
+         V (I) := Code (SA (I));
+         pragma Loop_Invariant (for all J in 1 .. I => V (J) = Code (SA (J)));
+      end loop;
+      pragma
+        Assert
+          (for all P in 1 .. N =>
+             (for all Q in P .. N => Pair_LE (V, Zero, P, Q)));
+      declare
+         Codes : constant Keys (1 .. N) := V
+         with Ghost;
+         Inv   : constant Mapping := Permutations.Inverse (SA)
+         with Ghost;
+      begin
+         Dense_Runs (V, Zero, Classes, Split);
+         Spread (SA, V, R);
+         pragma
+           Assert
+             (for all A in 1 .. N =>
+                R (A) = V (Inv (A)) and then Codes (Inv (A)) = Code (A));
+         pragma
+           Assert
+             (for all A in 1 .. N =>
+                (for all B in 1 .. N =>
+                   (R (A) <= R (B)) = (Code (A) <= Code (B))));
+         if Classes = N then
+            pragma Assert (for all A in 1 .. N => R (A) = Inv (A) - 1);
+         end if;
+      end;
       pragma Unreferenced (Split);
       for A in 1 .. N loop
          for B in 1 .. N loop
@@ -423,13 +755,54 @@ is
       end loop;
    end Doubled;
 
+   --  Moving back without a division: in a single factor, or from a position
+   --  at least D letters into its factor.
+   procedure Back_Single (S : String; F : Table; P : Positive; D : Natural)
+   with
+     Ghost,
+     Pre  =>
+       Supported (S)
+       and then Cycles (S, F)
+       and then P in F'Range
+       and then D <= 4 * Max_Length
+       and then F (P).First = 1
+       and then F (P).Length = S'Length,
+     Post =>
+       Back (S, F, P, D)
+       = (if P > Reduce (D, S'Length)
+          then P - Reduce (D, S'Length)
+          else P - Reduce (D, S'Length) + S'Length);
+
+   procedure Back_Single (S : String; F : Table; P : Positive; D : Natural)
+   is null;
+
+   procedure Back_Inside (S : String; F : Table; P : Positive; D : Natural)
+   with
+     Ghost,
+     Pre  =>
+       Supported (S)
+       and then Cycles (S, F)
+       and then P in F'Range
+       and then D <= 4 * Max_Length
+       and then P - F (P).First >= D,
+     Post => Back (S, F, P, D) = P - D;
+
+   procedure Back_Inside (S : String; F : Table; P : Positive; D : Natural)
+   is null;
+
    --  One round: ranks by the first 2 * H letters, from ranks by H. When no
-   --  class splits, the ranks are final (Closed).
+   --  class splits, the ranks are final (Closed). V holds the ranks in the
+   --  order of SA, where they form runs; the run of a class tells where its
+   --  elements go, so the round needs no counting pass. Each loop does one
+   --  kind of random access, so that the processor can overlap its misses.
    procedure Double
      (S       : String;
       F       : Table;
+      Start   : Mapping;
+      Single  : Boolean;
       R       : in out Keys;
       SA      : in out Mapping;
+      V       : in out Keys;
       H       : Positive;
       Classes : out Positive;
       Split   : out Boolean)
@@ -439,24 +812,40 @@ is
        and then Cycles (S, F)
        and then S'Length > 0
        and then H <= 2 * Max_Length
+       and then Start'First = 1
+       and then Start'Length = S'Length
+       and then (for all P in 1 .. S'Length => Start (P) = F (P).First)
+       and then (if Single
+                 then
+                   (for all P in 1 .. S'Length =>
+                      F (P).First = 1 and then F (P).Length = S'Length))
        and then Ranked (S, F, R, H)
        and then SA'First = 1
        and then SA'Length = S'Length
        and then Permutation (SA)
-       and then Sorted_By (R, SA),
+       and then V'First = 1
+       and then V'Length = S'Length
+       and then (for all P in 1 .. S'Length => V (P) = R (SA (P)))
+       and then Runs (V),
      Post =>
        Ranked (S, F, R, 2 * H)
        and then Permutation (SA)
-       and then Sorted_By (R, SA)
+       and then (for all P in 1 .. S'Length => V (P) = R (SA (P)))
+       and then Runs (V)
        and then Classes <= S'Length
        and then (if Classes = S'Length then Distinct_Keys (R))
+       and then (if Classes = S'Length
+                 then (for all P in 1 .. S'Length => V (P) = P - 1))
        and then (if not Split then Closed (S, F, H));
 
    procedure Double
      (S       : String;
       F       : Table;
+      Start   : Mapping;
+      Single  : Boolean;
       R       : in out Keys;
       SA      : in out Mapping;
+      V       : in out Keys;
       H       : Positive;
       Classes : out Positive;
       Split   : out Boolean)
@@ -464,65 +853,154 @@ is
       N      : constant Positive := S'Length;
       --  The previous order, each position moved H letters back: sorted by
       --  the rank H letters on, which is the second key of a pair.
-      T      : Mapping (1 .. N) := (others => 1);
+      T      : Mapping (1 .. N)
+      with Relaxed_Initialization;
       --  The first key, in the order of T.
-      First  : Keys (1 .. N) := (others => 0);
+      First  : Keys (1 .. N)
+      with Relaxed_Initialization;
       --  The second key, by position.
-      Second : Keys (1 .. N) := (others => 0);
-      New_R  : Keys (1 .. N);
+      Second : Keys (1 .. N)
+      with Relaxed_Initialization;
+      --  The second key, in the new order.
+      Along  : Keys (1 .. N)
+      with Relaxed_Initialization;
+      --  Where each element of T goes.
+      Dest   : Mapping (1 .. N)
+      with Relaxed_Initialization;
+      Old_R  : constant Keys := R
+      with Ghost;
    begin
-      for K in 1 .. N loop
-         T (K) := Back (S, F, SA (K), H);
-         First (K) := R (T (K));
-         Second (K) := R (Jump (S, F, K, H));
-         pragma
-           Loop_Invariant
-             (for all J in 1 .. K =>
-                T (J) = Back (S, F, SA (J), H)
-                and then First (J) = R (T (J))
-                and then Second (J) = R (Jump (S, F, J, H)));
-      end loop;
+      pragma Assert (Ranked (S, F, Old_R, H));
+      if Single then
+         declare
+            D : constant Natural := Reduce (H, N);
+         begin
+            for K in 1 .. N loop
+               Back_Single (S, F, SA (K), H);
+               T (K) := (if SA (K) > D then SA (K) - D else SA (K) - D + N);
+               pragma
+                 Loop_Invariant
+                   (for all J in 1 .. K =>
+                      T (J)'Initialized
+                      and then T (J) = Back (S, F, SA (J), H));
+            end loop;
+         end;
+      else
+         for K in 1 .. N loop
+            if SA (K) - Start (SA (K)) >= H then
+               Back_Inside (S, F, SA (K), H);
+               T (K) := SA (K) - H;
+            else
+               T (K) := Back (S, F, SA (K), H);
+            end if;
+            pragma
+              Loop_Invariant
+                (for all J in 1 .. K =>
+                   T (J)'Initialized and then T (J) = Back (S, F, SA (J), H));
+         end loop;
+      end if;
+      pragma Assert (T'Initialized);
       pragma Assert (for all K in 1 .. N => Jump (S, F, T (K), H) = SA (K));
       pragma
         Assert
           (for all I in 1 .. N =>
              (for all J in 1 .. N => (if I /= J then T (I) /= T (J))));
-      pragma Assert (for all K in 1 .. N => Second (T (K)) = R (SA (K)));
+      Gather (R, T, First);
+      for K in 1 .. N loop
+         Second (K) := R (Jump (S, F, K, H));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. K =>
+                Second (J)'Initialized
+                and then Second (J) = R (Jump (S, F, J, H)));
+      end loop;
+      pragma Assert (Second'Initialized);
+      pragma Assert (for all K in 1 .. N => Second (T (K)) = V (K));
+      Slots (SA, V, T, First, Dest);
+      Scatter (Dest, T, SA);
       declare
-         Map : constant Mapping := Place (First, N);
-         Inv : constant Mapping := Permutations.Inverse (Map)
+         Inv_Dest : constant Mapping := Permutations.Inverse (Dest)
          with Ghost;
       begin
-         --  Equal first keys keep the order of T, and so of second keys.
+         pragma Assert (for all P in 1 .. N => SA (P) = T (Inv_Dest (P)));
+         pragma Assert (for all P in 1 .. N => V (P) = R (SA (P)));
          pragma
-           Assert
-             (for all K in 1 .. N =>
-                (for all L in 1 .. N =>
-                   (if Map (K) <= Map (L)
-                    then Pair_LE (R, Second, T (K), T (L)))));
-         Scatter (Map, T, SA);
-         pragma Assert (for all P in 1 .. N => SA (P) = T (Inv (P)));
+           Assert (for all P in 1 .. N => Second (SA (P)) = V (Inv_Dest (P)));
          pragma
            Assert
              (for all P in 1 .. N =>
-                (for all Q in P .. N => Map (Inv (P)) <= Map (Inv (Q))));
+                (for all Q in P .. N =>
+                   (if V (P) = V (Q) then Inv_Dest (P) <= Inv_Dest (Q))));
+         pragma
+           Assert
+             (for all P in 1 .. N =>
+                (for all Q in P .. N =>
+                   V (P) <= V (Q)
+                   and then (if V (P) = V (Q)
+                             then V (Inv_Dest (P)) <= V (Inv_Dest (Q)))));
          pragma
            Assert
              (for all P in 1 .. N =>
                 (for all Q in P .. N => Pair_LE (R, Second, SA (P), SA (Q))));
       end;
-      Dense_Ranks (SA, R, Second, New_R, Classes, Split);
-      Doubled (S, F, R, Second, New_R, H);
+      Gather (Second, SA, Along);
+      pragma
+        Assert
+          (for all P in 1 .. N =>
+             (for all Q in P .. N => Pair_LE (V, Along, P, Q)));
+      declare
+         Mid : constant Keys := V
+         with Ghost;
+         Inv : constant Mapping := Permutations.Inverse (SA)
+         with Ghost;
+      begin
+         Dense_Runs (V, Along, Classes, Split);
+         Spread (SA, V, R);
+         pragma
+           Assert
+             (for all A in 1 .. N =>
+                R (A) = V (Inv (A))
+                and then Mid (Inv (A)) = Old_R (A)
+                and then Along (Inv (A)) = Second (A));
+         pragma
+           Assert
+             (for all A in 1 .. N =>
+                (for all B in 1 .. N =>
+                   (R (A) <= R (B)) = Pair_LE (Mid, Along, Inv (A), Inv (B))));
+         pragma
+           Assert
+             (for all A in 1 .. N =>
+                (for all B in 1 .. N =>
+                   Pair_LE (Mid, Along, Inv (A), Inv (B))
+                   = Pair_LE (Old_R, Second, A, B)));
+         pragma
+           Assert
+             (for all A in 1 .. N =>
+                (for all B in 1 .. N =>
+                   (R (A) <= R (B)) = Pair_LE (Old_R, Second, A, B)));
+         if Classes = N then
+            pragma Assert (for all A in 1 .. N => R (A) = Inv (A) - 1);
+         end if;
+         if not Split then
+            pragma
+              Assert
+                (for all A in 1 .. N =>
+                   (for all B in 1 .. N =>
+                      (if Old_R (A) = Old_R (B)
+                       then Second (A) = Second (B))));
+         end if;
+      end;
+      Doubled (S, F, Old_R, Second, R, H);
       if not Split then
          pragma
            Assert
              (for all A in 1 .. N =>
                 (for all B in 1 .. N =>
-                   (if R (A) = R (B)
-                    then R (Jump (S, F, A, H)) = R (Jump (S, F, B, H)))));
-         pragma Assert (Closed (S, F, H));
+                   (if Old_R (A) = Old_R (B)
+                    then
+                      Old_R (Jump (S, F, A, H)) = Old_R (Jump (S, F, B, H)))));
+         Closed_Intro (S, F, Old_R, H);
       end if;
-      R := New_R;
    end Double;
 
    --  Under Closed, rows that agree on H letters agree on any number.
@@ -694,6 +1172,83 @@ is
       end;
    end Lay_Out;
 
+   --  When no two ranks are equal, SA lists the rows in order, whatever the
+   --  tie order: the table is read off it.
+   procedure Read_Off
+     (S    : String;
+      F    : Table;
+      R    : Keys;
+      SA   : Mapping;
+      Ties : Tie_Order;
+      Rows : out Table)
+   with
+     Relaxed_Initialization => Rows,
+     Pre                    =>
+       Supported (S)
+       and then Cycles (S, F)
+       and then S'Length > 0
+       and then Ranked (S, F, R, 2 * S'Length)
+       and then SA'First = 1
+       and then SA'Length = S'Length
+       and then Permutation (SA)
+       and then (for all P in SA'Range => R (SA (P)) = P - 1)
+       and then Rows'First = 1
+       and then Rows'Length = S'Length,
+     Post                   =>
+       Rows'Initialized
+       and then Well_Formed (S, Rows)
+       and then Distinct (Rows)
+       and then Same_Rows (Rows, F)
+       and then Sorted (S, Rows, Ties);
+
+   procedure Read_Off
+     (S    : String;
+      F    : Table;
+      R    : Keys;
+      SA   : Mapping;
+      Ties : Tie_Order;
+      Rows : out Table)
+   is
+      N   : constant Positive := S'Length;
+      Inv : constant Mapping := Permutations.Inverse (SA)
+      with Ghost;
+   begin
+      for I in 1 .. N loop
+         Rows (I) := F (SA (I));
+         pragma
+           Loop_Invariant
+             (for all J in 1 .. I =>
+                Rows (J)'Initialized and then Rows (J) = F (SA (J)));
+      end loop;
+      pragma Assert (Rows'Initialized);
+      pragma Assert (for all P in 1 .. N => F (P) = Rows (Inv (P)));
+      pragma Assert (Same_Rows (Rows, F));
+      pragma
+        Assert
+          (for all I in 1 .. N => Rows (I).First + Rows (I).Offset = SA (I));
+      pragma Assert (Distinct (Rows));
+      for I in 1 .. N loop
+         for J in I .. N loop
+            if I = J then
+               Order_Laws (S, Rows (I), Rows (J), Rows (I), 2 * N);
+            end if;
+            pragma Assert (R (SA (I)) <= R (SA (J)));
+            pragma
+              Assert
+                (if I /= J
+                   then not Equal_Prefix (S, Rows (I), Rows (J), 2 * N));
+            Key_Intro (S, Rows (I), Rows (J), Ties);
+            pragma
+              Loop_Invariant
+                (for all L in I .. J => Key_LE (S, Rows (I), Rows (L), Ties));
+         end loop;
+         pragma
+           Loop_Invariant
+             (for all K in 1 .. I =>
+                (for all L in K .. N => Key_LE (S, Rows (K), Rows (L), Ties)));
+      end loop;
+   end Read_Off;
+
    function Sorted_Rows
      (S : String; Factors : Table; Ties : Tie_Order) return Table
    is
@@ -706,6 +1261,12 @@ is
       declare
          R       : Keys (1 .. N);
          SA      : Mapping (1 .. N);
+         V       : Keys (1 .. N);
+         --  Where the factor of each position starts.
+         Start   : Mapping (1 .. N) := (others => 1);
+         --  One factor, as in the classical table: positions move back
+         --  without reading the factor table.
+         Single  : constant Boolean := Factors (1).Length = N;
          Classes : Positive;
          H       : Positive := 1;
          Longest : Positive := 1;
@@ -717,21 +1278,34 @@ is
       begin
          for P in 1 .. N loop
             Longest := Positive'Max (Longest, Factors (P).Length);
+            Start (P) := Factors (P).First;
             pragma Loop_Invariant (Longest <= N);
             pragma
               Loop_Invariant
-                (for all Q in 1 .. P => Factors (Q).Length <= Longest);
+                (for all Q in 1 .. P =>
+                   Factors (Q).Length <= Longest
+                   and then Start (Q) = Factors (Q).First);
          end loop;
-         Initial (S, Factors, R, SA, Classes);
+         pragma
+           Assert
+             (if Single
+                then
+                  (for all P in 1 .. N =>
+                     Factors (P).First = 1 and then Factors (P).Length = N));
+         Initial (S, Factors, R, SA, V, Classes);
          while H < 2 * Longest and then Classes < N and then Split loop
             pragma Loop_Invariant (H < 2 * Longest);
             pragma Loop_Invariant (Last_H <= H);
             pragma Loop_Invariant (Ranked (S, Factors, R, H));
             pragma Loop_Invariant (Permutation (SA));
-            pragma Loop_Invariant (Sorted_By (R, SA));
+            pragma Loop_Invariant (for all P in 1 .. N => V (P) = R (SA (P)));
+            pragma Loop_Invariant (Runs (V));
             pragma Loop_Invariant (Classes <= N);
+            pragma
+              Loop_Invariant
+                (if Classes = N then (for all P in 1 .. N => V (P) = P - 1));
             pragma Loop_Variant (Increases => H);
-            Double (S, Factors, R, SA, H, Classes, Split);
+            Double (S, Factors, Start, Single, R, SA, V, H, Classes, Split);
             Last_H := H;
             H := 2 * H;
          end loop;
@@ -742,7 +1316,11 @@ is
                 or else Distinct_Keys (R)
                 or else Closed (S, Factors, Last_H));
          Settle (S, Factors, R, Last_H, H, Longest);
-         Lay_Out (S, Factors, R, Ties, Rows);
+         if Classes = N then
+            Read_Off (S, Factors, R, SA, Ties, Rows);
+         else
+            Lay_Out (S, Factors, R, Ties, Rows);
+         end if;
       end;
       return Rows;
    end Sorted_Rows;

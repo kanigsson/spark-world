@@ -35,10 +35,16 @@ Before changing code, know:
   `*_Rows_Unique` lemmas, not match the selection sort.
 - Ghost lemmas of the form `Get_*` extract one instance of an opaque
   predicate. They exist for proof speed, not logic.
+- Doubling ranks are class heads, not dense: a rank is where its class's
+  run starts in SA, minus one. `Slots` places elements by those runs, so a
+  change that renumbers ranks breaks the round. Keep each random-access
+  pass in its own loop; fusing them was several times slower.
+- The classical decoder packs an LF link and a letter into 32 bits, which
+  holds only while `Max_Length` is 2**24.
 
-Validation (2026-09-25, `Max_Length` = 2**24): `make prove` proves all 8,388
+Validation (2026-09-25, `Max_Length` = 2**24): `make prove` proves all 8,991
 checks under the pinned GNATprove FSF 16.1.0 (Why3 1.8.2+git, CVC5 1.3.2,
-Z3 4.15.4, Alt-Ergo 2.6.1); a forced run (`-f`) took 8½ min at `-j16` before the search units; not re-measured since.
+Z3 4.15.4, Alt-Ergo 2.6.1); a forced run (`-f`) took 8½ min at `-j16` before the search units; not re-measured since. `Doubling` alone proves from scratch in 4½ min at `-j16` under load.
 Three checks need Alt-Ergo (see the Makefile). `BWT.Circular` (2026-09-25) proves from scratch at `--timeout=2`.
 The development GNATprove 0.0w
 was last checked at a bound of 1,024.
